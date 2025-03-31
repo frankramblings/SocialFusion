@@ -1,0 +1,46 @@
+{
+    "folders": [
+        {
+            "name": "SocialFusion/SocialFusion.xcodeproj",
+            "path": "../.."
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "temp_module.swift": true,
+            "temp": true,
+            "project.yml": true,
+            "package.swift": true,
+            "Sources": true,
+            "SocialFusion.xcodeproj.backup": true,
+            "SocialFusion": true,
+            "README.md": true,
+            ".build": true,
+            ".vscode/xcode/fifo": true,
+            ".vscode/xcode/bundles": true
+        },
+        "search.exclude": {
+            "temp_module.swift": true,
+            "temp": true,
+            "project.yml": true,
+            "package.swift": true,
+            "Sources": true,
+            "SocialFusion.xcodeproj.backup": true,
+            "SocialFusion": true,
+            "README.md": true,
+            ".build": true,
+            ".vscode/xcode/fifo": true,
+            ".vscode/xcode/bundles": true
+        },
+        "swift.autoGenerateLaunchConfigurations": false,
+        "swift.disableAutoResolve": true,
+        "swift.sourcekit-lsp.disable": true,
+        "swift.disableSwiftPackageManagerIntegration": true,
+        "swift.searchSubfoldersForPackages": false
+    },
+    "extensions": {
+        "unwantedRecommendations": [
+            "sswg.swift-lang"
+        ]
+    }
+}
