@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "sweetpad-lldb",
+            "request": "launch",
+            "name": "Attach to running app (SweetPad)",
+            "preLaunchTask": "sweetpad: launch"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SocialFusion}",
+            "name": "Debug SocialFusion",
+            "program": "${workspaceFolder:SocialFusion}/.build/debug/SocialFusion",
+            "preLaunchTask": "swift: Build Debug SocialFusion"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SocialFusion}",
+            "name": "Release SocialFusion",
+            "program": "${workspaceFolder:SocialFusion}/.build/release/SocialFusion",
+            "preLaunchTask": "swift: Build Release SocialFusion"
+        }
+    ]
+}

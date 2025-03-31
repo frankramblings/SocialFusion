@@ -1,0 +1,178 @@
+{
+  "" : {
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusion-master.dia",
+    "emit-module-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusion-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusion-master-emit-module.dia",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusion-master.swiftdeps"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ContentView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ContentView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyModels.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyModels~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/MastodonModels.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonModels~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/Post~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialAccount.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialAccount~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyService.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/BlueskyService~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/MastodonService~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/SocialServiceManager.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialServiceManager~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/SocialFusionApp.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SocialFusionApp~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/KeychainHelper.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/KeychainHelper~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountsView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AccountsView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AddAccountView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/AddAccountView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ComposeView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/ComposeView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/PostCardView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/PostCardView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/SettingsView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/SettingsView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UnifiedTimelineView.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/UnifiedTimelineView~partial.swiftmodule"
+  },
+  "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/DerivedSources/GeneratedAssetSymbols.swift" : {
+    "const-values" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftconstvalues",
+    "dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.d",
+    "diagnostics" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.dia",
+    "index-unit-output-path" : "/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "llvm-bc" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.bc",
+    "object" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.o",
+    "swift-dependencies" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols.swiftdeps",
+    "swiftmodule" : "/Users/frankemanuele/Documents/GitHub/SocialFusion/build/SocialFusion.build/Debug-iphoneos/SocialFusion.build/Objects-normal/arm64/GeneratedAssetSymbols~partial.swiftmodule"
+  }
+}

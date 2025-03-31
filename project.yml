@@ -1,0 +1,38 @@
+name: SocialFusion
+options:
+  bundleIdPrefix: com.socialfusion
+  deploymentTarget:
+    iOS: 16.0
+  xcodeVersion: "14.0"
+  generateEmptyDirectories: true
+  createIntermediateGroups: true
+
+targets:
+  SocialFusion:
+    type: application
+    platform: iOS
+    sources:
+      - SocialFusion
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.emanueledigital.socialfusion
+        DEVELOPMENT_TEAM: "APN37S2B8F" # You'll need to set this
+        INFOPLIST_FILE: SocialFusion/Info.plist
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+    info:
+      path: SocialFusion/Info.plist
+      properties:
+        LSRequiresIPhoneOS: true
+        UILaunchStoryboardName: LaunchScreen
+        UIMainStoryboardFile: Main
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        CFBundleShortVersionString: "1.0.0"
+        CFBundleVersion: "1"
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate 
