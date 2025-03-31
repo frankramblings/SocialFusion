@@ -410,34 +410,190 @@ class MastodonService {
         return account
     }
 
+    /// Verify access token and get account information
+    func verifyAndCreateAccount(account: SocialAccount) async throws -> SocialAccount {
+        guard let accessToken = account.getAccessToken(), !accessToken.isEmpty else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No valid access token provided"])
+        }
+
+        // Ensure server URL has proper scheme
+        let serverUrlString =
+            account.serverURL.asString().contains("://")
+            ? account.serverURL.asString()
+            : "https://" + account.serverURL.asString()
+
+        guard let serverUrl = URL(string: serverUrlString) else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "Invalid server URL: \(account.serverURL.asString())"
+                ])
+        }
+
+        let verifyUrl = serverUrl.appendingPathComponent("api/v1/accounts/verify_credentials")
+
+        var request = URLRequest(url: verifyUrl)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        do {
+            print("Verifying Mastodon credentials at: \(verifyUrl)")
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NSError(
+                    domain: "MastodonService",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+            }
+
+            guard httpResponse.statusCode == 200 else {
+                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print(
+                    "Mastodon verification failed: \(errorText), Status code: \(httpResponse.statusCode)"
+                )
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: "Verification failed: \(errorText)"])
+            }
+
+            let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
+            print("Successfully verified Mastodon account: \(mastodonAccount.username)")
+
+            // Create and return a new SocialAccount with the verified information
+            let verifiedAccount = SocialAccount(
+                id: account.id,
+                username: mastodonAccount.username,
+                displayName: mastodonAccount.displayName ?? mastodonAccount.username,
+                serverURL: serverUrl,
+                platform: .mastodon
+            )
+
+            // Make sure to explicitly set the access token on the verified account
+            verifiedAccount.saveAccessToken(accessToken)
+
+            // Copy other token-related fields if available
+            if let refreshToken = account.getRefreshToken() {
+                verifiedAccount.saveRefreshToken(refreshToken)
+            }
+
+            if let clientId = account.getClientId(), let clientSecret = account.getClientSecret() {
+                // Store client credentials if we have methods to save them
+                // Note: These methods might need to be added to SocialAccount
+                print("Client credentials available: \(clientId), Secret: (redacted)")
+            }
+
+            print("Created verified Mastodon account with proper access token")
+            return verifiedAccount
+        } catch {
+            print("Error verifying Mastodon credentials: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
     // MARK: - Timeline
 
     /// Fetches the home timeline for a Mastodon account
     func fetchHomeTimeline(for account: SocialAccount) async throws -> [Post] {
-        let serverUrl = account.serverURL?.absoluteString ?? ""
+        // Check if we have a valid access token
+        guard let accessToken = account.getAccessToken(), !accessToken.isEmpty else {
+            print("No valid token available for Mastodon account: \(account.username)")
+            throw NSError(
+                domain: "MastodonService",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No valid token available"])
+        }
 
+        // Ensure server URL has proper scheme
+        let serverUrl =
+            account.serverURL.asString().contains("://")
+            ? account.serverURL.asString()
+            : "https://" + account.serverURL.asString()
+
+        // Construct the URL for the home timeline endpoint
         guard let url = URL(string: "\(serverUrl)/api/v1/timelines/home?limit=40") else {
+            print("Invalid server URL for Mastodon timeline: \(serverUrl)")
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
 
-        let request = try await createAuthenticatedRequest(
-            url: url, method: "GET", account: account)
-        let (data, response) = try await session.data(for: request)
+        // Check if token needs refresh
+        if account.isTokenExpired,
+            let refreshToken = account.getRefreshToken(),
+            let clientId = account.getClientId(),
+            let clientSecret = account.getClientSecret()
+        {
+            do {
+                let newToken = try await self.refreshToken(
+                    server: account.serverURL,
+                    clientId: clientId,
+                    clientSecret: clientSecret,
+                    refreshToken: refreshToken)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                throw errorResponse
+                account.saveAccessToken(newToken.accessToken)
+                account.saveRefreshToken(newToken.refreshToken ?? "")
+                account.saveTokenExpirationDate(newToken.expirationDate)
+                print("Successfully refreshed token for \(account.username)")
+            } catch {
+                print("Failed to refresh token: \(error.localizedDescription)")
+                // Continue with the existing token
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to fetch timeline"])
         }
 
-        let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
-        return convertToGenericPosts(statuses: statuses)
+        print("Fetching Mastodon timeline from: \(url.absoluteString)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NSError(
+                    domain: "MastodonService",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+            }
+
+            if httpResponse.statusCode != 200 {
+                let errorText = String(data: data, encoding: .utf8) ?? "Unknown error"
+                print("Mastodon API error: \(errorText), Status code: \(httpResponse.statusCode)")
+
+                if httpResponse.statusCode == 401 {
+                    throw NSError(
+                        domain: "MastodonService",
+                        code: 401,
+                        userInfo: [
+                            NSLocalizedDescriptionKey:
+                                "Authentication failed: Invalid or expired token"
+                        ])
+                }
+
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch timeline: \(errorText)"])
+            }
+
+            // Parse the timeline data
+            let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
+
+            // Convert to our app's Post model
+            let posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+            print("Successfully fetched \(posts.count) Mastodon posts for \(account.username)")
+            return posts
+        } catch {
+            print("Error fetching Mastodon timeline: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// Fetch the public timeline from the Mastodon API
@@ -663,7 +819,12 @@ class MastodonService {
     /// Like a post
     func likePost(_ post: Post, account: SocialAccount) async throws -> Post {
         let serverUrl = formatServerURL(account.serverURL.asString())
-        let statusId = post.platformSpecificId.components(separatedBy: "/").last ?? post.id
+
+        // Extract status ID from the post's originalURL if available
+        var statusId = post.id
+        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
+            statusId = lastPathComponent
+        }
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/favourite") else {
             throw NSError(
@@ -692,7 +853,12 @@ class MastodonService {
     /// Repost (reblog) a post on Mastodon
     func repostPost(_ post: Post, account: SocialAccount) async throws -> Post {
         let serverUrl = formatServerURL(account.serverURL.asString())
-        let statusId = post.platformSpecificId.components(separatedBy: "/").last ?? post.id
+
+        // Extract status ID from the post's originalURL if available
+        var statusId = post.id
+        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
+            statusId = lastPathComponent
+        }
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/reblog") else {
             throw NSError(
@@ -721,7 +887,12 @@ class MastodonService {
     /// Reply to a post on Mastodon
     func replyToPost(_ post: Post, content: String, account: SocialAccount) async throws -> Post {
         let serverUrl = formatServerURL(account.serverURL.asString())
-        let statusId = post.platformSpecificId.components(separatedBy: "/").last ?? post.id
+
+        // Extract status ID from the post's originalURL if available
+        var statusId = post.id
+        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
+            statusId = lastPathComponent
+        }
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses") else {
             throw NSError(
@@ -764,50 +935,43 @@ class MastodonService {
     private func convertMastodonStatusToPost(
         _ status: MastodonStatus, account: SocialAccount? = nil
     ) -> Post {
-        // Handle reblogs (reposts)
-        let originalStatus = status.reblog ?? status
-
-        // Create author
-        let author = Author(
-            id: originalStatus.account.id,
-            username: originalStatus.account.username,
-            displayName: originalStatus.account.displayName,
-            profileImageURL: URL(string: originalStatus.account.avatar),
-            platform: .mastodon,
-            platformSpecificId: originalStatus.account.id
-        )
-
-        // Handle media attachments
-        let mediaAttachments = originalStatus.mediaAttachments.compactMap {
-            attachment -> MediaAttachment? in
-            guard let url = URL(string: attachment.url) else { return nil }
-            return MediaAttachment(
-                id: attachment.id,
-                url: url,
-                previewURL: URL(string: attachment.previewUrl),
-                altText: attachment.description,
-                type: mapMediaType(attachment.type)
+        let attachments = status.mediaAttachments.compactMap { media -> Post.Attachment? in
+            return Post.Attachment(
+                url: media.url,
+                type: media.type == "image" ? .image : .video,
+                altText: media.description ?? ""
             )
         }
 
-        // Create the post
-        let post = Post(
-            id: originalStatus.id,
-            platform: .mastodon,
-            author: author,
-            content: originalStatus.content,
-            mediaAttachments: mediaAttachments,
-            createdAt: formatDate(originalStatus.createdAt),
-            likeCount: originalStatus.favouritesCount,
-            repostCount: originalStatus.reblogsCount,
-            replyCount: originalStatus.repliesCount,
-            isLiked: originalStatus.favourited ?? false,
-            isReposted: originalStatus.reblogged ?? false,
-            inReplyToID: originalStatus.inReplyToId,
-            platformSpecificId: originalStatus.id
-        )
+        let mentions = status.mentions.compactMap { mention -> Post.Mention? in
+            return Post.Mention(
+                username: mention.username,
+                displayName: mention.username,
+                url: mention.url
+            )
+        }
 
-        return post
+        let tags = status.tags.compactMap { tag -> String in
+            return tag.name
+        }
+
+        let authorName = status.account.displayName
+        let authorUsername = status.account.username
+        let authorProfilePictureURL = status.account.avatar
+
+        return Post(
+            id: status.id,
+            content: status.content,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            authorProfilePictureURL: authorProfilePictureURL,
+            createdAt: ISO8601DateFormatter().date(from: status.createdAt) ?? Date(),
+            platform: .mastodon,
+            originalURL: status.url ?? "",
+            attachments: attachments,
+            mentions: mentions,
+            tags: tags
+        )
     }
 
     /// Maps Mastodon media types to our app's MediaType
@@ -842,7 +1006,7 @@ class MastodonService {
 
     /// Create a new post on Mastodon
     func createPost(
-        content: String, mediaAttachments: [Data] = [], visibility: PostVisibilityType = .public_,
+        content: String, mediaAttachments: [Data] = [], visibility: String = "public",
         account: SocialAccount
     ) async throws -> Post {
         let serverUrl = formatServerURL(account.serverURL.asString())
@@ -864,22 +1028,9 @@ class MastodonService {
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
 
-        // Convert app-wide visibility to Mastodon-specific visibility
-        let mastodonVisibility: MastodonVisibility
-        switch visibility {
-        case .public_:
-            mastodonVisibility = .public
-        case .unlisted:
-            mastodonVisibility = .unlisted
-        case .private_:
-            mastodonVisibility = .private
-        case .direct:
-            mastodonVisibility = .direct
-        }
-
         var parameters: [String: Any] = [
             "status": content,
-            "visibility": mastodonVisibility.rawValue,
+            "visibility": visibility,
         ]
 
         if !mediaIds.isEmpty {

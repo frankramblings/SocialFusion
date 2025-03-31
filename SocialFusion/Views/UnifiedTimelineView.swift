@@ -28,6 +28,10 @@ struct UnifiedTimelineView: View {
                             Task {
                                 await serviceManager.fetchTrendingPosts()
                             }
+                        } else {
+                            Task {
+                                await serviceManager.refreshTimeline()
+                            }
                         }
                     }
             } else {
@@ -58,8 +62,10 @@ struct UnifiedTimelineView: View {
                     }
                     .refreshable {
                         if hasAccounts {
+                            print("User triggered refresh - has accounts")
                             await serviceManager.refreshTimeline()
                         } else {
+                            print("User triggered refresh - logged out")
                             await serviceManager.fetchTrendingPosts()
                         }
                     }
@@ -68,10 +74,31 @@ struct UnifiedTimelineView: View {
         }
         .onAppear {
             Task {
+                print("Timeline view appeared - hasAccounts: \(hasAccounts)")
                 if hasAccounts {
                     await serviceManager.refreshTimeline()
                 } else {
                     await serviceManager.fetchTrendingPosts()
+                }
+            }
+        }
+        .onChange(of: hasAccounts) { newValue in
+            // When accounts status changes, refresh the appropriate content
+            Task {
+                print("Account status changed to hasAccounts: \(newValue)")
+                if newValue {
+                    await serviceManager.refreshTimeline()
+                } else {
+                    await serviceManager.fetchTrendingPosts()
+                }
+            }
+        }
+        .onChange(of: serviceManager.selectedAccountIds) { _ in
+            // When selected accounts change, refresh the timeline
+            Task {
+                print("Selected accounts changed, refreshing timeline")
+                if hasAccounts {
+                    await serviceManager.refreshTimeline()
                 }
             }
         }
