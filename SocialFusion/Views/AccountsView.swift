@@ -3,16 +3,60 @@ import UIKit
 
 struct AccountsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
-    @State private var mastodonAccounts: [SocialAccount] = []
-    @State private var blueskyAccounts: [SocialAccount] = []
+    @State private var selectedAccountIds: Set<String> = ["all"]  // Default to "all" selected
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
+    @State private var showDebugInfo = false
 
     var body: some View {
         NavigationView {
             List {
+                // "All" selection option
+                Section {
+                    Button(action: {
+                        toggleSelection(id: "all")
+                    }) {
+                        HStack {
+                            ZStack {
+                                Circle()
+                                    .fill(Color.purple.opacity(0.2))
+                                    .frame(width: 32, height: 32)
+
+                                Text("All")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundColor(.purple)
+                            }
+
+                            Text("All Accounts")
+                                .font(.headline)
+
+                            Spacer()
+
+                            if selectedAccountIds.contains("all") {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+
+                // Debug info (hidden by default)
+                if showDebugInfo {
+                    Section(header: Text("Debug Info")) {
+                        Text("Mastodon Accounts: \(serviceManager.mastodonAccounts.count)")
+                        Text("Bluesky Accounts: \(serviceManager.blueskyAccounts.count)")
+                        Text("Selected IDs: \(selectedAccountIds.joined(separator: ", "))")
+
+                        Button("Toggle Debug") {
+                            showDebugInfo.toggle()
+                        }
+                    }
+                }
+
+                // Mastodon accounts section
                 Section(header: Text("Mastodon")) {
-                    if mastodonAccounts.isEmpty {
+                    if serviceManager.mastodonAccounts.isEmpty {
                         Button(action: {
                             selectedPlatform = .mastodon
                             showingAddAccount = true
@@ -20,12 +64,13 @@ struct AccountsView: View {
                             Label("Add Mastodon Account", systemImage: "plus.circle")
                         }
                     } else {
-                        ForEach(mastodonAccounts) { account in
-                            AccountRow(account: account)
+                        ForEach(serviceManager.mastodonAccounts) { account in
+                            accountSelectionRow(account)
                         }
                         .onDelete { indexSet in
                             deleteAccounts(
-                                at: indexSet, from: &mastodonAccounts, platform: .mastodon)
+                                at: indexSet, from: serviceManager.mastodonAccounts,
+                                platform: .mastodon)
                         }
 
                         Button(action: {
@@ -37,8 +82,9 @@ struct AccountsView: View {
                     }
                 }
 
+                // Bluesky accounts section
                 Section(header: Text("Bluesky")) {
-                    if blueskyAccounts.isEmpty {
+                    if serviceManager.blueskyAccounts.isEmpty {
                         Button(action: {
                             selectedPlatform = .bluesky
                             showingAddAccount = true
@@ -46,11 +92,13 @@ struct AccountsView: View {
                             Label("Add Bluesky Account", systemImage: "plus.circle")
                         }
                     } else {
-                        ForEach(blueskyAccounts) { account in
-                            AccountRow(account: account)
+                        ForEach(serviceManager.blueskyAccounts) { account in
+                            accountSelectionRow(account)
                         }
                         .onDelete { indexSet in
-                            deleteAccounts(at: indexSet, from: &blueskyAccounts, platform: .bluesky)
+                            deleteAccounts(
+                                at: indexSet, from: serviceManager.blueskyAccounts,
+                                platform: .bluesky)
                         }
 
                         Button(action: {
@@ -61,42 +109,153 @@ struct AccountsView: View {
                         }
                     }
                 }
+
+                Section(header: Text("Settings")) {
+                    NavigationLink(destination: SettingsView()) {
+                        HStack {
+                            Image(systemName: "gear")
+                                .frame(width: 32, height: 32)
+                            Text("Settings")
+                        }
+                    }
+
+                    // Hidden debug toggle
+                    Button(action: {
+                        showDebugInfo.toggle()
+                    }) {
+                        HStack {
+                            Image(systemName: "ladybug")
+                                .frame(width: 32, height: 32)
+                            Text("Debug Info")
+                        }
+                    }
+                }
             }
             .navigationTitle("Accounts")
             .sheet(isPresented: $showingAddAccount) {
-                LegacyAddAccountView(
-                    platform: selectedPlatform,
-                    onAccountAdded: { account in
-                        if account.platform == .mastodon {
-                            // Update the local arrays after adding to serviceManager
-                            mastodonAccounts.append(account)
-                        } else {
-                            // Update the local arrays after adding to serviceManager
-                            blueskyAccounts.append(account)
-                        }
-                    })
+                AddAccountView()
+                    .environmentObject(serviceManager)
             }
             .onAppear {
-                // Load saved accounts
-                loadAccounts()
+                // Auto-refresh account lists when view appears
+                refreshAccountSelections()
+                print(
+                    "AccountsView appeared. Mastodon accounts: \(serviceManager.mastodonAccounts.count), Bluesky accounts: \(serviceManager.blueskyAccounts.count)"
+                )
             }
         }
     }
 
-    private func loadAccounts() {
-        // Load accounts from the service manager
-        mastodonAccounts = serviceManager.mastodonAccounts
-        blueskyAccounts = serviceManager.blueskyAccounts
+    // Account row with selection toggle
+    private func accountSelectionRow(_ account: SocialAccount) -> some View {
+        Button(action: {
+            toggleSelection(id: account.id)
+        }) {
+            HStack {
+                if account.platform.usesSFSymbol {
+                    Image(systemName: account.platform.sfSymbol)
+                        .foregroundColor(Color(account.platform.color))
+                        .font(.system(size: 24))
+                        .frame(width: 32, height: 32)
+                } else {
+                    Image(account.platform.icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundColor(Color(account.platform.color))
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                        .padding(2)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.displayName ?? account.username)
+                        .font(.headline)
+
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if selectedAccountIds.contains(account.id) {
+                    Image(systemName: "checkmark")
+                        .foregroundColor(.blue)
+                }
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    // Toggle selection for an account
+    private func toggleSelection(id: String) {
+        if id == "all" {
+            // If "all" is selected, clear other selections
+            if selectedAccountIds.contains("all") {
+                selectedAccountIds.remove("all")
+            } else {
+                selectedAccountIds = ["all"]
+            }
+        } else {
+            // If a specific account is selected, remove "all"
+            if selectedAccountIds.contains(id) {
+                selectedAccountIds.remove(id)
+            } else {
+                selectedAccountIds.insert(id)
+                selectedAccountIds.remove("all")
+            }
+
+            // If no accounts are selected, select "all"
+            if selectedAccountIds.isEmpty {
+                selectedAccountIds.insert("all")
+            }
+        }
+
+        // Sync with service manager
+        serviceManager.selectedAccountIds = selectedAccountIds
+
+        print("Account selection changed to: \(selectedAccountIds)")
+
+        // Refresh timeline based on selection
+        Task {
+            await serviceManager.refreshTimeline()
+        }
+    }
+
+    // Initialize or refresh account selections
+    private func refreshAccountSelections() {
+        // If we're opening the view, sync with service manager first
+        selectedAccountIds = serviceManager.selectedAccountIds
+
+        // If we have accounts but nothing is selected, select "all"
+        if (!serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty)
+            && selectedAccountIds.isEmpty
+        {
+            selectedAccountIds = ["all"]
+            serviceManager.selectedAccountIds = selectedAccountIds
+        }
     }
 
     private func deleteAccounts(
-        at offsets: IndexSet, from accounts: inout [SocialAccount], platform: SocialPlatform
+        at offsets: IndexSet, from accounts: [SocialAccount], platform: SocialPlatform
     ) {
         for index in offsets {
             let accountToRemove = accounts[index]
             serviceManager.removeAccount(accountToRemove)
+            selectedAccountIds.remove(accountToRemove.id)
         }
-        accounts.remove(atOffsets: offsets)
+
+        // If no accounts remain, select "all"
+        if serviceManager.mastodonAccounts.isEmpty && serviceManager.blueskyAccounts.isEmpty {
+            selectedAccountIds = ["all"]
+        } else if selectedAccountIds.isEmpty {
+            selectedAccountIds.insert("all")
+        }
+
+        // Refresh timeline after account removal
+        Task {
+            await serviceManager.refreshTimeline()
+        }
     }
 }
 

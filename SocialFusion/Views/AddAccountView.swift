@@ -10,8 +10,17 @@ struct AddAccountView: View {
     @State private var server = ""
     @State private var username = ""
     @State private var password = ""
+    @State private var accessToken = ""
     @State private var isLoading = false
     @State private var errorMessage = ""
+    @State private var authMethod: AuthMethod = .oauth
+
+    enum AuthMethod: String, CaseIterable, Identifiable {
+        case oauth = "OAuth"
+        case manual = "Access Token"
+
+        var id: String { self.rawValue }
+    }
 
     var body: some View {
         NavigationView {
@@ -37,9 +46,21 @@ struct AddAccountView: View {
                         // Set default server for Bluesky or clear for Mastodon
                         if selectedPlatform == .bluesky {
                             server = "bsky.social"
+                            authMethod = .oauth  // Bluesky only uses username/password
                         } else {
                             server = ""
                         }
+                    }
+                }
+
+                if selectedPlatform == .mastodon {
+                    Section(header: Text("Authentication Method")) {
+                        Picker("Auth Method", selection: $authMethod) {
+                            ForEach(AuthMethod.allCases) { method in
+                                Text(method.rawValue).tag(method)
+                            }
+                        }
+                        .pickerStyle(SegmentedPickerStyle())
                     }
                 }
 
@@ -55,6 +76,19 @@ struct AddAccountView: View {
                             .keyboardType(.URL)
                             .autocorrectionDisabled(true)
                             .textInputAutocapitalization(.never)
+
+                        if authMethod == .manual {
+                            Text("Paste your access token from your Mastodon app settings")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .padding(.top, 8)
+
+                            SecureField("Access Token", text: $accessToken)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                                .autocorrectionDisabled(true)
+                                .textInputAutocapitalization(.never)
+                        }
                     } else {
                         Text("Enter your Bluesky credentials")
                             .font(.caption)
@@ -115,7 +149,9 @@ struct AddAccountView: View {
                                 .padding(.vertical, 4)
                             }
                         }
-                        .disabled(isLoading || server.isEmpty)
+                        .disabled(
+                            isLoading || server.isEmpty
+                                || (authMethod == .manual && accessToken.isEmpty))
                     } else {
                         Button(action: addAccount) {
                             if isLoading {
@@ -183,41 +219,74 @@ struct AddAccountView: View {
             return
         }
 
-        Task {
-            do {
-                // Use the OAuth method from the service manager
-                let account = try await serviceManager.addMastodonAccountWithOAuth(
-                    server: trimmedServer)
+        // Check if we're using OAuth or manual token
+        if authMethod == .manual {
+            // Validate access token
+            let trimmedToken = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedToken.isEmpty else {
+                errorMessage = "Please enter an access token"
+                isLoading = false
+                return
+            }
 
-                // Update the UI on the main thread
-                await MainActor.run {
-                    isLoading = false
-                    presentationMode.wrappedValue.dismiss()
-                }
-            } catch {
-                // Handle errors and update the UI on the main thread
-                await MainActor.run {
-                    isLoading = false
-                    if let serviceError = error as? SocialServiceManager.ServiceError {
-                        switch serviceError {
-                        case .invalidInput(let reason):
-                            errorMessage = reason
-                        case .duplicateAccount:
-                            errorMessage = "This account has already been added."
-                        case .invalidAccount(let reason):
-                            errorMessage = reason
-                        case .authenticationError(let underlying):
-                            errorMessage =
-                                "Authentication failed: \(underlying.localizedDescription)"
-                        default:
-                            errorMessage =
-                                "Failed to add account: \(serviceError.localizedDescription)"
-                        }
-                    } else {
-                        errorMessage = "Failed to add account: \(error.localizedDescription)"
+            // Use the manual token method
+            Task {
+                do {
+                    let account = try await serviceManager.addMastodonAccountWithToken(
+                        serverURL: trimmedServer,
+                        accessToken: trimmedToken
+                    )
+
+                    await MainActor.run {
+                        isLoading = false
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                } catch {
+                    await MainActor.run {
+                        isLoading = false
+                        handleError(error)
                     }
                 }
             }
+        } else {
+            // Use the OAuth method from the service manager
+            Task {
+                do {
+                    let account = try await serviceManager.addMastodonAccountWithOAuth(
+                        server: trimmedServer)
+
+                    // Update the UI on the main thread
+                    await MainActor.run {
+                        isLoading = false
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                } catch {
+                    // Handle errors and update the UI on the main thread
+                    await MainActor.run {
+                        isLoading = false
+                        handleError(error)
+                    }
+                }
+            }
+        }
+    }
+
+    private func handleError(_ error: Error) {
+        if let serviceError = error as? SocialServiceManager.ServiceError {
+            switch serviceError {
+            case .invalidInput(let reason):
+                errorMessage = reason
+            case .duplicateAccount:
+                errorMessage = "This account has already been added."
+            case .invalidAccount(let reason):
+                errorMessage = reason
+            case .authenticationError(let underlying):
+                errorMessage = "Authentication failed: \(underlying.localizedDescription)"
+            default:
+                errorMessage = "Failed to add account: \(serviceError.localizedDescription)"
+            }
+        } else {
+            errorMessage = "Failed to add account: \(error.localizedDescription)"
         }
     }
 
@@ -258,21 +327,7 @@ struct AddAccountView: View {
             } catch {
                 await MainActor.run {
                     isLoading = false
-                    if let serviceError = error as? SocialServiceManager.ServiceError {
-                        switch serviceError {
-                        case .invalidInput(let reason):
-                            errorMessage = reason
-                        case .duplicateAccount:
-                            errorMessage = "This account has already been added."
-                        case .invalidAccount(let reason):
-                            errorMessage = reason
-                        default:
-                            errorMessage =
-                                "Failed to add account: \(serviceError.localizedDescription)"
-                        }
-                    } else {
-                        errorMessage = "Failed to add account: \(error.localizedDescription)"
-                    }
+                    handleError(error)
                 }
             }
         }

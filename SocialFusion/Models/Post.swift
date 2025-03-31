@@ -45,12 +45,15 @@ struct Author: Codable, Identifiable, Equatable {
     let profileImageURL: URL?
     let platform: SocialPlatform
     let platformSpecificId: String
-    
+
     var avatarURL: URL? {
         return profileImageURL
     }
-    
-    init(id: String, username: String, displayName: String, profileImageURL: URL? = nil, platform: SocialPlatform, platformSpecificId: String = "") {
+
+    init(
+        id: String, username: String, displayName: String, profileImageURL: URL? = nil,
+        platform: SocialPlatform, platformSpecificId: String = ""
+    ) {
         self.id = id
         self.username = username
         self.displayName = displayName
@@ -58,7 +61,7 @@ struct Author: Codable, Identifiable, Equatable {
         self.platform = platform
         self.platformSpecificId = platformSpecificId.isEmpty ? id : platformSpecificId
     }
-    
+
     static func == (lhs: Author, rhs: Author) -> Bool {
         return lhs.id == rhs.id
     }
@@ -102,102 +105,87 @@ struct MediaAttachment: Codable, Identifiable, Equatable {
     }
 }
 
-// MARK: - Post class
-class Post: Identifiable, ObservableObject, Equatable {
+// MARK: - Post struct
+struct Post: Identifiable, Equatable {
     let id: String
-    let platform: SocialPlatform
-    let author: Author
     let content: String
-    let mediaAttachments: [MediaAttachment]
+    let authorName: String
+    let authorUsername: String
+    let authorProfilePictureURL: String
     let createdAt: Date
-    var visibility: PostVisibilityType
-    var likeCount: Int
-    var repostCount: Int
-    var replyCount: Int
-    @Published var isLiked: Bool
-    @Published var isReposted: Bool
-    let inReplyToID: String?
-    var platformSpecificId: String
+    let platform: SocialPlatform
+    let originalURL: String
+    let attachments: [Attachment]
+    let mentions: [Mention]
+    let tags: [String]
 
-    init(
-        id: String, platform: SocialPlatform, author: Author, content: String,
-        mediaAttachments: [MediaAttachment] = [], createdAt: Date = Date(),
-        visibility: PostVisibilityType = .public_,
-        likeCount: Int = 0, repostCount: Int = 0, replyCount: Int = 0,
-        isLiked: Bool = false, isReposted: Bool = false, inReplyToID: String? = nil,
-        platformSpecificId: String = ""
-    ) {
-        self.id = id
-        self.platform = platform
-        self.author = author
-        self.content = content
-        self.mediaAttachments = mediaAttachments
-        self.createdAt = createdAt
-        self.visibility = visibility
-        self.likeCount = likeCount
-        self.repostCount = repostCount
-        self.replyCount = replyCount
-        self.isLiked = isLiked
-        self.isReposted = isReposted
-        self.inReplyToID = inReplyToID
-        self.platformSpecificId = platformSpecificId.isEmpty ? id : platformSpecificId
+    // Nested types for attachments and mentions
+    struct Attachment: Identifiable, Equatable {
+        var id: String { url }
+        let url: String
+        let type: AttachmentType
+        let altText: String
+
+        enum AttachmentType: String, Codable {
+            case image
+            case video
+            case audio
+            case unknown
+        }
+
+        static func == (lhs: Attachment, rhs: Attachment) -> Bool {
+            lhs.url == rhs.url
+        }
+    }
+
+    struct Mention: Identifiable, Equatable {
+        var id: String { url }
+        let username: String
+        let displayName: String
+        let url: String
+
+        static func == (lhs: Mention, rhs: Mention) -> Bool {
+            lhs.url == rhs.url
+        }
     }
 
     static func == (lhs: Post, rhs: Post) -> Bool {
-        return lhs.id == rhs.id && lhs.platform == rhs.platform
+        lhs.id == rhs.id && lhs.platform == rhs.platform
     }
 
     // Sample posts for previews and testing
     static var samplePosts: [Post] = [
         Post(
             id: "1",
-            platform: .mastodon,
-            author: Author(
-                id: "1",
-                username: "user1@mastodon.social",
-                displayName: "User One",
-                profileImageURL: URL(string: "https://picsum.photos/200"),
-                platform: .mastodon,
-                platformSpecificId: ""
-            ),
             content: "This is a sample post from Mastodon. #SocialFusion",
-            mediaAttachments: [],
+            authorName: "User One",
+            authorUsername: "user1@mastodon.social",
+            authorProfilePictureURL: "https://picsum.photos/200",
             createdAt: Date().addingTimeInterval(-3600),
-            visibility: .public_,
-            likeCount: 5,
-            repostCount: 2,
-            replyCount: 1,
-            isLiked: false,
-            isReposted: false
+            platform: .mastodon,
+            originalURL: "https://mastodon.social/@user1/123456",
+            attachments: [],
+            mentions: [],
+            tags: ["SocialFusion"]
         ),
         Post(
             id: "2",
-            platform: .bluesky,
-            author: Author(
-                id: "2",
-                username: "user2.bsky.social",
-                displayName: "User Two",
-                profileImageURL: URL(string: "https://picsum.photos/201"),
-                platform: .bluesky,
-                platformSpecificId: ""
-            ),
             content: "Hello from Bluesky! Testing out the SocialFusion app.",
-            mediaAttachments: [
-                MediaAttachment(
-                    id: "media1",
-                    url: URL(string: "https://picsum.photos/400")!,
-                    previewURL: URL(string: "https://picsum.photos/100")!,
-                    altText: "A sample image",
-                    type: .image
+            authorName: "User Two",
+            authorUsername: "user2.bsky.social",
+            authorProfilePictureURL: "https://picsum.photos/201",
+            createdAt: Date().addingTimeInterval(-7200),
+            platform: .bluesky,
+            originalURL: "https://bsky.app/profile/user2.bsky.social/post/abcdef",
+            attachments: [
+                Attachment(
+                    url: "https://picsum.photos/400",
+                    type: .image,
+                    altText: "A sample image"
                 )
             ],
-            createdAt: Date().addingTimeInterval(-7200),
-            visibility: .public_,
-            likeCount: 10,
-            repostCount: 3,
-            replyCount: 2,
-            isLiked: true,
-            isReposted: false
+            mentions: [],
+            tags: []
         ),
     ]
 }

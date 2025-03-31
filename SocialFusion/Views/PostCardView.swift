@@ -6,7 +6,7 @@ import UIKit
 struct PostCardView: View {
     let post: Post
     @State private var showDetailView = false
-    @State private var selectedMedia: MediaAttachment? = nil
+    @State private var selectedMedia: Post.Attachment? = nil
     @State private var showMediaFullscreen = false
 
     var body: some View {
@@ -15,8 +15,8 @@ struct PostCardView: View {
             HStack {
                 // Author avatar with platform badge
                 ZStack {
-                    if let avatarURL = post.author.avatarURL {
-                        AsyncImage(url: avatarURL) { image in
+                    if !post.authorProfilePictureURL.isEmpty {
+                        AsyncImage(url: URL(string: post.authorProfilePictureURL)) { image in
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -45,13 +45,13 @@ struct PostCardView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.author.displayName)
+                    Text(post.authorName)
                         .font(.headline)
                         .fontWeight(.bold)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Text("@\(post.author.username)")
+                    Text("@\(post.authorUsername)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
@@ -79,9 +79,9 @@ struct PostCardView: View {
                 }
 
             // Media attachments if any - now full width
-            if !post.mediaAttachments.isEmpty {
+            if !post.attachments.isEmpty {
                 VStack(spacing: 8) {
-                    ForEach(post.mediaAttachments) { attachment in
+                    ForEach(post.attachments, id: \.url) { attachment in
                         MediaView(
                             attachment: attachment,
                             showFullscreen: {
@@ -100,7 +100,7 @@ struct PostCardView: View {
                 }) {
                     HStack(spacing: 4) {
                         Image(systemName: "bubble.left")
-                        Text("\(post.replyCount)")
+                        Text("0")
                     }
                     .foregroundColor(.secondary)
                 }
@@ -108,22 +108,19 @@ struct PostCardView: View {
                 // Repost
                 Button(action: {}) {
                     HStack(spacing: 4) {
-                        Image(
-                            systemName: post.isReposted
-                                ? "arrow.triangle.2.circlepath.fill" : "arrow.triangle.2.circlepath"
-                        )
-                        Text("\(post.repostCount)")
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Text("0")
                     }
-                    .foregroundColor(post.isReposted ? Color(post.platform.color) : .secondary)
+                    .foregroundColor(.secondary)
                 }
 
                 // Like
                 Button(action: {}) {
                     HStack(spacing: 4) {
-                        Image(systemName: post.isLiked ? "heart.fill" : "heart")
-                        Text("\(post.likeCount)")
+                        Image(systemName: "heart")
+                        Text("0")
                     }
-                    .foregroundColor(post.isLiked ? .red : .secondary)
+                    .foregroundColor(.secondary)
                 }
 
                 Spacer()
@@ -221,7 +218,7 @@ struct PostPlatformBadge: View {
 
 // A view for displaying media attachments
 struct MediaView: View {
-    let attachment: MediaAttachment
+    let attachment: Post.Attachment
     let showFullscreen: () -> Void
 
     @State private var aspectRatio: CGFloat = 16 / 9  // Default aspect ratio
@@ -229,14 +226,15 @@ struct MediaView: View {
     var body: some View {
         Group {
             if attachment.type == .image {
-                AsyncImage(url: attachment.url) { phase in
+                AsyncImage(url: URL(string: attachment.url)) { phase in
                     if let image = phase.image {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .onAppear {
                                 // Get the image dimensions if possible
-                                if let data = try? Data(contentsOf: attachment.url),
+                                if let url = URL(string: attachment.url),
+                                    let data = try? Data(contentsOf: url),
                                     let uiImage = UIImage(data: data)
                                 {
                                     let imageSize = uiImage.size
@@ -262,15 +260,17 @@ struct MediaView: View {
                 .onTapGesture {
                     showFullscreen()
                 }
-            } else if attachment.type == .video || attachment.type == .animatedGIF {
-                VideoPlayer(player: AVPlayer(url: attachment.url))
-                    .aspectRatio(aspectRatio, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: min(UIScreen.main.bounds.width / aspectRatio, 300))
-                    .cornerRadius(8)
-                    .onTapGesture {
-                        showFullscreen()
-                    }
+            } else if attachment.type == .video {
+                if let url = URL(string: attachment.url) {
+                    VideoPlayer(player: AVPlayer(url: url))
+                        .aspectRatio(aspectRatio, contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: min(UIScreen.main.bounds.width / aspectRatio, 300))
+                        .cornerRadius(8)
+                        .onTapGesture {
+                            showFullscreen()
+                        }
+                }
             }
         }
     }
@@ -278,449 +278,196 @@ struct MediaView: View {
 
 // View for fullscreen media presentation
 struct FullscreenMediaView: View {
-    let attachment: MediaAttachment
+    let attachment: Post.Attachment
     @Environment(\.presentationMode) var presentationMode
     @State private var showShareSheet = false
     @State private var imageToShare: UIImage?
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack {
-                HStack {
-                    Spacer()
-                    Button(action: {
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title)
-                            .foregroundColor(.white)
-                            .padding()
-                            .shadow(radius: 3)
-                    }
-                }
-
-                Spacer()
+        NavigationView {
+            ZStack {
+                Color.black.edgesIgnoringSafeArea(.all)
 
                 if attachment.type == .image {
-                    AsyncImage(url: attachment.url) { phase in
+                    AsyncImage(url: URL(string: attachment.url)) { phase in
                         if let image = phase.image {
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fit)
-                                .frame(width: geometry.size.width, height: geometry.size.height)
-                                .onAppear {
-                                    // Load the image for sharing
-                                    if let data = try? Data(contentsOf: attachment.url),
-                                        let uiImage = UIImage(data: data)
-                                    {
-                                        imageToShare = uiImage
-                                    }
-                                }
+                                .edgesIgnoringSafeArea(.all)
                         } else if phase.error != nil {
                             VStack {
                                 Image(systemName: "exclamationmark.triangle")
                                     .font(.largeTitle)
                                 Text("Failed to load image")
+                                    .padding(.top)
                             }
                             .foregroundColor(.white)
                         } else {
                             ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .progressViewStyle(CircularProgressViewStyle())
                                 .scaleEffect(2)
+                                .tint(.white)
                         }
                     }
-                    .onLongPressGesture {
-                        showShareSheet = true
+                } else if attachment.type == .video {
+                    if let url = URL(string: attachment.url) {
+                        VideoPlayer(player: AVPlayer(url: url))
+                            .edgesIgnoringSafeArea(.all)
+                    } else {
+                        Text("Invalid video URL")
+                            .foregroundColor(.white)
                     }
-                } else if attachment.type == .video || attachment.type == .animatedGIF {
-                    VideoPlayer(player: AVPlayer(url: attachment.url))
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .onLongPressGesture {
-                            showShareSheet = true
-                        }
                 }
-
-                Spacer()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black)
-            .edgesIgnoringSafeArea(.all)
+            .navigationBarTitle("", displayMode: .inline)
+            .navigationBarItems(
+                leading: Button(action: {
+                    presentationMode.wrappedValue.dismiss()
+                }) {
+                    Image(systemName: "xmark")
+                        .foregroundColor(.white)
+                },
+                trailing: Button(action: {
+                    showShareSheet = true
+                }) {
+                    Image(systemName: "square.and.arrow.up")
+                        .foregroundColor(.white)
+                }
+            )
+            .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showShareSheet) {
-                if let image = imageToShare {
-                    ShareSheet(items: [image])
-                } else {
-                    ShareSheet(items: [attachment.url])
+                if let url = URL(string: attachment.url) {
+                    ShareSheet(items: [url])
                 }
             }
         }
     }
 }
 
-// Helper view for sharing
+// Helper view for share sheet
 struct ShareSheet: UIViewControllerRepresentable {
-    var items: [Any]
+    let items: [Any]
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let controller = UIActivityViewController(
+            activityItems: items, applicationActivities: nil)
         return controller
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// Post detail view for expanded post display
-struct PostDetailView: View {
-    let post: Post
-    @Environment(\.presentationMode) var presentationMode
-    @State private var replyText = ""
-    @State private var selectedMedia: MediaAttachment? = nil
-    @State private var showMediaFullscreen = false
-    @State private var replies: [Post] = []
-    @State private var isLoadingReplies = false
-    @State private var replyError: Error? = nil
+// A Reply view for the PostDetailView
+struct ReplyView: View {
+    let reply: Post
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Header
-                    HStack(spacing: 12) {
-                        if let avatarURL = post.author.avatarURL {
-                            AsyncImage(url: avatarURL) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Color.gray.opacity(0.3)
-                            }
-                            .frame(width: 56, height: 56)
-                            .clipShape(Circle())
-                        } else {
-                            Image(systemName: "person.crop.circle.fill")
-                                .resizable()
-                                .frame(width: 56, height: 56)
-                                .foregroundColor(.gray)
-                        }
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(post.author.displayName)
-                                .font(.title3)
-                                .fontWeight(.bold)
-
-                            Text("@\(post.author.username)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-
-                        Spacer()
-
-                        PostPlatformBadge(platform: post.platform)
-                            .scaleEffect(1.3)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 12) {
+                // Author avatar
+                if !reply.authorProfilePictureURL.isEmpty {
+                    AsyncImage(url: URL(string: reply.authorProfilePictureURL)) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color.gray.opacity(0.3)
                     }
-                    .padding(.horizontal)
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+                } else {
+                    Image(systemName: "person.crop.circle.fill")
+                        .resizable()
+                        .frame(width: 36, height: 36)
+                        .foregroundColor(.gray)
+                }
 
-                    // Content
-                    Text(cleanHtmlString(post.content))
-                        .font(.body)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal)
-
-                    // Media
-                    if !post.mediaAttachments.isEmpty {
-                        VStack(spacing: 12) {
-                            ForEach(post.mediaAttachments) { attachment in
-                                MediaView(
-                                    attachment: attachment,
-                                    showFullscreen: {
-                                        selectedMedia = attachment
-                                        showMediaFullscreen = true
-                                    }
-                                )
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
-
-                    // Post metadata
+                VStack(alignment: .leading, spacing: 6) {
+                    // Author info
                     HStack {
-                        Text(formatDate(post.createdAt))
+                        Text(reply.authorName)
+                            .font(.subheadline)
+                            .fontWeight(.bold)
+
+                        Text("@\(reply.authorUsername)")
                             .font(.caption)
                             .foregroundColor(.secondary)
 
                         Spacer()
+
+                        Text(timeAgo(from: reply.createdAt))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal)
 
-                    Divider()
+                    // Content
+                    Text(cleanHtmlString(reply.content))
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                    // Engagement metrics
-                    HStack(spacing: 24) {
-                        VStack {
-                            Text("\(post.replyCount)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text("Replies")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        VStack {
-                            Text("\(post.repostCount)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text("Reposts")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-
-                        VStack {
-                            Text("\(post.likeCount)")
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                            Text("Likes")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding()
-
-                    Divider()
-
-                    // Action buttons - larger and more prominent
-                    HStack(spacing: 0) {
-                        // Reply
-                        Button(action: {}) {
-                            VStack {
-                                Image(systemName: "bubble.left")
-                                    .font(.title2)
+                    // Media
+                    if !reply.attachments.isEmpty {
+                        ForEach(reply.attachments, id: \.url) { attachment in
+                            if attachment.type == .image {
+                                AsyncImage(url: URL(string: attachment.url)) { image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Color.gray.opacity(0.3)
+                                }
+                                .frame(maxHeight: 150)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
                             }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
+                        }
+                    }
+
+                    // Action buttons
+                    HStack(spacing: 20) {
+                        // Reply
+                        HStack(spacing: 4) {
+                            Image(systemName: "bubble.left")
+                                .font(.caption)
+                            Text("0")
+                                .font(.caption)
                         }
                         .foregroundColor(.secondary)
 
                         // Repost
-                        Button(action: {}) {
-                            VStack {
-                                Image(
-                                    systemName: post.isReposted
-                                        ? "arrow.triangle.2.circlepath.fill"
-                                        : "arrow.triangle.2.circlepath"
-                                )
-                                .font(.title2)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.caption)
+                            Text("0")
+                                .font(.caption)
                         }
-                        .foregroundColor(post.isReposted ? Color(post.platform.color) : .secondary)
+                        .foregroundColor(.secondary)
 
                         // Like
-                        Button(action: {}) {
-                            VStack {
-                                Image(systemName: post.isLiked ? "heart.fill" : "heart")
-                                    .font(.title2)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
-                        }
-                        .foregroundColor(post.isLiked ? .red : .secondary)
-
-                        // Share
-                        Button(action: {}) {
-                            VStack {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.title2)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .contentShape(Rectangle())
+                        HStack(spacing: 4) {
+                            Image(systemName: "heart")
+                                .font(.caption)
+                            Text("0")
+                                .font(.caption)
                         }
                         .foregroundColor(.secondary)
                     }
-                    .padding(.vertical, 8)
-
-                    Divider()
-
-                    // Reply input field
-                    VStack {
-                        TextField("Reply to this post...", text: $replyText)
-                            .padding()
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .cornerRadius(20)
-
-                        HStack {
-                            Spacer()
-                            Button("Reply") {
-                                // Reply action
-                                replyText = ""
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 8)
-                            .background(Color(post.platform.color))
-                            .foregroundColor(.white)
-                            .cornerRadius(20)
-                            .disabled(replyText.isEmpty)
-                            .opacity(replyText.isEmpty ? 0.6 : 1)
-                        }
-                    }
-                    .padding()
-
-                    // Replies section
-                    if isLoadingReplies {
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                                .padding()
-                            Spacer()
-                        }
-                    } else {
-                        if !replies.isEmpty {
-                            VStack(alignment: .leading, spacing: 0) {
-                                Text("Conversation")
-                                    .font(.headline)
-                                    .padding(.horizontal)
-                                    .padding(.top, 8)
-
-                                ForEach(replies) { reply in
-                                    ReplyRow(reply: reply)
-                                        .padding(.horizontal)
-                                        .padding(.vertical, 8)
-
-                                    if reply.id != replies.last?.id {
-                                        Divider()
-                                            .padding(.leading, 64)
-                                    }
-                                }
-                            }
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                            .padding(.bottom)
-                        } else if let error = replyError {
-                            VStack {
-                                Text("Could not load replies")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
-
-                                Text(error.localizedDescription)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-
-                                Button("Try Again") {
-                                    loadReplies()
-                                }
-                                .padding(.top, 8)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                        } else if post.replyCount > 0 {
-                            Button(action: loadReplies) {
-                                HStack {
-                                    Image(systemName: "arrow.clockwise")
-                                    Text("Load \(post.replyCount) replies")
-                                }
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(UIColor.tertiarySystemBackground))
-                                .cornerRadius(12)
-                                .padding(.horizontal)
-                            }
-                        }
-                    }
+                    .padding(.top, 4)
                 }
             }
-            .navigationBarTitle("Post", displayMode: .inline)
-            .navigationBarItems(
-                leading: Button(action: {
-                    presentationMode.wrappedValue.dismiss()
-                }) {
-                    Image(systemName: "chevron.left")
-                    Text("Back")
-                }
-            )
-            .sheet(isPresented: $showMediaFullscreen) {
-                if let media = selectedMedia {
-                    FullscreenMediaView(attachment: media)
-                }
-            }
-            .onAppear {
-                // Automatically load replies when the view appears
-                if post.replyCount > 0 && replies.isEmpty {
-                    loadReplies()
-                }
-            }
+
+            Divider()
         }
     }
 
-    private func loadReplies() {
-        // In a real app, this would fetch replies from the API
-        isLoadingReplies = true
-        replyError = nil
-
-        // Simulate network delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            do {
-                // In a real app, this would be an API call
-                // For now, we'll generate some sample replies
-                self.replies = generateSampleReplies(for: post)
-                self.isLoadingReplies = false
-            } catch {
-                self.replyError = error
-                self.isLoadingReplies = false
-            }
-        }
+    // Helper function to format dates as relative time
+    private func timeAgo(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
-    private func generateSampleReplies(for post: Post) -> [Post] {
-        // Create sample replies for the post
-        let replyCount = min(post.replyCount, 5)  // Limit to 5 sample replies
-
-        var sampleReplies: [Post] = []
-
-        for i in 1...replyCount {
-            let isInThread = i % 2 == 0  // Some replies are in thread
-            let replyTo = isInThread ? sampleReplies.last : post
-
-            let reply = Post(
-                id: "reply_\(post.id)_\(i)",
-                platform: post.platform,
-                author: Author(
-                    id: "replier_\(i)",
-                    username: "user\(i)",
-                    displayName: "User \(i)",
-                    profileImageURL: URL(string: "https://placekitten.com/\(200+i)/\(200+i)"),
-                    platform: post.platform,
-                    platformSpecificId: "replier_\(i)_\(post.platform.rawValue.lowercased())"
-                ),
-                content:
-                    "This is a reply to the post. Reply #\(i) with some sample text to demonstrate the conversation thread. \(isInThread ? "This is a reply to another reply." : "This is a direct reply to the original post.")",
-                mediaAttachments: [],
-                createdAt: Date().addingTimeInterval(-Double(i) * 300),  // Each reply is 5 minutes apart
-                likeCount: Int.random(in: 0...50),
-                repostCount: Int.random(in: 0...10),
-                replyCount: 0,
-                isLiked: Bool.random(),
-                isReposted: Bool.random(),
-                platformSpecificId: "reply_\(post.id)_\(i)_\(post.platform.rawValue.lowercased())"
-            )
-
-            sampleReplies.append(reply)
-        }
-
-        return sampleReplies
-    }
-
-    // Helper method to format the date in a readable format
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-
-    // HTML cleanup function - same as in PostCardView
+    // Basic HTML cleanup function
     private func cleanHtmlString(_ html: String) -> String {
         // Replace common HTML entities
         var result =
@@ -740,113 +487,204 @@ struct PostDetailView: View {
     }
 }
 
-// Reply row for conversation threads
-struct ReplyRow: View {
-    let reply: Post
-    @State private var showDetailView = false
+// A detailed view for a single post
+struct PostDetailView: View {
+    let post: Post
+    @Environment(\.presentationMode) var presentationMode
+    @State private var replyText = ""
+    @State private var selectedMedia: Post.Attachment? = nil
+    @State private var showMediaFullscreen = false
+    @State private var replies: [Post] = []
+    @State private var showingComposeSheet = false
 
     var body: some View {
-        VStack {
-            Button(action: {
-                showDetailView = true
-            }) {
-                HStack(alignment: .top, spacing: 12) {
-                    // Author avatar
-                    if let avatarURL = reply.author.avatarURL {
-                        AsyncImage(url: avatarURL) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        } placeholder: {
-                            Color.gray.opacity(0.3)
-                        }
-                        .frame(width: 40, height: 40)
-                        .clipShape(Circle())
-                    } else {
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(.gray)
-                    }
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    // Main post
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Header
+                        HStack(spacing: 12) {
+                            if !post.authorProfilePictureURL.isEmpty {
+                                AsyncImage(url: URL(string: post.authorProfilePictureURL)) {
+                                    image in
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                } placeholder: {
+                                    Color.gray.opacity(0.3)
+                                }
+                                .frame(width: 48, height: 48)
+                                .clipShape(Circle())
+                            } else {
+                                Image(systemName: "person.crop.circle.fill")
+                                    .resizable()
+                                    .frame(width: 48, height: 48)
+                                    .foregroundColor(.gray)
+                            }
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Author info
-                        HStack {
-                            Text(reply.author.displayName)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(post.authorName)
+                                    .font(.title3)
+                                    .fontWeight(.bold)
 
-                            Text("@\(reply.author.username)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                Text("@\(post.authorUsername)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
 
                             Spacer()
 
-                            Text(timeAgo(from: reply.createdAt))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                            PostPlatformBadge(platform: post.platform)
+                                .padding(.trailing, 4)
                         }
 
-                        // Reply content
-                        Text(cleanHtmlString(reply.content))
-                            .font(.subheadline)
-                            .foregroundColor(.primary)
-                            .multilineTextAlignment(.leading)
+                        // Content
+                        Text(cleanHtmlString(post.content))
+                            .font(.body)
                             .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 8)
 
-                        // Action buttons - minimal version
-                        HStack(spacing: 24) {
+                        // Media
+                        if !post.attachments.isEmpty {
+                            VStack(spacing: 12) {
+                                ForEach(post.attachments, id: \.url) { attachment in
+                                    MediaView(
+                                        attachment: attachment,
+                                        showFullscreen: {
+                                            selectedMedia = attachment
+                                            showMediaFullscreen = true
+                                        })
+                                }
+                            }
+                        }
+
+                        // Time
+                        Text(formatDate(post.createdAt))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+
+                        Divider()
+
+                        // Action buttons
+                        HStack(spacing: 0) {
                             // Reply
-                            HStack(spacing: 4) {
-                                Image(systemName: "bubble.left")
-                                    .font(.caption)
-                                Text(reply.replyCount > 0 ? "\(reply.replyCount)" : "")
-                                    .font(.caption)
+                            Button(action: {
+                                showingComposeSheet = true
+                            }) {
+                                VStack {
+                                    Image(systemName: "bubble.left")
+                                        .font(.title2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                             }
                             .foregroundColor(.secondary)
 
                             // Repost
-                            HStack(spacing: 4) {
-                                Image(
-                                    systemName: reply.isReposted
-                                        ? "arrow.triangle.2.circlepath.fill"
-                                        : "arrow.triangle.2.circlepath"
-                                )
-                                .font(.caption)
-                                Text(reply.repostCount > 0 ? "\(reply.repostCount)" : "")
-                                    .font(.caption)
+                            Button(action: {}) {
+                                VStack {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .font(.title2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                             }
-                            .foregroundColor(
-                                reply.isReposted ? Color(reply.platform.color) : .secondary)
+                            .foregroundColor(.secondary)
 
                             // Like
-                            HStack(spacing: 4) {
-                                Image(systemName: reply.isLiked ? "heart.fill" : "heart")
-                                    .font(.caption)
-                                Text(reply.likeCount > 0 ? "\(reply.likeCount)" : "")
-                                    .font(.caption)
+                            Button(action: {}) {
+                                VStack {
+                                    Image(systemName: "heart")
+                                        .font(.title2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                             }
-                            .foregroundColor(reply.isLiked ? .red : .secondary)
+                            .foregroundColor(.secondary)
+
+                            // Share
+                            Button(action: {}) {
+                                VStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.title2)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                            }
+                            .foregroundColor(.secondary)
                         }
-                        .padding(.top, 4)
+                        .padding(.vertical, 8)
+
+                        Divider()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top)
+
+                    // Placeholder for replies
+                    if replies.isEmpty {
+                        VStack(spacing: 20) {
+                            Spacer(minLength: 40)
+
+                            Image(systemName: "bubble.left")
+                                .font(.largeTitle)
+                                .foregroundColor(.secondary.opacity(0.5))
+
+                            Text("No replies yet")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+
+                            Text("Be the first to join the conversation")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary.opacity(0.8))
+                                .multilineTextAlignment(.center)
+
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 30)
+                    } else {
+                        // Display replies
+                        ForEach(replies, id: \.id) { reply in
+                            ReplyView(reply: reply)
+                                .padding(.horizontal)
+                        }
                     }
                 }
-                .foregroundColor(.primary)
             }
-            .sheet(isPresented: $showDetailView) {
-                PostDetailView(post: reply)
+            .navigationBarTitle("Post", displayMode: .inline)
+            .navigationBarItems(
+                leading:
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Image(systemName: "arrow.left")
+                            .imageScale(.large)
+                    }
+            )
+            .sheet(isPresented: $showMediaFullscreen) {
+                if let media = selectedMedia {
+                    FullscreenMediaView(attachment: media)
+                }
+            }
+            .sheet(isPresented: $showingComposeSheet) {
+                Text("Compose Reply")
+                    .onDisappear {
+                        // Just a placeholder for now
+                    }
             }
         }
     }
 
-    // Helper function to format dates as relative time
-    private func timeAgo(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
-    // Basic HTML cleanup function
     private func cleanHtmlString(_ html: String) -> String {
         // Replace common HTML entities
         var result =
