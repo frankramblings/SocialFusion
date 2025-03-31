@@ -390,7 +390,9 @@ class BlueskyService {
         -> BlueskyAuthResponse
     {
         let serverStr = server.asURLString()
-        guard let url = URL(string: "https://\(serverStr)/xrpc/com.atproto.server.refreshSession")
+        // Fix URL construction to avoid double https://
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        guard let url = URL(string: "\(baseUrl)/xrpc/com.atproto.server.refreshSession")
         else {
             throw APIError.invalidURL
         }
@@ -429,8 +431,10 @@ class BlueskyService {
             account.saveTokenExpirationDate(newSession.expirationDate)
         }
 
-        let urlStr =
-            "https://\(account.serverURL.asURLString())/xrpc/app.bsky.actor.getProfile?actor=\(account.username)"
+        // Fix URL construction to avoid double https://
+        let serverStr = account.serverURL.asURLString()
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        let urlStr = "\(baseUrl)/xrpc/app.bsky.actor.getProfile?actor=\(account.username)"
         guard let url = URL(string: urlStr) else {
             throw APIError.invalidURL
         }
@@ -472,8 +476,10 @@ class BlueskyService {
             account.saveTokenExpirationDate(newSession.expirationDate)
         }
 
-        let urlStr =
-            "https://\(account.serverURL.asURLString())/xrpc/app.bsky.feed.getTimeline?limit=50"
+        // Fix URL construction to avoid double https://
+        let serverStr = account.serverURL.asURLString()
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        let urlStr = "\(baseUrl)/xrpc/app.bsky.feed.getTimeline?limit=50"
         guard let url = URL(string: urlStr) else {
             throw APIError.invalidURL
         }
@@ -511,8 +517,10 @@ class BlueskyService {
             account.saveTokenExpirationDate(newSession.expirationDate)
         }
 
-        let urlStr =
-            "https://\(account.serverURL.asURLString())/xrpc/app.bsky.feed.getAuthorFeed?actor=\(username)&limit=50"
+        // Fix URL construction to avoid double https://
+        let serverStr = account.serverURL.asURLString()
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        let urlStr = "\(baseUrl)/xrpc/app.bsky.feed.getAuthorFeed?actor=\(username)&limit=50"
         guard let url = URL(string: urlStr) else {
             throw APIError.invalidURL
         }
@@ -543,7 +551,10 @@ class BlueskyService {
                 userInfo: [NSLocalizedDescriptionKey: "No access token available"])
         }
 
-        let urlStr = "https://\(account.serverURL.asURLString())/xrpc/com.atproto.repo.uploadBlob"
+        // Fix URL construction to avoid double https://
+        let serverStr = account.serverURL.asURLString()
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        let urlStr = "\(baseUrl)/xrpc/com.atproto.repo.uploadBlob"
         guard let url = URL(string: urlStr) else {
             throw APIError.invalidURL
         }
@@ -595,7 +606,10 @@ class BlueskyService {
         }
 
         // Now create the post with references to the uploaded images
-        let urlStr = "https://\(account.serverURL.asURLString())/xrpc/com.atproto.repo.createRecord"
+        // Fix URL construction to avoid double https://
+        let serverStr = account.serverURL.asURLString()
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        let urlStr = "\(baseUrl)/xrpc/com.atproto.repo.createRecord"
         guard let url = URL(string: urlStr) else {
             throw APIError.invalidURL
         }
@@ -686,8 +700,10 @@ class BlueskyService {
         let authorDid = postComponents[2]
         let postId = postComponents.last ?? ""
 
-        let urlStr =
-            "https://\(account.serverURL.asURLString())/xrpc/app.bsky.feed.getPostThread?uri=\(uri)"
+        // Fix URL construction to avoid double https://
+        let serverStr = account.serverURL.asURLString()
+        let baseUrl = serverStr.contains("://") ? serverStr : "https://\(serverStr)"
+        let urlStr = "\(baseUrl)/xrpc/app.bsky.feed.getPostThread?uri=\(uri)"
         guard let url = URL(string: urlStr) else {
             throw APIError.invalidURL
         }
@@ -808,7 +824,7 @@ class BlueskyService {
             throw NSError(
                 domain: "BlueskyService", code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid post URL format"])
-            }
+        }
 
         let url = URL(
             string:
