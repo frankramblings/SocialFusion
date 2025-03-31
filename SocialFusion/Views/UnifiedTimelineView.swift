@@ -9,7 +9,24 @@ struct UnifiedTimelineView: View {
     }
 
     private var displayTitle: String {
-        hasAccounts ? "Home" : "Trending"
+        if !hasAccounts {
+            return "Trending"
+        } else if serviceManager.selectedAccountIds.contains("all")
+            || serviceManager.selectedAccountIds.isEmpty
+        {
+            return "All Accounts"
+        } else if let accountId = serviceManager.selectedAccountIds.first,
+            let account = getCurrentAccountById(accountId)
+        {
+            return account.displayName ?? account.username
+        } else {
+            return "Home"
+        }
+    }
+
+    private func getCurrentAccountById(_ id: String) -> SocialAccount? {
+        return serviceManager.mastodonAccounts.first(where: { $0.id == id })
+            ?? serviceManager.blueskyAccounts.first(where: { $0.id == id })
     }
 
     var body: some View {
@@ -36,20 +53,18 @@ struct UnifiedTimelineView: View {
                     }
             } else {
                 VStack(spacing: 0) {
-                    // Show the "Trending" header text if we're in the logged-out state
-                    if !hasAccounts {
-                        HStack {
-                            Text("Trending")
-                                .font(.headline)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                                .padding(.bottom, 4)
+                    // Show the header text based on the current selection
+                    HStack {
+                        Text(displayTitle)
+                            .font(.headline)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
 
-                            Spacer()
-                        }
-
-                        Divider()
+                        Spacer()
                     }
+
+                    Divider()
 
                     ScrollView {
                         LazyVStack(spacing: 12) {
@@ -98,7 +113,7 @@ struct UnifiedTimelineView: View {
             Task {
                 print("Selected accounts changed, refreshing timeline")
                 if hasAccounts {
-                    await serviceManager.refreshTimeline()
+                    await serviceManager.refreshTimeline(force: true)
                 }
             }
         }

@@ -7,6 +7,8 @@ struct AccountsView: View {
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
     @State private var showDebugInfo = false
+    @State private var accountToDelete: SocialAccount? = nil
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         NavigationView {
@@ -66,11 +68,14 @@ struct AccountsView: View {
                     } else {
                         ForEach(serviceManager.mastodonAccounts) { account in
                             accountSelectionRow(account)
-                        }
-                        .onDelete { indexSet in
-                            deleteAccounts(
-                                at: indexSet, from: serviceManager.mastodonAccounts,
-                                platform: .mastodon)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        // Show confirmation dialog before deleting
+                                        confirmDelete(account: account)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
 
                         Button(action: {
@@ -94,11 +99,14 @@ struct AccountsView: View {
                     } else {
                         ForEach(serviceManager.blueskyAccounts) { account in
                             accountSelectionRow(account)
-                        }
-                        .onDelete { indexSet in
-                            deleteAccounts(
-                                at: indexSet, from: serviceManager.blueskyAccounts,
-                                platform: .bluesky)
+                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                    Button(role: .destructive) {
+                                        // Show confirmation dialog before deleting
+                                        confirmDelete(account: account)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
 
                         Button(action: {
@@ -136,6 +144,36 @@ struct AccountsView: View {
                 AddAccountView()
                     .environmentObject(serviceManager)
             }
+            .alert("Remove Account", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    accountToDelete = nil
+                }
+                Button("Remove", role: .destructive) {
+                    if let account = accountToDelete {
+                        Task {
+                            await serviceManager.removeAccount(account)
+                            // Remove account from selected IDs if it was selected
+                            selectedAccountIds.remove(account.id)
+
+                            // If no accounts remain, select "all"
+                            if serviceManager.mastodonAccounts.isEmpty
+                                && serviceManager.blueskyAccounts.isEmpty
+                            {
+                                selectedAccountIds = ["all"]
+                            } else if selectedAccountIds.isEmpty {
+                                selectedAccountIds.insert("all")
+                            }
+
+                            // Update service manager's selection
+                            serviceManager.selectedAccountIds = selectedAccountIds
+                        }
+                    }
+                }
+            } message: {
+                Text(
+                    "Are you sure you want to remove \(accountToDelete?.displayName ?? accountToDelete?.username ?? "this account")? This action cannot be undone."
+                )
+            }
             .onAppear {
                 // Auto-refresh account lists when view appears
                 refreshAccountSelections()
@@ -148,43 +186,61 @@ struct AccountsView: View {
 
     // Account row with selection toggle
     private func accountSelectionRow(_ account: SocialAccount) -> some View {
-        Button(action: {
-            toggleSelection(id: account.id)
-        }) {
-            HStack {
-                if account.platform.usesSFSymbol {
-                    Image(systemName: account.platform.sfSymbol)
-                        .foregroundColor(Color(account.platform.color))
-                        .font(.system(size: 24))
-                        .frame(width: 32, height: 32)
-                } else {
-                    Image(account.platform.icon)
-                        .resizable()
-                        .renderingMode(.template)
-                        .foregroundColor(Color(account.platform.color))
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 28, height: 28)
-                        .padding(2)
-                }
+        HStack {
+            if account.platform.usesSFSymbol {
+                Image(systemName: account.platform.sfSymbol)
+                    .foregroundColor(Color(account.platform.color))
+                    .font(.system(size: 24))
+                    .frame(width: 32, height: 32)
+            } else {
+                Image(account.platform.icon)
+                    .resizable()
+                    .renderingMode(.template)
+                    .foregroundColor(Color(account.platform.color))
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 28, height: 28)
+                    .padding(2)
+            }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(account.displayName ?? account.username)
-                        .font(.headline)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(account.displayName ?? account.username)
+                    .font(.headline)
 
-                    Text("@\(account.username)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
+                Text("@\(account.username)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
 
-                Spacer()
+            Spacer()
 
+            Button(action: {
+                toggleSelection(id: account.id)
+            }) {
                 if selectedAccountIds.contains(account.id) {
                     Image(systemName: "checkmark")
                         .foregroundColor(.blue)
+                } else {
+                    Image(systemName: "circle")
+                        .foregroundColor(.gray)
                 }
             }
+            .buttonStyle(PlainButtonStyle())
+
+            NavigationLink(
+                destination:
+                    AccountDetailView(account: account)
+                    .environmentObject(serviceManager)
+            ) {
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 14))
+            }
+            .buttonStyle(PlainButtonStyle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .contentShape(Rectangle())
+        .onTapGesture {
+            toggleSelection(id: account.id)
+        }
     }
 
     // Toggle selection for an account
@@ -236,26 +292,10 @@ struct AccountsView: View {
         }
     }
 
-    private func deleteAccounts(
-        at offsets: IndexSet, from accounts: [SocialAccount], platform: SocialPlatform
-    ) {
-        for index in offsets {
-            let accountToRemove = accounts[index]
-            serviceManager.removeAccount(accountToRemove)
-            selectedAccountIds.remove(accountToRemove.id)
-        }
-
-        // If no accounts remain, select "all"
-        if serviceManager.mastodonAccounts.isEmpty && serviceManager.blueskyAccounts.isEmpty {
-            selectedAccountIds = ["all"]
-        } else if selectedAccountIds.isEmpty {
-            selectedAccountIds.insert("all")
-        }
-
-        // Refresh timeline after account removal
-        Task {
-            await serviceManager.refreshTimeline()
-        }
+    private func confirmDelete(account: SocialAccount) {
+        // Store the account to delete and show confirmation dialog
+        accountToDelete = account
+        showDeleteConfirmation = true
     }
 }
 
@@ -431,6 +471,7 @@ struct AccountDetailView: View {
     let account: SocialAccount
     @State private var showingDeleteConfirmation = false
     @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject var serviceManager: SocialServiceManager
 
     var body: some View {
         NavigationView {
@@ -473,18 +514,18 @@ struct AccountDetailView: View {
                     presentationMode.wrappedValue.dismiss()
                 }
             )
-            .alert(isPresented: $showingDeleteConfirmation) {
-                Alert(
-                    title: Text("Remove Account"),
-                    message: Text(
-                        "Are you sure you want to remove this account? This action cannot be undone."
-                    ),
-                    primaryButton: .destructive(Text("Remove")) {
-                        // This would be replaced with actual account removal
+            .alert("Remove Account", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {
+                    // Do nothing
+                }
+                Button("Remove", role: .destructive) {
+                    Task {
+                        await serviceManager.removeAccount(account)
                         presentationMode.wrappedValue.dismiss()
-                    },
-                    secondaryButton: .cancel()
-                )
+                    }
+                }
+            } message: {
+                Text("Are you sure you want to remove this account? This action cannot be undone.")
             }
         }
     }

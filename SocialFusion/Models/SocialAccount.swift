@@ -196,39 +196,44 @@ private func deleteTokens(for accountId: String) {
 }
 
 /// Represents a user account on a social media platform
-class SocialAccount: Identifiable, ObservableObject, Codable {
-    // MARK: Properties
+class SocialAccount: Identifiable, Codable, Equatable {
+    // MARK: - Properties
 
-    var id: String
-    @Published var username: String
-    private var _displayName = CodablePublished<String>(nil)
-    private var _serverURL = CodablePublished<URL>(nil)
-    @Published var platform: SocialPlatform
-    private var _profileImageURL = CodablePublished<URL>(nil)
+    let id: String
+    let username: String
+    var displayName: String?
+    var serverURL: URL?
+    let platform: SocialPlatform
+    var profileImageURL: URL?
+
+    // Platform-specific ID (e.g., Mastodon account ID or Bluesky DID)
     var platformSpecificId: String
 
-    var displayName: String? {
-        get { return _displayName.wrappedValue }
-        set { _displayName.wrappedValue = newValue }
+    // Authentication tokens (transient - stored in keychain, not encoded)
+    var accessToken: String?
+    var refreshToken: String?
+    var tokenExpirationDate: Date?
+
+    // OAuth client credentials
+    var clientId: String?
+    var clientSecret: String?
+
+    // Account details from the platform
+    var accountDetails: [String: String]?
+
+    // MARK: - Codable
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case username
+        case displayName
+        case serverURL
+        case platform
+        case profileImageURL
+        case platformSpecificId
     }
 
-    var serverURL: URL? {
-        get { return _serverURL.wrappedValue }
-        set { _serverURL.wrappedValue = newValue }
-    }
-
-    var profileImageURL: URL? {
-        get { return _profileImageURL.wrappedValue }
-        set { _profileImageURL.wrappedValue = newValue }
-    }
-
-    // Private properties for authentication
-    private var accessToken: String?
-    private var refreshToken: String?
-    private var tokenExpirationDate: Date?
-    private var clientId: String?
-    private var clientSecret: String?
-    private var accountDetails: [String: String]?
+    // MARK: - Initialization
 
     init(
         id: String,
@@ -241,10 +246,10 @@ class SocialAccount: Identifiable, ObservableObject, Codable {
     ) {
         self.id = id
         self.username = username
-        self._displayName.wrappedValue = displayName
-        self._serverURL.wrappedValue = serverURL
+        self.displayName = displayName
+        self.serverURL = serverURL
         self.platform = platform
-        self._profileImageURL.wrappedValue = profileImageURL
+        self.profileImageURL = profileImageURL
         self.platformSpecificId = platformSpecificId ?? id
 
         // Try to load tokens from keychain
@@ -268,8 +273,8 @@ class SocialAccount: Identifiable, ObservableObject, Codable {
     ) {
         self.id = id
         self.username = username
-        self._displayName.wrappedValue = displayName
-        self._serverURL.wrappedValue = URL(string: serverURL)
+        self.displayName = displayName
+        self.serverURL = URL(string: serverURL)
         self.platform = platform
         self.accessToken = accessToken
         self.refreshToken = refreshToken
@@ -277,7 +282,7 @@ class SocialAccount: Identifiable, ObservableObject, Codable {
         self.clientId = clientId
         self.clientSecret = clientSecret
         self.accountDetails = accountDetails
-        self._profileImageURL.wrappedValue = profileImageURL
+        self.profileImageURL = profileImageURL
         self.platformSpecificId = platformSpecificId ?? id
 
         // Store tokens securely
@@ -292,25 +297,50 @@ class SocialAccount: Identifiable, ObservableObject, Codable {
         }
     }
 
-    private func loadTokensFromKeychain() {
-        // Load access token
-        self.accessToken = UserDefaults.loadAccessToken(for: id)
+    // Custom init from decoder
+    required init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        // Load refresh token
-        self.refreshToken = UserDefaults.loadRefreshToken(for: id)
+        id = try container.decode(String.self, forKey: .id)
+        username = try container.decode(String.self, forKey: .username)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        platform = try container.decode(SocialPlatform.self, forKey: .platform)
+        platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
 
-        // Load client credentials
-        let credentials = UserDefaults.loadClientCredentials(for: id)
-        self.clientId = credentials.clientId
-        self.clientSecret = credentials.clientSecret
-
-        // Load expiration date
-        if let expiryTimestamp = UserDefaults.standard.object(forKey: "token-expiry-\(id)")
-            as? TimeInterval
-        {
-            self.tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
+        // Convert string URLs to URL objects
+        if let urlString = try container.decodeIfPresent(String.self, forKey: .serverURL) {
+            serverURL = URL(string: urlString)
         }
+
+        if let imageURLString = try container.decodeIfPresent(String.self, forKey: .profileImageURL)
+        {
+            profileImageURL = URL(string: imageURLString)
+        }
+
+        // Load tokens from keychain
+        loadTokensFromKeychain()
     }
+
+    // Custom encode method
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(username, forKey: .username)
+        try container.encode(displayName, forKey: .displayName)
+        try container.encode(serverURL?.absoluteString, forKey: .serverURL)
+        try container.encode(platform, forKey: .platform)
+        try container.encode(profileImageURL?.absoluteString, forKey: .profileImageURL)
+        try container.encode(platformSpecificId, forKey: .platformSpecificId)
+    }
+
+    // MARK: - Equatable
+
+    static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
+        return lhs.id == rhs.id
+    }
+
+    // MARK: - Token Management
 
     private func saveTokensToStorage(
         accessToken: String,
@@ -335,8 +365,6 @@ class SocialAccount: Identifiable, ObservableObject, Codable {
             UserDefaults.standard.set(expiresAt.timeIntervalSince1970, forKey: "token-expiry-\(id)")
         }
     }
-
-    // MARK: - Token Management
 
     func saveAccessToken(_ token: String) {
         self.accessToken = token
@@ -429,70 +457,27 @@ class SocialAccount: Identifiable, ObservableObject, Codable {
         clientSecret = nil
     }
 
-    // MARK: - Equatable
+    private func loadTokensFromKeychain() {
+        // Load access token
+        self.accessToken = UserDefaults.loadAccessToken(for: id)
 
-    static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
-        lhs.id == rhs.id
-    }
+        // Load refresh token
+        self.refreshToken = UserDefaults.loadRefreshToken(for: id)
 
-    // MARK: - Codable
+        // Load client credentials
+        let credentials = UserDefaults.loadClientCredentials(for: id)
+        self.clientId = credentials.clientId
+        self.clientSecret = credentials.clientSecret
 
-    enum CodingKeys: String, CodingKey {
-        case id, username, displayName, serverURL, platform
-        case accessToken, refreshToken, clientId, clientSecret
-        case tokenExpirationDate
-        case accountDetails
-        case platformSpecificId
-        case profileImageURL
-    }
-
-    required init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        username = try container.decode(String.self, forKey: .username)
-        platformSpecificId =
-            try container.decodeIfPresent(String.self, forKey: .platformSpecificId) ?? id
-
-        // Fix String? decoding
-        self._displayName = CodablePublished(
-            try container.decodeIfPresent(String.self, forKey: .displayName))
-
-        // Fix URL? decoding
-        if let urlString = try container.decodeIfPresent(String.self, forKey: .profileImageURL) {
-            self._profileImageURL = CodablePublished(URL(string: urlString))
-        } else {
-            self._profileImageURL = CodablePublished(nil)
+        // Load expiration date
+        if let expiryTimestamp = UserDefaults.standard.object(forKey: "token-expiry-\(id)")
+            as? TimeInterval
+        {
+            self.tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
         }
-
-        platform = try container.decode(SocialPlatform.self, forKey: .platform)
-
-        // Fix URL? decoding
-        if let urlString = try container.decodeIfPresent(String.self, forKey: .serverURL) {
-            self._serverURL = CodablePublished(URL(string: urlString))
-        } else {
-            self._serverURL = CodablePublished(nil)
-        }
-
-        // Load tokens from keychain
-        loadTokensFromKeychain()
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(username, forKey: .username)
-        try container.encode(platformSpecificId, forKey: .platformSpecificId)
-        try container.encode(displayName, forKey: .displayName)
-        try container.encode(profileImageURL, forKey: .profileImageURL)
-        try container.encode(platform, forKey: .platform)
-        try container.encode(serverURL, forKey: .serverURL)
-
-        // Optional properties
-        try container.encodeIfPresent(accessToken, forKey: .accessToken)
-        try container.encodeIfPresent(refreshToken, forKey: .refreshToken)
-        try container.encodeIfPresent(clientId, forKey: .clientId)
-        try container.encodeIfPresent(clientSecret, forKey: .clientSecret)
-        try container.encodeIfPresent(tokenExpirationDate, forKey: .tokenExpirationDate)
-        try container.encodeIfPresent(accountDetails, forKey: .accountDetails)
     }
 }
+
+// MARK: - Property Wrapper for Codable Ignore
+
+// Property wrapper for CodableIgnore is no longer needed since we're using a class with normal properties

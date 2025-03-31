@@ -42,42 +42,67 @@ class SocialServiceManager: ObservableObject {
     // MARK: - Account Management
 
     private func loadAccounts() {
-        // For development, don't actually load any accounts
-        // This would load accounts from secure storage in a real app
-        #if DEBUG
-            // In debug mode, we'll avoid loading accounts to show the sample feed
+        // Load accounts from UserDefaults
+        do {
+            // Load Mastodon accounts
+            if let mastodonData = UserDefaults.standard.data(forKey: "mastodonAccounts") {
+                let decodedAccounts = try JSONDecoder().decode(
+                    [SocialAccount].self, from: mastodonData)
+                mastodonAccounts = decodedAccounts.filter { validateAccount($0) }
+                print("Loaded \(mastodonAccounts.count) Mastodon accounts from storage")
+            } else {
+                mastodonAccounts = []
+                print("No Mastodon accounts found in storage")
+            }
+
+            // Load Bluesky accounts
+            if let blueskyData = UserDefaults.standard.data(forKey: "blueskyAccounts") {
+                let decodedAccounts = try JSONDecoder().decode(
+                    [SocialAccount].self, from: blueskyData)
+                blueskyAccounts = decodedAccounts.filter { validateAccount($0) }
+                print("Loaded \(blueskyAccounts.count) Bluesky accounts from storage")
+            } else {
+                blueskyAccounts = []
+                print("No Bluesky accounts found in storage")
+            }
+
+            #if DEBUG
+                // If we have no accounts in debug mode, use sample accounts
+                if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {
+                    print("DEBUG mode: No accounts found in storage, adding sample accounts")
+                    // Add sample accounts for debugging purposes
+                    let sampleMastodonAccount = SocialAccount(
+                        id: "1",
+                        username: "user1",
+                        displayName: "User One",
+                        serverURL: "mastodon.social",
+                        platform: .mastodon
+                    )
+
+                    let sampleBlueskyAccount = SocialAccount(
+                        id: "2",
+                        username: "user2.bsky.social",
+                        displayName: "User Two",
+                        serverURL: "bsky.social",
+                        platform: .bluesky
+                    )
+
+                    // Validate accounts before adding
+                    if validateAccount(sampleMastodonAccount) {
+                        mastodonAccounts = [sampleMastodonAccount]
+                    }
+
+                    if validateAccount(sampleBlueskyAccount) {
+                        blueskyAccounts = [sampleBlueskyAccount]
+                    }
+                }
+            #endif
+        } catch {
+            print("Error loading accounts from storage: \(error.localizedDescription)")
+            // If loading fails, clear accounts to be safe
             mastodonAccounts = []
             blueskyAccounts = []
-        #else
-            do {
-                // In a real app, this would load accounts from secure storage
-                // For now, we'll just use sample data, but with validation
-                let sampleMastodonAccount = SocialAccount(
-                    id: "1",
-                    username: "user1",
-                    displayName: "User One",
-                    serverURL: "mastodon.social",
-                    platform: .mastodon
-                )
-
-                let sampleBlueskyAccount = SocialAccount(
-                    id: "2",
-                    username: "user2.bsky.social",
-                    displayName: "User Two",
-                    serverURL: "bsky.social",
-                    platform: .bluesky
-                )
-
-                // Validate accounts before adding
-                if validateAccount(sampleMastodonAccount) {
-                    mastodonAccounts = [sampleMastodonAccount]
-                }
-
-                if validateAccount(sampleBlueskyAccount) {
-                    blueskyAccounts = [sampleBlueskyAccount]
-                }
-            }
-        #endif
+        }
     }
 
     private func validateAccount(_ account: SocialAccount) -> Bool {
@@ -145,6 +170,8 @@ class SocialServiceManager: ObservableObject {
         }
 
         mastodonAccounts.append(account)
+        // Save updated accounts
+        saveAccounts()
         return account
     }
 
@@ -222,6 +249,9 @@ class SocialServiceManager: ObservableObject {
 
         print("Added Bluesky account: \(account.username)")
 
+        // Save updated accounts
+        saveAccounts()
+
         // Immediately refresh timeline
         Task {
             await refreshTimeline()
@@ -230,7 +260,7 @@ class SocialServiceManager: ObservableObject {
         return account
     }
 
-    func removeAccount(_ account: SocialAccount) {
+    func removeAccount(_ account: SocialAccount) async {
         // Validate account before removal
         guard validateAccount(account) else {
             return
@@ -242,134 +272,111 @@ class SocialServiceManager: ObservableObject {
         case .bluesky:
             blueskyAccounts.removeAll { $0.id == account.id }
         }
+
+        // Remove from timeline posts from this account
+        await refreshTimeline()
+
+        // Save updated accounts
+        saveAccounts()
     }
 
     // MARK: - Timeline
 
     @MainActor
     func refreshTimeline(force: Bool = false) async {
-        if isFetchingTimeline && !force {
-            print("Timeline refresh already in progress, skipping...")
-            return
-        }
+        guard !isLoadingTimeline else { return }
+        isLoadingTimeline = true
 
-        isFetchingTimeline = true
-        print("Refreshing timeline...")
-
-        // Keep track of errors
+        var mastodonPosts: [Post] = []
+        var blueskyPosts: [Post] = []
+        var allPosts: [Post] = []
         var errors: [Error] = []
 
-        // Check if we have any accounts at all
-        let hasAnyAccounts = !mastodonAccounts.isEmpty || !blueskyAccounts.isEmpty
-
-        if !hasAnyAccounts {
-            print("No accounts found, fetching trending posts...")
-            await fetchTrendingPosts()
-            isFetchingTimeline = false
-            return
-        }
-
-        // Skip accounts without valid tokens
-        var validAccountCount = 0
-        var mastodonResults: [Result<[Post], Error>] = []
-        var blueskyResults: [Result<[Post], Error>] = []
-
-        // Get posts from selected Mastodon accounts or all if "all" is selected
-        if selectedAccountIds.contains("all")
-            || selectedAccountIds.contains(where: { id in
-                mastodonAccounts.contains { $0.id == id }
-            })
-        {
-            for account in mastodonAccounts {
-                if account.getAccessToken() == nil || (account.getAccessToken()?.isEmpty ?? true) {
-                    print("Skipping Mastodon account without valid token: \(account.username)")
-                    continue
+        // MASTODON: Fetch from all accounts or just the selected one
+        if selectedAccountIds.contains("all") || selectedAccountIds.isEmpty {
+            await withTaskGroup(of: (Result<[Post], Error>).self) { group in
+                for account in mastodonAccounts {
+                    group.addTask {
+                        do {
+                            let posts = try await self.mastodonService.fetchHomeTimeline(
+                                for: account)
+                            return .success(posts)
+                        } catch {
+                            return .failure(error)
+                        }
+                    }
                 }
 
-                validAccountCount += 1
-                do {
-                    print("Fetching timeline for Mastodon account: \(account.username)")
-                    let posts = try await mastodonService.fetchHomeTimeline(for: account)
-                    mastodonResults.append(.success(posts))
-                } catch {
-                    print("Error fetching Mastodon timeline: \(error.localizedDescription)")
-                    errors.append(error)
-                    mastodonResults.append(.failure(error))
+                // Collect results
+                for await result in group {
+                    switch result {
+                    case .success(let posts):
+                        mastodonPosts.append(contentsOf: posts)
+                    case .failure(let error):
+                        errors.append(error)
+                    }
                 }
             }
         }
 
-        // Get posts from selected Bluesky accounts or all if "all" is selected
-        if selectedAccountIds.contains("all")
-            || selectedAccountIds.contains(where: { id in
-                blueskyAccounts.contains { $0.id == id }
-            })
-        {
-            for account in blueskyAccounts {
-                if account.getAccessToken() == nil || (account.getAccessToken()?.isEmpty ?? true) {
-                    print("Skipping Bluesky account without valid token: \(account.username)")
-                    continue
+        // BLUESKY: Fetch from all accounts or just the selected one
+        if selectedAccountIds.contains("all") || selectedAccountIds.isEmpty {
+            await withTaskGroup(of: (Result<[Post], Error>).self) { group in
+                for account in blueskyAccounts {
+                    group.addTask {
+                        do {
+                            let posts = try await self.blueskyService.fetchHomeTimeline(
+                                for: account)
+                            return .success(posts)
+                        } catch {
+                            return .failure(error)
+                        }
+                    }
                 }
 
-                validAccountCount += 1
-                do {
-                    print("Fetching timeline for Bluesky account: \(account.username)")
-                    let posts = try await blueskyService.fetchHomeTimeline(for: account)
-                    blueskyResults.append(.success(posts))
-                } catch {
-                    print("Error fetching Bluesky timeline: \(error.localizedDescription)")
-                    errors.append(error)
-                    blueskyResults.append(.failure(error))
+                // Collect results
+                for await result in group {
+                    switch result {
+                    case .success(let posts):
+                        blueskyPosts.append(contentsOf: posts)
+                    case .failure(let error):
+                        errors.append(error)
+                    }
                 }
             }
         }
 
-        // If we have no valid accounts with tokens, fall back to trending posts
-        if validAccountCount == 0 {
-            print("No accounts with valid tokens found, fetching trending posts...")
-            await fetchTrendingPosts()
-            isFetchingTimeline = false
-            return
-        }
+        // Combine all posts
+        allPosts = mastodonPosts + blueskyPosts
 
-        // Combine all successful results
-        var allPosts: [Post] = []
-
-        for result in mastodonResults {
-            switch result {
-            case .success(let posts):
-                allPosts.append(contentsOf: posts)
-            case .failure:
-                // Errors already logged above
-                continue
-            }
-        }
-
-        for result in blueskyResults {
-            switch result {
-            case .success(let posts):
-                allPosts.append(contentsOf: posts)
-            case .failure:
-                // Errors already logged above
-                continue
-            }
-        }
-
-        // Sort all posts by date
-        let sortedPosts = allPosts.sorted { $0.createdAt > $1.createdAt }
+        // Sort combined timeline by date
+        let sortedCombined = allPosts.sorted(by: { $0.createdAt > $1.createdAt })
 
         // Update the timeline
-        unifiedTimeline = sortedPosts
-        lastRefreshed = Date()
-        isFetchingTimeline = false
-        print("Timeline refreshed with \(sortedPosts.count) posts")
+        if !sortedCombined.isEmpty {
+            unifiedTimeline = sortedCombined
+            print("Updated timeline with \(sortedCombined.count) posts")
+        } else if errors.isEmpty {
+            // Empty timeline but no errors, just normal empty state
+            unifiedTimeline = []
+            print("Timeline is empty (no posts to display)")
+        }
 
-        // If we had any errors, set the last error
+        // Set error if we encountered any
         if let lastError = errors.last {
             self.error = ServiceError.timelineError(underlying: lastError)
         }
 
+        // Update last refreshed timestamp
+        lastRefreshed = Date()
+
         isLoadingTimeline = false
+    }
+
+    // Helper method to get an account by ID
+    private func getCurrentAccountById(_ id: String) -> SocialAccount? {
+        return mastodonAccounts.first(where: { $0.id == id })
+            ?? blueskyAccounts.first(where: { $0.id == id })
     }
 
     // MARK: - Post Actions
@@ -1141,6 +1148,16 @@ class SocialServiceManager: ObservableObject {
         } catch {
             print("Error saving accounts: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Save and Load Accounts
+
+    /// Saves all account data to persistent storage
+    @MainActor
+    func saveAllAccounts() {
+        saveAccounts()
+        saveSelections()
+        print("All account data saved to persistent storage")
     }
 }
 
