@@ -249,10 +249,11 @@ struct ContentView: View {
 // View for profile image (used in multiple places)
 struct ProfileImageView: View {
     let account: SocialAccount
+    @State private var refreshTrigger = false
 
     var body: some View {
         ZStack {
-            // Colored circle background based on platform type
+            // Background circle with platform color
             Circle()
                 .fill(
                     account.platform == .mastodon ? Color("PrimaryColor") : Color("SecondaryColor")
@@ -260,39 +261,47 @@ struct ProfileImageView: View {
                 .frame(width: 36, height: 36)
 
             // Profile image
-            AsyncImage(url: account.profileImageURL) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 32, height: 32)
-                        .clipShape(Circle())
-                } else {
-                    // Fallback to initial if image can't be loaded
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Text(String((account.displayName ?? "?").prefix(1)))
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(
-                                    account.platform == .mastodon
-                                        ? Color("PrimaryColor") : Color("SecondaryColor"))
-                        )
+            if let imageURL = account.profileImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 32, height: 32)
+                            .clipShape(Circle())
+                    } else if phase.error != nil {
+                        // Show initial on error
+                        Text(String((account.displayName ?? account.username).prefix(1)))
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                    } else {
+                        // Show loading placeholder
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 32, height: 32)
+                    }
                 }
+                .frame(width: 32, height: 32)
+                .clipShape(Circle())
+            } else {
+                // No URL, show initial
+                Text(String((account.displayName ?? account.username).prefix(1)))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
             }
-
-            // Platform badge in corner
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    PlatformBadge(platform: account.platform)
-                        .offset(x: 1, y: 1)  // Adjust placement to be more visible
-                }
-            }
-            .padding(3)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
+            notification in
+            if let accountId = notification.object as? String,
+                accountId == account.id
+            {
+                print("Refreshing ProfileImageView for account: \(account.username)")
+                refreshTrigger.toggle()
+            }
+        }
+        .id(refreshTrigger)  // Force view refresh when trigger changes
     }
 }
 
@@ -301,6 +310,9 @@ struct UnifiedAccountsIcon: View {
     let mastodonAccounts: [SocialAccount]
     let blueskyAccounts: [SocialAccount]
 
+    // Add state variable to force refresh when account images update
+    @State private var refreshTrigger = false
+
     var body: some View {
         ZStack {
             // Transparent background container
@@ -308,15 +320,26 @@ struct UnifiedAccountsIcon: View {
                 .fill(Color.clear)
                 .frame(width: 44, height: 44)
                 .onAppear {
-                    if let firstMastodonAccount = mastodonAccounts.first {
-                        print(
-                            "First Mastodon account profile image URL: \(String(describing: firstMastodonAccount.profileImageURL))"
-                        )
-                    }
-                    if let firstBlueskyAccount = blueskyAccounts.first {
-                        print(
-                            "First Bluesky account profile image URL: \(String(describing: firstBlueskyAccount.profileImageURL))"
-                        )
+                    // Log detailed information about accounts and their profile images
+                    print(
+                        "UnifiedAccountsIcon appeared with \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
+                    notification in
+                    if let accountId = notification.object as? String {
+                        // Check if the updated account is one of ours
+                        let isOurMastodonAccount = mastodonAccounts.contains(where: {
+                            $0.id == accountId
+                        })
+                        let isOurBlueskyAccount = blueskyAccounts.contains(where: {
+                            $0.id == accountId
+                        })
+
+                        if isOurMastodonAccount || isOurBlueskyAccount {
+                            print("Refreshing UnifiedAccountsIcon for account update: \(accountId)")
+                            refreshTrigger.toggle()
+                        }
                     }
                 }
 
@@ -343,21 +366,47 @@ struct UnifiedAccountsIcon: View {
                             .offset(x: -6, y: -6)
 
                         // Profile image
-                        AsyncImage(url: firstMastodonAccount.profileImageURL) { phase in
-                            if let image = phase.image {
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } else {
-                                // Fallback to initial if image can't be loaded
-                                Text(String((firstMastodonAccount.displayName ?? "?").prefix(1)))
+                        if let imageURL = firstMastodonAccount.profileImageURL {
+                            AsyncImage(url: imageURL) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 20, height: 20)
+                                        .clipShape(Circle())
+                                } else if phase.error != nil {
+                                    // Show initial on error
+                                    Text(
+                                        String(
+                                            (firstMastodonAccount.displayName
+                                                ?? firstMastodonAccount.username).prefix(1))
+                                    )
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundColor(Color("PrimaryColor"))
+                                    .frame(width: 20, height: 20)
+                                } else {
+                                    // Show loading placeholder
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 20, height: 20)
+                                }
                             }
+                            .frame(width: 20, height: 20)
+                            .clipShape(Circle())
+                            .offset(x: -6, y: -6)
+                        } else {
+                            // No URL, show initial
+                            Text(
+                                String(
+                                    (firstMastodonAccount.displayName
+                                        ?? firstMastodonAccount.username).prefix(1))
+                            )
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color("PrimaryColor"))
+                            .frame(width: 20, height: 20)
+                            .clipShape(Circle())
+                            .offset(x: -6, y: -6)
                         }
-                        .frame(width: 20, height: 20)
-                        .clipShape(Circle())
-                        .offset(x: -6, y: -6)
                     }
 
                     // Second profile (if any Bluesky accounts)
@@ -369,25 +418,52 @@ struct UnifiedAccountsIcon: View {
                             .offset(x: 6, y: 6)
 
                         // Profile image
-                        AsyncImage(url: firstBlueskyAccount.profileImageURL) { phase in
-                            if let image = phase.image {
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } else {
-                                // Fallback to initial if image can't be loaded
-                                Text(String((firstBlueskyAccount.displayName ?? "?").prefix(1)))
+                        if let imageURL = firstBlueskyAccount.profileImageURL {
+                            AsyncImage(url: imageURL) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 20, height: 20)
+                                        .clipShape(Circle())
+                                } else if phase.error != nil {
+                                    // Show initial on error
+                                    Text(
+                                        String(
+                                            (firstBlueskyAccount.displayName
+                                                ?? firstBlueskyAccount.username).prefix(1))
+                                    )
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundColor(Color("SecondaryColor"))
+                                    .frame(width: 20, height: 20)
+                                } else {
+                                    // Show loading placeholder
+                                    Circle()
+                                        .fill(Color.gray.opacity(0.3))
+                                        .frame(width: 20, height: 20)
+                                }
                             }
+                            .frame(width: 20, height: 20)
+                            .clipShape(Circle())
+                            .offset(x: 6, y: 6)
+                        } else {
+                            // No URL, show initial
+                            Text(
+                                String(
+                                    (firstBlueskyAccount.displayName ?? firstBlueskyAccount.username)
+                                        .prefix(1))
+                            )
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color("SecondaryColor"))
+                            .frame(width: 20, height: 20)
+                            .clipShape(Circle())
+                            .offset(x: 6, y: 6)
                         }
-                        .frame(width: 20, height: 20)
-                        .clipShape(Circle())
-                        .offset(x: 6, y: 6)
                     }
                 }
             }
         }
+        .id(refreshTrigger)  // Force view refresh when trigger changes
     }
 }
 
@@ -421,11 +497,11 @@ struct PlatformBadge: View {
                 .resizable()
                 .renderingMode(.template)
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 14, height: 14)
+                .frame(width: 16, height: 16)
                 .foregroundColor(getPlatformColor())
-                .shadow(color: Color.black.opacity(0.3), radius: 1.5, x: 0, y: 0)
+                .shadow(color: Color.black.opacity(0.4), radius: 1.5, x: 0, y: 0)
         }
-        .frame(width: 16, height: 16)
+        .frame(width: 20, height: 20)
     }
 }
 

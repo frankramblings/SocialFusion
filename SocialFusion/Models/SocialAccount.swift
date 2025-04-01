@@ -73,9 +73,9 @@ private class TokenManager {
     static func ensureValidToken(for account: SocialAccount) async throws -> String {
         // Only refresh if token is expired and we have refresh token
         if account.isTokenExpired,
-            let refreshToken = account.getRefreshToken(),
-            let clientId = account.getClientId(),
-            let clientSecret = account.getClientSecret()
+            account.getRefreshToken() != nil,
+            account.getClientId() != nil,
+            account.getClientSecret() != nil
         {
 
             // Use existing token handling
@@ -202,9 +202,16 @@ class SocialAccount: Identifiable, Codable, Equatable {
     let id: String
     let username: String
     var displayName: String?
-    var serverURL: URL?
+    let serverURL: URL?
     let platform: SocialPlatform
-    var profileImageURL: URL?
+    var profileImageURL: URL? {
+        didSet {
+            if profileImageURL != oldValue {
+                NotificationCenter.default.post(
+                    name: Notification.Name.profileImageUpdated, object: self, userInfo: nil)
+            }
+        }
+    }
 
     // Platform-specific ID (e.g., Mastodon account ID or Bluesky DID)
     var platformSpecificId: String
@@ -241,8 +248,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
         displayName: String? = nil,
         serverURL: URL? = nil,
         platform: SocialPlatform,
-        profileImageURL: URL? = nil,
-        platformSpecificId: String? = nil
+        profileImageURL: URL? = nil
     ) {
         self.id = id
         self.username = username
@@ -250,7 +256,12 @@ class SocialAccount: Identifiable, Codable, Equatable {
         self.serverURL = serverURL
         self.platform = platform
         self.profileImageURL = profileImageURL
-        self.platformSpecificId = platformSpecificId ?? id
+        self.platformSpecificId = id  // Use id as default platformSpecificId
+
+        // Print debug info
+        print(
+            "Created account: \(username) with profile image URL: \(String(describing: profileImageURL))"
+        )
 
         // Try to load tokens from keychain
         loadTokensFromKeychain()
@@ -304,21 +315,29 @@ class SocialAccount: Identifiable, Codable, Equatable {
         id = try container.decode(String.self, forKey: .id)
         username = try container.decode(String.self, forKey: .username)
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
+        serverURL = try container.decodeIfPresent(URL.self, forKey: .serverURL)
         platform = try container.decode(SocialPlatform.self, forKey: .platform)
         platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
 
-        // Convert string URLs to URL objects
-        if let urlString = try container.decodeIfPresent(String.self, forKey: .serverURL) {
-            serverURL = URL(string: urlString)
-        }
-
-        if let imageURLString = try container.decodeIfPresent(String.self, forKey: .profileImageURL)
+        // Decode profile image URL with proper error handling
+        if let profileImageURLString = try container.decodeIfPresent(
+            String.self, forKey: .profileImageURL)
         {
-            profileImageURL = URL(string: imageURLString)
+            profileImageURL = URL(string: profileImageURLString)
+            print(
+                "Decoded profile image URL for \(username): \(String(describing: profileImageURL))")
+        } else {
+            profileImageURL = nil
+            print("No profile image URL found for \(username)")
         }
 
-        // Load tokens from keychain
-        loadTokensFromKeychain()
+        // Load tokens from UserDefaults
+        let tokens = loadTokens(for: id)
+        accessToken = tokens.accessToken
+        refreshToken = tokens.refreshToken
+        tokenExpirationDate = tokens.expiresAt
+        clientId = tokens.clientId
+        clientSecret = tokens.clientSecret
     }
 
     // Custom encode method
@@ -327,11 +346,16 @@ class SocialAccount: Identifiable, Codable, Equatable {
 
         try container.encode(id, forKey: .id)
         try container.encode(username, forKey: .username)
-        try container.encode(displayName, forKey: .displayName)
-        try container.encode(serverURL?.absoluteString, forKey: .serverURL)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(serverURL, forKey: .serverURL)
         try container.encode(platform, forKey: .platform)
-        try container.encode(profileImageURL?.absoluteString, forKey: .profileImageURL)
         try container.encode(platformSpecificId, forKey: .platformSpecificId)
+
+        // Encode profile image URL as string
+        if let profileImageURL = profileImageURL {
+            try container.encode(profileImageURL.absoluteString, forKey: .profileImageURL)
+            print("Encoded profile image URL for \(username): \(profileImageURL.absoluteString)")
+        }
     }
 
     // MARK: - Equatable
@@ -475,6 +499,30 @@ class SocialAccount: Identifiable, Codable, Equatable {
         {
             self.tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
         }
+    }
+
+    // Save accounts to UserDefaults
+    private func saveAccounts() {
+        var accounts =
+            UserDefaults.standard.array(forKey: "social_accounts") as? [[String: Any]] ?? []
+
+        // Update or add this account
+        let accountData: [String: Any] = [
+            "id": id,
+            "username": username,
+            "displayName": displayName as Any,
+            "serverURL": serverURL?.absoluteString ?? "",
+            "platform": platform.rawValue,
+            "profileImageURL": profileImageURL?.absoluteString ?? "",
+        ]
+
+        if let index = accounts.firstIndex(where: { ($0["id"] as? String) == id }) {
+            accounts[index] = accountData
+        } else {
+            accounts.append(accountData)
+        }
+
+        UserDefaults.standard.set(accounts, forKey: "social_accounts")
     }
 }
 

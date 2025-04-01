@@ -122,6 +122,11 @@ class MastodonService {
         return (app.clientId, app.clientSecret)
     }
 
+    /// Create an application on the Mastodon server
+    private func createApplication(server: String) async throws -> (String, String) {
+        return try await registerApp(server: URL(string: server))
+    }
+
     /// Get the OAuth authorization URL for the user to authorize the app
     func getOAuthURL(server: URL?, clientId: String, redirectURI: String = "socialfusion://oauth")
         -> URL
@@ -184,6 +189,59 @@ class MastodonService {
         }
 
         return try JSONDecoder().decode(MastodonToken.self, from: data)
+    }
+
+    /// Get access token using username/password (for direct authentication)
+    func getAccessToken(
+        server: String,
+        username: String,
+        password: String,
+        clientId: String,
+        clientSecret: String
+    ) async throws -> String {
+        // Ensure server has the scheme
+        let serverUrl = formatServerURL(server)
+
+        guard let url = URL(string: "\(serverUrl)/oauth/token") else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let parameters: [String: Any] = [
+            "client_id": clientId,
+            "client_secret": clientSecret,
+            "grant_type": "password",
+            "username": username,
+            "password": password,
+            "scope": "read write follow push",
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to get access token"])
+        }
+
+        let token = try JSONDecoder().decode(MastodonToken.self, from: data)
+        return token.accessToken
+    }
+
+    /// Get user information from the Mastodon API
+    private func getUserInfo(server: String, accessToken: String) async throws -> MastodonAccount {
+        return try await verifyCredentials(server: URL(string: server), accessToken: accessToken)
     }
 
     /// Refresh an expired access token
@@ -255,7 +313,33 @@ class MastodonService {
                 userInfo: [NSLocalizedDescriptionKey: "Failed to verify credentials"])
         }
 
-        return try JSONDecoder().decode(MastodonAccount.self, from: data)
+        let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
+
+        // Create and return a new SocialAccount with the verified information
+        let verifiedAccount = SocialAccount(
+            id: mastodonAccount.id,
+            username: mastodonAccount.username,
+            displayName: mastodonAccount.displayName ?? mastodonAccount.username,
+            serverURL: serverUrl,
+            platform: .mastodon,
+            profileImageURL: URL(string: mastodonAccount.avatar),
+            platformSpecificId: mastodonAccount.id
+        )
+
+        // Make sure to explicitly set the access token on the verified account
+        verifiedAccount.accessToken = accessToken
+
+        // Post notification about the profile image update if we have an avatar URL
+        if let avatarURL = URL(string: mastodonAccount.avatar) {
+            print("Found Mastodon avatar URL: \(avatarURL)")
+            NotificationCenter.default.post(
+                name: Notification.Name("ProfileImageUpdated"),
+                object: nil,
+                userInfo: ["accountId": verifiedAccount.id, "profileImageURL": avatarURL]
+            )
+        }
+
+        return mastodonAccount
     }
 
     /// Verify credentials using a SocialAccount (automatically handles token refreshing)
@@ -298,114 +382,46 @@ class MastodonService {
         )
     }
 
-    /// Legacy authenticate method for backward compatibility (will be deprecated)
+    /// Authenticate with Mastodon and return a SocialAccount
     func authenticate(server: URL?, username: String, password: String) async throws
         -> SocialAccount
     {
-        // Ensure proper URL format with scheme
-        let serverUrl: String
-        if let url = server {
-            serverUrl = url.absoluteString
-        } else {
-            throw NSError(
-                domain: "MastodonService",
-                code: 400,
-                userInfo: [NSLocalizedDescriptionKey: "Server URL is required"])
-        }
+        // Ensure server URL has proper scheme
+        let serverStr = formatServerURL(server?.absoluteString ?? "mastodon.social")
 
-        // Validate the URL is properly formatted
-        guard let url = URL(string: serverUrl) else {
-            throw NSError(
-                domain: "MastodonService",
-                code: 400,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL format"])
-        }
+        // Create application if needed
+        let (clientId, clientSecret) = try await createApplication(server: serverStr)
 
-        // Extract the host part for storage
-        guard let host = url.host else {
-            throw NSError(
-                domain: "MastodonService",
-                code: 400,
-                userInfo: [NSLocalizedDescriptionKey: "Could not parse server hostname"])
-        }
-
-        // Step 1: Register the application
-        let (clientId, clientSecret) = try await registerApp(server: url)
-
-        // Instead of using password grant which is unsupported by many servers,
-        // we'll use client credentials flow for testing purposes
-
-        // Endpoint for token
-        guard let tokenUrl = URL(string: "\(serverUrl)/oauth/token") else {
-            throw NSError(
-                domain: "MastodonService",
-                code: 400,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid token URL"])
-        }
-
-        // Create request for client credentials grant
-        var request = URLRequest(url: tokenUrl)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let parameters: [String: Any] = [
-            "client_id": clientId,
-            "client_secret": clientSecret,
-            "grant_type": "client_credentials",
-            "scope": "read",
-        ]
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let error = errorJson["error"] as? String
-            {
-                throw NSError(
-                    domain: "MastodonService",
-                    code: (response as? HTTPURLResponse)?.statusCode ?? 400,
-                    userInfo: [NSLocalizedDescriptionKey: "Authentication failed: \(error)"])
-            }
-            throw NSError(
-                domain: "MastodonService",
-                code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to authenticate"])
-        }
-
-        // Parse token response
-        let token = try JSONDecoder().decode(MastodonToken.self, from: data)
-
-        // Create a unique ID based on server and username
-        let accountId = "\(host)_\(username.hashValue)"
-
-        // Extract a display name from the username
-        let displayName: String
-        if username.contains("@") {
-            // If it contains @, it might be an email or a full Mastodon handle
-            displayName = username.components(separatedBy: "@").first ?? username
-        } else {
-            // Use the username as is
-            displayName = username
-        }
-
-        // Create the account with the token we received
-        let account = SocialAccount(
-            id: accountId,
+        // Get access token
+        let accessToken = try await getAccessToken(
+            server: serverStr,
             username: username,
-            displayName: displayName,
-            serverURL: host,  // Store without protocol
-            platform: .mastodon
+            password: password,
+            clientId: clientId,
+            clientSecret: clientSecret
         )
 
-        // Save authentication details
-        account.saveAccessToken(token.accessToken)
-        if let refreshToken = token.refreshToken {
-            account.saveRefreshToken(refreshToken)
+        // Get user info
+        let userInfo = try await getUserInfo(server: serverStr, accessToken: accessToken)
+
+        // Create account with default avatar
+        let account = createAccount(
+            from: userInfo,
+            serverStr: serverStr,
+            accessToken: accessToken,
+            clientId: clientId,
+            clientSecret: clientSecret
+        )
+
+        // Post notification about the profile image update if we have an avatar URL
+        if let avatarURL = account.profileImageURL {
+            print("Found Mastodon avatar URL during authentication: \(avatarURL)")
+            NotificationCenter.default.post(
+                name: Notification.Name("ProfileImageUpdated"),
+                object: nil,
+                userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
+            )
         }
-        account.saveTokenExpirationDate(token.expirationDate)
-        account.saveClientCredentials(clientId: clientId, clientSecret: clientSecret)
 
         return account
     }
@@ -465,30 +481,30 @@ class MastodonService {
             let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
             print("Successfully verified Mastodon account: \(mastodonAccount.username)")
 
-            // Create and return a new SocialAccount with the verified information
+            // Create a new account with the verified information
             let verifiedAccount = SocialAccount(
-                id: account.id,
+                id: mastodonAccount.id,
                 username: mastodonAccount.username,
                 displayName: mastodonAccount.displayName ?? mastodonAccount.username,
-                serverURL: serverUrl,
-                platform: .mastodon
+                serverURL: serverUrl.absoluteString,
+                platform: .mastodon,
+                profileImageURL: URL(string: mastodonAccount.avatar),
+                platformSpecificId: mastodonAccount.id
             )
 
-            // Make sure to explicitly set the access token on the verified account
-            verifiedAccount.saveAccessToken(accessToken)
+            // Set the access token
+            verifiedAccount.accessToken = accessToken
 
-            // Copy other token-related fields if available
-            if let refreshToken = account.getRefreshToken() {
-                verifiedAccount.saveRefreshToken(refreshToken)
+            // Post notification about the profile image update if we have an avatar URL
+            if let avatarURL = URL(string: mastodonAccount.avatar) {
+                print("Found Mastodon avatar URL during verification: \(avatarURL)")
+                NotificationCenter.default.post(
+                    name: Notification.Name("ProfileImageUpdated"),
+                    object: nil,
+                    userInfo: ["accountId": verifiedAccount.id, "profileImageURL": avatarURL]
+                )
             }
 
-            if let clientId = account.getClientId(), let clientSecret = account.getClientSecret() {
-                // Store client credentials if we have methods to save them
-                // Note: These methods might need to be added to SocialAccount
-                print("Client credentials available: \(clientId), Secret: (redacted)")
-            }
-
-            print("Created verified Mastodon account with proper access token")
             return verifiedAccount
         } catch {
             print("Error verifying Mastodon credentials: \(error.localizedDescription)")
@@ -943,12 +959,8 @@ class MastodonService {
             )
         }
 
-        let mentions = status.mentions.compactMap { mention -> Post.Mention? in
-            return Post.Mention(
-                username: mention.username,
-                displayName: mention.username,
-                url: mention.url
-            )
+        let mentions = status.mentions.compactMap { mention -> String in
+            return mention.username
         }
 
         let tags = status.tags.compactMap { tag -> String in
@@ -1086,7 +1098,82 @@ class MastodonService {
         let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
         return convertToGenericPosts(statuses: statuses)
     }
+
+    // Try to fetch the profile image data
+    private func updateProfileImage(for account: SocialAccount) async {
+        do {
+            guard let serverStr = account.serverURL?.absoluteString else {
+                print("No server URL found for account")
+                return
+            }
+
+            let endpoint = "https://\(serverStr)/api/v1/accounts/verify_credentials"
+            var request = URLRequest(url: URL(string: endpoint)!)
+
+            if let accessToken = account.getAccessToken() {
+                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            }
+
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
+
+            if let avatarURL = URL(string: mastodonAccount.avatar) {
+                print("Found Mastodon avatar URL: \(avatarURL)")
+                account.profileImageURL = avatarURL
+                print("Updated Mastodon account with new profile image URL")
+            }
+        } catch {
+            print("Error fetching Mastodon profile: \(error)")
+        }
+    }
+
+    private func createAccount(
+        from userInfo: MastodonAccount,
+        serverStr: String,
+        accessToken: String,
+        clientId: String,
+        clientSecret: String
+    ) -> SocialAccount {
+        // Generate a default avatar URL using the displayName
+        let displayName = userInfo.displayName.isEmpty ? userInfo.username : userInfo.displayName
+        let defaultAvatarURL = URL(
+            string:
+                "https://ui-avatars.com/api/?name=\(displayName.replacingOccurrences(of: " ", with: "+"))&background=random"
+        )
+        print("Setting default Mastodon avatar URL: \(String(describing: defaultAvatarURL))")
+
+        // Create account with default avatar
+        let account = SocialAccount(
+            id: userInfo.id,
+            username: userInfo.username,
+            displayName: displayName,
+            serverURL: URL(string: serverStr),
+            platform: .mastodon,
+            profileImageURL: defaultAvatarURL
+        )
+
+        // Store credentials
+        account.saveAccessToken(accessToken)
+        account.saveClientCredentials(clientId: clientId, clientSecret: clientSecret)
+        account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+
+        // Try to fetch the actual profile image
+        if let avatarURL = URL(string: userInfo.avatar) {
+            account.profileImageURL = avatarURL
+            print("Updated Mastodon profile image URL: \(avatarURL.absoluteString)")
+        }
+
+        return account
+    }
 }
+
+// Define notification names if not already defined elsewhere
+/* Commenting out duplicate declarations
+extension Notification.Name {
+    static let profileImageUpdated = Notification.Name("AccountProfileImageUpdated")
+    static let accountUpdated = Notification.Name("AccountUpdated")
+}
+*/
 
 enum MastodonVisibility: String, Codable {
     case `public` = "public"

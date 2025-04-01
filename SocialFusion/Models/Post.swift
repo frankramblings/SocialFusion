@@ -106,7 +106,7 @@ struct MediaAttachment: Codable, Identifiable, Equatable {
 }
 
 // MARK: - Post struct
-struct Post: Identifiable, Equatable {
+struct Post: Identifiable, Codable, Equatable {
     let id: String
     let content: String
     let authorName: String
@@ -116,41 +116,67 @@ struct Post: Identifiable, Equatable {
     let platform: SocialPlatform
     let originalURL: String
     let attachments: [Attachment]
-    let mentions: [Mention]
+    let mentions: [String]
     let tags: [String]
 
-    // Nested types for attachments and mentions
-    struct Attachment: Identifiable, Equatable {
-        var id: String { url }
+    struct Attachment: Identifiable, Codable {
+        var id: String { url }  // Use URL as unique identifier
         let url: String
         let type: AttachmentType
-        let altText: String
+        let altText: String?
 
         enum AttachmentType: String, Codable {
             case image
             case video
             case audio
-            case unknown
-        }
-
-        static func == (lhs: Attachment, rhs: Attachment) -> Bool {
-            lhs.url == rhs.url
-        }
-    }
-
-    struct Mention: Identifiable, Equatable {
-        var id: String { url }
-        let username: String
-        let displayName: String
-        let url: String
-
-        static func == (lhs: Mention, rhs: Mention) -> Bool {
-            lhs.url == rhs.url
+            case gifv
         }
     }
 
     static func == (lhs: Post, rhs: Post) -> Bool {
-        lhs.id == rhs.id && lhs.platform == rhs.platform
+        return lhs.id == rhs.id
+    }
+
+    // MARK: - Codable
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case content
+        case authorName
+        case authorUsername
+        case authorProfilePictureURL
+        case createdAt
+        case platform
+        case originalURL
+        case attachments
+        case mentions
+        case tags
+    }
+
+    init(
+        id: String,
+        content: String,
+        authorName: String,
+        authorUsername: String,
+        authorProfilePictureURL: String,
+        createdAt: Date,
+        platform: SocialPlatform,
+        originalURL: String,
+        attachments: [Attachment] = [],
+        mentions: [String] = [],
+        tags: [String] = []
+    ) {
+        self.id = id
+        self.content = content
+        self.authorName = authorName
+        self.authorUsername = authorUsername
+        self.authorProfilePictureURL = authorProfilePictureURL
+        self.createdAt = createdAt
+        self.platform = platform
+        self.originalURL = originalURL
+        self.attachments = attachments
+        self.mentions = mentions
+        self.tags = tags
     }
 
     // Sample posts for previews and testing
