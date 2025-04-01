@@ -445,6 +445,7 @@ struct LegacyAddAccountView: View {
                     // Use the BlueskyService to authenticate
                     let blueskyService = BlueskyService()
                     let newAccount = try await blueskyService.authenticate(
+                        server: URL(string: "bsky.social"),
                         username: username,
                         password: password
                     )

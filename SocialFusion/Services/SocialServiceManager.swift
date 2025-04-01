@@ -3,6 +3,12 @@ import Foundation
 import SwiftUI
 import UIKit
 
+// Define notification names
+extension Notification.Name {
+    static let profileImageUpdated = Notification.Name("AccountProfileImageUpdated")
+    static let accountUpdated = Notification.Name("AccountUpdated")
+}
+
 @MainActor
 class SocialServiceManager: ObservableObject {
     // Services
@@ -29,7 +35,7 @@ class SocialServiceManager: ObservableObject {
         print(
             "SocialServiceManager initialized with \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
         )
-        print("Selected account IDs: \(Array(selectedAccountIds).joined(separator: ", "))")
+        print("Selected account IDs: \(Array(selectedAccountIds).joined(separator: ","))")
 
         // Start with trending posts if no accounts
         if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {
@@ -37,19 +43,109 @@ class SocialServiceManager: ObservableObject {
                 await fetchTrendingPosts()
             }
         }
+
+        // Listen for profile image updates
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleProfileImageUpdate),
+            name: .profileImageUpdated,
+            object: nil
+        )
+
+        // Listen for account updates
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAccountUpdate(_:)),
+            name: .accountUpdated,
+            object: nil
+        )
+    }
+
+    @objc private func handleProfileImageUpdate(_ notification: Notification) {
+        guard
+            let accountId = notification.userInfo?["accountId"] as? String,
+            let profileImageURL = notification.userInfo?["profileImageURL"] as? URL
+        else {
+            return
+        }
+
+        // Update Bluesky account
+        if let index = blueskyAccounts.firstIndex(where: { $0.id == accountId }) {
+            var updatedAccount = blueskyAccounts[index]
+            updatedAccount.profileImageURL = profileImageURL
+            blueskyAccounts[index] = updatedAccount
+            saveAccounts()
+            print("Updated Bluesky account \(accountId) with profile image URL: \(profileImageURL)")
+        }
+
+        // Update Mastodon account
+        if let index = mastodonAccounts.firstIndex(where: { $0.id == accountId }) {
+            var updatedAccount = mastodonAccounts[index]
+            updatedAccount.profileImageURL = profileImageURL
+            mastodonAccounts[index] = updatedAccount
+            saveAccounts()
+            print(
+                "Updated Mastodon account \(accountId) with profile image URL: \(profileImageURL)")
+
+            // Save the updated account
+            NotificationCenter.default.post(
+                name: .profileImageUpdated,
+                object: nil,
+                userInfo: ["account": updatedAccount]
+            )
+        }
+    }
+
+    // Handler for account updates
+    @objc private func handleAccountUpdate(_ notification: Notification) {
+        guard let account = notification.object as? SocialAccount else {
+            print("Invalid account object in update notification")
+            return
+        }
+
+        Task { @MainActor in
+            // Update the account in the appropriate array
+            if account.platform == .mastodon {
+                if let index = mastodonAccounts.firstIndex(where: { $0.id == account.id }) {
+                    mastodonAccounts[index] = account
+                    print("Updated Mastodon account: \(account.username)")
+                } else {
+                    mastodonAccounts.append(account)
+                    print("Added new Mastodon account: \(account.username)")
+                }
+            } else if account.platform == .bluesky {
+                if let index = blueskyAccounts.firstIndex(where: { $0.id == account.id }) {
+                    blueskyAccounts[index] = account
+                    print("Updated Bluesky account: \(account.username)")
+                } else {
+                    blueskyAccounts.append(account)
+                    print("Added new Bluesky account: \(account.username)")
+                }
+            }
+
+            // Save changes to persistent storage
+            saveAccounts()
+            objectWillChange.send()
+        }
     }
 
     // MARK: - Account Management
 
     private func loadAccounts() {
-        // Load accounts from UserDefaults
         do {
             // Load Mastodon accounts
             if let mastodonData = UserDefaults.standard.data(forKey: "mastodonAccounts") {
                 let decodedAccounts = try JSONDecoder().decode(
                     [SocialAccount].self, from: mastodonData)
                 mastodonAccounts = decodedAccounts.filter { validateAccount($0) }
-                print("Loaded \(mastodonAccounts.count) Mastodon accounts from storage")
+                print("Loaded \(mastodonAccounts.count) Mastodon accounts")
+
+                // Print profile image URLs for debugging
+                for account in mastodonAccounts {
+                    print(
+                        "Loaded Mastodon account \(account.username) profile image URL: \(String(describing: account.profileImageURL))"
+                    )
+                }
             } else {
                 mastodonAccounts = []
                 print("No Mastodon accounts found in storage")
@@ -60,48 +156,27 @@ class SocialServiceManager: ObservableObject {
                 let decodedAccounts = try JSONDecoder().decode(
                     [SocialAccount].self, from: blueskyData)
                 blueskyAccounts = decodedAccounts.filter { validateAccount($0) }
-                print("Loaded \(blueskyAccounts.count) Bluesky accounts from storage")
+                print("Loaded \(blueskyAccounts.count) Bluesky accounts")
+
+                // Print profile image URLs for debugging
+                for account in blueskyAccounts {
+                    print(
+                        "Loaded Bluesky account \(account.username) profile image URL: \(String(describing: account.profileImageURL))"
+                    )
+                }
             } else {
                 blueskyAccounts = []
                 print("No Bluesky accounts found in storage")
             }
 
-            #if DEBUG
-                // If we have no accounts in debug mode, use sample accounts
-                if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {
-                    print("DEBUG mode: No accounts found in storage, adding sample accounts")
-                    // Add sample accounts for debugging purposes
-                    let sampleMastodonAccount = SocialAccount(
-                        id: "1",
-                        username: "user1",
-                        displayName: "User One",
-                        serverURL: "mastodon.social",
-                        platform: .mastodon
-                    )
-
-                    let sampleBlueskyAccount = SocialAccount(
-                        id: "2",
-                        username: "user2.bsky.social",
-                        displayName: "User Two",
-                        serverURL: "bsky.social",
-                        platform: .bluesky
-                    )
-
-                    // Validate accounts before adding
-                    if validateAccount(sampleMastodonAccount) {
-                        mastodonAccounts = [sampleMastodonAccount]
-                    }
-
-                    if validateAccount(sampleBlueskyAccount) {
-                        blueskyAccounts = [sampleBlueskyAccount]
-                    }
-                }
-            #endif
+            // Load selected account IDs
+            if let selectedIds = UserDefaults.standard.array(forKey: "selectedAccountIds")
+                as? [String]
+            {
+                selectedAccountIds = Set(selectedIds)
+            }
         } catch {
             print("Error loading accounts from storage: \(error.localizedDescription)")
-            // If loading fails, clear accounts to be safe
-            mastodonAccounts = []
-            blueskyAccounts = []
         }
     }
 
@@ -110,6 +185,7 @@ class SocialServiceManager: ObservableObject {
             !account.username.isEmpty,
             account.serverURL != nil
         else {
+            print("Account validation failed - missing required fields")
             return false
         }
 
@@ -119,12 +195,9 @@ class SocialServiceManager: ObservableObject {
             return account.serverURL != nil
         } else {
             // For Mastodon, we need to ensure the server URL can be parsed properly
-            // Try adding https:// if needed
             let serverUrlString = account.serverURL?.absoluteString ?? ""
             let serverWithScheme =
-                serverUrlString.contains("://")
-                ? serverUrlString : "https://" + serverUrlString
-
+                serverUrlString.contains("://") ? serverUrlString : "https://" + serverUrlString
             return URL(string: serverWithScheme) != nil
         }
     }
@@ -228,6 +301,7 @@ class SocialServiceManager: ObservableObject {
         }
 
         let account = try await blueskyService.authenticate(
+            server: URL(string: "bsky.social"),
             username: username,
             password: password
         )
@@ -1128,25 +1202,35 @@ class SocialServiceManager: ObservableObject {
     }
 
     private func saveAccounts() {
-        // This is a simple implementation to save account data to UserDefaults
-        // In a production app, you would want to use a more secure storage option like the Keychain
-
-        print(
-            "Saving \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
-        )
-
         do {
-            // Convert accounts to Data using JSONEncoder
+            // Save Mastodon accounts
             let mastodonData = try JSONEncoder().encode(mastodonAccounts)
-            let blueskyData = try JSONEncoder().encode(blueskyAccounts)
-
-            // Save to UserDefaults
             UserDefaults.standard.set(mastodonData, forKey: "mastodonAccounts")
-            UserDefaults.standard.set(blueskyData, forKey: "blueskyAccounts")
+            print("Saved \(mastodonAccounts.count) Mastodon accounts")
 
-            print("Successfully saved accounts to storage")
+            // Print profile image URLs for debugging
+            for account in mastodonAccounts {
+                print(
+                    "Saved Mastodon account \(account.username) profile image URL: \(String(describing: account.profileImageURL))"
+                )
+            }
+
+            // Save Bluesky accounts
+            let blueskyData = try JSONEncoder().encode(blueskyAccounts)
+            UserDefaults.standard.set(blueskyData, forKey: "blueskyAccounts")
+            print("Saved \(blueskyAccounts.count) Bluesky accounts")
+
+            // Print profile image URLs for debugging
+            for account in blueskyAccounts {
+                print(
+                    "Saved Bluesky account \(account.username) profile image URL: \(String(describing: account.profileImageURL))"
+                )
+            }
+
+            // Save selected account IDs
+            UserDefaults.standard.set(Array(selectedAccountIds), forKey: "selectedAccountIds")
         } catch {
-            print("Error saving accounts: \(error.localizedDescription)")
+            print("Error saving accounts to storage: \(error.localizedDescription)")
         }
     }
 
