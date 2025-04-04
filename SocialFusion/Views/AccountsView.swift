@@ -9,6 +9,11 @@ struct AccountsView: View {
     @State private var showDebugInfo = false
     @State private var accountToDelete: SocialAccount? = nil
     @State private var showDeleteConfirmation = false
+    @State private var showingAddTokenView = false
+    @State private var tokenServerURL = ""
+    @State private var tokenAccessToken = ""
+    @State private var isTokenLoading = false
+    @State private var tokenErrorMessage: String? = nil
 
     var body: some View {
         NavigationView {
@@ -65,17 +70,17 @@ struct AccountsView: View {
                         }) {
                             Label("Add Mastodon Account", systemImage: "plus.circle")
                         }
+
+                        // Use a button instead of NavigationLink
+                        Button(action: {
+                            showingAddTokenView = true
+                        }) {
+                            Label("Add with Access Token", systemImage: "key")
+                                .foregroundColor(.blue)
+                        }
                     } else {
                         ForEach(serviceManager.mastodonAccounts) { account in
                             accountSelectionRow(account)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        // Show confirmation dialog before deleting
-                                        confirmDelete(account: account)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
                         }
 
                         Button(action: {
@@ -83,6 +88,14 @@ struct AccountsView: View {
                             showingAddAccount = true
                         }) {
                             Label("Add Another Mastodon Account", systemImage: "plus.circle")
+                        }
+
+                        // Use a button instead of NavigationLink
+                        Button(action: {
+                            showingAddTokenView = true
+                        }) {
+                            Label("Add with Access Token", systemImage: "key")
+                                .foregroundColor(.blue)
                         }
                     }
                 }
@@ -99,14 +112,6 @@ struct AccountsView: View {
                     } else {
                         ForEach(serviceManager.blueskyAccounts) { account in
                             accountSelectionRow(account)
-                                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                    Button(role: .destructive) {
-                                        // Show confirmation dialog before deleting
-                                        confirmDelete(account: account)
-                                    } label: {
-                                        Label("Delete", systemImage: "trash")
-                                    }
-                                }
                         }
 
                         Button(action: {
@@ -143,6 +148,64 @@ struct AccountsView: View {
             .sheet(isPresented: $showingAddAccount) {
                 AddAccountView()
                     .environmentObject(serviceManager)
+            }
+            .sheet(isPresented: $showingAddTokenView) {
+                NavigationView {
+                    Form {
+                        Section(header: Text("Server Information")) {
+                            TextField("Server URL (e.g. mastodon.social)", text: $tokenServerURL)
+                                .autocapitalization(.none)
+                                .keyboardType(.URL)
+                                .disableAutocorrection(true)
+                        }
+
+                        Section(header: Text("Authentication")) {
+                            SecureField("Access Token", text: $tokenAccessToken)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+
+                            Text(
+                                "You can obtain an access token from your Mastodon's instance settings page, under Development → Your applications."
+                            )
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        }
+
+                        Section {
+                            Button(action: addAccountWithToken) {
+                                if isTokenLoading {
+                                    ProgressView()
+                                        .progressViewStyle(CircularProgressViewStyle())
+                                } else {
+                                    Text("Add Account")
+                                        .frame(maxWidth: .infinity)
+                                        .foregroundColor(.white)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(isTokenFormValid ? Color.blue : Color.gray)
+                            .cornerRadius(10)
+                            .disabled(isTokenLoading || !isTokenFormValid)
+                        }
+
+                        if let error = tokenErrorMessage {
+                            Section {
+                                Text(error)
+                                    .foregroundColor(.red)
+                                    .font(.footnote)
+                            }
+                        }
+                    }
+                    .navigationTitle("Add with Access Token")
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                showingAddTokenView = false
+                            }
+                        }
+                    }
+                }
             }
             .alert("Remove Account", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
@@ -186,61 +249,91 @@ struct AccountsView: View {
 
     // Account row with selection toggle
     private func accountSelectionRow(_ account: SocialAccount) -> some View {
-        HStack {
-            if account.platform.usesSFSymbol {
-                Image(systemName: account.platform.sfSymbol)
-                    .foregroundColor(Color(account.platform.color))
-                    .font(.system(size: 24))
-                    .frame(width: 32, height: 32)
-            } else {
-                Image(account.platform.icon)
-                    .resizable()
-                    .renderingMode(.template)
-                    .foregroundColor(Color(account.platform.color))
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 28, height: 28)
-                    .padding(2)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(account.displayName ?? account.username)
-                    .font(.headline)
-
-                Text("@\(account.username)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Button(action: {
-                toggleSelection(id: account.id)
-            }) {
-                if selectedAccountIds.contains(account.id) {
-                    Image(systemName: "checkmark")
-                        .foregroundColor(.blue)
+        VStack(spacing: 8) {
+            HStack {
+                if account.platform.usesSFSymbol {
+                    Image(systemName: account.platform.sfSymbol)
+                        .foregroundColor(
+                            platformColor(for: account.platform)
+                        )
+                        .font(.system(size: 24))
+                        .frame(width: 32, height: 32)
                 } else {
-                    Image(systemName: "circle")
-                        .foregroundColor(.gray)
+                    Image(account.platform.icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundColor(
+                            platformColor(for: account.platform)
+                        )
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                        .padding(2)
                 }
-            }
-            .buttonStyle(PlainButtonStyle())
 
-            NavigationLink(
-                destination:
-                    AccountDetailView(account: account)
-                    .environmentObject(serviceManager)
-            ) {
-                Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 14))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.displayName ?? account.username)
+                        .font(.headline)
+
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Button(action: {
+                    toggleSelection(id: account.id)
+                }) {
+                    if selectedAccountIds.contains(account.id) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 24))
+                    } else {
+                        Image(systemName: "circle")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 24))
+                    }
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
+            .padding(.vertical, 8)
+            .padding(.horizontal, 8)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                toggleSelection(id: account.id)
+            }
+            .background(Color(UIColor.tertiarySystemBackground))
+            .cornerRadius(8)
+
+            // Delete button row - more subtle design
+            HStack {
+                Spacer()
+
+                Button(action: {
+                    confirmDelete(account: account)
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 14))
+                        Text("Delete")
+                            .font(.system(size: 14))
+                    }
+                    .foregroundColor(.red)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                }
+                .buttonStyle(BorderlessButtonStyle())
+            }
+            .padding(.top, 2)
+            .padding(.bottom, 4)
+            .padding(.trailing, 4)
         }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            toggleSelection(id: account.id)
-        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .background(Color(UIColor.secondarySystemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .padding(.vertical, 4)
     }
 
     // Toggle selection for an account
@@ -274,7 +367,7 @@ struct AccountsView: View {
 
         // Refresh timeline based on selection
         Task {
-            await serviceManager.refreshTimeline()
+            try? await serviceManager.refreshTimeline()
         }
     }
 
@@ -297,6 +390,54 @@ struct AccountsView: View {
         accountToDelete = account
         showDeleteConfirmation = true
     }
+
+    // Helper function to get platform color
+    private func platformColor(for platform: SocialPlatform) -> Color {
+        switch platform {
+        case .mastodon:
+            return Color(hex: "6364FF")
+        case .bluesky:
+            return Color(hex: "0085FF")
+        }
+    }
+
+    private var isTokenFormValid: Bool {
+        !tokenServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !tokenAccessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func addAccountWithToken() {
+        isTokenLoading = true
+        tokenErrorMessage = nil
+
+        // Clean up the inputs
+        let trimmedServer = tokenServerURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedToken = tokenAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        Task {
+            do {
+                let _ = try await serviceManager.addMastodonAccountWithToken(
+                    serverURL: trimmedServer,
+                    accessToken: trimmedToken
+                )
+
+                await MainActor.run {
+                    isTokenLoading = false
+                    tokenServerURL = ""
+                    tokenAccessToken = ""
+                    showingAddTokenView = false
+
+                    // Refresh selections to include the new account
+                    refreshAccountSelections()
+                }
+            } catch {
+                await MainActor.run {
+                    isTokenLoading = false
+                    tokenErrorMessage = "Failed to add account: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
 }
 
 struct AccountRow: View {
@@ -310,14 +451,18 @@ struct AccountRow: View {
             HStack {
                 if account.platform.usesSFSymbol {
                     Image(systemName: account.platform.sfSymbol)
-                        .foregroundColor(Color(account.platform.color))
+                        .foregroundColor(
+                            platformColor(for: account.platform)
+                        )
                         .font(.system(size: 24))
                         .frame(width: 32, height: 32)
                 } else {
                     Image(account.platform.icon)
                         .resizable()
                         .renderingMode(.template)
-                        .foregroundColor(Color(account.platform.color))
+                        .foregroundColor(
+                            platformColor(for: account.platform)
+                        )
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 28, height: 28)
                         .padding(2)
@@ -341,6 +486,16 @@ struct AccountRow: View {
         }
         .sheet(isPresented: $showingAccountDetails) {
             AccountDetailView(account: account)
+        }
+    }
+
+    // Helper function to get platform color
+    private func platformColor(for platform: SocialPlatform) -> Color {
+        switch platform {
+        case .mastodon:
+            return Color(hex: "6364FF")
+        case .bluesky:
+            return Color(hex: "0085FF")
         }
     }
 }
@@ -504,8 +659,14 @@ struct AccountDetailView: View {
                     Button(action: {
                         showingDeleteConfirmation = true
                     }) {
-                        Text("Remove Account")
-                            .foregroundColor(.red)
+                        HStack {
+                            Image(systemName: "trash")
+                                .font(.system(size: 15))
+                            Text("Delete Account")
+                                .font(.system(size: 16))
+                            Spacer()
+                        }
+                        .foregroundColor(.red)
                     }
                 }
             }

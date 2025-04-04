@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
@@ -11,6 +12,7 @@ struct ContentView: View {
     @State private var selectedAccount: SocialAccount? = nil
     @State private var showSettings = false
     @State private var longPressLocation: CGPoint = .zero  // Track long press location
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -38,7 +40,7 @@ struct ContentView: View {
                         .zIndex(10)  // Ensure it appears above other content
                     }
 
-                    // FAB for compose
+                    // Floating action button (FAB) for compose
                     VStack {
                         Spacer()
                         HStack {
@@ -47,18 +49,19 @@ struct ContentView: View {
                                 showComposeView = true
                             }) {
                                 Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 22))
+                                    .font(.system(size: 18))
                                     .foregroundColor(.white)
-                                    .frame(width: 60, height: 60)
-                                    .contentShape(Circle())
+                                    .frame(width: 56, height: 56)
                                     .background(
                                         Circle()
                                             .fill(Color.blue)
+                                            .shadow(
+                                                color: Color.black.opacity(0.15), radius: 4, x: 0,
+                                                y: 2)
                                     )
-                                    .shadow(radius: 4)
                             }
                             .padding(.trailing, 20)
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 16)
                         }
                     }
                 }
@@ -67,52 +70,73 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         // Account icon with gestures
-                        getCurrentAccountImage()
-                            .frame(width: 34, height: 34)
-                            .clipShape(Circle())
-                            .onTapGesture(count: 2) {
-                                // Double tap - switch to previous account
-                                switchToPreviousAccount()
-                            }
-                            .onTapGesture(count: 1) {
-                                // Single tap - show full account picker sheet
-                                showAccountPicker = true
-                            }
-                            .background(
-                                // Use GeometryReader to get precise position
-                                GeometryReader { geometry -> Color in
-                                    let frame = geometry.frame(in: .global)
-                                    // Store the center of the account icon for dropdown positioning
-                                    longPressLocation = CGPoint(
-                                        x: frame.midX,
-                                        y: frame.maxY  // Use bottom edge of icon instead of center + offset
-                                    )
-                                    return Color.clear
-                                }
-                            )
-                            .gesture(
-                                LongPressGesture(minimumDuration: 0.3)  // Slightly quicker response
-                                    .onEnded { _ in
-                                        // Show dropdown when long press ends
-                                        showAccountDropdown = true
-                                    }
-                            )
-                            .sheet(isPresented: $showAccountPicker) {
-                                AccountPickerSheet(
-                                    selectedAccountId: $selectedAccountId,
-                                    previousAccountId: $previousAccountId,
-                                    isPresented: $showAccountPicker
+                        HStack(spacing: 6) {
+                            getCurrentAccountImage()
+                                .frame(width: 32, height: 32)
+                                .clipShape(Circle())
+                                .overlay(
+                                    Circle()
+                                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                                 )
-                            }
+                                .background(
+                                    // Use GeometryReader to get precise position
+                                    GeometryReader { geometry -> Color in
+                                        let frame = geometry.frame(in: .global)
+                                        // Store the center of the account icon for dropdown positioning
+                                        longPressLocation = CGPoint(
+                                            x: frame.midX,
+                                            y: frame.maxY + 8  // Position dropdown slightly below the icon
+                                        )
+                                        return Color.clear
+                                    }
+                                )
+
+                            // Dropdown indicator
+                            Image(systemName: "chevron.down")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(6)
+                        .background(
+                            Capsule()
+                                .fill(
+                                    colorScheme == .dark
+                                        ? Color(UIColor.tertiarySystemBackground)
+                                        : Color(UIColor.secondarySystemBackground)
+                                )
+                                .shadow(color: Color.black.opacity(0.05), radius: 1, x: 0, y: 1)
+                        )
+                        // Combined gesture for both actions
+                        .onTapGesture {
+                            // Toggle dropdown on tap
+                            showAccountDropdown.toggle()
+                        }
+                        .gesture(
+                            LongPressGesture(minimumDuration: 0.3)
+                                .onEnded { _ in
+                                    // Show full account picker on long press
+                                    showAccountPicker = true
+                                }
+                        )
+                        .sheet(isPresented: $showAccountPicker) {
+                            AccountPickerSheet(
+                                selectedAccountId: $selectedAccountId,
+                                previousAccountId: $previousAccountId,
+                                isPresented: $showAccountPicker
+                            )
+                        }
                     }
 
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button(action: {
-                            Task {
-                                await serviceManager.refreshTimeline()
-                            }
+                            showSettings = true
                         }) {
-                            Image(systemName: "arrow.clockwise")
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 18))
+                                .foregroundColor(.primary)
+                        }
+                        .sheet(isPresented: $showSettings) {
+                            SettingsView()
                         }
                     }
                 }
@@ -126,11 +150,27 @@ struct ContentView: View {
             }
             .tag(0)
 
-            // Notifications Tab
+            // Notifications Tab - with a modern design
             NavigationView {
-                VStack {
-                    Text("Notifications will appear here")
-                        .font(.headline)
+                ZStack {
+                    Color(UIColor.systemBackground)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 20) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray.opacity(0.3))
+
+                        Text("Notifications")
+                            .font(.title3)
+                            .fontWeight(.medium)
+
+                        Text("Notifications will appear here")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
                 }
                 .navigationTitle("Notifications")
                 .navigationBarTitleDisplayMode(.inline)
@@ -140,11 +180,27 @@ struct ContentView: View {
             }
             .tag(1)
 
-            // Search Tab
+            // Search Tab - with a modern design
             NavigationView {
-                VStack {
-                    Text("Search functionality will appear here")
-                        .font(.headline)
+                ZStack {
+                    Color(UIColor.systemBackground)
+                        .ignoresSafeArea()
+
+                    VStack(spacing: 20) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray.opacity(0.3))
+
+                        Text("Search")
+                            .font(.title3)
+                            .fontWeight(.medium)
+
+                        Text("Search for people, posts, and hashtags")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                    }
                 }
                 .navigationTitle("Search")
                 .navigationBarTitleDisplayMode(.inline)
@@ -154,15 +210,95 @@ struct ContentView: View {
             }
             .tag(2)
 
-            // Profile Tab
+            // Profile Tab - with a modern design
             NavigationView {
-                VStack {
+                ZStack {
+                    Color(UIColor.systemBackground)
+                        .ignoresSafeArea()
+
                     if let account = getCurrentAccount() {
-                        Text("Profile for \(account.displayName ?? account.username)")
-                            .font(.headline)
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                // Profile header
+                                VStack(spacing: 16) {
+                                    // Profile image
+                                    ProfileImageView(account: account)
+                                        .frame(width: 80, height: 80)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                        )
+                                        .padding(.top, 20)
+
+                                    // Account name and username
+                                    VStack(spacing: 4) {
+                                        Text(account.displayName ?? account.username)
+                                            .font(.title2)
+                                            .fontWeight(.bold)
+
+                                        Text("@\(account.username)")
+                                            .font(.subheadline)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    // Platform badge
+                                    HStack {
+                                        PlatformBadge(platform: account.platform)
+                                    }
+                                    .padding(.bottom, 10)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    colorScheme == .dark
+                                        ? Color(UIColor.secondarySystemBackground) : Color.white)
+
+                                // Profile content placeholder
+                                VStack(spacing: 20) {
+                                    Text("Profile content will appear here")
+                                        .font(.headline)
+                                        .padding(.top, 40)
+                                        .foregroundColor(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            }
+                        }
                     } else {
-                        Text("Select an account to view profile")
-                            .font(.headline)
+                        VStack(spacing: 20) {
+                            Image(systemName: "person.crop.circle")
+                                .font(.system(size: 50))
+                                .foregroundColor(.gray.opacity(0.3))
+
+                            Text("No Account Selected")
+                                .font(.title3)
+                                .fontWeight(.medium)
+
+                            Text("Select an account to view profile")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+
+                            Button(action: {
+                                // Show account picker
+                                showAccountPicker = true
+                            }) {
+                                Text("Select Account")
+                                    .font(.headline)
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                    .background(Color.blue)
+                                    .cornerRadius(25)
+                            }
+                            .padding(.top, 10)
+                            .sheet(isPresented: $showAccountPicker) {
+                                AccountPickerSheet(
+                                    selectedAccountId: $selectedAccountId,
+                                    previousAccountId: $previousAccountId,
+                                    isPresented: $showAccountPicker
+                                )
+                            }
+                        }
                     }
                 }
                 .navigationTitle("Profile")
@@ -196,7 +332,6 @@ struct ContentView: View {
                 mastodonAccounts: serviceManager.mastodonAccounts,
                 blueskyAccounts: serviceManager.blueskyAccounts
             )
-            .frame(width: 44, height: 44)  // Increased size for more spacing
         }
     }
 
@@ -241,417 +376,199 @@ struct ContentView: View {
 
         // Refresh timeline with new account selection
         Task {
-            await serviceManager.refreshTimeline(force: true)
+            try? await serviceManager.refreshTimeline(force: true)
         }
     }
 }
 
-// View for profile image (used in multiple places)
-struct ProfileImageView: View {
-    let account: SocialAccount
-    @State private var refreshTrigger = false
-
-    var body: some View {
-        ZStack {
-            // Background circle with platform color
-            Circle()
-                .fill(
-                    account.platform == .mastodon ? Color("PrimaryColor") : Color("SecondaryColor")
-                )
-                .frame(width: 36, height: 36)
-
-            // Profile image
-            if let imageURL = account.profileImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 32, height: 32)
-                            .clipShape(Circle())
-                    } else if phase.error != nil {
-                        // Show initial on error
-                        Text(String((account.displayName ?? account.username).prefix(1)))
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        // Show loading placeholder
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 32, height: 32)
-                    }
-                }
-                .frame(width: 32, height: 32)
-                .clipShape(Circle())
-            } else {
-                // No URL, show initial
-                Text(String((account.displayName ?? account.username).prefix(1)))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
-            notification in
-            if let accountId = notification.object as? String,
-                accountId == account.id
-            {
-                print("Refreshing ProfileImageView for account: \(account.username)")
-                refreshTrigger.toggle()
-            }
-        }
-        .id(refreshTrigger)  // Force view refresh when trigger changes
-    }
-}
-
-// Unified icon showing overlapping accounts
-struct UnifiedAccountsIcon: View {
-    let mastodonAccounts: [SocialAccount]
-    let blueskyAccounts: [SocialAccount]
-
-    // Add state variable to force refresh when account images update
-    @State private var refreshTrigger = false
-
-    var body: some View {
-        ZStack {
-            // Transparent background container
-            Circle()
-                .fill(Color.clear)
-                .frame(width: 44, height: 44)
-                .onAppear {
-                    // Log detailed information about accounts and their profile images
-                    print(
-                        "UnifiedAccountsIcon appeared with \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
-                    )
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
-                    notification in
-                    if let accountId = notification.object as? String {
-                        // Check if the updated account is one of ours
-                        let isOurMastodonAccount = mastodonAccounts.contains(where: {
-                            $0.id == accountId
-                        })
-                        let isOurBlueskyAccount = blueskyAccounts.contains(where: {
-                            $0.id == accountId
-                        })
-
-                        if isOurMastodonAccount || isOurBlueskyAccount {
-                            print("Refreshing UnifiedAccountsIcon for account update: \(accountId)")
-                            refreshTrigger.toggle()
-                        }
-                    }
-                }
-
-            // Background circle (gray)
-            Circle()
-                .fill(Color.gray.opacity(0.1))
-                .frame(width: 36, height: 36)
-
-            if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {
-                // No accounts, show a placeholder
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 20))
-                    .foregroundColor(.gray)
-            } else {
-                // Show account profiles with colored outlines
-                ZStack {
-                    // First profile (if any Mastodon accounts)
-                    if !mastodonAccounts.isEmpty, let firstMastodonAccount = mastodonAccounts.first
-                    {
-                        // Colored circle for outline
-                        Circle()
-                            .fill(Color("PrimaryColor"))
-                            .frame(width: 24, height: 24)
-                            .offset(x: -6, y: -6)
-
-                        // Profile image
-                        if let imageURL = firstMastodonAccount.profileImageURL {
-                            AsyncImage(url: imageURL) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 20, height: 20)
-                                        .clipShape(Circle())
-                                } else if phase.error != nil {
-                                    // Show initial on error
-                                    Text(
-                                        String(
-                                            (firstMastodonAccount.displayName
-                                                ?? firstMastodonAccount.username).prefix(1))
-                                    )
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(Color("PrimaryColor"))
-                                    .frame(width: 20, height: 20)
-                                } else {
-                                    // Show loading placeholder
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 20, height: 20)
-                                }
-                            }
-                            .frame(width: 20, height: 20)
-                            .clipShape(Circle())
-                            .offset(x: -6, y: -6)
-                        } else {
-                            // No URL, show initial
-                            Text(
-                                String(
-                                    (firstMastodonAccount.displayName
-                                        ?? firstMastodonAccount.username).prefix(1))
-                            )
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color("PrimaryColor"))
-                            .frame(width: 20, height: 20)
-                            .clipShape(Circle())
-                            .offset(x: -6, y: -6)
-                        }
-                    }
-
-                    // Second profile (if any Bluesky accounts)
-                    if !blueskyAccounts.isEmpty, let firstBlueskyAccount = blueskyAccounts.first {
-                        // Colored circle for outline
-                        Circle()
-                            .fill(Color("SecondaryColor"))
-                            .frame(width: 24, height: 24)
-                            .offset(x: 6, y: 6)
-
-                        // Profile image
-                        if let imageURL = firstBlueskyAccount.profileImageURL {
-                            AsyncImage(url: imageURL) { phase in
-                                if let image = phase.image {
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 20, height: 20)
-                                        .clipShape(Circle())
-                                } else if phase.error != nil {
-                                    // Show initial on error
-                                    Text(
-                                        String(
-                                            (firstBlueskyAccount.displayName
-                                                ?? firstBlueskyAccount.username).prefix(1))
-                                    )
-                                    .font(.system(size: 12, weight: .bold))
-                                    .foregroundColor(Color("SecondaryColor"))
-                                    .frame(width: 20, height: 20)
-                                } else {
-                                    // Show loading placeholder
-                                    Circle()
-                                        .fill(Color.gray.opacity(0.3))
-                                        .frame(width: 20, height: 20)
-                                }
-                            }
-                            .frame(width: 20, height: 20)
-                            .clipShape(Circle())
-                            .offset(x: 6, y: 6)
-                        } else {
-                            // No URL, show initial
-                            Text(
-                                String(
-                                    (firstBlueskyAccount.displayName ?? firstBlueskyAccount.username)
-                                        .prefix(1))
-                            )
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color("SecondaryColor"))
-                            .frame(width: 20, height: 20)
-                            .clipShape(Circle())
-                            .offset(x: 6, y: 6)
-                        }
-                    }
-                }
-            }
-        }
-        .id(refreshTrigger)  // Force view refresh when trigger changes
-    }
-}
-
-// Platform badge to show on account avatars
-struct PlatformBadge: View {
-    let platform: SocialPlatform
-
-    private func getLogoName(for platform: SocialPlatform) -> String {
-        switch platform {
-        case .mastodon:
-            return "MastodonLogo"
-        case .bluesky:
-            return "BlueskyLogo"
-        }
-    }
-
-    private func getPlatformColor() -> Color {
-        switch platform {
-        case .mastodon:
-            return Color("PrimaryColor")
-        case .bluesky:
-            return Color("SecondaryColor")
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            // Remove the white circle background
-            // Just show the platform logo with a slight shadow for visibility
-            Image(getLogoName(for: platform))
-                .resizable()
-                .renderingMode(.template)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .foregroundColor(getPlatformColor())
-                .shadow(color: Color.black.opacity(0.4), radius: 1.5, x: 0, y: 0)
-        }
-        .frame(width: 20, height: 20)
-    }
-}
-
-// Account dropdown view for quick account switching
+// Account dropdown overlay with improved design
 struct AccountDropdownView: View {
-    @EnvironmentObject private var serviceManager: SocialServiceManager
     @Binding var selectedAccountId: String?
     @Binding var previousAccountId: String?
     @Binding var isVisible: Bool
-    var position: CGPoint
+    @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.colorScheme) var colorScheme
 
-    // Detect drag motion for account selection
-    @GestureState private var dragLocation: CGPoint = .zero
-    @State private var highlightedIndex: Int? = nil
+    let position: CGPoint
 
     var body: some View {
-        // Generate combined list of accounts
-        let accounts: [AccountOption] =
-            [
-                AccountOption(
-                    id: "all", name: "All Accounts",
-                    icon: {
-                        UnifiedAccountsIcon(
-                            mastodonAccounts: serviceManager.mastodonAccounts,
-                            blueskyAccounts: serviceManager.blueskyAccounts
-                        )
-                    })
-            ]
-            + serviceManager.mastodonAccounts.map { account in
-                AccountOption(
-                    id: account.id, name: account.displayName ?? account.username,
-                    icon: {
-                        ProfileImageView(account: account)
-                    })
-            }
-            + serviceManager.blueskyAccounts.map { account in
-                AccountOption(
-                    id: account.id, name: account.displayName ?? account.username,
-                    icon: {
-                        ProfileImageView(account: account)
-                    })
-            }
-
-        let dropdownHeight = CGFloat(accounts.count * 50)  // Each row is approx 50 points high
-
         ZStack {
-            // Semi-transparent overlay to detect taps outside
-            Color.black.opacity(0.001)
-                .edgesIgnoringSafeArea(.all)
+            // Dismiss when tapping outside the dropdown
+            Color.clear
+                .contentShape(Rectangle())
                 .onTapGesture {
                     isVisible = false
                 }
 
-            // Dropdown container
             VStack(spacing: 0) {
-                ForEach(Array(accounts.enumerated()), id: \.element.id) { index, account in
-                    accountRow(account, index: index, isHighlighted: highlightedIndex == index)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            selectAccountAndClose(account.id)
+                // Dropdown arrow at the top
+                Image(systemName: "arrowtriangle.up.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(
+                        colorScheme == .dark
+                            ? Color(UIColor.secondarySystemBackground) : Color.white
+                    )
+                    .offset(y: 7)
+                    .zIndex(1)
+
+                // Main dropdown content
+                VStack(spacing: 0) {
+                    // "All Accounts" option
+                    accountOptionView(account: nil)
+
+                    Divider()
+                        .padding(.horizontal, 8)
+
+                    // Individual accounts
+                    ScrollView {
+                        VStack(spacing: 0) {
+                            ForEach(serviceManager.mastodonAccounts) { account in
+                                accountOptionView(account: account)
+
+                                if account.id != serviceManager.mastodonAccounts.last?.id
+                                    || !serviceManager.blueskyAccounts.isEmpty
+                                {
+                                    Divider()
+                                        .padding(.horizontal, 8)
+                                }
+                            }
+
+                            ForEach(serviceManager.blueskyAccounts) { account in
+                                accountOptionView(account: account)
+
+                                if account.id != serviceManager.blueskyAccounts.last?.id {
+                                    Divider()
+                                        .padding(.horizontal, 8)
+                                }
+                            }
                         }
+                    }
+                    .frame(maxHeight: 240)
+
+                    Divider()
+                        .padding(.horizontal, 8)
+
+                    // "Add Account" option
+                    Button(action: {
+                        // Here you would show the account adding interface
+                        isVisible = false
+                    }) {
+                        HStack {
+                            Image(systemName: "plus.circle")
+                                .font(.system(size: 16))
+                                .foregroundColor(.blue)
+
+                            Text("Add Account")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.blue)
+
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .background(
+                    colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white
+                )
+                .cornerRadius(12)
+                .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
+            }
+            .position(x: position.x, y: position.y)
+            .frame(width: 220)
+        }
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private func accountOptionView(account: SocialAccount?) -> some View {
+        Button(action: {
+            // Switch to this account
+            if let account = account {
+                if selectedAccountId != account.id {
+                    previousAccountId = selectedAccountId
+                    selectedAccountId = account.id
+
+                    // Update selected accounts in service manager
+                    serviceManager.selectedAccountIds = [account.id]
+                }
+            } else {
+                previousAccountId = selectedAccountId
+                selectedAccountId = nil
+
+                // Update selected accounts in service manager
+                serviceManager.selectedAccountIds = ["all"]
+            }
+
+            // Hide the dropdown
+            isVisible = false
+
+            // Refresh the timeline
+            Task {
+                try? await serviceManager.refreshTimeline(force: true)
+            }
+        }) {
+            HStack(spacing: 12) {
+                // Account image
+                if let account = account {
+                    ProfileImageView(account: account)
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
+                } else {
+                    UnifiedAccountsIcon(
+                        mastodonAccounts: serviceManager.mastodonAccounts,
+                        blueskyAccounts: serviceManager.blueskyAccounts
+                    )
+                    .frame(width: 32, height: 32)
+                }
+
+                // Account name and platform
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account?.displayName ?? account?.username ?? "All Accounts")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    if let account = account {
+                        Text("@\(account.username)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("Unified Timeline")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                // Selected indicator
+                if (account == nil && selectedAccountId == nil)
+                    || (account != nil && selectedAccountId == account?.id)
+                {
+                    Image(systemName: "checkmark")
+                        .font(.footnote)
+                        .foregroundColor(.blue)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(UIColor.systemBackground))
-                    .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
+                (account == nil && selectedAccountId == nil)
+                    || (account != nil && selectedAccountId == account?.id)
+                    ? Color.blue.opacity(0.1)
+                    : Color.clear
             )
-            .frame(width: 250)
-            // Position the dropdown below the profile icon
-            // Use geometry reader for screen-aware positioning
-            .position(
-                // Horizontal position - keep within screen bounds, near the tap
-                x: min(max(position.x, 140), UIScreen.main.bounds.width - 140),
-                // Vertical position - much closer to the tap position, with minimal offset
-                y: position.y + (dropdownHeight / 2) + 10  // Just 10 points below the icon
-            )
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .updating($dragLocation) { value, state, _ in
-                        state = value.location
-                        // Find which account is under the finger
-                        let rowHeight: CGFloat = 50
-                        let yOffset = value.location.y - (position.y - (dropdownHeight / 2))
-                        let index = Int(yOffset / rowHeight)
-
-                        if index >= 0 && index < accounts.count {
-                            highlightedIndex = index
-                        }
-                    }
-                    .onEnded { value in
-                        // Select account when drag ends
-                        if let index = highlightedIndex, index < accounts.count {
-                            selectAccountAndClose(accounts[index].id)
-                        }
-                        highlightedIndex = nil
-                    }
-            )
+            .contentShape(Rectangle())
         }
-    }
-
-    private func accountRow(_ account: AccountOption, index: Int, isHighlighted: Bool) -> some View
-    {
-        HStack(spacing: 12) {
-            account.icon()
-                .frame(width: 30, height: 30)
-
-            Text(account.name)
-                .lineLimit(1)
-                .font(.system(size: 14, weight: account.id == selectedAccountId ? .bold : .regular))
-
-            Spacer()
-
-            if account.id == selectedAccountId {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 12))
-                    .foregroundColor(.blue)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(isHighlighted ? Color.gray.opacity(0.2) : Color.clear)
-    }
-
-    private func selectAccountAndClose(_ id: String) {
-        // Store current as previous before changing
-        previousAccountId = selectedAccountId
-
-        // If selecting "all", set to nil
-        selectedAccountId = id == "all" ? nil : id
-
-        // Close dropdown
-        isVisible = false
+        .buttonStyle(PlainButtonStyle())
     }
 }
 
-// Helper struct for account options in dropdown
-struct AccountOption: Identifiable {
-    let id: String
-    let name: String
-    let icon: () -> AnyView
-
-    init(id: String, name: String, icon: @escaping () -> some View) {
-        self.id = id
-        self.name = name
-        self.icon = { AnyView(icon()) }
-    }
-}
-
-// This is a temporary replacement for the AccountPickerView until we implement it fully
+// Account picker sheet view
 struct AccountPickerSheet: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @Binding var selectedAccountId: String?
@@ -762,6 +679,20 @@ struct AccountPickerSheet: View {
                     }
                 }
 
+                // Manage Accounts Button
+                Section {
+                    NavigationLink(destination: AccountsView()) {
+                        HStack {
+                            Image(systemName: "person.crop.circle.badge.minus")
+                                .font(.system(size: 22))
+                                .foregroundColor(.red)
+
+                            Text("Manage Accounts")
+                                .font(.headline)
+                        }
+                    }
+                }
+
                 // Settings option
                 Section {
                     Button(action: {
@@ -810,5 +741,173 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .environmentObject(SocialServiceManager())
+    }
+}
+
+// MARK: - Supporting Components
+
+/// ProfileImageView displays a user's profile image with appropriate styling
+/// based on their account type.
+struct ProfileImageView: View {
+    let account: SocialAccount
+
+    @State private var refreshTrigger = false
+
+    var body: some View {
+        ZStack {
+            // Colored circle for outline based on platform
+            Circle()
+                .fill(
+                    account.platform == .mastodon ? Color("PrimaryColor") : Color("SecondaryColor")
+                )
+                .frame(width: 34, height: 34)
+
+            // Profile image or initial
+            if let imageURL = account.profileImageURL {
+                AsyncImage(url: imageURL) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: 30, height: 30)
+                            .clipShape(Circle())
+                    } else if phase.error != nil {
+                        // Show initial on error
+                        InitialView(account: account)
+                    } else {
+                        // Show loading placeholder
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 30, height: 30)
+                    }
+                }
+                .frame(width: 30, height: 30)
+                .clipShape(Circle())
+                .onAppear {
+                    print("Refreshing ProfileImageView for account: \(account.username)")
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
+                    notification in
+                    if let accountId = notification.object as? String, accountId == account.id {
+                        print("Received profile image update for \(account.username)")
+                        refreshTrigger.toggle()
+                    }
+                }
+            } else {
+                // No URL, show initial
+                InitialView(account: account)
+            }
+        }
+        .id(refreshTrigger)  // Force view refresh when trigger changes
+    }
+}
+
+/// Displays the user's initial when no profile image is available
+struct InitialView: View {
+    let account: SocialAccount
+
+    var body: some View {
+        Text(String((account.displayName ?? account.username).prefix(1)))
+            .font(.system(size: 14, weight: .bold))
+            .foregroundColor(
+                account.platform == .mastodon ? Color("PrimaryColor") : Color("SecondaryColor")
+            )
+            .frame(width: 30, height: 30)
+            .background(Circle().fill(Color.white))
+    }
+}
+
+struct UnifiedAccountsIcon: View {
+    let mastodonAccounts: [SocialAccount]
+    let blueskyAccounts: [SocialAccount]
+
+    @State private var refreshTrigger = false
+
+    var body: some View {
+        ZStack {
+            // Background circle (gray)
+            Circle()
+                .fill(Color.gray.opacity(0.1))
+                .frame(width: 36, height: 36)
+                .onAppear {
+                    print(
+                        "UnifiedAccountsIcon appeared with \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
+                    notification in
+                    if let accountId = notification.object as? String {
+                        // Check if the updated account is one of ours
+                        let isOurAccount =
+                            mastodonAccounts.contains { $0.id == accountId }
+                            || blueskyAccounts.contains { $0.id == accountId }
+                        if isOurAccount {
+                            print("Refreshing UnifiedAccountsIcon for account update: \(accountId)")
+                            refreshTrigger.toggle()
+                        }
+                    }
+                }
+
+            if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {
+                // No accounts, show a placeholder
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(.gray)
+            } else {
+                // Show account profiles with colored outlines
+                ZStack {
+                    // First profile (if any Mastodon accounts)
+                    if let firstMastodonAccount = mastodonAccounts.first {
+                        ProfileImageView(account: firstMastodonAccount)
+                            .offset(x: -6, y: -6)
+                    }
+
+                    // Second profile (if any Bluesky accounts)
+                    if let firstBlueskyAccount = blueskyAccounts.first {
+                        ProfileImageView(account: firstBlueskyAccount)
+                            .offset(x: 6, y: 6)
+                    }
+                }
+            }
+        }
+        .id(refreshTrigger)  // Force view refresh when trigger changes
+    }
+}
+
+/// Platform badge to show on account avatars
+struct PlatformBadge: View {
+    let platform: SocialPlatform
+
+    private func getLogoName(for platform: SocialPlatform) -> String {
+        switch platform {
+        case .mastodon:
+            return "MastodonLogo"
+        case .bluesky:
+            return "BlueskyLogo"
+        }
+    }
+
+    private func getPlatformColor() -> Color {
+        switch platform {
+        case .mastodon:
+            return Color("PrimaryColor")
+        case .bluesky:
+            return Color("SecondaryColor")
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            // Remove the white circle background
+            // Just show the platform logo with a slight shadow for visibility
+            Image(getLogoName(for: platform))
+                .resizable()
+                .renderingMode(.template)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 16, height: 16)
+                .foregroundColor(getPlatformColor())
+                .shadow(color: Color.black.opacity(0.4), radius: 1.5, x: 0, y: 0)
+        }
+        .frame(width: 20, height: 20)
     }
 }

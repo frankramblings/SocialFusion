@@ -15,6 +15,10 @@ struct AccountPickerView: View {
                     // "All" option (unified timeline)
                     Button(action: {
                         selectedAccountId = nil
+                        serviceManager.selectedAccountIds = ["all"]
+                        Task {
+                            await serviceManager.refreshTimeline(force: true)
+                        }
                         isPresented = false
                     }) {
                         HStack {
@@ -159,6 +163,10 @@ struct AccountPickerView: View {
     private func accountRow(_ account: SocialAccount) -> some View {
         Button(action: {
             selectedAccountId = account.id
+            serviceManager.selectedAccountIds = [account.id]
+            Task {
+                await serviceManager.refreshTimeline(force: true)
+            }
             isPresented = false
         }) {
             HStack {

@@ -1,10 +1,10 @@
 import Foundation
 
-final class KeychainHelper {
-    static let standard = KeychainHelper()
+public final class KeychainHelper {
+    public static let standard = KeychainHelper()
     private init() {}
     
-    func save(_ data: String, service: String, account: String) {
+    public func save(_ data: String, service: String, account: String) {
         guard let data = data.data(using: .utf8) else { return }
         
         // Create query
@@ -33,7 +33,7 @@ final class KeychainHelper {
         }
     }
     
-    func read(service: String, account: String) -> String? {
+    public func read(service: String, account: String) -> String? {
         let query = [
             kSecAttrService: service,
             kSecAttrAccount: account,
@@ -48,7 +48,7 @@ final class KeychainHelper {
         return String(data: data, encoding: .utf8)
     }
     
-    func delete(service: String, account: String) {
+    public func delete(service: String, account: String) {
         let query = [
             kSecAttrService: service,
             kSecAttrAccount: account,
