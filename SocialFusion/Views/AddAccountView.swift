@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import UIKit
@@ -14,6 +15,9 @@ struct AddAccountView: View {
     @State private var isLoading = false
     @State private var errorMessage = ""
     @State private var authMethod: AuthMethod = .oauth
+    @State private var platformSelected = true
+    @State private var isOAuthFlow = true
+    @State private var isAuthCodeEntered = false
 
     enum AuthMethod: String, CaseIterable, Identifiable {
         case oauth = "OAuth"
@@ -70,12 +74,20 @@ struct AddAccountView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
 
-                        TextField("Server (e.g., mastodon.social)", text: $server)
+                        TextField("Server", text: $server)
                             .autocapitalization(.none)
-                            .disableAutocorrection(true)
                             .keyboardType(.URL)
-                            .autocorrectionDisabled(true)
-                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                            .toolbar(content: {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        UIApplication.shared.sendAction(
+                                            #selector(UIResponder.resignFirstResponder), to: nil,
+                                            from: nil, for: nil)
+                                    }
+                                }
+                            })
 
                         if authMethod == .manual {
                             Text("Paste your access token from your Mastodon app settings")
@@ -94,14 +106,40 @@ struct AddAccountView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
 
-                        TextField("Email or handle", text: $username)
+                        TextField("Email or Username", text: $username)
                             .autocapitalization(.none)
-                            .disableAutocorrection(true)
                             .keyboardType(.emailAddress)
-                            .autocorrectionDisabled(true)
-                            .textInputAutocapitalization(.never)
+                            .disableAutocorrection(true)
+                            .toolbar(content: {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        UIApplication.shared.sendAction(
+                                            #selector(UIResponder.resignFirstResponder), to: nil,
+                                            from: nil, for: nil)
+                                    }
+                                }
+                            })
 
-                        SecureField("Password", text: $password)
+                        SecureField("App Password", text: $password)
+                            .toolbar(content: {
+                                ToolbarItemGroup(placement: .keyboard) {
+                                    Spacer()
+                                    Button("Done") {
+                                        UIApplication.shared.sendAction(
+                                            #selector(UIResponder.resignFirstResponder), to: nil,
+                                            from: nil, for: nil)
+                                    }
+                                }
+                            })
+
+                        Text(
+                            "Use an app password from Bluesky settings. Go to Settings → App Passwords in your Bluesky account to create one."
+                        )
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
                     }
                 }
 
@@ -141,10 +179,7 @@ struct AddAccountView: View {
                                 .frame(height: 44)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .fill(
-                                            Color(
-                                                UIColor(hex: SocialPlatform.mastodon.color) ?? .gray
-                                            ))
+                                        .fill(platformColor(for: selectedPlatform))
                                 )
                                 .padding(.vertical, 4)
                             }
@@ -178,10 +213,7 @@ struct AddAccountView: View {
                                 .frame(height: 44)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10)
-                                        .fill(
-                                            Color(
-                                                UIColor(hex: SocialPlatform.bluesky.color) ?? .gray)
-                                        )
+                                        .fill(platformColor(for: selectedPlatform))
                                 )
                                 .padding(.vertical, 4)
                             }
@@ -192,7 +224,16 @@ struct AddAccountView: View {
             }
             .navigationTitle("Add Account")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Add", action: addAccount)
+                        .disabled(
+                            (!platformSelected || isLoading)
+                                || (selectedPlatform == .mastodon && isOAuthFlow
+                                    && !isAuthCodeEntered)
+                        )
+                }
+
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         presentationMode.wrappedValue.dismiss()
                     }
@@ -232,7 +273,7 @@ struct AddAccountView: View {
             // Use the manual token method
             Task {
                 do {
-                    let account = try await serviceManager.addMastodonAccountWithToken(
+                    let _ = try await serviceManager.addMastodonAccountWithToken(
                         serverURL: trimmedServer,
                         accessToken: trimmedToken
                     )
@@ -252,7 +293,7 @@ struct AddAccountView: View {
             // Use the OAuth method from the service manager
             Task {
                 do {
-                    let account = try await serviceManager.addMastodonAccountWithOAuth(
+                    let _ = try await serviceManager.addMastodonAccountWithOAuth(
                         server: trimmedServer)
 
                     // Update the UI on the main thread
@@ -272,21 +313,19 @@ struct AddAccountView: View {
     }
 
     private func handleError(_ error: Error) {
-        if let serviceError = error as? SocialServiceManager.ServiceError {
-            switch serviceError {
-            case .invalidInput(let reason):
-                errorMessage = reason
-            case .duplicateAccount:
-                errorMessage = "This account has already been added."
-            case .invalidAccount(let reason):
-                errorMessage = reason
-            case .authenticationError(let underlying):
-                errorMessage = "Authentication failed: \(underlying.localizedDescription)"
-            default:
-                errorMessage = "Failed to add account: \(serviceError.localizedDescription)"
-            }
+        // Check the error details
+        if let serviceError = error as? ServiceError {
+            // Handle specific service errors with better messages
+            errorMessage = serviceError.localizedDescription
         } else {
-            errorMessage = "Failed to add account: \(error.localizedDescription)"
+            // For general errors (including network issues)
+            let nsError = error as NSError
+            if nsError.domain.contains("URLError") {
+                errorMessage =
+                    "Network error: Please check your internet connection and try again later."
+            } else {
+                errorMessage = "Failed to add account: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -304,20 +343,47 @@ struct AddAccountView: View {
 
                 case .bluesky:
                     let userInput = username.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let passwordInput = password.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    if !userInput.contains("@") && !userInput.contains(".") {
+                    // Basic validation
+                    guard !userInput.isEmpty else {
                         throw NSError(
                             domain: "AddAccountView", code: 400,
                             userInfo: [
                                 NSLocalizedDescriptionKey:
-                                    "Please enter a valid Bluesky handle (like user.bsky.social) or email address."
+                                    "Please enter your Bluesky username or email."
                             ])
                     }
 
-                    _ = try await serviceManager.addBlueskyAccount(
-                        username: userInput,
-                        password: password
-                    )
+                    guard !passwordInput.isEmpty else {
+                        throw NSError(
+                            domain: "AddAccountView", code: 400,
+                            userInfo: [
+                                NSLocalizedDescriptionKey: "Please enter your Bluesky app password."
+                            ])
+                    }
+
+                    // Now attempt to authenticate with Bluesky
+                    do {
+                        _ = try await serviceManager.addBlueskyAccount(
+                            username: userInput,
+                            password: passwordInput
+                        )
+
+                        print("Successfully authenticated with Bluesky")
+                    } catch {
+                        // Provide more specific error handling for Bluesky authentication issues
+                        let nsError = error as NSError
+                        if nsError.domain == "BlueskyService" {
+                            throw NSError(
+                                domain: "AddAccountView", code: nsError.code,
+                                userInfo: [
+                                    NSLocalizedDescriptionKey:
+                                        "Authentication failed: \(nsError.localizedDescription). Please verify your credentials and try again."
+                                ])
+                        }
+                        throw error
+                    }
                 }
 
                 await MainActor.run {
@@ -341,6 +407,16 @@ struct AddAccountView: View {
             return "BlueskyLogo"
         }
     }
+
+    // Get platform color for a specific platform
+    private func platformColor(for platform: SocialPlatform) -> Color {
+        switch platform {
+        case .mastodon:
+            return Color(hex: "6364FF")
+        case .bluesky:
+            return Color(hex: "0085FF")
+        }
+    }
 }
 
 struct PlatformButton: View {
@@ -348,17 +424,12 @@ struct PlatformButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    // Get platform color from the SocialPlatform enum
-    private var platformColor: Color {
-        return Color(UIColor(hex: platform.color) ?? .gray)
-    }
-
     var body: some View {
         Button(action: action) {
             VStack {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? platformColor : Color(.systemGray6))
+                        .fill(isSelected ? platformColor(for: platform) : Color(.systemGray6))
                         .frame(height: 56)
 
                     HStack(spacing: 8) {
@@ -368,7 +439,7 @@ struct PlatformButton: View {
                             .renderingMode(.template)
                             .aspectRatio(contentMode: .fit)
                             .frame(width: 24, height: 24)
-                            .foregroundColor(isSelected ? .white : platformColor)
+                            .foregroundColor(isSelected ? .white : platformColor(for: platform))
 
                         Text(platform.rawValue.capitalized)
                             .font(.headline)
@@ -389,6 +460,16 @@ struct PlatformButton: View {
             return "MastodonLogo"
         case .bluesky:
             return "BlueskyLogo"
+        }
+    }
+
+    // Get platform color for a specific platform
+    private func platformColor(for platform: SocialPlatform) -> Color {
+        switch platform {
+        case .mastodon:
+            return Color(hex: "6364FF")
+        case .bluesky:
+            return Color(hex: "0085FF")
         }
     }
 }

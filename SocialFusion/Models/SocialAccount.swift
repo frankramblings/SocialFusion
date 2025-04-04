@@ -3,51 +3,87 @@ import Security
 import SwiftUI
 import UIKit
 
-// Temporarily duplicate the SocialPlatform enum to fix build issues
-// Once the module structure is properly set up, this can be removed
-enum SocialPlatform: String, Codable, CaseIterable {
+// MARK: - Color Extension for Hex Colors
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a: UInt64
+        let r: UInt64
+        let g: UInt64
+        let b: UInt64
+        switch hex.count {
+        case 3:  // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6:  // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8:  // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
+// MARK: - SocialPlatform Definition
+/// An enum representing the supported social media platforms
+public enum SocialPlatform: String, Codable, CaseIterable {
     case mastodon
     case bluesky
 
     /// Returns the platform's color for UI elements
-    var color: String {
+    public var color: Color {
         switch self {
         case .mastodon:
-            return "#6364FF"
+            return Color(hex: "6364FF")
         case .bluesky:
-            return "#0085FF"
+            return Color(hex: "0085FF")
         }
     }
 
     /// Returns whether the platform uses an SF Symbol or custom image
-    var usesSFSymbol: Bool {
+    public var usesSFSymbol: Bool {
         return false
     }
 
     /// Returns the platform-specific icon image name
-    var icon: String {
+    public var icon: String {
         switch self {
         case .mastodon:
-            return "mastodon-logo"
+            return "MastodonLogo"
         case .bluesky:
-            return "bluesky-logo"
+            return "BlueskyLogo"
         }
     }
 
     /// Whether the SVG icon should be tinted with the platform color
-    var shouldTintIcon: Bool {
-        return true
+    public var shouldTintIcon: Bool {
+        return false
     }
 
     /// Fallback system symbol if needed
-    var sfSymbol: String {
+    public var sfSymbol: String {
         switch self {
         case .mastodon:
-            return "bubble.left.and.bubble.right"
+            return "m.circle.fill"
         case .bluesky:
-            return "cloud"
+            return "cloud.fill"
         }
     }
+}
+
+// MARK: - Notification Names
+extension Notification.Name {
+    public static let accountProfileImageUpdated = Notification.Name("AccountProfileImageUpdated")
 }
 
 // Custom property wrapper to make @Published properties work with Codable
@@ -196,37 +232,37 @@ private func deleteTokens(for accountId: String) {
 }
 
 /// Represents a user account on a social media platform
-class SocialAccount: Identifiable, Codable, Equatable {
+public class SocialAccount: Identifiable, Codable, Equatable {
     // MARK: - Properties
 
-    let id: String
-    let username: String
-    var displayName: String?
-    let serverURL: URL?
-    let platform: SocialPlatform
-    var profileImageURL: URL? {
+    public let id: String
+    public let username: String
+    public var displayName: String?
+    public let serverURL: URL?
+    public let platform: SocialPlatform
+    public var profileImageURL: URL? {
         didSet {
             if profileImageURL != oldValue {
                 NotificationCenter.default.post(
-                    name: Notification.Name.profileImageUpdated, object: self, userInfo: nil)
+                    name: Notification.Name.accountProfileImageUpdated, object: self, userInfo: nil)
             }
         }
     }
 
     // Platform-specific ID (e.g., Mastodon account ID or Bluesky DID)
-    var platformSpecificId: String
+    public var platformSpecificId: String
 
     // Authentication tokens (transient - stored in keychain, not encoded)
-    var accessToken: String?
-    var refreshToken: String?
-    var tokenExpirationDate: Date?
+    public var accessToken: String?
+    public var refreshToken: String?
+    public var tokenExpirationDate: Date?
 
     // OAuth client credentials
-    var clientId: String?
-    var clientSecret: String?
+    public var clientId: String?
+    public var clientSecret: String?
 
     // Account details from the platform
-    var accountDetails: [String: String]?
+    public var accountDetails: [String: String]?
 
     // MARK: - Codable
 
@@ -242,7 +278,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
 
     // MARK: - Initialization
 
-    init(
+    public init(
         id: String,
         username: String,
         displayName: String? = nil,
@@ -267,7 +303,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
         loadTokensFromKeychain()
     }
 
-    init(
+    public init(
         id: String,
         username: String,
         displayName: String,
@@ -296,20 +332,30 @@ class SocialAccount: Identifiable, Codable, Equatable {
         self.profileImageURL = profileImageURL
         self.platformSpecificId = platformSpecificId ?? id
 
-        // Store tokens securely
-        if let accessToken = accessToken, let clientId = clientId, let clientSecret = clientSecret {
-            saveTokensToStorage(
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-                expiresAt: expirationDate,
-                clientId: clientId,
-                clientSecret: clientSecret
-            )
+        // Store tokens securely - Ensure tokens are saved to UserDefaults
+        if let accessToken = accessToken {
+            saveAccessToken(accessToken)
+            print("Saved access token for \(username): \(accessToken.prefix(5))...")
+
+            if let refreshToken = refreshToken {
+                saveRefreshToken(refreshToken)
+                print("Saved refresh token for \(username): \(refreshToken.prefix(5))...")
+            }
+
+            if let expirationDate = expirationDate {
+                saveTokenExpirationDate(expirationDate)
+                print("Saved token expiration date for \(username): \(expirationDate)")
+            }
+
+            if let clientId = clientId, let clientSecret = clientSecret {
+                saveClientCredentials(clientId: clientId, clientSecret: clientSecret)
+                print("Saved client credentials for \(username)")
+            }
         }
     }
 
     // Custom init from decoder
-    required init(from decoder: Decoder) throws {
+    public required init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         id = try container.decode(String.self, forKey: .id)
@@ -341,7 +387,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
     }
 
     // Custom encode method
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(id, forKey: .id)
@@ -360,7 +406,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
+    public static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
         return lhs.id == rhs.id
     }
 
@@ -390,17 +436,17 @@ class SocialAccount: Identifiable, Codable, Equatable {
         }
     }
 
-    func saveAccessToken(_ token: String) {
+    public func saveAccessToken(_ token: String) {
         self.accessToken = token
         UserDefaults.saveAccessToken(token, for: id)
     }
 
-    func saveRefreshToken(_ token: String) {
+    public func saveRefreshToken(_ token: String) {
         self.refreshToken = token
         UserDefaults.saveRefreshToken(token, for: id)
     }
 
-    func saveTokenExpirationDate(_ date: Date?) {
+    public func saveTokenExpirationDate(_ date: Date?) {
         self.tokenExpirationDate = date
 
         // Store in UserDefaults
@@ -411,17 +457,17 @@ class SocialAccount: Identifiable, Codable, Equatable {
         }
     }
 
-    func saveClientCredentials(clientId: String, clientSecret: String) {
+    public func saveClientCredentials(clientId: String, clientSecret: String) {
         self.clientId = clientId
         self.clientSecret = clientSecret
         UserDefaults.saveClientCredentials(clientId: clientId, clientSecret: clientSecret, for: id)
     }
 
-    func saveAccountDetails(_ details: [String: String]) {
+    public func saveAccountDetails(_ details: [String: String]) {
         self.accountDetails = details
     }
 
-    func getAccessToken() -> String? {
+    public func getAccessToken() -> String? {
         // If no token in memory, try loading from keychain
         if accessToken == nil {
             loadTokensFromKeychain()
@@ -429,7 +475,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
         return accessToken
     }
 
-    func getRefreshToken() -> String? {
+    public func getRefreshToken() -> String? {
         // If no token in memory, try loading from keychain
         if refreshToken == nil {
             loadTokensFromKeychain()
@@ -437,7 +483,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
         return refreshToken
     }
 
-    func getClientId() -> String? {
+    public func getClientId() -> String? {
         // If no client ID in memory, try loading from keychain
         if clientId == nil {
             loadTokensFromKeychain()
@@ -445,7 +491,7 @@ class SocialAccount: Identifiable, Codable, Equatable {
         return clientId
     }
 
-    func getClientSecret() -> String? {
+    public func getClientSecret() -> String? {
         // If no client secret in memory, try loading from keychain
         if clientSecret == nil {
             loadTokensFromKeychain()
@@ -453,11 +499,11 @@ class SocialAccount: Identifiable, Codable, Equatable {
         return clientSecret
     }
 
-    func getAccountDetails() -> [String: String]? {
+    public func getAccountDetails() -> [String: String]? {
         return accountDetails
     }
 
-    var isTokenExpired: Bool {
+    public var isTokenExpired: Bool {
         guard let expirationDate = tokenExpirationDate else {
             return true
         }
@@ -467,12 +513,12 @@ class SocialAccount: Identifiable, Codable, Equatable {
 
     /// Ensures this account has a valid access token, refreshing if necessary
     /// - Returns: A valid access token
-    func getValidAccessToken() async throws -> String {
+    public func getValidAccessToken() async throws -> String {
         return try await TokenManager.ensureValidToken(for: self)
     }
 
     /// Deletes all tokens associated with this account
-    func clearTokens() {
+    public func clearTokens() {
         UserDefaults.deleteAllTokens(for: id)
         accessToken = nil
         refreshToken = nil

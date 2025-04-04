@@ -4,11 +4,13 @@ import Foundation
 public class TokenManager {
 
     public enum TokenError: Error, LocalizedError {
-        case refreshFailed
+        case noAccessToken
         case noRefreshToken
+        case invalidRefreshToken
         case noClientCredentials
         case invalidServerURL
         case networkError(Error)
+        case refreshFailed
 
         public var errorDescription: String? {
             switch self {
@@ -22,6 +24,10 @@ public class TokenManager {
                 return "Invalid server URL"
             case .networkError(let error):
                 return "Network error: \(error.localizedDescription)"
+            case .noAccessToken:
+                return "No access token available"
+            case .invalidRefreshToken:
+                return "Invalid refresh token"
             }
         }
     }

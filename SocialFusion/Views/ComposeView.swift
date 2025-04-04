@@ -97,6 +97,17 @@ struct ComposeView: View {
                     TextEditor(text: $postText)
                         .padding(4)
                         .background(Color(UIColor.systemBackground))
+                        // Add keyboard toolbar to avoid SystemInputAssistantView conflict
+                        .toolbar {
+                            ToolbarItemGroup(placement: .keyboard) {
+                                Spacer()
+                                Button("Done") {
+                                    UIApplication.shared.sendAction(
+                                        #selector(UIResponder.resignFirstResponder), to: nil,
+                                        from: nil, for: nil)
+                                }
+                            }
+                        }
                 }
                 .frame(maxHeight: .infinity)
 
@@ -258,6 +269,21 @@ struct PlatformToggleButton: View {
     let isSelected: Bool
     let action: () -> Void
 
+    // Helper function to get platform color that's compatible with iOS 16
+    private func getPlatformColor() -> Color {
+        switch platform {
+        case .mastodon:
+            return Color("PrimaryColor")
+        case .bluesky:
+            return Color("SecondaryColor")
+        }
+    }
+
+    // Helper function to get a lighter version of the platform color
+    private func getLightPlatformColor() -> Color {
+        return getPlatformColor().opacity(0.1)
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -269,10 +295,10 @@ struct PlatformToggleButton: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .foregroundColor(isSelected ? .white : Color(platform.color))
+            .foregroundColor(isSelected ? .white : getPlatformColor())
             .background(
                 Capsule()
-                    .fill(isSelected ? Color(platform.color) : Color(platform.color).opacity(0.1))
+                    .fill(isSelected ? getPlatformColor() : getLightPlatformColor())
             )
         }
     }

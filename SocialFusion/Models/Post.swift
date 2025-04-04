@@ -3,14 +3,14 @@ import SwiftUI
 import UIKit
 
 // MARK: - Post visibility level
-enum PostVisibilityType: String, Codable {
+public enum PostVisibilityType: String, Codable {
     case public_
     case unlisted
     case private_
     case direct
 
     // Map values from the API response to our enum cases
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
 
@@ -24,7 +24,7 @@ enum PostVisibilityType: String, Codable {
     }
 
     // Map our enum cases to values for API requests
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
 
         switch self {
@@ -38,19 +38,19 @@ enum PostVisibilityType: String, Codable {
 
 // MARK: - Author struct
 /// Represents the creator of a post on a social network
-struct Author: Codable, Identifiable, Equatable {
-    let id: String
-    let username: String
-    let displayName: String
-    let profileImageURL: URL?
-    let platform: SocialPlatform
-    let platformSpecificId: String
+public struct Author: Codable, Identifiable, Equatable {
+    public let id: String
+    public let username: String
+    public let displayName: String
+    public let profileImageURL: URL?
+    public let platform: SocialPlatform
+    public let platformSpecificId: String
 
-    var avatarURL: URL? {
+    public var avatarURL: URL? {
         return profileImageURL
     }
 
-    init(
+    public init(
         id: String, username: String, displayName: String, profileImageURL: URL? = nil,
         platform: SocialPlatform, platformSpecificId: String = ""
     ) {
@@ -62,13 +62,13 @@ struct Author: Codable, Identifiable, Equatable {
         self.platformSpecificId = platformSpecificId.isEmpty ? id : platformSpecificId
     }
 
-    static func == (lhs: Author, rhs: Author) -> Bool {
+    public static func == (lhs: Author, rhs: Author) -> Bool {
         return lhs.id == rhs.id
     }
 }
 
 // MARK: - Media Type enum
-enum MediaType: String, Codable {
+public enum MediaType: String, Codable {
     case image
     case video
     case animatedGIF
@@ -77,14 +77,14 @@ enum MediaType: String, Codable {
 }
 
 // MARK: - Media Attachment struct
-struct MediaAttachment: Codable, Identifiable, Equatable {
-    let id: String
-    let url: URL
-    let previewURL: URL?
-    let altText: String?
-    let type: MediaType
+public struct MediaAttachment: Codable, Identifiable, Equatable {
+    public let id: String
+    public let url: URL
+    public let previewURL: URL?
+    public let altText: String?
+    public let type: MediaType
 
-    init(
+    public init(
         id: String, url: URL, previewURL: URL? = nil, altText: String? = nil,
         type: MediaType = .unknown
     ) {
@@ -96,36 +96,46 @@ struct MediaAttachment: Codable, Identifiable, Equatable {
     }
 
     // For backward compatibility with existing code that uses 'description'
-    var description: String? {
+    public var description: String? {
         return altText
     }
 
-    static func == (lhs: MediaAttachment, rhs: MediaAttachment) -> Bool {
+    public static func == (lhs: MediaAttachment, rhs: MediaAttachment) -> Bool {
         return lhs.id == rhs.id
     }
 }
 
-// MARK: - Post struct
-struct Post: Identifiable, Codable, Equatable {
-    let id: String
-    let content: String
-    let authorName: String
-    let authorUsername: String
-    let authorProfilePictureURL: String
-    let createdAt: Date
-    let platform: SocialPlatform
-    let originalURL: String
-    let attachments: [Attachment]
-    let mentions: [String]
-    let tags: [String]
+// MARK: - Post class
+public class Post: Identifiable, Codable, Equatable {
+    public let id: String
+    public let content: String
+    public let authorName: String
+    public let authorUsername: String
+    public let authorProfilePictureURL: String
+    public let createdAt: Date
+    public let platform: SocialPlatform
+    public let originalURL: String
+    public let attachments: [Attachment]
+    public let mentions: [String]
+    public let tags: [String]
 
-    struct Attachment: Identifiable, Codable {
-        var id: String { url }  // Use URL as unique identifier
-        let url: String
-        let type: AttachmentType
-        let altText: String?
+    // New properties for boosted/reposted content
+    public var originalPost: Post?
+    public var isReposted: Bool = false
+    public var isLiked: Bool = false
+    public var likeCount: Int = 0
+    public var repostCount: Int = 0
 
-        enum AttachmentType: String, Codable {
+    // Platform-specific IDs for API operations
+    public let platformSpecificId: String
+
+    public struct Attachment: Identifiable, Codable {
+        public var id: String { url }  // Use URL as unique identifier
+        public let url: String
+        public let type: AttachmentType
+        public let altText: String?
+
+        public enum AttachmentType: String, Codable {
             case image
             case video
             case audio
@@ -133,7 +143,7 @@ struct Post: Identifiable, Codable, Equatable {
         }
     }
 
-    static func == (lhs: Post, rhs: Post) -> Bool {
+    public static func == (lhs: Post, rhs: Post) -> Bool {
         return lhs.id == rhs.id
     }
 
@@ -151,9 +161,15 @@ struct Post: Identifiable, Codable, Equatable {
         case attachments
         case mentions
         case tags
+        case originalPost
+        case isReposted
+        case isLiked
+        case repostCount
+        case likeCount
+        case platformSpecificId
     }
 
-    init(
+    public init(
         id: String,
         content: String,
         authorName: String,
@@ -164,7 +180,13 @@ struct Post: Identifiable, Codable, Equatable {
         originalURL: String,
         attachments: [Attachment] = [],
         mentions: [String] = [],
-        tags: [String] = []
+        tags: [String] = [],
+        originalPost: Post? = nil,
+        isReposted: Bool = false,
+        isLiked: Bool = false,
+        likeCount: Int = 0,
+        repostCount: Int = 0,
+        platformSpecificId: String = ""
     ) {
         self.id = id
         self.content = content
@@ -177,10 +199,16 @@ struct Post: Identifiable, Codable, Equatable {
         self.attachments = attachments
         self.mentions = mentions
         self.tags = tags
+        self.originalPost = originalPost
+        self.isReposted = isReposted
+        self.isLiked = isLiked
+        self.likeCount = likeCount
+        self.repostCount = repostCount
+        self.platformSpecificId = platformSpecificId
     }
 
     // Sample posts for previews and testing
-    static var samplePosts: [Post] = [
+    public static var samplePosts: [Post] = [
         Post(
             id: "1",
             content: "This is a sample post from Mastodon. #SocialFusion",
@@ -192,7 +220,11 @@ struct Post: Identifiable, Codable, Equatable {
             originalURL: "https://mastodon.social/@user1/123456",
             attachments: [],
             mentions: [],
-            tags: ["SocialFusion"]
+            tags: ["SocialFusion"],
+            isLiked: true,
+            likeCount: 5,
+            repostCount: 2,
+            platformSpecificId: ""
         ),
         Post(
             id: "2",
@@ -211,7 +243,90 @@ struct Post: Identifiable, Codable, Equatable {
                 )
             ],
             mentions: [],
-            tags: []
+            tags: [],
+            likeCount: 3,
+            repostCount: 1,
+            platformSpecificId: ""
+        ),
+        // Sample boosted post (Mastodon)
+        Post(
+            id: "3",
+            content: "",
+            authorName: "User Three",
+            authorUsername: "user3@mastodon.social",
+            authorProfilePictureURL: "https://picsum.photos/202",
+            createdAt: Date().addingTimeInterval(-1800),
+            platform: .mastodon,
+            originalURL: "https://mastodon.social/@user3/boost/789012",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            originalPost: Post(
+                id: "4",
+                content:
+                    "This is the original post that was boosted. It contains original content from another user. #Mastodon",
+                authorName: "Original User",
+                authorUsername: "original@mastodon.social",
+                authorProfilePictureURL: "https://picsum.photos/203",
+                createdAt: Date().addingTimeInterval(-5400),
+                platform: .mastodon,
+                originalURL: "https://mastodon.social/@original/789012",
+                attachments: [
+                    Attachment(
+                        url: "https://picsum.photos/401",
+                        type: .image,
+                        altText: "Image in boosted post"
+                    )
+                ],
+                mentions: [],
+                tags: ["Mastodon"],
+                likeCount: 12,
+                repostCount: 5,
+                platformSpecificId: ""
+            ),
+            isReposted: true,
+            repostCount: 5,
+            platformSpecificId: ""
+        ),
+        // Sample boosted post (Bluesky)
+        Post(
+            id: "5",
+            content: "",
+            authorName: "User Four",
+            authorUsername: "user4.bsky.social",
+            authorProfilePictureURL: "https://picsum.photos/204",
+            createdAt: Date().addingTimeInterval(-900),
+            platform: .bluesky,
+            originalURL: "https://bsky.app/profile/user4.bsky.social/post/repost/ghijkl",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            originalPost: Post(
+                id: "6",
+                content: "Check out this photo from my latest hike! #Bluesky #Outdoors",
+                authorName: "Original Bluesky User",
+                authorUsername: "hiker.bsky.social",
+                authorProfilePictureURL: "https://picsum.photos/205",
+                createdAt: Date().addingTimeInterval(-10800),
+                platform: .bluesky,
+                originalURL: "https://bsky.app/profile/hiker.bsky.social/post/ghijkl",
+                attachments: [
+                    Attachment(
+                        url: "https://picsum.photos/600/400",
+                        type: .image,
+                        altText: "Mountain landscape with trees"
+                    )
+                ],
+                mentions: [],
+                tags: ["Bluesky", "Outdoors"],
+                isLiked: true,
+                likeCount: 25,
+                repostCount: 8,
+                platformSpecificId: ""
+            ),
+            isReposted: true,
+            repostCount: 8,
+            platformSpecificId: ""
         ),
     ]
 }
