@@ -5,16 +5,26 @@ import UIKit
 class URLService {
     static let shared = URLService()
 
-    // A list of domains that cause issues and should be blocked
-    private let blockedDomains = [
-        "www.threads.net",
-        "threads.net",
-        // Add other problematic domains here
-    ]
+    // MARK: - URL Validation
 
-    private init() {}
+    /// Validates and fixes common URL issues from a string
+    /// - Parameter urlString: The URL string to validate
+    /// - Returns: A validated URL or nil if the URL is invalid and can't be fixed
+    func validateURL(_ urlString: String) -> URL? {
+        // First, try to create URL as-is
+        guard var url = URL(string: urlString) else {
+            // If initial creation fails, try percent encoding the string
+            let encodedString = urlString.addingPercentEncoding(
+                withAllowedCharacters: .urlQueryAllowed)
+            return URL(string: encodedString ?? "").flatMap { validateURL($0) }
+        }
 
-    /// Fully validates and sanitizes a URL, ensuring it's properly formed and not blocked
+        return validateURL(url)
+    }
+
+    /// Validates and fixes common URL issues
+    /// - Parameter url: The URL to validate
+    /// - Returns: A validated URL
     func validateURL(_ url: URL) -> URL {
         var fixedURL = url
 
@@ -26,7 +36,7 @@ class URLService {
         }
 
         // Check if this domain is blocked
-        if let host = fixedURL.host, blockedDomains.contains(host.lowercased()) {
+        if let host = fixedURL.host, NetworkConfig.isBlockedDomain(host) {
             // Return a special "blocked" URL that won't trigger network requests
             return URL(string: "https://blocked.example.com")!
         }
@@ -55,6 +65,18 @@ class URLService {
             }
         }
 
+        // Fix duplicate http in URL
+        if let host = fixedURL.host, host.contains("http://") || host.contains("https://") {
+            // Extract the real host by removing the embedded protocol
+            let fixedHost = host.replacingOccurrences(of: "http://", with: "")
+                .replacingOccurrences(of: "https://", with: "")
+            var components = URLComponents(url: fixedURL, resolvingAgainstBaseURL: false)
+            components?.host = fixedHost
+            if let fixedURL = components?.url {
+                return fixedURL
+            }
+        }
+
         // Check for other invalid host patterns
         if let scheme = fixedURL.scheme,
             let host = fixedURL.host,
@@ -69,28 +91,91 @@ class URLService {
 
     /// Check if a URL is valid and safe to make a request to
     func isValidURLForRequest(_ url: URL) -> Bool {
-        // Must have a scheme
-        guard let scheme = url.scheme?.lowercased(),
-            scheme == "http" || scheme == "https"
-        else {
-            return false
-        }
-
-        // Must have a valid host
-        guard let host = url.host, !host.isEmpty, !host.contains("/") else {
-            return false
-        }
-
-        // Check if domain is blocked
-        if blockedDomains.contains(host.lowercased()) {
-            return false
-        }
-
-        return true
+        return NetworkConfig.shouldAllowRequest(for: url)
     }
+
+    // MARK: - Link Detection
+
+    /// Extract links from a text string
+    func extractLinks(from string: String) -> [URL] {
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let matches = detector?.matches(
+            in: string, options: [], range: NSRange(location: 0, length: string.utf16.count))
+
+        return matches?.compactMap {
+            if let url = $0.url {
+                // Validate URLs through our service
+                return validateURL(url)
+            }
+            return nil
+        } ?? []
+    }
+
+    /// Clean HTML content and extract links
+    func processTextContent(_ content: String) -> (String, [URL]) {
+        // Clean HTML content
+        let cleanedContent = cleanHtmlString(content)
+
+        // Extract links
+        let links = extractLinks(from: cleanedContent)
+
+        return (cleanedContent, links)
+    }
+
+    /// Enhanced HTML cleanup function with space before links and URL fixes
+    func cleanHtmlString(_ html: String) -> String {
+        // Replace common HTML entities
+        var result =
+            html
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+
+        // Remove HTML tags but preserve spacing
+        result = result.replacingOccurrences(
+            of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
+
+        // Fix missing spaces before links using regex pattern
+        let linkPattern = "(\\S)(https?://\\S+)"
+        result = result.replacingOccurrences(
+            of: linkPattern, with: "$1 $2", options: .regularExpression, range: nil)
+
+        // Fix for www. links that don't start with http - ensure they have proper format
+        // First, add space before www if needed
+        let wwwPattern = "(\\S)(www\\.\\S+)"
+        result = result.replacingOccurrences(
+            of: wwwPattern, with: "$1 $2", options: .regularExpression, range: nil)
+
+        // Fix problematic www/ URLs - replace with www.
+        let invalidWwwPattern = "(\\s|^)(www/)([^\\s]+)"
+        result = result.replacingOccurrences(
+            of: invalidWwwPattern, with: "$1www.$3", options: .regularExpression, range: nil)
+
+        // Fix embedded www/ in the middle of URLs
+        let embeddedWwwPattern = "(https?://)(www/)([^\\s]+)"
+        result = result.replacingOccurrences(
+            of: embeddedWwwPattern, with: "$1www.$3", options: .regularExpression, range: nil)
+
+        // Fix URLs without protocols by adding https://
+        let noProtocolPattern = "(\\s|^)(www\\.[^\\s]+)"
+        result = result.replacingOccurrences(
+            of: noProtocolPattern, with: "$1https://$2", options: .regularExpression, range: nil)
+
+        return result
+    }
+
+    // MARK: - Error Handling
 
     /// Generates a friendly error message for network errors
     func friendlyErrorMessage(for error: Error) -> String {
+        if let networkError = error as? NetworkError {
+            return networkError.userFriendlyDescription
+        }
+
+        // Fall back to general error message processing
         let errorDescription = error.localizedDescription
 
         if errorDescription.contains("App Transport Security") {
@@ -112,11 +197,13 @@ class URLService {
         }
     }
 
+    // MARK: - Request Creation
+
     /// Create a URLRequest with proper headers and timeout for link preview fetching
     func createLinkPreviewRequest(for url: URL) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.timeoutInterval = 5.0
+        request.timeoutInterval = NetworkConfig.shortTimeout
 
         // Use a realistic user agent to avoid being blocked
         request.setValue(
@@ -132,6 +219,8 @@ class URLService {
         return request
     }
 
+    // MARK: - Social Media URL Detection
+
     /// Check if a URL points to a social media post
     func isSocialMediaPostURL(_ url: URL) -> Bool {
         return isBlueskyPostURL(url) || isMastodonPostURL(url)
@@ -139,7 +228,7 @@ class URLService {
 
     /// Check if URL is a Bluesky post URL
     func isBlueskyPostURL(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
+        guard let host = url.host else { return false }
 
         // Match bsky.app and bsky.social URLs
         let isBlueskyDomain = host.contains("bsky.app") || host.contains("bsky.social")
@@ -153,22 +242,22 @@ class URLService {
 
     /// Check if URL is a Mastodon post URL
     func isMastodonPostURL(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
+        guard let host = url.host else { return false }
 
-        // Common Mastodon instances or pattern
+        // Check for common Mastodon instances or pattern
         let isMastodonInstance =
             host.contains("mastodon.social") || host.contains("mastodon.online")
             || host.contains("mas.to") || host.contains("mastodon.world")
             || host.contains(".social")
 
-        // Match Mastodon post URL pattern: /@username/postID
+        // Check if it matches Mastodon post URL pattern: /@username/postID
         let path = url.path
         let isPostURL = path.contains("/@") && path.split(separator: "/").count >= 3
 
         return isMastodonInstance && isPostURL
     }
 
-    /// Extract a post ID from a Bluesky URL
+    /// Extract Bluesky post ID from a post URL
     func extractBlueskyPostID(_ url: URL) -> String? {
         guard isBlueskyPostURL(url) else { return nil }
 
@@ -181,7 +270,7 @@ class URLService {
         return nil
     }
 
-    /// Extract a post ID from a Mastodon URL
+    /// Extract Mastodon post ID from a post URL
     func extractMastodonPostID(_ url: URL) -> String? {
         guard isMastodonPostURL(url) else { return nil }
 
