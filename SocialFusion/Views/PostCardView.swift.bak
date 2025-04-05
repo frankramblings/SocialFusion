@@ -644,7 +644,6 @@ struct PostCardView: View {
     @State private var detectedLinks: [URL] = []
     @Environment(\.colorScheme) private var colorScheme
     @State private var hasProcessedLinks = false
-    @EnvironmentObject var serviceManager: SocialServiceManager
 
     var body: some View {
         Button(action: {
@@ -723,19 +722,6 @@ struct PostCardView: View {
                         // Action buttons for original post
                         postActionButtons(for: originalPost)
                     }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(
-                                colorScheme == .dark
-                                    ? Color(UIColor.tertiarySystemBackground)
-                                    : Color(UIColor.tertiarySystemGroupedBackground))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.02), radius: 1, x: 0, y: 1)
                 } else {
                     // Regular non-boosted post
                     // Header with author info and platform indicator
@@ -790,19 +776,16 @@ struct PostCardView: View {
             }
             .padding(14)
             .background(
-                RoundedRectangle(cornerRadius: 14)
+                RoundedRectangle(cornerRadius: 16)
                     .fill(
                         colorScheme == .dark
-                            ? Color(UIColor.secondarySystemBackground) : Color.white
-                    )
+                            ? Color(UIColor.secondarySystemBackground) : Color.white)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.gray.opacity(0.1), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-            .padding(.bottom, 12)  // Reduced padding between posts from 20 to 12
-            .padding(.horizontal, 2)  // Small horizontal padding for visual separation
+            .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
         }
         .buttonStyle(PlainButtonStyle())
         .onAppear {
@@ -815,10 +798,6 @@ struct PostCardView: View {
         .onDisappear {
             // Cancel any pending network requests when view disappears
             ConnectionManager.shared.cancelAllRequests()
-        }
-        .sheet(isPresented: $showDetailView) {
-            PostDetailView(post: post.originalPost ?? post)
-                .environmentObject(serviceManager)
         }
         .fullScreenCover(isPresented: $showMediaFullscreen) {
             if let selectedAttachment = selectedMedia {
@@ -838,12 +817,17 @@ struct PostCardView: View {
                 }
             }
         }
+        .sheet(isPresented: $showDetailView) {
+            PostDetailView(post: post.originalPost ?? post)
+        }
     }
 
     // Helper method to display links and media for a post
-    // Removed @ViewBuilder to fix the warning
+    @ViewBuilder
     private func displayLinksAndMedia(for post: Post) -> some View {
-        VStack(spacing: 12) {
+        @State var quotedPost: Post? = nil
+
+        return VStack(spacing: 12) {
             // Link previews if links are detected in the post content
             if let links = extractLinks(from: post.content), !links.isEmpty {
                 let filteredLinks = removeSelfReferences(links: links, postURL: post.originalURL)
@@ -857,12 +841,10 @@ struct PostCardView: View {
                         {
                             // Show as quote post if available
                             FetchQuotePostView(url: url)
-                                .padding(.top, 4)
                         } else {
                             // Show regular link preview
                             LinkPreview(url: url)
                                 .allowsHitTesting(false)
-                                .padding(.top, 2)
                         }
                     }
                 }
@@ -875,10 +857,8 @@ struct PostCardView: View {
                     onTapAttachment: { attachment in
                         self.selectedMedia = attachment
                         self.showMediaFullscreen = true
-                    },
-                    maxHeight: 180  // Even more compact for timeline view
+                    }
                 )
-                .padding(.top, 4)  // Add spacing between text and media
             }
         }
     }
@@ -898,6 +878,7 @@ struct PostCardView: View {
     }
 
     // Helper method to create action buttons for a post
+    @ViewBuilder
     private func postActionButtons(for post: Post) -> some View {
         HStack(spacing: 0) {
             ForEach(PostAction.allCases, id: \.self) { action in
@@ -983,8 +964,36 @@ struct PostCardView: View {
 
         return matches?.compactMap {
             if let url = $0.url {
-                // Always validate URLs through our service to ensure consistency
-                return URLServiceWrapper.shared.validateURL(url)
+                // Fix common URL issues that we've seen in the logs
+
+                // Ensure URL has a scheme
+                if url.scheme == nil {
+                    if let urlWithScheme = URL(string: "https://" + url.absoluteString) {
+                        return urlWithScheme
+                    }
+                }
+
+                // Problematic 'www/' hostname issue (without scheme)
+                if url.host == "www" {
+                    // Try to create a proper URL with the correct host
+                    if let correctedURL = URL(
+                        string: "https://www." + (url.path.trimmingPrefix("/")))
+                    {
+                        return correctedURL
+                    }
+                }
+
+                // Check for URLs with "www/" in the host part but with a scheme
+                if let host = url.host, host.contains("www/") {
+                    let fixedHost = host.replacingOccurrences(of: "www/", with: "www.")
+                    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                    components?.host = fixedHost
+                    if let fixedURL = components?.url {
+                        return fixedURL
+                    }
+                }
+
+                return url
             }
             return nil
         }
@@ -1289,6 +1298,10 @@ struct MediaView: View {
     // Calculate appropriate height based on aspect ratio with min/max constraints
     private func calculateHeight(width: CGFloat) -> CGFloat {
         let calculatedHeight = width / max(aspectRatio, 0.1)
+        // Ensure height is between 150 and 350 points
+        return min(max(calculatedHeight, 150), 350)
+    }
+
         // More conservative max height (280 instead of 350) to prevent overlapping with buttons
         return min(max(calculatedHeight, 150), 280)
     }
@@ -2106,7 +2119,6 @@ struct PostAuthorImageView: View {
 struct MediaGridView: View {
     let attachments: [Post.Attachment]
     let onTapAttachment: (Post.Attachment) -> Void
-    let maxHeight: CGFloat
 
     var body: some View {
         Group {
@@ -2200,7 +2212,6 @@ struct MediaGridView: View {
                 }
             }
         }
-        .frame(maxHeight: maxHeight)
     }
 }
 
@@ -2500,49 +2511,5 @@ private struct URLServiceWrapper {
         }
 
         return nil
-    }
-
-    func validateURL(_ url: URL) -> URL {
-        var fixedURL = url
-
-        // Fix URLs with missing schemes
-        if url.scheme == nil {
-            if let urlWithScheme = URL(string: "https://" + url.absoluteString) {
-                fixedURL = urlWithScheme
-            }
-        }
-
-        // Fix the "www" hostname issue
-        if url.host == "www" {
-            if let correctedURL = URL(string: "https://www." + (url.path.trimmingPrefix("/"))) {
-                return correctedURL
-            }
-        }
-
-        // Fix "www." hostname without any TLD
-        if url.host == "www." || url.absoluteString.contains("://www./") {
-            return URL(string: "https://www.example.com") ?? url
-        }
-
-        // Fix "www/" hostname issue
-        if let host = url.host, host.contains("www/") {
-            let fixedHost = host.replacingOccurrences(of: "www/", with: "www.")
-            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            components?.host = fixedHost
-            if let fixedURL = components?.url {
-                return fixedURL
-            }
-        }
-
-        // Add fallback for invalid host patterns
-        if let scheme = url.scheme,
-            let host = url.host,
-            host.contains("/") || host.isEmpty
-        {
-            // If host contains slashes or is empty, try to reconstruct a valid URL
-            return URL(string: "\(scheme)://example.com") ?? url
-        }
-
-        return fixedURL
     }
 }

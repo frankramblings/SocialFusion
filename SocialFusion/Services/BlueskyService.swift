@@ -849,6 +849,52 @@ public class BlueskyService {
         return posts
     }
 
+    /// Fetches a single post by its ID
+    /// - Parameters:
+    ///   - postID: The ID of the post to fetch
+    ///   - account: The account to use for API access
+    /// - Returns: The post if found, nil if not found or error occurs
+    public func fetchPostByID(_ postID: String, account: SocialAccount) async throws -> Post? {
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        // Format the API URL
+        let apiURL = URL(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getPostThread?uri=at://\(postID)"
+        )!
+
+        var request = URLRequest(url: apiURL)
+
+        // Add authorization if available
+        if let accessToken = account.getAccessToken() {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        // Make the request
+        let (data, response) = try await session.data(for: request)
+
+        // Check for successful response
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to fetch post"]
+            )
+        }
+
+        // Parse the response
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let thread = json["thread"] as? [String: Any],
+            let post = thread["post"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        // Convert the JSON response to a Post object
+        return try convertFeedItemToPost(post)
+    }
+
     // MARK: - Helper methods
 
     /// Convert a Bluesky feed item to a Post

@@ -1374,6 +1374,51 @@ public class MastodonService {
 
         return account
     }
+
+    /// Fetches a single post by its ID
+    /// - Parameters:
+    ///   - postID: The ID of the post to fetch
+    ///   - account: The account to use for API access
+    /// - Returns: The post if found, nil if not found or error occurs
+    public func fetchPostByID(_ postID: String, account: SocialAccount) async throws -> Post? {
+        var serverURLString = account.serverURL?.absoluteString ?? "mastodon.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        // Format the API URL
+        let apiURL = URL(string: "https://\(serverURLString)/api/v1/statuses/\(postID)")!
+
+        var request = URLRequest(url: apiURL)
+
+        // Add authorization if available
+        if let accessToken = account.getAccessToken() {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+
+        // Make the request
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        // Check for successful response
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to fetch post"]
+            )
+        }
+
+        // Parse the response
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+
+        do {
+            let status = try decoder.decode(MastodonStatus.self, from: data)
+            return convertMastodonStatusToPost(status, account: account)
+        } catch {
+            print("Error decoding Mastodon status: \(error)")
+            return nil
+        }
+    }
 }
 
 // Define notification names if not already defined elsewhere

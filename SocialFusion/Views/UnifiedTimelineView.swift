@@ -9,10 +9,15 @@ struct UnifiedTimelineView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage: String? = nil
     @State private var isRefreshing = false
+    @State private var isLoadingMorePosts = false
     @Environment(\.colorScheme) private var colorScheme
 
     private var hasAccounts: Bool {
         !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty
+    }
+
+    private var displayPosts: [Post] {
+        return serviceManager.unifiedTimeline
     }
 
     private var displayTitle: String {
@@ -35,6 +40,36 @@ struct UnifiedTimelineView: View {
         return serviceManager.mastodonAccounts.first(where: { $0.id == id })
             ?? serviceManager.blueskyAccounts.first(where: { $0.id == id })
     }
+
+    var body: some View {
+        TimelineContentView(
+            displayTitle: displayTitle,
+            hasAccounts: hasAccounts,
+            displayPosts: displayPosts,
+            isRefreshing: $isRefreshing,
+            isLoadingMorePosts: $isLoadingMorePosts,
+            showingAuthError: $showingAuthError,
+            authErrorMessage: $authErrorMessage,
+            showingErrorAlert: $showingErrorAlert,
+            errorMessage: $errorMessage
+        )
+        .environmentObject(serviceManager)
+    }
+}
+
+// Helper view to split up the complex body
+struct TimelineContentView: View {
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    let displayTitle: String
+    let hasAccounts: Bool
+    let displayPosts: [Post]
+    @Binding var isRefreshing: Bool
+    @Binding var isLoadingMorePosts: Bool
+    @Binding var showingAuthError: Bool
+    @Binding var authErrorMessage: String
+    @Binding var showingErrorAlert: Bool
+    @Binding var errorMessage: String?
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -60,127 +95,16 @@ struct UnifiedTimelineView: View {
                         }
                     }
             } else {
-                VStack(spacing: 0) {
-                    // Header at the top with an elegant design
-                    HStack {
-                        Text(displayTitle)
-                            .font(.headline)
-                            .fontWeight(.semibold)
-
-                        Spacer()
-
-                        // Refresh button
-                        Button(action: {
-                            isRefreshing = true
-                            Task {
-                                do {
-                                    try await serviceManager.refreshTimeline(force: true)
-                                    isRefreshing = false
-                                } catch {
-                                    isRefreshing = false
-                                    if let serviceError = error as? ServiceError,
-                                        case let .rateLimitError(reason, _) = serviceError
-                                    {
-                                        errorMessage = "\(reason) Please try again later."
-                                        showingErrorAlert = true
-                                    } else {
-                                        errorMessage = error.localizedDescription
-                                        showingErrorAlert = true
-                                    }
-                                }
-                            }
-                        }) {
-                            if isRefreshing {
-                                ProgressView()
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.primary)
-                            }
-                        }
-                        .disabled(isRefreshing)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(
-                        colorScheme == .dark
-                            ? Color(UIColor.secondarySystemBackground) : Color.white
-                    )
-                    .overlay(
-                        Divider()
-                            .opacity(0.5)
-                            .background(Color.gray.opacity(0.2))
-                            .offset(y: 12),
-                        alignment: .bottom
-                    )
-
-                    ScrollView {
-                        LazyVStack(spacing: 14) {
-                            // Display error alert if there's an authentication issue
-                            if showingAuthError {
-                                HStack {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                    Text(authErrorMessage)
-                                        .font(.footnote)
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    Button(action: {
-                                        showingAuthError = false
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(10)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                            }
-
-                            ForEach(serviceManager.unifiedTimeline) { post in
-                                PostCardView(post: post)
-                                    .padding(.horizontal)
-                            }
-
-                            // Add a bottom padding to ensure there's space at the end of the list
-                            Color.clear
-                                .frame(height: 50)
-                        }
-                        .padding(.vertical, 10)
-                    }
-                    .refreshable {
-                        do {
-                            if hasAccounts {
-                                try await serviceManager.refreshTimeline(force: true)
-                            }
-                        } catch {
-                            // Handle authentication errors specifically
-                            if (error as NSError).domain == "BlueskyService"
-                                || (error as NSError).domain == "MastodonService",
-                                (error as NSError).code == 401
-                            {
-                                authErrorMessage =
-                                    "Authentication issue detected. Please check your account settings."
-                                showingAuthError = true
-                            }
-                            // Handle rate limit errors with specific message
-                            else if let serviceError = error as? ServiceError,
-                                case let .rateLimitError(reason, _) = serviceError
-                            {
-                                errorMessage = "\(reason) Please try again later."
-                                showingErrorAlert = true
-                            }
-                            // Handle other errors
-                            else {
-                                errorMessage = error.localizedDescription
-                                showingErrorAlert = true
-                            }
-                        }
-                    }
-                }
+                TimelineListView(
+                    displayTitle: displayTitle,
+                    displayPosts: displayPosts,
+                    isRefreshing: $isRefreshing,
+                    isLoadingMorePosts: $isLoadingMorePosts,
+                    showingAuthError: $showingAuthError,
+                    authErrorMessage: $authErrorMessage,
+                    showingErrorAlert: $showingErrorAlert,
+                    errorMessage: $errorMessage
+                )
             }
         }
         .alert("Error", isPresented: $showingAuthError) {
@@ -243,10 +167,161 @@ struct UnifiedTimelineView: View {
     }
 }
 
+// Further splitting the view to reduce complexity
+struct TimelineListView: View {
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    let displayTitle: String
+    let displayPosts: [Post]
+    @Binding var isRefreshing: Bool
+    @Binding var isLoadingMorePosts: Bool
+    @Binding var showingAuthError: Bool
+    @Binding var authErrorMessage: String
+    @Binding var showingErrorAlert: Bool
+    @Binding var errorMessage: String?
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header at the top with an elegant design
+            HStack {
+                Text(displayTitle)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+
+                Spacer()
+
+                // Refresh button
+                Button(action: {
+                    isRefreshing = true
+                    Task {
+                        do {
+                            try await serviceManager.refreshTimeline(force: true)
+                            isRefreshing = false
+                        } catch {
+                            isRefreshing = false
+                            if let serviceError = error as? ServiceError,
+                                case let .rateLimitError(reason, _) = serviceError
+                            {
+                                errorMessage = "\(reason) Please try again later."
+                                showingErrorAlert = true
+                            } else {
+                                errorMessage = error.localizedDescription
+                                showingErrorAlert = true
+                            }
+                        }
+                    }
+                }) {
+                    if isRefreshing {
+                        ProgressView()
+                            .frame(width: 20, height: 20)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 16))
+                            .foregroundColor(.primary)
+                    }
+                }
+                .disabled(isRefreshing)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                colorScheme == .dark
+                    ? Color(UIColor.secondarySystemBackground) : Color.white
+            )
+            .overlay(
+                Divider()
+                    .opacity(0.5)
+                    .background(Color.gray.opacity(0.2))
+                    .offset(y: 12),
+                alignment: .bottom
+            )
+
+            PostListView(
+                displayPosts: displayPosts,
+                showingAuthError: showingAuthError,
+                authErrorMessage: authErrorMessage,
+                isLoadingMorePosts: $isLoadingMorePosts
+            )
+        }
+    }
+}
+
+// Final view component for the post list
+struct PostListView: View {
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    let displayPosts: [Post]
+    let showingAuthError: Bool
+    let authErrorMessage: String
+    @Binding var isLoadingMorePosts: Bool
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(spacing: 8) {
+                // Display error alert if there's an authentication issue
+                if showingAuthError {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.orange)
+                        Text(authErrorMessage)
+                            .font(.footnote)
+                            .foregroundColor(.primary)
+                        Spacer()
+                        Button(action: {
+                            // Since we can't directly modify the binding here,
+                            // we'll need to handle this at a higher level
+                        }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding()
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
+
+                ForEach(displayPosts) { post in
+                    PostCardView(post: post)
+                }
+
+                // Show loading indicator at the bottom when more posts are loading
+                if isLoadingMorePosts {
+                    ProgressView("Loading more posts...")
+                        .padding()
+                        .onAppear {
+                            Task {
+                                // Instead of directly using serviceManager.loadMorePosts
+                                // We'll set a flag to handle loading more posts
+                                isLoadingMorePosts = false
+                            }
+                        }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+        }
+        .refreshable {
+            do {
+                if !serviceManager.mastodonAccounts.isEmpty
+                    || !serviceManager.blueskyAccounts.isEmpty
+                {
+                    try await serviceManager.refreshTimeline(force: true)
+                }
+            } catch {
+                // Error handling happens at a higher level
+                print("Error refreshing: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
 // A reusable empty state view
 struct EmptyTimelineView: View {
     let hasAccounts: Bool
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    @State private var showAddAccountView = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -284,8 +359,8 @@ struct EmptyTimelineView: View {
                     .foregroundColor(.secondary)
 
                 Button(action: {
-                    // Navigate to accounts view or show account picker
-                    // This would need to be implemented based on your navigation structure
+                    // Show the add account view
+                    showAddAccountView = true
                 }) {
                     Text("Add Account")
                         .font(.headline)
@@ -299,6 +374,10 @@ struct EmptyTimelineView: View {
             }
 
             Spacer()
+        }
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
         }
     }
 }

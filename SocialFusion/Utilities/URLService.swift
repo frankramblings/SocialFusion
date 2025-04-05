@@ -51,6 +51,18 @@ class URLService {
             }
         }
 
+        // Fix duplicate http in URL
+        if let host = url.host, host.contains("http://") || host.contains("https://") {
+            // Extract the real host by removing the embedded protocol
+            let fixedHost = host.replacingOccurrences(of: "http://", with: "")
+                .replacingOccurrences(of: "https://", with: "")
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            components?.host = fixedHost
+            if let fixedURL = components?.url {
+                return fixedURL
+            }
+        }
+
         return fixedURL
     }
 
@@ -82,5 +94,70 @@ class URLService {
             let message = errorDescription
             return message.count > 40 ? message.prefix(40) + "..." : message
         }
+    }
+
+    /// Determines if a URL is a Bluesky post URL
+    /// - Parameter url: The URL to check
+    /// - Returns: True if the URL is a Bluesky post URL
+    func isBlueskyPostURL(_ url: URL) -> Bool {
+        guard let host = url.host else { return false }
+
+        // Match bsky.app and bsky.social URLs
+        let isBlueskyDomain = host.contains("bsky.app") || host.contains("bsky.social")
+
+        // Check if it's a post URL pattern: /profile/{username}/post/{postId}
+        let path = url.path
+        let isPostURL = path.contains("/profile/") && path.contains("/post/")
+
+        return isBlueskyDomain && isPostURL
+    }
+
+    /// Determines if a URL is a Mastodon post URL
+    /// - Parameter url: The URL to check
+    /// - Returns: True if the URL is a Mastodon post URL
+    func isMastodonPostURL(_ url: URL) -> Bool {
+        guard let host = url.host else { return false }
+
+        // Check for common Mastodon instances or pattern
+        let isMastodonInstance =
+            host.contains("mastodon.social") || host.contains("mastodon.online")
+            || host.contains("mas.to") || host.contains("mastodon.world")
+            || host.contains(".social")
+
+        // Check if it matches Mastodon post URL pattern: /@username/postID
+        let path = url.path
+        let isPostURL = path.contains("/@") && path.split(separator: "/").count >= 3
+
+        return isMastodonInstance && isPostURL
+    }
+
+    /// Extracts the Bluesky post ID from a URL
+    /// - Parameter url: The Bluesky post URL
+    /// - Returns: The post ID if available
+    func extractBlueskyPostID(_ url: URL) -> String? {
+        guard isBlueskyPostURL(url) else { return nil }
+
+        // Extract post ID from path components
+        let components = url.path.split(separator: "/")
+        if components.count >= 4 && components[components.count - 2] == "post" {
+            return String(components[components.count - 1])
+        }
+
+        return nil
+    }
+
+    /// Extracts the Mastodon post ID from a URL
+    /// - Parameter url: The Mastodon post URL
+    /// - Returns: The post ID if available
+    func extractMastodonPostID(_ url: URL) -> String? {
+        guard isMastodonPostURL(url) else { return nil }
+
+        // Extract post ID from path components
+        let components = url.path.split(separator: "/")
+        if components.count >= 2 {
+            return String(components[components.count - 1])
+        }
+
+        return nil
     }
 }
