@@ -81,22 +81,26 @@ struct ComposeView: View {
                     }
                 }
                 .padding(.horizontal)
-                .padding(.vertical, 8)
-
-                Divider()
+                .padding(.vertical, 12)
+                .background(Color(UIColor.systemBackground))
+                .overlay(
+                    Divider(),
+                    alignment: .bottom
+                )
 
                 // Text editor
                 ZStack(alignment: .topLeading) {
                     if postText.isEmpty {
                         Text("What's on your mind?")
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.top, 8)
+                            .padding(.horizontal, 12)
+                            .padding(.top, 12)
                     }
 
                     TextEditor(text: $postText)
-                        .padding(4)
+                        .padding(8)
                         .background(Color(UIColor.systemBackground))
+                        .cornerRadius(8)
                         // Add keyboard toolbar to avoid SystemInputAssistantView conflict
                         .toolbar {
                             ToolbarItemGroup(placement: .keyboard) {
@@ -110,37 +114,45 @@ struct ComposeView: View {
                         }
                 }
                 .frame(maxHeight: .infinity)
+                .padding(.horizontal, 8)
+                .padding(.top, 8)
 
                 // Selected images preview
                 if !selectedImages.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
+                        HStack(spacing: 10) {
                             ForEach(0..<selectedImages.count, id: \.self) { index in
                                 ZStack(alignment: .topTrailing) {
                                     Image(uiImage: selectedImages[index])
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: 100, height: 100)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .shadow(
+                                            color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
 
                                     Button(action: {
                                         selectedImages.remove(at: index)
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 18))
                                             .foregroundColor(.white)
                                             .background(Color.black.opacity(0.6))
                                             .clipShape(Circle())
                                     }
-                                    .padding(4)
+                                    .padding(6)
                                 }
                             }
                         }
                         .padding(.horizontal)
                     }
                     .frame(height: 120)
-                    .padding(.vertical, 8)
-
-                    Divider()
+                    .padding(.vertical, 10)
+                    .background(Color(UIColor.systemBackground))
+                    .overlay(
+                        Divider(),
+                        alignment: .bottom
+                    )
                 }
 
                 // Bottom toolbar
@@ -152,6 +164,9 @@ struct ComposeView: View {
                         Image(systemName: "photo")
                             .font(.system(size: 20))
                             .foregroundColor(.secondary)
+                            .padding(8)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                            .clipShape(Circle())
                     }
 
                     Spacer()
@@ -159,7 +174,11 @@ struct ComposeView: View {
                     // Character counter
                     Text("\(remainingChars)")
                         .font(.subheadline)
-                        .foregroundColor(isOverLimit ? .red : .secondary)
+                        .fontWeight(.medium)
+                        .foregroundColor(
+                            isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
+                        )
+                        .padding(.horizontal, 10)
 
                     // Post button
                     Button(action: {
@@ -168,14 +187,24 @@ struct ComposeView: View {
                         Text("Post")
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(canPost ? Color("PrimaryColor") : Color.gray)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(canPost ? Color.blue : Color.gray.opacity(0.5))
                             .cornerRadius(20)
+                            .shadow(
+                                color: canPost ? Color.blue.opacity(0.3) : Color.clear, radius: 2,
+                                x: 0, y: 1)
                     }
                     .disabled(!canPost)
+                    .animation(.easeInOut(duration: 0.2), value: canPost)
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(UIColor.systemBackground))
+                .overlay(
+                    Divider(),
+                    alignment: .top
+                )
             }
             .navigationTitle("New Post")
             .navigationBarTitleDisplayMode(.inline)
@@ -230,19 +259,6 @@ struct ComposeView: View {
         guard canPost else { return }
 
         isPosting = true
-
-        // Convert selectedVisibility to PostVisibilityType
-        let visibilityType: PostVisibilityType
-        switch selectedVisibility {
-        case 0:
-            visibilityType = .public_
-        case 1:
-            visibilityType = .unlisted
-        case 2:
-            visibilityType = .private_
-        default:
-            visibilityType = .public_
-        }
 
         // This would be replaced with actual API calls to Mastodon and Bluesky
         // For now, we'll just simulate posting with a delay
@@ -304,40 +320,143 @@ struct PlatformToggleButton: View {
     }
 }
 
-// A placeholder for the ImagePicker that would use UIImagePickerController or PHPickerViewController
+// A more realistic implementation of the ImagePicker
 struct ImagePicker: View {
     @Binding var selectedImages: [UIImage]
     let maxImages: Int
     @Environment(\.presentationMode) var presentationMode
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Sample images for demonstration
+    private let sampleImages: [UIImage] = [
+        UIImage(systemName: "photo")?.withTintColor(.blue, renderingMode: .alwaysOriginal)
+            ?? UIImage(),
+        UIImage(systemName: "camera")?.withTintColor(.green, renderingMode: .alwaysOriginal)
+            ?? UIImage(),
+        UIImage(systemName: "doc.text.image")?.withTintColor(
+            .orange, renderingMode: .alwaysOriginal) ?? UIImage(),
+        UIImage(systemName: "photo.on.rectangle")?.withTintColor(
+            .purple, renderingMode: .alwaysOriginal) ?? UIImage(),
+        UIImage(systemName: "square.and.arrow.up")?.withTintColor(
+            .red, renderingMode: .alwaysOriginal) ?? UIImage(),
+        UIImage(systemName: "square.and.arrow.down")?.withTintColor(
+            .cyan, renderingMode: .alwaysOriginal) ?? UIImage(),
+    ]
+
+    // Track selected state for each image
+    @State private var selectedIndices: Set<Int> = []
 
     var body: some View {
         NavigationView {
-            VStack {
-                Text("This is a placeholder for the image picker.")
-                    .padding()
+            VStack(spacing: 0) {
+                // Selection info
+                HStack {
+                    Text("\(selectedIndices.count) selected")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
 
-                Button("Add Sample Image") {
-                    // Add a placeholder image for demonstration
-                    if selectedImages.count < maxImages {
-                        // In a real app, this would be replaced with actual image selection
-                        let placeholderImage =
-                            UIImage(systemName: "photo")?.withTintColor(
-                                .gray, renderingMode: .alwaysOriginal) ?? UIImage()
-                        selectedImages.append(placeholderImage)
-                    }
+                    Spacer()
+
+                    Text("\(maxImages - selectedIndices.count) remaining")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.secondarySystemBackground))
 
-                Button("Done") {
-                    presentationMode.wrappedValue.dismiss()
+                // Photo grid
+                ScrollView {
+                    LazyVGrid(
+                        columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                        ], spacing: 8
+                    ) {
+                        ForEach(0..<sampleImages.count, id: \.self) { index in
+                            ZStack(alignment: .topTrailing) {
+                                Image(uiImage: sampleImages[index])
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(
+                                        width: (UIScreen.main.bounds.width - 32) / 3,
+                                        height: (UIScreen.main.bounds.width - 32) / 3
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(
+                                                selectedIndices.contains(index)
+                                                    ? Color.blue : Color.clear, lineWidth: 3)
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        toggleSelection(index)
+                                    }
+
+                                if selectedIndices.contains(index) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color.blue)
+                                            .frame(width: 24, height: 24)
+
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(6)
+                                }
+                            }
+                        }
+                    }
+                    .padding()
+                }
+
+                Divider()
+
+                // Action buttons
+                HStack {
+                    Button(action: {
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Text("Cancel")
+                            .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button(action: {
+                        // Add selected images to the selectedImages array
+                        selectedImages = selectedIndices.map { sampleImages[$0] }
+                        presentationMode.wrappedValue.dismiss()
+                    }) {
+                        Text("Add \(selectedIndices.count) Photos")
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(
+                                selectedIndices.isEmpty ? Color.gray.opacity(0.5) : Color.blue
+                            )
+                            .cornerRadius(20)
+                    }
+                    .disabled(selectedIndices.isEmpty)
                 }
                 .padding()
             }
-            .navigationTitle("Select Images")
-            .navigationBarItems(
-                trailing: Button("Cancel") {
-                    presentationMode.wrappedValue.dismiss()
-                })
+            .navigationTitle("Select Photos")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func toggleSelection(_ index: Int) {
+        if selectedIndices.contains(index) {
+            selectedIndices.remove(index)
+        } else {
+            if selectedIndices.count < maxImages {
+                selectedIndices.insert(index)
+            }
         }
     }
 }

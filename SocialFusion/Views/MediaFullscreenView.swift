@@ -1,4 +1,5 @@
 import AVKit
+import Combine
 import SwiftUI
 
 /// View for displaying media attachments in fullscreen mode
@@ -15,7 +16,17 @@ struct FullscreenMediaView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var showControls = true
+    @State private var isLoading = true
+    @State private var loadError = false
+    @State private var errorMessage = "Failed to load media"
+    // State for video players
+    @State private var videoPlayers: [URL: AVPlayer] = [:]
+    @State private var currentPlayer: AVPlayer? = nil
+    @State private var isVideoBuffering = true
+    @State private var observers: [Any] = []
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var presentationMode
+    @Environment(\.scenePhase) private var scenePhase
 
     // Computed property to work with either single attachment or collection
     private var currentAttachments: [Post.Attachment] {
@@ -36,9 +47,20 @@ struct FullscreenMediaView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
+                // Background color
                 Color.black.edgesIgnoringSafeArea(.all)
 
-                if let currentAttachment = currentAttachment {
+                if currentAttachments.isEmpty {
+                    // No media available
+                    VStack(spacing: 16) {
+                        Image(systemName: "photo.fill")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray)
+                        Text("No media available")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
+                } else if let currentAttachment = currentAttachment {
                     TabView(selection: $currentIndex) {
                         ForEach(currentAttachments.indices, id: \.self) { index in
                             ZStack {
@@ -110,8 +132,18 @@ struct FullscreenMediaView: View {
                     .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                     .onAppear {
                         currentIndex = initialIndex
-                        // Preload adjacent images
-                        preloadAdjacentImages()
+                        // Preload media for smoother experience
+                        preloadMedia()
+
+                        // Set a timeout for loading
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                            if isLoading {
+                                // Still loading after 8 seconds, trigger error state
+                                isLoading = false
+                                loadError = true
+                                errorMessage = "Media loading timed out"
+                            }
+                        }
                     }
                     .onChange(of: currentIndex) { _ in
                         withAnimation {
@@ -119,12 +151,117 @@ struct FullscreenMediaView: View {
                             offset = .zero
                         }
                         lastOffset = .zero
-                        // Preload adjacent images when index changes
-                        preloadAdjacentImages()
+                        // Reset loading state for new index
+                        isLoading = true
+                        loadError = false
+                        // Preload media for the new index
+                        preloadMedia()
+
+                        // Pause any existing video players
+                        pauseAllPlayersExcept(nil)
+
+                        // Set a timeout for loading the new media
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                            if isLoading {
+                                // Still loading after 8 seconds, trigger error state
+                                isLoading = false
+                                loadError = true
+                                errorMessage = "Media loading timed out"
+                            }
+                        }
+                    }
+                    .onChange(of: scenePhase) { newPhase in
+                        switch newPhase {
+                        case .active:
+                            // App came back to foreground - restart video if needed
+                            if let currentAttachment = currentAttachment,
+                                currentAttachment.type == .video || currentAttachment.type == .gifv,
+                                let urlString = currentAttachment.url,
+                                let url = URL(string: urlString),
+                                let player = videoPlayers[url]
+                            {
+                                // Ensure video buffer is ready before playing
+                                if player.currentItem?.status == .readyToPlay {
+                                    isVideoBuffering = false
+                                    player.play()
+                                } else {
+                                    // Recreate player if it wasn't ready
+                                    isVideoBuffering = true
+                                    let newPlayer = createPlayer(for: url)
+                                    videoPlayers[url] = newPlayer
+                                    currentPlayer = newPlayer
+                                }
+                            }
+                        case .inactive, .background:
+                            // App went to background - pause video
+                            pauseAllPlayersExcept(nil)
+                        @unknown default:
+                            break
+                        }
                     }
                 } else {
                     Text("No media to display")
                         .foregroundColor(.white)
+                }
+
+                // Loading error overlay
+                if loadError {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 40))
+                            .foregroundColor(.yellow)
+
+                        Text(errorMessage)
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+
+                        Button(action: {
+                            // Try again
+                            isLoading = true
+                            loadError = false
+                            preloadMedia()
+
+                            // Set a timeout for retry loading
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
+                                if isLoading {
+                                    isLoading = false
+                                    loadError = true
+                                    errorMessage = "Media loading failed again"
+                                }
+                            }
+                        }) {
+                            Text("Try Again")
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 10)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                        }
+                    }
+                    .padding(20)
+                    .background(Color.black.opacity(0.7))
+                    .cornerRadius(12)
+                }
+
+                // Video buffering indicator
+                if isVideoBuffering,
+                    let currentAttachment = currentAttachment,
+                    currentAttachment.type == .video || currentAttachment.type == .gifv
+                {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(2)
+                            .foregroundColor(.white)
+
+                        Text("Buffering video...")
+                            .foregroundColor(.white)
+                            .font(.subheadline)
+                    }
+                    .padding(20)
+                    .background(Color.black.opacity(0.6))
+                    .cornerRadius(12)
                 }
 
                 // Controls overlay
@@ -132,6 +269,7 @@ struct FullscreenMediaView: View {
                     VStack {
                         HStack {
                             Button(action: {
+                                // Close the fullscreen view
                                 dismiss()
                             }) {
                                 Image(systemName: "xmark")
@@ -142,6 +280,8 @@ struct FullscreenMediaView: View {
                                     .clipShape(Circle())
                             }
                             .padding(.leading)
+                            .accessibilityLabel("Close")
+                            .accessibilityHint("Dismisses the fullscreen media view")
 
                             Spacer()
 
@@ -161,6 +301,8 @@ struct FullscreenMediaView: View {
                                         .clipShape(Circle())
                                 }
                                 .padding(.trailing)
+                                .accessibilityLabel("Save Image")
+                                .accessibilityHint("Saves the image to your photo library")
                             }
                         }
                         .padding(.top)
@@ -200,11 +342,188 @@ struct FullscreenMediaView: View {
                 }
             }
         }
+        .background(Color.black)
+        .edgesIgnoringSafeArea(.all)
         .statusBar(hidden: true)
-        .onDisappear {
-            // Cancel any pending network operations
-            ConnectionManager.shared.cancelAllRequests()
+        .gesture(
+            // Add swipe down to dismiss gesture
+            DragGesture()
+                .onEnded { gesture in
+                    // If the user swipes down with enough velocity, dismiss the view
+                    if gesture.translation.height > 100
+                        || gesture.predictedEndTranslation.height > 200
+                    {
+                        dismiss()
+                    }
+                }
+        )
+        .onTapGesture(count: 2) {
+            // Double tap to reset scale
+            withAnimation {
+                scale = 1.0
+                offset = .zero
+            }
         }
+        .onDisappear {
+            // Cleanup when view disappears
+            pauseAllPlayersExcept(nil)
+            cleanupObservers()
+            videoPlayers.removeAll()
+
+            URLSession.shared.getAllTasks { tasks in
+                tasks.forEach { task in
+                    if task.originalRequest?.url?.absoluteString.contains(
+                        currentAttachment?.url ?? "") ?? false
+                    {
+                        task.cancel()
+                    }
+                }
+            }
+        }
+    }
+
+    // Create and configure a player with proper buffering setup
+    private func createPlayer(for url: URL) -> AVPlayer {
+        let player = AVPlayer(url: url)
+
+        // Configure player for improved buffering
+        let asset = AVURLAsset(url: url)
+        let playerItem = AVPlayerItem(asset: asset)
+
+        // Set a reasonable buffer size for better playback
+        playerItem.preferredForwardBufferDuration = 10.0
+
+        // Monitor buffering state
+        let accessLogObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemNewAccessLogEntry,
+            object: playerItem,
+            queue: .main
+        ) { _ in
+            if let accessLog = playerItem.accessLog(),
+                let lastEvent = accessLog.events.last
+            {
+                // When enough is buffered, remove loading indicator
+                if lastEvent.indicatedBitrate > 0 && playerItem.isPlaybackLikelyToKeepUp {
+                    self.isVideoBuffering = false
+                }
+            }
+        }
+        observers.append(accessLogObserver)
+
+        // Monitor playback readiness
+        let stalledObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemPlaybackStalled,
+            object: playerItem,
+            queue: .main
+        ) { _ in
+            self.isVideoBuffering = true
+        }
+        observers.append(stalledObserver)
+
+        // Monitor player status
+        let statusObserver = player.observe(\.status, options: [.new]) { player, _ in
+            DispatchQueue.main.async {
+                if player.status == .readyToPlay {
+                    self.isVideoBuffering = false
+                    player.play()
+                } else if player.status == .failed {
+                    self.isVideoBuffering = false
+                    self.isLoading = false
+                    self.loadError = true
+                    self.errorMessage = "Video failed to load"
+                }
+            }
+        }
+        observers.append(statusObserver)
+
+        // Replace with configured player item
+        player.replaceCurrentItem(with: playerItem)
+
+        return player
+    }
+
+    // Pause all video players except for the specified one
+    private func pauseAllPlayersExcept(_ exceptPlayer: AVPlayer?) {
+        for (_, player) in videoPlayers {
+            if player != exceptPlayer {
+                player.pause()
+            }
+        }
+    }
+
+    // Clean up all observers
+    private func cleanupObservers() {
+        for observer in observers {
+            if let observer = observer as? NSObjectProtocol {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+        observers.removeAll()
+    }
+
+    // Helper function to preload media for smoother gallery experience
+    private func preloadMedia() {
+        // Ensure current media is loaded
+        if let currentAttachment = currentAttachment,
+            let urlString = currentAttachment.url,
+            let url = URL(string: urlString)
+        {
+
+            if currentAttachment.type == .video || currentAttachment.type == .gifv {
+                // Configure video player if not already created
+                if videoPlayers[url] == nil {
+                    isVideoBuffering = true
+                    let player = createPlayer(for: url)
+                    videoPlayers[url] = player
+                    currentPlayer = player
+                } else {
+                    // Reuse existing player
+                    currentPlayer = videoPlayers[url]
+                    currentPlayer?.seek(to: .zero)
+                    currentPlayer?.play()
+                }
+            }
+        }
+
+        // Preload adjacent media
+        for index in max(0, currentIndex - 1)...min(currentAttachments.count - 1, currentIndex + 1)
+        {
+            if index != currentIndex,
+                let attachment = currentAttachments[safe: index],
+                let urlString = attachment.url,
+                let url = URL(string: urlString)
+            {
+
+                if attachment.type == .image {
+                    // Preload images
+                    URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
+                    let task = URLSession.shared.dataTask(with: url)
+                    task.resume()
+                } else if (attachment.type == .video || attachment.type == .gifv)
+                    && videoPlayers[url] == nil
+                {
+                    // Prepare video player without playing
+                    let player = createPlayer(for: url)
+                    videoPlayers[url] = player
+                    player.pause()
+                }
+            }
+        }
+    }
+
+    // Save image to photo library
+    private func saveImageToPhotos(from url: URL) {
+        let task = URLSession.shared.dataTask(with: url) { data, _, error in
+            guard let data = data, error == nil else {
+                print("Error downloading image: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+
+            if let image = UIImage(data: data) {
+                UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+            }
+        }
+        task.resume()
     }
 
     @ViewBuilder
@@ -219,6 +538,10 @@ struct FullscreenMediaView: View {
                         ProgressView()
                             .foregroundColor(.white)
                             .scaleEffect(2)
+                            .onAppear {
+                                isLoading = true
+                                loadError = false
+                            }
                     case .success(let image):
                         image
                             .resizable()
@@ -226,116 +549,158 @@ struct FullscreenMediaView: View {
                             .frame(width: geometry.size.width, height: geometry.size.height)
                             .scaleEffect(scale)
                             .offset(offset)
-                    case .failure:
+                            .onAppear {
+                                isLoading = false
+                                loadError = false
+                            }
+                    case .failure(let error):
                         VStack {
                             Image(systemName: "exclamationmark.triangle")
                                 .font(.largeTitle)
-                                .foregroundColor(.white)
+                                .foregroundColor(.yellow)
                             Text("Failed to load image")
                                 .foregroundColor(.white)
+                            if let error = error as NSError? {
+                                Text(error.localizedDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal)
+                            }
+                        }
+                        .onAppear {
+                            isLoading = false
+                            loadError = true
+                            errorMessage = "Failed to load image: \(error.localizedDescription)"
                         }
                     @unknown default:
                         EmptyView()
+                            .onAppear {
+                                isLoading = false
+                                loadError = true
+                            }
                     }
                 }
+                .transition(.opacity)
             } else {
                 Text("Invalid image URL")
                     .foregroundColor(.white)
+                    .onAppear {
+                        isLoading = false
+                        loadError = true
+                        errorMessage = "Invalid image URL"
+                    }
             }
         case .video:
             if let urlString = attachment.url, let url = URL(string: urlString) {
-                VideoPlayer(player: AVPlayer(url: url))
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-            } else {
-                Text("Invalid video URL")
-                    .foregroundColor(.white)
-            }
-        case .gifv:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
-                VideoPlayer(player: AVPlayer(url: url))
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .onAppear {
-                        // Auto-play and loop GIFs
-                        NotificationCenter.default.addObserver(
-                            forName: .AVPlayerItemDidPlayToEndTime,
-                            object: nil,
-                            queue: .main
-                        ) { _ in
-                            if let player = AVPlayer(url: url) {
+                // Use our managed player
+                let player = videoPlayers[url] ?? createPlayer(for: url)
+
+                ZStack {
+                    VideoPlayer(player: player)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .onAppear {
+                            videoPlayers[url] = player
+                            currentPlayer = player
+
+                            // Set up notification for looping videos
+                            NotificationCenter.default.addObserver(
+                                forName: .AVPlayerItemDidPlayToEndTime,
+                                object: player.currentItem,
+                                queue: .main
+                            ) { _ in
                                 player.seek(to: .zero)
                                 player.play()
                             }
                         }
+                        .onDisappear {
+                            player.pause()
+                            NotificationCenter.default.removeObserver(
+                                self,
+                                name: .AVPlayerItemDidPlayToEndTime,
+                                object: player.currentItem)
+                        }
+                }
+            } else {
+                Text("Invalid video URL")
+                    .foregroundColor(.white)
+                    .onAppear {
+                        isLoading = false
+                        loadError = true
+                        errorMessage = "Invalid video URL"
                     }
+            }
+        case .gifv:
+            if let urlString = attachment.url, let url = URL(string: urlString) {
+                // Use our managed player for GIFs too
+                let player = videoPlayers[url] ?? createPlayer(for: url)
+
+                ZStack {
+                    VideoPlayer(player: player)
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .onAppear {
+                            videoPlayers[url] = player
+                            currentPlayer = player
+
+                            // Auto-play and loop GIFs
+                            player.play()
+                            player.actionAtItemEnd = .none
+
+                            NotificationCenter.default.addObserver(
+                                forName: .AVPlayerItemDidPlayToEndTime,
+                                object: player.currentItem,
+                                queue: .main
+                            ) { _ in
+                                player.seek(to: .zero)
+                                player.play()
+                            }
+                        }
+                        .onDisappear {
+                            player.pause()
+                            NotificationCenter.default.removeObserver(
+                                self,
+                                name: .AVPlayerItemDidPlayToEndTime,
+                                object: player.currentItem)
+                        }
+                }
             } else {
                 Text("Invalid GIF URL")
                     .foregroundColor(.white)
+                    .onAppear {
+                        isLoading = false
+                        loadError = true
+                        errorMessage = "Invalid GIF URL"
+                    }
             }
         default:
             Text("Unsupported media type")
                 .foregroundColor(.white)
-        }
-    }
-
-    private func preloadAdjacentImages() {
-        // Only preload if we have attachments
-        guard !currentAttachments.isEmpty else { return }
-
-        // Get indices to preload: current, previous, and next
-        var indicesToPreload = [currentIndex]
-
-        if currentIndex > 0 {
-            indicesToPreload.append(currentIndex - 1)
-        }
-
-        if currentIndex < currentAttachments.count - 1 {
-            indicesToPreload.append(currentIndex + 1)
-        }
-
-        // Preload each image
-        for index in indicesToPreload {
-            guard index >= 0 && index < currentAttachments.count else { continue }
-            let attachment = currentAttachments[index]
-
-            if attachment.type == .image,
-                let urlString = attachment.url,
-                let url = URL(string: urlString)
-            {
-                ConnectionManager.shared.performRequest {
-                    URLSession.shared.dataTask(with: url) { _, _, _ in
-                        // Data is automatically cached by URLSession
-                        ConnectionManager.shared.requestCompleted()
-                    }.resume()
+                .onAppear {
+                    isLoading = false
+                    loadError = true
+                    errorMessage = "Unsupported media type"
                 }
-            }
-        }
-    }
-
-    private func saveImageToPhotos(from url: URL) {
-        ConnectionManager.shared.performRequest {
-            let task = URLSession.shared.dataTask(with: url) { data, response, error in
-                guard let data = data, error == nil,
-                    let image = UIImage(data: data)
-                else {
-                    ConnectionManager.shared.requestCompleted()
-                    return
-                }
-
-                UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-                ConnectionManager.shared.requestCompleted()
-            }
-            task.resume()
         }
     }
 }
 
+// Convenience extension to safely access array elements
+extension Array {
+    subscript(safe index: Index) -> Element? {
+        return indices.contains(index) ? self[index] : nil
+    }
+}
+
+// Legacy MediaFullscreenView for backward compatibility
 struct MediaFullscreenView: View {
     let attachment: Post.Attachment
+    var attachments: [Post.Attachment] = []
     @Environment(\.presentationMode) var presentationMode
 
     var body: some View {
         // Redirect to the new FullscreenMediaView for better functionality
-        FullscreenMediaView(attachment: attachment)
+        FullscreenMediaView(
+            attachment: attachment, attachments: attachments.isEmpty ? [] : attachments)
     }
 }
 

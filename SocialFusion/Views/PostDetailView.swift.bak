@@ -15,9 +15,8 @@ struct PostDetailView: View {
     @State private var replies: [Post] = []
     @State private var showingComposeSheet = false
     @State private var detectedLinks: [URL] = []
-    @State private var isLoadingReplies = true
+    @State private var isLoadingReplies = false
     @EnvironmentObject var serviceManager: SocialServiceManager
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationView {
@@ -90,20 +89,15 @@ struct PostDetailView: View {
                                 }
                             }
                             .padding(.horizontal)
-                        }
-
-                        // Media grid for attachments
-                        if !post.attachments.isEmpty {
                             MediaGridView(
                                 attachments: post.attachments,
                                 onTapAttachment: { attachment in
                                     selectedMedia = attachment
                                     showMediaFullscreen = true
-                                },
-                                maxHeight: 220  // More compact for detail view
+                                }
                             )
                             .padding(.horizontal)
-                            .padding(.bottom, 8)  // Add bottom padding
+                            .frame(maxHeight: 280)  // Limit max height to avoid overlapping with action buttons
                         }
 
                         // Stats row (likes, reposts)
@@ -246,11 +240,6 @@ struct PostDetailView: View {
                     .padding(.top, 12)
                     .shadow(color: Color.black.opacity(0.05), radius: 1, x: 0, y: 1)
 
-                    // Visual separator between posts
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(height: 12)
-
                     // Replies section with improved UI
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
@@ -315,13 +304,19 @@ struct PostDetailView: View {
                             }
                         }
                     }
-                    .background(
-                        colorScheme == .dark
-                            ? Color(UIColor.secondarySystemBackground).opacity(0.3)
-                            : Color(UIColor.secondarySystemBackground).opacity(0.2)
-                    )
-                    .cornerRadius(16)
-                    .padding(.horizontal, 12)
+
+                    // Attachments (separate from link previews)
+                    if !post.attachments.isEmpty {
+                        MediaGridView(
+                            attachments: post.attachments,
+                            onTapAttachment: { attachment in
+                                selectedMedia = attachment
+                                showMediaFullscreen = true
+                            }
+                        )
+                        .padding(.horizontal)
+                        .frame(maxHeight: 280)  // Limit max height to avoid overlapping with action buttons
+                    }
                 }
                 .padding(.bottom, 20)
             }
@@ -342,12 +337,11 @@ struct PostDetailView: View {
                 loadReplies()
             }
             .fullScreenCover(isPresented: $showMediaFullscreen) {
-                if let selectedAttachment = selectedMedia {
-                    if !post.attachments.isEmpty,
-                        let selectedIndex = post.attachments.firstIndex(where: {
-                            $0.url == selectedAttachment.url
-                        })
-                    {
+                if let selectedAttachment = selectedMedia, !post.attachments.isEmpty {
+                    // Find the index of the selected attachment
+                    if let selectedIndex = post.attachments.firstIndex(where: {
+                        $0.url == selectedAttachment.url
+                    }) {
                         // Pass all attachments and the selected index to create a gallery view
                         FullscreenMediaView(
                             attachments: post.attachments,
@@ -561,217 +555,133 @@ struct LinkPreview: View {
     @State private var loadFailed = false
     @State private var errorMessage: String? = nil
     @State private var validatedURL: URL
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var isCancelled = false
-
-    // Track cancellable task for better lifecycle management
-    @State private var loadTask: Task<Void, Never>? = nil
 
     init(url: URL) {
         self.url = url
-        // Validate and fix URL on initialization using the real URLService
-        self._validatedURL = State(initialValue: URLService.shared.validateURL(url))
+        // Validate and fix URL on initialization using URLService
+        self._validatedURL = State(initialValue: URLServiceWrapper.shared.validateURL(url))
     }
 
     var body: some View {
         if isLoading {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.gray.opacity(0.2))
-                .frame(height: 100)
-                .frame(maxWidth: .infinity)
+                .frame(height: 120)
                 .overlay(
                     ProgressView()
                 )
                 .onAppear {
                     loadMetadata()
                 }
-                .onDisappear {
-                    // Cancel loading when view disappears
-                    isCancelled = true
-                    loadTask?.cancel()
-                }
-                .padding(.vertical, 4)
         } else if let metadata = metadata {
             Link(destination: validatedURL) {
                 VStack(alignment: .leading, spacing: 8) {
+                    // Title
+                    if let title = metadata.title, !title.isEmpty {
+                        Text(title)
+                            .font(.headline)
+                            .lineLimit(2)
+                            .foregroundColor(.primary)
+                    }
+
+                    // Link URL as subtitle
+                    Text(validatedURL.host ?? validatedURL.absoluteString)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+
                     // Image if available
                     if let imageProvider = metadata.imageProvider {
                         AsyncImageFromProvider(imageProvider: imageProvider)
-                            .frame(height: 140)
+                            .frame(height: 150)
                             .frame(maxWidth: .infinity)
                             .clipped()
                             .cornerRadius(8)
                     }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Title
-                        if let title = metadata.title, !title.isEmpty {
-                            Text(title)
-                                .font(.callout)
-                                .fontWeight(.medium)
-                                .lineLimit(2)
-                                .foregroundColor(.primary)
-                        }
-
-                        // Link URL as subtitle
-                        Text(validatedURL.host ?? validatedURL.absoluteString)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
                 }
-                .frame(maxWidth: .infinity)
+                .padding(12)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            colorScheme == .dark
-                                ? Color(UIColor.secondarySystemBackground)
-                                : Color(UIColor.secondarySystemBackground))
+                        .fill(Color(UIColor.tertiarySystemBackground))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                 )
             }
-            .buttonStyle(PlainButtonStyle())
         } else if loadFailed {
-            // Error state - simplified fallback
+            // Error state
             Link(destination: validatedURL) {
                 HStack(spacing: 12) {
                     Image(systemName: "link")
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundColor(.secondary)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Circle()
-                                .fill(Color.gray.opacity(0.1))
-                        )
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(validatedURL.host ?? validatedURL.absoluteString)
                             .font(.callout)
-                            .fontWeight(.medium)
                             .foregroundColor(.primary)
                             .lineLimit(1)
 
                         if let errorMessage = errorMessage {
                             Text(errorMessage)
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Link")
-                                .font(.caption2)
+                                .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
-
-                    Spacer()
-
-                    Image(systemName: "arrow.up.right")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(
-                            colorScheme == .dark
-                                ? Color(UIColor.secondarySystemBackground)
-                                : Color(UIColor.secondarySystemBackground))
+                        .fill(Color(UIColor.tertiarySystemBackground))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                 )
             }
-            .buttonStyle(PlainButtonStyle())
         }
     }
 
-    // Helper to load metadata with improved error handling
+    // Helper to validate and fix common URL issues
     private func loadMetadata() {
-        // Check if URL is valid for requests
-        guard URLService.shared.isValidURLForRequest(validatedURL) else {
-            markAsFailed(with: "Invalid or unsupported URL")
-            return
-        }
+        let provider = LPMetadataProvider()
+        // Set a timeout for the preview loading
+        provider.timeout = 10.0
 
-        // Create and store the loading task
-        loadTask = Task {
-            // First check if already cancelled
-            if isCancelled {
-                return
-            }
+        // Create a task to handle timeout cancellation
+        let task = DispatchWorkItem {
+            provider.startFetchingMetadata(for: validatedURL) { metadata, error in
+                DispatchQueue.main.async {
+                    self.isLoading = false
 
-            // Create a provider with shorter timeout
-            let provider = LPMetadataProvider()
-            provider.timeout = 5.0
-
-            do {
-                // Try to fetch metadata with timeout protection
-                let metadata = try await withCheckedThrowingContinuation { continuation in
-                    // Set up backup timeout
-                    let timeoutWork = DispatchWorkItem {
-                        if isLoading && !isCancelled {
-                            continuation.resume(
-                                throwing: NSError(
-                                    domain: "com.socialfusion.link",
-                                    code: -1,
-                                    userInfo: [NSLocalizedDescriptionKey: "Request timed out"]
-                                ))
-                        }
-                    }
-
-                    // Schedule timeout
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 6.5, execute: timeoutWork)
-
-                    // Start the actual fetch
-                    provider.startFetchingMetadata(for: validatedURL) { metadata, error in
-                        // Cancel timeout work since we got a response
-                        timeoutWork.cancel()
-
-                        if let error = error {
-                            continuation.resume(throwing: error)
-                            return
-                        }
-
-                        if let metadata = metadata {
-                            continuation.resume(returning: metadata)
-                        } else {
-                            continuation.resume(
-                                throwing: NSError(
-                                    domain: "com.socialfusion.link",
-                                    code: -2,
-                                    userInfo: [NSLocalizedDescriptionKey: "No metadata available"]
-                                ))
-                        }
-                    }
-                }
-
-                // If we reach here, we have metadata - update UI
-                if !Task.isCancelled && !isCancelled {
-                    await MainActor.run {
+                    if let error = error {
+                        self.loadFailed = true
+                        self.errorMessage = URLServiceWrapper.shared.friendlyErrorMessage(
+                            for: error)
+                        print("Error loading link preview: \(error.localizedDescription)")
+                    } else if let metadata = metadata {
                         self.metadata = metadata
-                        self.isLoading = false
-                    }
-                }
-            } catch {
-                if !Task.isCancelled && !isCancelled {
-                    await MainActor.run {
-                        markAsFailed(with: URLService.shared.friendlyErrorMessage(for: error))
+                    } else {
+                        self.loadFailed = true
+                        self.errorMessage = "No preview available"
                     }
                 }
             }
         }
-    }
 
-    private func markAsFailed(with message: String? = nil) {
-        isLoading = false
-        loadFailed = true
-        errorMessage = message
+        // Execute the task
+        task.perform()
+
+        // Set up a timeout fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15.0) {
+            if self.isLoading {
+                self.isLoading = false
+                self.loadFailed = true
+                self.errorMessage = "Request timeout"
+            }
+        }
     }
 }
 

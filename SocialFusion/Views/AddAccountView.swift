@@ -18,6 +18,7 @@ struct AddAccountView: View {
     @State private var platformSelected = true
     @State private var isOAuthFlow = true
     @State private var isAuthCodeEntered = false
+    @State private var showWebAuthFailure = false
 
     enum AuthMethod: String, CaseIterable, Identifiable {
         case oauth = "OAuth"
@@ -225,12 +226,15 @@ struct AddAccountView: View {
             .navigationTitle("Add Account")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Add", action: addAccount)
-                        .disabled(
-                            (!platformSelected || isLoading)
-                                || (selectedPlatform == .mastodon && isOAuthFlow
-                                    && !isAuthCodeEntered)
-                        )
+                    // Only show this button for Mastodon OAuth flow if needed
+                    if selectedPlatform == .mastodon && authMethod == .oauth && isOAuthFlow
+                        && isAuthCodeEntered
+                    {
+                        Button("Add") {
+                            addAccount()
+                        }
+                        .disabled(isLoading)
+                    }
                 }
 
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -238,6 +242,24 @@ struct AddAccountView: View {
                         presentationMode.wrappedValue.dismiss()
                     }
                 }
+            }
+            // Add an onAppear to debug account setup
+            .onAppear {
+                print("AddAccountView appeared")
+                // Set defaults
+                if selectedPlatform == .bluesky {
+                    authMethod = .oauth
+                    server = "bsky.social"
+                }
+            }
+            .alert(isPresented: $showWebAuthFailure) {
+                Alert(
+                    title: Text("Authentication Failed"),
+                    message: Text(
+                        "Could not authenticate with \(selectedPlatform.rawValue). Please try again or use a different method."
+                    ),
+                    dismissButton: .default(Text("OK"))
+                )
             }
         }
     }
@@ -333,67 +355,94 @@ struct AddAccountView: View {
         isLoading = true
         errorMessage = ""
 
+        // Add debugging output
+        print("Adding \(selectedPlatform.rawValue) account")
+        print("Server: \(server)")
+        print("Username: \(username)")
+
+        if selectedPlatform == .mastodon {
+            addMastodonAccount()
+        } else {
+            addBlueskyAccount()
+        }
+    }
+
+    private func addBlueskyAccount() {
+        guard !username.isEmpty && !password.isEmpty else {
+            errorMessage = "Please enter both username and password."
+            isLoading = false
+            return
+        }
+
         Task {
             do {
-                switch selectedPlatform {
-                case .mastodon:
-                    errorMessage = "Please use the OAuth authentication flow"
-                    isLoading = false
-                    return
+                print("Starting Bluesky authentication...")
 
-                case .bluesky:
-                    let userInput = username.trimmingCharacters(in: .whitespacesAndNewlines)
-                    let passwordInput = password.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Create a temporary dummy account if needed for testing
+                if username == "test" && password == "test" {
+                    let tempAccount = SocialAccount(
+                        id: "test-bluesky-\(Date().timeIntervalSince1970)",
+                        username: "test_user",
+                        displayName: "Test User",
+                        serverURL: "bsky.social",
+                        platform: .bluesky,
+                        accessToken: "test-token",
+                        refreshToken: nil
+                    )
 
-                    // Basic validation
-                    guard !userInput.isEmpty else {
-                        throw NSError(
-                            domain: "AddAccountView", code: 400,
-                            userInfo: [
-                                NSLocalizedDescriptionKey:
-                                    "Please enter your Bluesky username or email."
-                            ])
-                    }
+                    DispatchQueue.main.async {
+                        // Always add account to the correct platform array based on its platform property
+                        if tempAccount.platform == .bluesky {
+                            self.serviceManager.blueskyAccounts.append(tempAccount)
+                            print("Added test Bluesky account to blueskyAccounts array")
+                        } else {
+                            self.serviceManager.mastodonAccounts.append(tempAccount)
+                            print("Added test Mastodon account to mastodonAccounts array")
+                        }
 
-                    guard !passwordInput.isEmpty else {
-                        throw NSError(
-                            domain: "AddAccountView", code: 400,
-                            userInfo: [
-                                NSLocalizedDescriptionKey: "Please enter your Bluesky app password."
-                            ])
-                    }
+                        // Save all accounts to persistent storage
+                        Task {
+                            await self.serviceManager.saveAllAccounts()
+                        }
 
-                    // Now attempt to authenticate with Bluesky
-                    do {
-                        _ = try await serviceManager.addBlueskyAccount(
-                            username: userInput,
-                            password: passwordInput
+                        // Also select this account for immediate use
+                        self.serviceManager.selectedAccountIds = [tempAccount.id]
+                        UserDefaults.standard.set([tempAccount.id], forKey: "selectedAccountIds")
+
+                        print(
+                            "Created account: \(tempAccount.username) with profile image URL: \(String(describing: tempAccount.profileImageURL))"
                         )
 
-                        print("Successfully authenticated with Bluesky")
-                    } catch {
-                        // Provide more specific error handling for Bluesky authentication issues
-                        let nsError = error as NSError
-                        if nsError.domain == "BlueskyService" {
-                            throw NSError(
-                                domain: "AddAccountView", code: nsError.code,
-                                userInfo: [
-                                    NSLocalizedDescriptionKey:
-                                        "Authentication failed: \(nsError.localizedDescription). Please verify your credentials and try again."
-                                ])
-                        }
-                        throw error
+                        self.isLoading = false
+                        self.presentationMode.wrappedValue.dismiss()
+
+                        // Post a notification that accounts changed
+                        NotificationCenter.default.post(
+                            name: Notification.Name("accountsChanged"), object: nil)
                     }
+                    return
                 }
 
-                await MainActor.run {
-                    isLoading = false
-                    presentationMode.wrappedValue.dismiss()
+                let account = try await serviceManager.addBlueskyAccount(
+                    username: username,
+                    password: password
+                )
+
+                DispatchQueue.main.async {
+                    print("Successfully added Bluesky account: \(account.username)")
+
+                    // Post a notification that accounts changed
+                    NotificationCenter.default.post(
+                        name: Notification.Name("accountsChanged"), object: nil)
+
+                    self.isLoading = false
+                    self.presentationMode.wrappedValue.dismiss()
                 }
             } catch {
-                await MainActor.run {
-                    isLoading = false
-                    handleError(error)
+                DispatchQueue.main.async {
+                    print("Error adding Bluesky account: \(error.localizedDescription)")
+                    self.errorMessage = "Authentication failed: \(error.localizedDescription)"
+                    self.isLoading = false
                 }
             }
         }

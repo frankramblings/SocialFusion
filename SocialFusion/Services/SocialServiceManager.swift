@@ -1198,7 +1198,7 @@ public class SocialServiceManager: ObservableObject {
 
     /// Saves all account data to persistent storage
     @MainActor
-    func saveAllAccounts() async {
+    public func saveAllAccounts() async {
         saveAccounts()
         saveSelections()
         print("All account data saved to persistent storage")
@@ -1273,5 +1273,67 @@ public class SocialServiceManager: ObservableObject {
         }
 
         isLoadingTimeline = false
+    }
+
+    // MARK: - Quote Posts
+
+    /// Loads more posts for the timeline
+    @MainActor
+    public func loadMorePosts() async {
+        // This is a placeholder implementation
+        // In a real implementation, this would use pagination to fetch more posts
+        // and append them to the existing timeline
+        print("Load more posts requested")
+
+        // For now, we'll just add a small delay to simulate loading
+        do {
+            try await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
+        } catch {
+            print("Sleep interrupted: \(error.localizedDescription)")
+        }
+    }
+
+    /// Fetches a single Bluesky post by its ID
+    /// - Parameter postID: The ID of the post to fetch
+    /// - Returns: The Post object if found, nil otherwise
+    public func fetchBlueskyPostByID(_ postID: String) async throws -> Post? {
+        // Check if we have any Bluesky accounts to use for API access
+        guard let blueskyAccount = blueskyAccounts.first else {
+            // For public timeline, create a demo account to fetch posts
+            let demoAccount = SocialAccount(
+                id: "public",
+                username: "public",
+                displayName: "Public Timeline",
+                serverURL: URL(string: "bsky.social"),
+                platform: .bluesky,
+                profileImageURL: nil
+            )
+            return try await blueskyService.fetchPostByID(postID, account: demoAccount)
+        }
+
+        // Use the first available Bluesky account to fetch the post
+        return try await blueskyService.fetchPostByID(postID, account: blueskyAccount)
+    }
+
+    /// Fetches a single Mastodon post by its ID
+    /// - Parameter postID: The ID of the post to fetch
+    /// - Returns: The Post object if found, nil otherwise
+    public func fetchMastodonPostByID(_ postID: String) async throws -> Post? {
+        // Check if we have any Mastodon accounts to use for API access
+        guard let mastodonAccount = mastodonAccounts.first else {
+            // For public timeline, create a demo account to fetch posts
+            let demoAccount = SocialAccount(
+                id: "public",
+                username: "public",
+                displayName: "Public Timeline",
+                serverURL: URL(string: "mastodon.social"),
+                platform: .mastodon,
+                profileImageURL: nil
+            )
+            return try await mastodonService.fetchPostByID(postID, account: demoAccount)
+        }
+
+        // Use the first available Mastodon account to fetch the post
+        return try await mastodonService.fetchPostByID(postID, account: mastodonAccount)
     }
 }

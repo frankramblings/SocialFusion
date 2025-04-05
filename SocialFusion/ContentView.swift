@@ -49,21 +49,25 @@ struct ContentView: View {
                                 showComposeView = true
                             }) {
                                 Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 22))
                                     .foregroundColor(.white)
-                                    .frame(width: 56, height: 56)
+                                    .frame(width: 58, height: 58)
                                     .background(
                                         Circle()
                                             .fill(Color.blue)
                                             .shadow(
-                                                color: Color.black.opacity(0.15), radius: 4, x: 0,
-                                                y: 2)
+                                                color: Color.black.opacity(0.3), radius: 6, x: 0,
+                                                y: 3)
                                     )
                             }
                             .padding(.trailing, 20)
-                            .padding(.bottom, 16)
+                            .padding(.bottom, 95)  // Increased to ensure it's above the tab bar
+                            .accessibilityLabel("Compose new post")
+                            .transition(.scale.combined(with: .opacity))
+                            .animation(.spring(response: 0.3), value: selectedTab == 0)
                         }
                     }
+                    .zIndex(20)  // Higher z-index to ensure it's above all content
                 }
                 .navigationTitle(navigationTitle)
                 .navigationBarTitleDisplayMode(.inline)
@@ -83,10 +87,12 @@ struct ContentView: View {
                                     GeometryReader { geometry -> Color in
                                         let frame = geometry.frame(in: .global)
                                         // Store the center of the account icon for dropdown positioning
-                                        longPressLocation = CGPoint(
-                                            x: frame.midX,
-                                            y: frame.maxY + 8  // Position dropdown slightly below the icon
-                                        )
+                                        DispatchQueue.main.async {
+                                            longPressLocation = CGPoint(
+                                                x: frame.midX,
+                                                y: frame.maxY + 12  // Position dropdown slightly below the icon
+                                            )
+                                        }
                                         return Color.clear
                                     }
                                 )
@@ -388,8 +394,10 @@ struct AccountDropdownView: View {
     @Binding var isVisible: Bool
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) var colorScheme
+    @State private var showAddAccountView = false
 
     let position: CGPoint
+    @State private var dropdownSize: CGSize = .zero
 
     var body: some View {
         ZStack {
@@ -450,7 +458,7 @@ struct AccountDropdownView: View {
 
                     // "Add Account" option
                     Button(action: {
-                        // Here you would show the account adding interface
+                        showAddAccountView = true
                         isVisible = false
                     }) {
                         HStack {
@@ -476,11 +484,69 @@ struct AccountDropdownView: View {
                 )
                 .cornerRadius(12)
                 .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
+                .background(
+                    GeometryReader { geo in
+                        Color.clear.onAppear {
+                            dropdownSize = geo.size
+                        }
+                    }
+                )
             }
-            .position(x: position.x, y: position.y)
+            .position(adjustedPosition)
             .frame(width: 220)
         }
         .ignoresSafeArea()
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
+        }
+    }
+
+    // Calculate position that keeps the dropdown on screen
+    private var adjustedPosition: CGPoint {
+        let screenWidth = UIScreen.main.bounds.width
+        let screenHeight = UIScreen.main.bounds.height
+
+        // Get dropdown dimensions - use fixed values if geometry hasn't calculated yet
+        let dropdownWidth = max(dropdownSize.width, 220)
+        let dropdownHeight = max(
+            dropdownSize.height,
+            min(
+                CGFloat(
+                    serviceManager.mastodonAccounts.count + serviceManager.blueskyAccounts.count + 2
+                ) * 50, 240) + 70)
+
+        // Start with tap position
+        var x = position.x
+        var y = position.y
+
+        // Adjust if dropdown would appear off the left edge
+        if x - (dropdownWidth / 2) < 16 {
+            x = (dropdownWidth / 2) + 16
+        }
+
+        // Adjust if dropdown would appear off the right edge
+        if x + (dropdownWidth / 2) > screenWidth - 16 {
+            x = screenWidth - (dropdownWidth / 2) - 16
+        }
+
+        // Adjust vertical position based on available space
+        let topSpace = y - 8
+        let bottomSpace = screenHeight - y
+
+        // Prefer showing below the tap point, but flip if not enough space
+        if bottomSpace < dropdownHeight && topSpace > dropdownHeight {
+            // More space above - show dropdown above tap point
+            y = y - dropdownHeight - 24
+        } else {
+            // Default: show below with small offset
+            y = y + 8
+        }
+
+        // Safety check to ensure always on screen
+        y = max(min(y, screenHeight - (dropdownHeight / 2) - 50), (dropdownHeight / 2) + 50)
+
+        return CGPoint(x: x, y: y)
     }
 
     @ViewBuilder
