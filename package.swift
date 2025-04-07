@@ -5,10 +5,37 @@ import PackageDescription
 
 let package = Package(
     name: "SocialFusion",
+    platforms: [
+        .iOS(.v16),
+        .macOS(.v13),
+    ],
+    products: [
+        .executable(
+            name: "SocialFusion",
+            targets: ["SocialFusion"]
+        )
+    ],
+    dependencies: [
+        .package(url: "https://github.com/realm/SwiftLint", from: "0.54.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.3"),
+        .package(url: "https://github.com/apple/swift-testing.git", from: "0.6.0"),
+    ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
         .executableTarget(
-            name: "SocialFusion"),
+            name: "SocialFusion",
+            dependencies: [
+                .product(name: "Logging", package: "swift-log")
+            ],
+            plugins: [
+                .plugin(name: "SwiftLintPlugin", package: "SwiftLint")
+            ]
+        ),
+        .testTarget(
+            name: "SocialFusionTests",
+            dependencies: [
+                "SocialFusion",
+                .product(name: "Testing", package: "swift-testing"),
+            ]
+        ),
     ]
 )

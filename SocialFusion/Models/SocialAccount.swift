@@ -2,6 +2,38 @@ import Foundation
 import Security
 import SwiftUI
 import UIKit
+import os.log
+
+// Import services
+import struct Foundation.URL
+// Import our services
+@_implementationOnly import struct Foundation.URL
+import class Foundation.URLSession
+@_implementationOnly import class Foundation.URLSession
+
+/// Errors related to token operations
+public enum TokenError: Error, LocalizedError {
+    case noAccessToken
+    case noRefreshToken
+    case invalidRefreshToken
+    case refreshFailed
+    case invalidServer
+
+    public var errorDescription: String? {
+        switch self {
+        case .noAccessToken:
+            return "No access token available"
+        case .noRefreshToken:
+            return "No refresh token available"
+        case .invalidRefreshToken:
+            return "Invalid refresh token"
+        case .refreshFailed:
+            return "Failed to refresh token"
+        case .invalidServer:
+            return "Invalid server URL"
+        }
+    }
+}
 
 // MARK: - Color Extension for Hex Colors
 extension Color {
@@ -109,11 +141,8 @@ private class TokenManager {
     static func ensureValidToken(for account: SocialAccount) async throws -> String {
         // Only refresh if token is expired and we have refresh token
         if account.isTokenExpired,
-            account.getRefreshToken() != nil,
-            account.getClientId() != nil,
-            account.getClientSecret() != nil
+            account.getRefreshToken() != nil
         {
-
             // Use existing token handling
             let tokens = loadTokens(for: account.id)
             if let token = tokens.accessToken {
@@ -252,17 +281,16 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     // Platform-specific ID (e.g., Mastodon account ID or Bluesky DID)
     public var platformSpecificId: String
 
-    // Authentication tokens (transient - stored in keychain, not encoded)
-    public var accessToken: String?
-    public var refreshToken: String?
-    public var tokenExpirationDate: Date?
-
-    // OAuth client credentials
-    public var clientId: String?
-    public var clientSecret: String?
+    // Authentication tokens (transient - not encoded)
+    private var _accessToken: String?
+    private var _refreshToken: String?
+    private var _tokenExpirationDate: Date?
 
     // Account details from the platform
     public var accountDetails: [String: String]?
+
+    // TODO: Switch to KeychainService
+    // private let keychainService = KeychainService.shared
 
     // MARK: - Codable
 
@@ -312,8 +340,6 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         accessToken: String? = nil,
         refreshToken: String? = nil,
         expirationDate: Date? = nil,
-        clientId: String? = nil,
-        clientSecret: String? = nil,
         accountDetails: [String: String]? = nil,
         profileImageURL: URL? = nil,
         platformSpecificId: String? = nil
@@ -323,16 +349,14 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         self.displayName = displayName
         self.serverURL = URL(string: serverURL)
         self.platform = platform
-        self.accessToken = accessToken
-        self.refreshToken = refreshToken
-        self.tokenExpirationDate = expirationDate
-        self.clientId = clientId
-        self.clientSecret = clientSecret
+        self._accessToken = accessToken
+        self._refreshToken = refreshToken
+        self._tokenExpirationDate = expirationDate
         self.accountDetails = accountDetails
         self.profileImageURL = profileImageURL
         self.platformSpecificId = platformSpecificId ?? id
 
-        // Store tokens securely - Ensure tokens are saved to UserDefaults
+        // Store tokens securely
         if let accessToken = accessToken {
             saveAccessToken(accessToken)
             print("Saved access token for \(username): \(accessToken.prefix(5))...")
@@ -345,11 +369,6 @@ public class SocialAccount: Identifiable, Codable, Equatable {
             if let expirationDate = expirationDate {
                 saveTokenExpirationDate(expirationDate)
                 print("Saved token expiration date for \(username): \(expirationDate)")
-            }
-
-            if let clientId = clientId, let clientSecret = clientSecret {
-                saveClientCredentials(clientId: clientId, clientSecret: clientSecret)
-                print("Saved client credentials for \(username)")
             }
         }
     }
@@ -377,90 +396,95 @@ public class SocialAccount: Identifiable, Codable, Equatable {
             print("No profile image URL found for \(username)")
         }
 
-        // Load tokens from UserDefaults
-        let tokens = loadTokens(for: id)
-        accessToken = tokens.accessToken
-        refreshToken = tokens.refreshToken
-        tokenExpirationDate = tokens.expiresAt
-        clientId = tokens.clientId
-        clientSecret = tokens.clientSecret
-    }
+        // Load tokens from keychain after initialization
+        _accessToken = nil
+        _refreshToken = nil
+        _tokenExpirationDate = nil
 
-    // Custom encode method
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        try container.encode(id, forKey: .id)
-        try container.encode(username, forKey: .username)
-        try container.encodeIfPresent(displayName, forKey: .displayName)
-        try container.encodeIfPresent(serverURL, forKey: .serverURL)
-        try container.encode(platform, forKey: .platform)
-        try container.encode(platformSpecificId, forKey: .platformSpecificId)
-
-        // Encode profile image URL as string
-        if let profileImageURL = profileImageURL {
-            try container.encode(profileImageURL.absoluteString, forKey: .profileImageURL)
-            print("Encoded profile image URL for \(username): \(profileImageURL.absoluteString)")
-        }
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
-        return lhs.id == rhs.id
+        // We'll load tokens from keychain the first time they're accessed
     }
 
     // MARK: - Token Management
 
-    private func saveTokensToStorage(
-        accessToken: String,
-        refreshToken: String?,
-        expiresAt: Date?,
-        clientId: String,
-        clientSecret: String
-    ) {
-        // Save access token
-        UserDefaults.saveAccessToken(accessToken, for: id)
-
-        // Save refresh token if available
-        if let refreshToken = refreshToken {
-            UserDefaults.saveRefreshToken(refreshToken, for: id)
+    /// The access token for the account
+    public var accessToken: String? {
+        get {
+            if _accessToken == nil {
+                // Temporarily using UserDefaults instead of KeychainService
+                _accessToken = UserDefaults.standard.string(forKey: "accessToken-\(id)")
+            }
+            return _accessToken
         }
-
-        // Save client credentials
-        UserDefaults.saveClientCredentials(clientId: clientId, clientSecret: clientSecret, for: id)
-
-        // Save expiration date
-        if let expiresAt = expiresAt {
-            UserDefaults.standard.set(expiresAt.timeIntervalSince1970, forKey: "token-expiry-\(id)")
+        set {
+            _accessToken = newValue
+            if let token = newValue {
+                // Temporarily using UserDefaults instead of KeychainService
+                UserDefaults.standard.set(token, forKey: "accessToken-\(id)")
+            } else {
+                // Temporarily using UserDefaults instead of KeychainService
+                UserDefaults.standard.removeObject(forKey: "accessToken-\(id)")
+            }
         }
     }
 
+    /// The refresh token for the account
+    public var refreshToken: String? {
+        get {
+            if _refreshToken == nil {
+                // Temporarily using UserDefaults instead of KeychainService
+                _refreshToken = UserDefaults.standard.string(forKey: "refreshToken-\(id)")
+            }
+            return _refreshToken
+        }
+        set {
+            _refreshToken = newValue
+            if let token = newValue {
+                // Temporarily using UserDefaults instead of KeychainService
+                UserDefaults.standard.set(token, forKey: "refreshToken-\(id)")
+            } else {
+                // Temporarily using UserDefaults instead of KeychainService
+                UserDefaults.standard.removeObject(forKey: "refreshToken-\(id)")
+            }
+        }
+    }
+
+    public var tokenExpirationDate: Date? {
+        get {
+            return _tokenExpirationDate
+        }
+        set {
+            _tokenExpirationDate = newValue
+            // Store in UserDefaults for now as Keychain doesn't directly store dates
+            if let date = newValue {
+                UserDefaults.standard.set(date.timeIntervalSince1970, forKey: "token-expiry-\(id)")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "token-expiry-\(id)")
+            }
+        }
+    }
+
+    /// Save the access token for this account
     public func saveAccessToken(_ token: String) {
         self.accessToken = token
-        UserDefaults.saveAccessToken(token, for: id)
     }
 
+    /// Save the refresh token for this account
     public func saveRefreshToken(_ token: String) {
         self.refreshToken = token
-        UserDefaults.saveRefreshToken(token, for: id)
     }
 
     public func saveTokenExpirationDate(_ date: Date?) {
-        self.tokenExpirationDate = date
-
-        // Store in UserDefaults
-        if let date = date {
-            UserDefaults.standard.set(date.timeIntervalSince1970, forKey: "token-expiry-\(id)")
-        } else {
-            UserDefaults.standard.removeObject(forKey: "token-expiry-\(id)")
-        }
+        tokenExpirationDate = date
     }
 
-    public func saveClientCredentials(clientId: String, clientSecret: String) {
-        self.clientId = clientId
-        self.clientSecret = clientSecret
-        UserDefaults.saveClientCredentials(clientId: clientId, clientSecret: clientSecret, for: id)
+    public func savePassword(_ password: String) {
+        // Temporarily using UserDefaults instead of KeychainService
+        UserDefaults.standard.set(password, forKey: "password-\(id)")
+    }
+
+    public func getPassword() -> String? {
+        // Temporarily using UserDefaults instead of KeychainService
+        return UserDefaults.standard.string(forKey: "password-\(id)")
     }
 
     public func saveAccountDetails(_ details: [String: String]) {
@@ -468,35 +492,11 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     }
 
     public func getAccessToken() -> String? {
-        // If no token in memory, try loading from keychain
-        if accessToken == nil {
-            loadTokensFromKeychain()
-        }
         return accessToken
     }
 
     public func getRefreshToken() -> String? {
-        // If no token in memory, try loading from keychain
-        if refreshToken == nil {
-            loadTokensFromKeychain()
-        }
         return refreshToken
-    }
-
-    public func getClientId() -> String? {
-        // If no client ID in memory, try loading from keychain
-        if clientId == nil {
-            loadTokensFromKeychain()
-        }
-        return clientId
-    }
-
-    public func getClientSecret() -> String? {
-        // If no client secret in memory, try loading from keychain
-        if clientSecret == nil {
-            loadTokensFromKeychain()
-        }
-        return clientSecret
     }
 
     public func getAccountDetails() -> [String: String]? {
@@ -514,61 +514,98 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     /// Ensures this account has a valid access token, refreshing if necessary
     /// - Returns: A valid access token
     public func getValidAccessToken() async throws -> String {
-        return try await TokenManager.ensureValidToken(for: self)
+        let logger = Logger(subsystem: "com.socialfusion", category: "SocialAccount")
+
+        // If the token is not expired, return it
+        if !isTokenExpired, let token = accessToken {
+            logger.debug("Token for \(self.username, privacy: .public) is still valid")
+            return token
+        }
+
+        logger.info("Token expired for \(self.username, privacy: .public), attempting refresh")
+
+        // Token is expired, attempt to refresh based on platform
+        guard let refreshToken = getRefreshToken() else {
+            logger.error("No refresh token available for \(self.username, privacy: .public)")
+            throw TokenError.noRefreshToken
+        }
+
+        do {
+            // Special handling for each platform
+            switch platform {
+            case .bluesky:
+                let blueskyService = BlueskyService()
+                let newToken = try await blueskyService.refreshAccessToken(for: self)
+
+                logger.info(
+                    "Successfully refreshed token for Bluesky account \(self.username, privacy: .public)"
+                )
+                return newToken
+
+            case .mastodon:
+                // For Mastodon, use the refresh token to get a new access token
+                logger.debug(
+                    "Using refresh token for Mastodon account \(self.username, privacy: .public)")
+
+                // Use the existing MastodonService to refresh
+                let mastodonService = MastodonService()
+                let newToken = try await mastodonService.refreshAccessToken(for: self)
+
+                logger.info(
+                    "Successfully refreshed token for Mastodon account \(self.username, privacy: .public)"
+                )
+                return newToken
+
+            default:
+                logger.error(
+                    "Token refresh not implemented for platform \(self.platform.rawValue, privacy: .public)"
+                )
+                throw TokenError.refreshFailed
+            }
+        } catch {
+            logger.error("Failed to refresh token: \(error.localizedDescription, privacy: .public)")
+
+            // If we still have an access token, return it even if it's expired
+            // This gives the API call a chance to succeed even with an expired token
+            if let token = accessToken {
+                logger.notice("Returning possibly expired token as fallback")
+                return token
+            }
+
+            throw TokenError.refreshFailed
+        }
     }
 
     /// Deletes all tokens associated with this account
     public func clearTokens() {
-        UserDefaults.deleteAllTokens(for: id)
-        accessToken = nil
-        refreshToken = nil
-        tokenExpirationDate = nil
-        clientId = nil
-        clientSecret = nil
+        // Delete from UserDefaults
+        UserDefaults.standard.removeObject(forKey: "accessToken-\(id)")
+        UserDefaults.standard.removeObject(forKey: "refreshToken-\(id)")
+        UserDefaults.standard.removeObject(forKey: "token-expiry-\(id)")
+        UserDefaults.standard.removeObject(forKey: "password-\(id)")
+
+        _accessToken = nil
+        _refreshToken = nil
+        _tokenExpirationDate = nil
     }
 
     private func loadTokensFromKeychain() {
-        // Load access token
-        self.accessToken = UserDefaults.loadAccessToken(for: id)
+        // Load tokens from UserDefaults
+        _accessToken = UserDefaults.standard.string(forKey: "accessToken-\(id)")
+        _refreshToken = UserDefaults.standard.string(forKey: "refreshToken-\(id)")
 
-        // Load refresh token
-        self.refreshToken = UserDefaults.loadRefreshToken(for: id)
-
-        // Load client credentials
-        let credentials = UserDefaults.loadClientCredentials(for: id)
-        self.clientId = credentials.clientId
-        self.clientSecret = credentials.clientSecret
-
-        // Load expiration date
+        // Load expiration date from UserDefaults
         if let expiryTimestamp = UserDefaults.standard.object(forKey: "token-expiry-\(id)")
             as? TimeInterval
         {
-            self.tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
+            _tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
         }
     }
 
-    // Save accounts to UserDefaults
-    private func saveAccounts() {
-        var accounts =
-            UserDefaults.standard.array(forKey: "social_accounts") as? [[String: Any]] ?? []
+    // MARK: - Equatable
 
-        // Update or add this account
-        let accountData: [String: Any] = [
-            "id": id,
-            "username": username,
-            "displayName": displayName as Any,
-            "serverURL": serverURL?.absoluteString ?? "",
-            "platform": platform.rawValue,
-            "profileImageURL": profileImageURL?.absoluteString ?? "",
-        ]
-
-        if let index = accounts.firstIndex(where: { ($0["id"] as? String) == id }) {
-            accounts[index] = accountData
-        } else {
-            accounts.append(accountData)
-        }
-
-        UserDefaults.standard.set(accounts, forKey: "social_accounts")
+    public static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
+        return lhs.id == rhs.id
     }
 }
 

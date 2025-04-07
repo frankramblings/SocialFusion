@@ -145,28 +145,45 @@ class BlueskyAccountService: AccountService {
     func authenticate(serverURL: URL?, username: String, password: String) async throws
         -> SocialAccount
     {
-        // This would be implemented using the Bluesky API
-        // For now, just a placeholder method that will be implemented
-        // when we refactor the BlueskyService
+        // Use the BlueskyService to authenticate
+        do {
+            let account = try await BlueskyService.shared.authenticate(
+                server: serverURL,
+                username: username,
+                password: password
+            )
 
-        throw NSError(
-            domain: "com.socialfusion", code: 501,
-            userInfo: [
-                NSLocalizedDescriptionKey:
-                    "Bluesky authentication functionality will be implemented in the BlueskyService refactoring"
-            ])
+            // Save the new account
+            saveAccount(account)
+
+            return account
+        } catch {
+            // Log the error
+            print("Bluesky authentication failed: \(error.localizedDescription)")
+
+            // Rethrow to let caller handle it
+            throw error
+        }
     }
 
     func refreshAuthentication(for account: SocialAccount) async throws -> SocialAccount {
-        // This would refresh the tokens using the Bluesky API
-        // Placeholder for future implementation
+        guard account.platform == .bluesky else {
+            throw NSError(
+                domain: "BlueskyAccountService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Not a Bluesky account"]
+            )
+        }
 
-        throw NSError(
-            domain: "com.socialfusion", code: 501,
-            userInfo: [
-                NSLocalizedDescriptionKey:
-                    "Token refresh functionality will be implemented in the BlueskyService refactoring"
-            ])
+        do {
+            // Use BlueskyService to refresh the authentication
+            let (newAccessToken, _) = try await BlueskyService.shared.refreshSession(for: account)
+
+            // Return the updated account
+            return account
+        } catch {
+            print("Failed to refresh Bluesky authentication: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     func validateAccount(_ account: SocialAccount) -> Bool {

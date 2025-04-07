@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import SwiftUI
 import UIKit
+import os.log
 
 // Define notification names
 extension Notification.Name {
@@ -22,6 +23,12 @@ public enum ServiceError: Error, LocalizedError {
     case invalidContent(reason: String)
     case noPlatformsSelected
     case postFailed(reason: String)
+    case unsupportedPlatform
+    case apiError(String)
+    case unauthorized(String)
+    case emptyResponse
+    case dataFormatError(String)
+    case unknown(String)
 
     public var errorDescription: String? {
         switch self {
@@ -45,6 +52,18 @@ public enum ServiceError: Error, LocalizedError {
             return "No platforms selected for post"
         case .postFailed(let reason):
             return "Failed to post: \(reason)"
+        case .unsupportedPlatform:
+            return "Unsupported platform"
+        case .apiError(let message):
+            return "API error: \(message)"
+        case .unauthorized(let reason):
+            return "Unauthorized: \(reason)"
+        case .emptyResponse:
+            return "Empty response"
+        case .dataFormatError(let reason):
+            return "Data format error: \(reason)"
+        case .unknown(let reason):
+            return "Unknown error: \(reason)"
         }
     }
 }
@@ -733,8 +752,6 @@ public class SocialServiceManager: ObservableObject {
 
         print("Refreshing timeline (force: \(force))...")
 
-        var mastodonPosts: [Post] = []
-        var blueskyPosts: [Post] = []
         var allPosts: [Post] = []
         var errors: [Error] = []
 
@@ -757,126 +774,70 @@ public class SocialServiceManager: ObservableObject {
             && (selectedAccountTypes.contains(.mastodon) || selectedAccountIds.contains("all")
                 || selectedAccountIds.isEmpty)
         {
+            let accountsToFetch: [SocialAccount]
+
             if selectedAccountIds.contains("all") || selectedAccountIds.isEmpty {
-                // Fetch from all Mastodon accounts, but staggered
-                let accounts = mastodonAccounts
-                var index = 0
+                // Fetch from all Mastodon accounts
+                accountsToFetch = mastodonAccounts
+            } else {
+                // Fetch only from selected Mastodon accounts
+                accountsToFetch = mastodonAccounts.filter { selectedAccountIds.contains($0.id) }
+            }
 
-                while index < accounts.count {
-                    // Process accounts in chunks based on maxConcurrentRequests
-                    let endIndex = min(index + maxConcurrentRequests, accounts.count)
-                    let accountChunk = Array(accounts[index..<endIndex])
+            // Process accounts in chunks to avoid overwhelming the API
+            var index = 0
+            while index < accountsToFetch.count {
+                // Process accounts in chunks based on maxConcurrentRequests
+                let endIndex = min(index + maxConcurrentRequests, accountsToFetch.count)
+                let accountChunk = Array(accountsToFetch[index..<endIndex])
 
-                    await withTaskGroup(of: (Result<[Post], Error>).self) { group in
-                        for account in accountChunk {
-                            group.addTask {
-                                do {
-                                    print("Fetching Mastodon timeline for \(account.username)")
-                                    let posts = try await self.mastodonService.fetchHomeTimeline(
-                                        for: account)
-                                    return .success(posts)
-                                } catch {
-                                    print(
-                                        "Error fetching Mastodon timeline for \(account.username): \(error.localizedDescription)"
-                                    )
-                                    // Check if this was a rate limit error
-                                    let nsError = error as NSError
-                                    if nsError.code == 429 {
-                                        // Get retry-after if available, or default to 60 seconds
-                                        let retryAfter =
-                                            Double(
-                                                nsError.userInfo["Retry-After"] as? String ?? "60")
-                                            ?? 60.0
-                                        await self.recordRateLimit(
-                                            for: self.mastodonRateLimitKey, retryAfter: retryAfter)
-                                    }
-                                    return .failure(error)
+                await withTaskGroup(of: (Result<[Post], Error>).self) { group in
+                    for account in accountChunk {
+                        group.addTask {
+                            do {
+                                print("Fetching Mastodon timeline for \(account.username)")
+                                let posts = try await self.fetchTimeline(for: account)
+                                print(
+                                    "Successfully fetched \(posts.count) posts for Mastodon account: \(account.username)"
+                                )
+                                return .success(posts)
+                            } catch {
+                                print(
+                                    "Error fetching Mastodon timeline for \(account.username): \(error.localizedDescription)"
+                                )
+
+                                // Check if this was a rate limit error
+                                if let serviceError = error as? ServiceError,
+                                    case .apiError(let message) = serviceError,
+                                    message.contains("429")
+                                {
+                                    // Handle rate limiting
+                                    await self.recordRateLimit(
+                                        for: self.mastodonRateLimitKey, retryAfter: 60.0)
                                 }
-                            }
-                        }
-
-                        // Collect results from this chunk
-                        for await result in group {
-                            switch result {
-                            case .success(let posts):
-                                mastodonPosts.append(contentsOf: posts)
-                                self.resetRateLimitCounter(for: self.mastodonRateLimitKey)
-                            case .failure(let error):
-                                errors.append(error)
+                                return .failure(error)
                             }
                         }
                     }
 
-                    // Move to the next chunk of accounts
-                    index = endIndex
-
-                    // Add a small delay between chunks to avoid overwhelming the API
-                    if index < accounts.count {
-                        try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
+                    // Collect results from this chunk
+                    for await result in group {
+                        switch result {
+                        case .success(let posts):
+                            allPosts.append(contentsOf: posts)
+                            self.resetRateLimitCounter(for: self.mastodonRateLimitKey)
+                        case .failure(let error):
+                            errors.append(error)
+                        }
                     }
                 }
-            } else {
-                // Fetch only from selected Mastodon accounts, but staggered
-                let accounts = mastodonAccounts.filter { selectedAccountIds.contains($0.id) }
-                var index = 0
 
-                while index < accounts.count {
-                    // Process accounts in chunks based on maxConcurrentRequests
-                    let endIndex = min(index + maxConcurrentRequests, accounts.count)
-                    let accountChunk = Array(accounts[index..<endIndex])
+                // Move to the next chunk of accounts
+                index = endIndex
 
-                    await withTaskGroup(of: (Result<[Post], Error>).self) { group in
-                        for account in accountChunk {
-                            group.addTask {
-                                do {
-                                    print(
-                                        "Fetching selected Mastodon timeline for \(account.username)"
-                                    )
-                                    let posts = try await self.mastodonService.fetchHomeTimeline(
-                                        for: account)
-                                    print(
-                                        "Successfully fetched \(posts.count) posts for selected Mastodon account: \(account.username)"
-                                    )
-                                    return .success(posts)
-                                } catch {
-                                    print(
-                                        "Error fetching Mastodon timeline for selected account \(account.username): \(error.localizedDescription)"
-                                    )
-                                    // Check if this was a rate limit error
-                                    let nsError = error as NSError
-                                    if nsError.code == 429 {
-                                        // Get retry-after if available, or default to 60 seconds
-                                        let retryAfter =
-                                            Double(
-                                                nsError.userInfo["Retry-After"] as? String ?? "60")
-                                            ?? 60.0
-                                        await self.recordRateLimit(
-                                            for: self.mastodonRateLimitKey, retryAfter: retryAfter)
-                                    }
-                                    return .failure(error)
-                                }
-                            }
-                        }
-
-                        // Collect results from this chunk
-                        for await result in group {
-                            switch result {
-                            case .success(let posts):
-                                mastodonPosts.append(contentsOf: posts)
-                                self.resetRateLimitCounter(for: self.mastodonRateLimitKey)
-                            case .failure(let error):
-                                errors.append(error)
-                            }
-                        }
-                    }
-
-                    // Move to the next chunk of accounts
-                    index = endIndex
-
-                    // Add a small delay between chunks to avoid overwhelming the API
-                    if index < accounts.count {
-                        try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
-                    }
+                // Add a small delay between chunks to avoid overwhelming the API
+                if index < accountsToFetch.count {
+                    try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
                 }
             }
         }
@@ -886,211 +847,82 @@ public class SocialServiceManager: ObservableObject {
             && (selectedAccountTypes.contains(.bluesky) || selectedAccountIds.contains("all")
                 || selectedAccountIds.isEmpty)
         {
+            let accountsToFetch: [SocialAccount]
+
             if selectedAccountIds.contains("all") || selectedAccountIds.isEmpty {
-                // Fetch from all Bluesky accounts, but staggered
-                let accounts = blueskyAccounts
-                var index = 0
+                // Fetch from all Bluesky accounts
+                accountsToFetch = blueskyAccounts
+            } else {
+                // Fetch only from selected Bluesky accounts
+                accountsToFetch = blueskyAccounts.filter { selectedAccountIds.contains($0.id) }
+            }
 
-                while index < accounts.count {
-                    // Process accounts in chunks based on maxConcurrentRequests
-                    let endIndex = min(index + maxConcurrentRequests, accounts.count)
-                    let accountChunk = Array(accounts[index..<endIndex])
+            // Process accounts in chunks to avoid overwhelming the API
+            var index = 0
+            while index < accountsToFetch.count {
+                // Process accounts in chunks based on maxConcurrentRequests
+                let endIndex = min(index + maxConcurrentRequests, accountsToFetch.count)
+                let accountChunk = Array(accountsToFetch[index..<endIndex])
 
-                    await withTaskGroup(of: (Result<[Post], Error>).self) { group in
-                        for account in accountChunk {
-                            group.addTask {
-                                do {
-                                    // Check if token needs refresh before fetching timeline
-                                    if let expiry = account.tokenExpirationDate, expiry <= Date() {
-                                        print(
-                                            "Refreshing expired token for Bluesky account: \(account.username)"
-                                        )
-                                        do {
-                                            _ = try await self.blueskyService.refreshSession(
-                                                for: account)
-                                            print(
-                                                "Successfully refreshed token for Bluesky account: \(account.username)"
-                                            )
-                                        } catch let error as TokenError
-                                            where error == .invalidRefreshToken
-                                        {
-                                            print(
-                                                "Failed to refresh token for Bluesky account: \(account.username) - Invalid Refresh Token. Re-authentication required."
-                                            )
-                                            await MainActor.run {
-                                                self.authErrorMessage =
-                                                    "Bluesky login expired for \(account.username). Please re-add the account."
-                                                self.showingAuthError = true
-                                            }
-                                            // Propagate the error to stop timeline fetching for this account
-                                            throw error
-                                        } catch {
-                                            print(
-                                                "Failed to refresh token for Bluesky account: \(account.username) - \(error.localizedDescription)"
-                                            )
-                                            // Continue with the existing token, it might still work
-                                        }
-                                    }
+                await withTaskGroup(of: (Result<[Post], Error>).self) { group in
+                    for account in accountChunk {
+                        group.addTask {
+                            do {
+                                print("Fetching Bluesky timeline for \(account.username)")
+                                let posts = try await self.fetchTimeline(for: account)
+                                print(
+                                    "Successfully fetched \(posts.count) Bluesky posts for account: \(account.username)"
+                                )
+                                return .success(posts)
+                            } catch {
+                                print(
+                                    "Error fetching Bluesky timeline for \(account.username): \(error.localizedDescription)"
+                                )
 
-                                    print("Fetching Bluesky timeline for \(account.username)")
-                                    let posts = try await self.blueskyService.fetchHomeTimeline(
-                                        for: account)
-                                    print(
-                                        "Successfully fetched \(posts.count) Bluesky posts for account: \(account.username)"
-                                    )
-                                    return .success(posts)
-                                } catch {
-                                    print(
-                                        "Error fetching Bluesky timeline for \(account.username): \(error.localizedDescription)"
-                                    )
-
-                                    // Check if this was a rate limit error
-                                    let nsError = error as NSError
-                                    if nsError.code == 429 {
-                                        // Get retry-after if available, or default to 60 seconds
-                                        var retryAfter: Double = 60.0
-                                        if let retryHeader =
-                                            (nsError.userInfo["Response-Headers"] as? [String: Any])?[
-                                                "Retry-After"] as? String
-                                        {
-                                            retryAfter = Double(retryHeader) ?? 60.0
-                                        }
+                                // Check if this was a rate limit error or token error
+                                if let serviceError = error as? ServiceError {
+                                    switch serviceError {
+                                    case .apiError(let message) where message.contains("429"):
                                         await self.recordRateLimit(
-                                            for: self.blueskyRateLimitKey, retryAfter: retryAfter)
+                                            for: self.blueskyRateLimitKey, retryAfter: 60.0)
+                                    case .unauthorized(let reason):
+                                        await MainActor.run {
+                                            self.authErrorMessage =
+                                                "Bluesky login expired for \(account.username): \(reason). Please re-add the account."
+                                            self.showingAuthError = true
+                                        }
+                                    default:
+                                        break
                                     }
-
-                                    return .failure(error)
                                 }
-                            }
-                        }
-
-                        // Collect results
-                        for await result in group {
-                            switch result {
-                            case .success(let posts):
-                                blueskyPosts.append(contentsOf: posts)
-                                self.resetRateLimitCounter(for: self.blueskyRateLimitKey)
-                            case .failure(let error):
-                                errors.append(error)
+                                return .failure(error)
                             }
                         }
                     }
 
-                    // Move to the next chunk of accounts
-                    index = endIndex
-
-                    // Add a small delay between chunks to avoid overwhelming the API
-                    if index < accounts.count {
-                        try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
+                    // Collect results
+                    for await result in group {
+                        switch result {
+                        case .success(let posts):
+                            allPosts.append(contentsOf: posts)
+                            self.resetRateLimitCounter(for: self.blueskyRateLimitKey)
+                        case .failure(let error):
+                            errors.append(error)
+                        }
                     }
                 }
-            } else {
-                // Fetch only from selected Bluesky accounts, but staggered
-                let accounts = blueskyAccounts.filter { selectedAccountIds.contains($0.id) }
-                var index = 0
 
-                while index < accounts.count {
-                    // Process accounts in chunks based on maxConcurrentRequests
-                    let endIndex = min(index + maxConcurrentRequests, accounts.count)
-                    let accountChunk = Array(accounts[index..<endIndex])
+                // Move to the next chunk of accounts
+                index = endIndex
 
-                    await withTaskGroup(of: (Result<[Post], Error>).self) { group in
-                        for account in accountChunk where selectedAccountIds.contains(account.id) {
-                            group.addTask {
-                                do {
-                                    // Check if token needs refresh before fetching timeline
-                                    if let expiry = account.tokenExpirationDate, expiry <= Date() {
-                                        print(
-                                            "Refreshing expired token for selected Bluesky account: \(account.username)"
-                                        )
-                                        do {
-                                            _ = try await self.blueskyService.refreshSession(
-                                                for: account)
-                                            print(
-                                                "Successfully refreshed token for selected Bluesky account: \(account.username)"
-                                            )
-                                        } catch let error as TokenError
-                                            where error == .invalidRefreshToken
-                                        {
-                                            print(
-                                                "Failed to refresh token for selected Bluesky account: \(account.username) - Invalid Refresh Token. Re-authentication required."
-                                            )
-                                            await MainActor.run {
-                                                self.authErrorMessage =
-                                                    "Bluesky login expired for \(account.username). Please re-add the account."
-                                                self.showingAuthError = true
-                                            }
-                                            // Propagate the error to stop timeline fetching for this account
-                                            throw error
-                                        } catch {
-                                            print(
-                                                "Failed to refresh token for selected Bluesky account: \(account.username) - \(error.localizedDescription)"
-                                            )
-                                            // Continue with the existing token, it might still work
-                                        }
-                                    }
-
-                                    print(
-                                        "Fetching Bluesky timeline for selected account: \(account.username)"
-                                    )
-                                    let posts = try await self.blueskyService.fetchHomeTimeline(
-                                        for: account)
-                                    print(
-                                        "Successfully fetched \(posts.count) Bluesky posts for selected account: \(account.username)"
-                                    )
-                                    return .success(posts)
-                                } catch {
-                                    print(
-                                        "Error fetching Bluesky timeline for selected account \(account.username): \(error.localizedDescription)"
-                                    )
-
-                                    // Check if this was a rate limit error
-                                    let nsError = error as NSError
-                                    if nsError.code == 429 {
-                                        // Get retry-after if available, or default to 60 seconds
-                                        var retryAfter: Double = 60.0
-                                        if let retryHeader =
-                                            (nsError.userInfo["Response-Headers"] as? [String: Any])?[
-                                                "Retry-After"] as? String
-                                        {
-                                            retryAfter = Double(retryHeader) ?? 60.0
-                                        }
-                                        await self.recordRateLimit(
-                                            for: self.blueskyRateLimitKey, retryAfter: retryAfter)
-                                    }
-
-                                    return .failure(error)
-                                }
-                            }
-                        }
-
-                        // Collect results
-                        for await result in group {
-                            switch result {
-                            case .success(let posts):
-                                blueskyPosts.append(contentsOf: posts)
-                                self.resetRateLimitCounter(for: self.blueskyRateLimitKey)
-                            case .failure(let error):
-                                errors.append(error)
-                            }
-                        }
-                    }
-
-                    // Move to the next chunk of accounts
-                    index = endIndex
-
-                    // Add a small delay between chunks to avoid overwhelming the API
-                    if index < accounts.count {
-                        try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
-                    }
+                // Add a small delay between chunks to avoid overwhelming the API
+                if index < accountsToFetch.count {
+                    try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 second delay
                 }
             }
         }
 
-        // Combine and sort all posts
-        allPosts.append(contentsOf: mastodonPosts)
-        allPosts.append(contentsOf: blueskyPosts)
-
+        // Sort all posts by date, newest first
         let sortedPosts = allPosts.sorted(by: { $0.createdAt > $1.createdAt })
 
         // Update timeline with the new posts if we have any
@@ -1120,11 +952,10 @@ public class SocialServiceManager: ObservableObject {
 
         // Set an error if we encountered any
         if let lastError = errors.last {
-            let nsError = lastError as NSError
-            if nsError.code == 429 {
-                self.error = ServiceError.rateLimitError(
-                    reason: "Rate limit exceeded. Please try again later."
-                )
+            if let serviceError = lastError as? ServiceError,
+                case .rateLimitError(let reason, _) = serviceError
+            {
+                self.error = ServiceError.rateLimitError(reason: reason)
             } else {
                 self.error = ServiceError.timelineError(underlying: lastError)
             }
@@ -1335,5 +1166,79 @@ public class SocialServiceManager: ObservableObject {
 
         // Use the first available Mastodon account to fetch the post
         return try await mastodonService.fetchPostByID(postID, account: mastodonAccount)
+    }
+
+    // MARK: - Timeline Methods
+
+    /// Fetches the timeline for a specific account
+    public func fetchTimeline(for account: SocialAccount) async throws -> [Post] {
+        let logger = Logger(subsystem: "com.socialfusion.app", category: "SocialServiceManager")
+
+        logger.log(
+            level: .info,
+            "Fetching timeline for \(account.platform.rawValue) account: \(account.username, privacy: .public)"
+        )
+
+        do {
+            switch account.platform {
+            case .mastodon:
+                return try await mastodonService.fetchHomeTimeline(for: account)
+
+            case .bluesky:
+                return try await blueskyService.getHomeTimeline(for: account)
+
+            default:
+                logger.log(
+                    level: .error,
+                    "Unsupported platform: \(account.platform.rawValue, privacy: .public)")
+                throw ServiceError.unsupportedPlatform
+            }
+        } catch {
+            logger.log(
+                level: .error,
+                "Error fetching timeline: \(error.localizedDescription, privacy: .public)")
+
+            // Provide more specific error information based on the caught error
+            if let networkError = error as? NetworkError {
+                switch networkError {
+                case .httpError(let statusCode, _):
+                    throw ServiceError.apiError("Server returned status code: \(statusCode)")
+                case .invalidURL:
+                    throw ServiceError.invalidInput(reason: "Invalid server URL for account")
+                case .noData:
+                    throw ServiceError.emptyResponse
+                case .apiError(let message):
+                    throw ServiceError.apiError(message)
+                case .decodingError:
+                    throw ServiceError.dataFormatError(
+                        "Invalid data format received from the server")
+                case .requestFailed(let err):
+                    throw ServiceError.networkError(underlying: err)
+                case .rateLimitExceeded(let retryAfter):
+                    throw ServiceError.rateLimitError(
+                        reason: "Rate limit exceeded. Please try again later.",
+                        retryAfter: retryAfter ?? 60.0
+                    )
+                default:
+                    throw ServiceError.timelineError(underlying: error)
+                }
+            } else if let tokenError = error as? TokenError {
+                switch tokenError {
+                case .noAccessToken:
+                    throw ServiceError.unauthorized("Missing access token")
+                case .invalidRefreshToken:
+                    throw ServiceError.unauthorized("Invalid refresh token")
+                case .refreshFailed:
+                    throw ServiceError.unauthorized("Failed to refresh access token")
+                case .noRefreshToken:
+                    throw ServiceError.unauthorized("No refresh token available")
+                case .invalidServer:
+                    throw ServiceError.invalidInput(reason: "Invalid server URL")
+                }
+            }
+
+            // For any other errors
+            throw ServiceError.unknown("An error occurred: \(error.localizedDescription)")
+        }
     }
 }
