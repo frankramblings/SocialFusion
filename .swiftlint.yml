@@ -1,0 +1,47 @@
+disabled_rules:
+  - trailing_whitespace
+  - line_length
+  - function_body_length
+  - file_length
+  - type_body_length
+  - identifier_name
+
+opt_in_rules:
+  - empty_count
+  - missing_docs
+  - closure_end_indentation
+  - explicit_init
+  - first_where
+  - overridden_super_call
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - sorted_imports
+  - unneeded_parentheses_in_closure_argument
+
+included:
+  - Sources
+
+excluded:
+  - Carthage
+  - Pods
+  - .build
+  - .swiftpm
+
+line_length:
+  warning: 120
+  error: 200
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+identifier_name:
+  min_length: 2
+  max_length: 40
+  excluded:
+    - id
+    - x
+    - y
+    - z
+
+reporter: "xcode" 

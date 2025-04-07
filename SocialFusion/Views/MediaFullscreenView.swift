@@ -16,17 +16,25 @@ struct FullscreenMediaView: View {
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
     @State private var showControls = true
-    @State private var isLoading = true
-    @State private var loadError = false
-    @State private var errorMessage = "Failed to load media"
-    // State for video players
+    @State private var isLoading = false
+    @State private var errorMessage: String? = nil
     @State private var videoPlayers: [URL: AVPlayer] = [:]
     @State private var currentPlayer: AVPlayer? = nil
-    @State private var isVideoBuffering = true
+    @State private var isVideoBuffering = false
     @State private var observers: [Any] = []
+    @State private var activeTask: URLSessionDataTask? = nil
+
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.presentationMode) private var presentationMode
     @Environment(\.scenePhase) private var scenePhase
+
+    // Replace the task queues with a single serial queue
+    private let serialQueue = DispatchQueue(label: "com.socialfusion.media", qos: .userInitiated)
+
+    private func updateState<T>(_ keyPath: WritableKeyPath<FullscreenMediaView, T>, value: T) {
+        DispatchQueue.main.async {
+            self[keyPath: keyPath] = value
+        }
+    }
 
     // Computed property to work with either single attachment or collection
     private var currentAttachments: [Post.Attachment] {
@@ -61,89 +69,39 @@ struct FullscreenMediaView: View {
                             .foregroundColor(.white)
                     }
                 } else if let currentAttachment = currentAttachment {
-                    TabView(selection: $currentIndex) {
+                    // Use a custom TabView implementation to avoid state reset
+                    HStack(spacing: 0) {
                         ForEach(currentAttachments.indices, id: \.self) { index in
-                            ZStack {
-                                mediaView(for: currentAttachments[index], in: geometry)
-                                    .gesture(
-                                        MagnificationGesture()
-                                            .onChanged { value in
-                                                let delta = value / lastScale
-                                                lastScale = value
-                                                scale = min(max(scale * delta, 1.0), 4.0)
-                                            }
-                                            .onEnded { _ in
-                                                lastScale = 1.0
-                                                if scale < 1.2 {
-                                                    withAnimation {
-                                                        scale = 1.0
-                                                        offset = .zero
-                                                    }
-                                                }
-                                            }
-                                    )
-                                    .simultaneousGesture(
-                                        DragGesture()
-                                            .onChanged { value in
-                                                if scale > 1.0 {
-                                                    offset = CGSize(
-                                                        width: lastOffset.width
-                                                            + value.translation.width,
-                                                        height: lastOffset.height
-                                                            + value.translation.height
-                                                    )
-                                                }
-                                            }
-                                            .onEnded { _ in
-                                                lastOffset = offset
-                                                if scale < 1.2 {
-                                                    withAnimation {
-                                                        offset = .zero
-                                                    }
-                                                }
-                                            }
-                                    )
-                                    .simultaneousGesture(
-                                        TapGesture(count: 2)
-                                            .onEnded { _ in
-                                                withAnimation {
-                                                    if scale > 1.0 {
-                                                        scale = 1.0
-                                                        offset = .zero
-                                                    } else {
-                                                        scale = 2.0
-                                                    }
-                                                }
-                                                lastOffset = offset
-                                            }
-                                    )
-                                    .simultaneousGesture(
-                                        TapGesture()
-                                            .onEnded { _ in
-                                                withAnimation {
-                                                    showControls.toggle()
-                                                }
-                                            }
-                                    )
-                            }
-                            .tag(index)
+                            mediaView(for: currentAttachments[index], in: geometry)
+                                .frame(width: geometry.size.width)
+                                .offset(x: -CGFloat(currentIndex) * geometry.size.width)
                         }
                     }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+                    .frame(
+                        width: geometry.size.width, height: geometry.size.height,
+                        alignment: .leading
+                    )
+                    .offset(x: CGFloat(currentIndex) * geometry.size.width)
+                    .animation(.easeInOut, value: currentIndex)
+                    .gesture(
+                        DragGesture()
+                            .onEnded { gesture in
+                                let threshold = geometry.size.width * 0.3
+                                if gesture.translation.width > threshold {
+                                    withAnimation {
+                                        currentIndex = max(0, currentIndex - 1)
+                                    }
+                                } else if gesture.translation.width < -threshold {
+                                    withAnimation {
+                                        currentIndex = min(
+                                            currentAttachments.count - 1, currentIndex + 1)
+                                    }
+                                }
+                            }
+                    )
                     .onAppear {
                         currentIndex = initialIndex
-                        // Preload media for smoother experience
-                        preloadMedia()
-
-                        // Set a timeout for loading
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                            if isLoading {
-                                // Still loading after 8 seconds, trigger error state
-                                isLoading = false
-                                loadError = true
-                                errorMessage = "Media loading timed out"
-                            }
-                        }
+                        setupMedia()
                     }
                     .onChange(of: currentIndex) { _ in
                         withAnimation {
@@ -151,87 +109,47 @@ struct FullscreenMediaView: View {
                             offset = .zero
                         }
                         lastOffset = .zero
-                        // Reset loading state for new index
-                        isLoading = true
-                        loadError = false
-                        // Preload media for the new index
-                        preloadMedia()
-
-                        // Pause any existing video players
-                        pauseAllPlayersExcept(nil)
-
-                        // Set a timeout for loading the new media
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                            if isLoading {
-                                // Still loading after 8 seconds, trigger error state
-                                isLoading = false
-                                loadError = true
-                                errorMessage = "Media loading timed out"
-                            }
-                        }
+                        setupMedia()
                     }
                     .onChange(of: scenePhase) { newPhase in
                         switch newPhase {
                         case .active:
-                            // App came back to foreground - restart video if needed
-                            if let currentAttachment = currentAttachment,
-                                currentAttachment.type == .video || currentAttachment.type == .gifv,
-                                let urlString = currentAttachment.url,
-                                let url = URL(string: urlString),
-                                let player = videoPlayers[url]
-                            {
-                                // Ensure video buffer is ready before playing
-                                if player.currentItem?.status == .readyToPlay {
-                                    isVideoBuffering = false
-                                    player.play()
-                                } else {
-                                    // Recreate player if it wasn't ready
-                                    isVideoBuffering = true
-                                    let newPlayer = createPlayer(for: url)
-                                    videoPlayers[url] = newPlayer
-                                    currentPlayer = newPlayer
-                                }
-                            }
+                            resumeVideoPlayback()
                         case .inactive, .background:
-                            // App went to background - pause video
                             pauseAllPlayersExcept(nil)
                         @unknown default:
                             break
                         }
                     }
-                } else {
-                    Text("No media to display")
-                        .foregroundColor(.white)
                 }
 
-                // Loading error overlay
-                if loadError {
+                // Loading indicator
+                if isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(2)
+                            .foregroundColor(.white)
+                        Text("Loading...")
+                            .foregroundColor(.white)
+                            .font(.subheadline)
+                    }
+                    .padding(20)
+                    .background(Color.black.opacity(0.6))
+                    .cornerRadius(12)
+                }
+
+                // Error overlay
+                if let errorMessage = errorMessage {
                     VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 40))
                             .foregroundColor(.yellow)
-
                         Text(errorMessage)
                             .font(.headline)
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
-
-                        Button(action: {
-                            // Try again
-                            isLoading = true
-                            loadError = false
-                            preloadMedia()
-
-                            // Set a timeout for retry loading
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 8) {
-                                if isLoading {
-                                    isLoading = false
-                                    loadError = true
-                                    errorMessage = "Media loading failed again"
-                                }
-                            }
-                        }) {
+                        Button(action: retryLoading) {
                             Text("Try Again")
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
@@ -254,7 +172,6 @@ struct FullscreenMediaView: View {
                         ProgressView()
                             .scaleEffect(2)
                             .foregroundColor(.white)
-
                         Text("Buffering video...")
                             .foregroundColor(.white)
                             .font(.subheadline)
@@ -268,10 +185,7 @@ struct FullscreenMediaView: View {
                 if showControls {
                     VStack {
                         HStack {
-                            Button(action: {
-                                // Close the fullscreen view
-                                dismiss()
-                            }) {
+                            Button(action: dismiss) {
                                 Image(systemName: "xmark")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -281,7 +195,6 @@ struct FullscreenMediaView: View {
                             }
                             .padding(.leading)
                             .accessibilityLabel("Close")
-                            .accessibilityHint("Dismisses the fullscreen media view")
 
                             Spacer()
 
@@ -291,9 +204,9 @@ struct FullscreenMediaView: View {
                                 let imageURL = URL(string: imageURLString)
                             {
                                 Button(action: {
-                                    saveImageToPhotos(from: imageURL)
+                                    shareImage(url: imageURL)
                                 }) {
-                                    Image(systemName: "square.and.arrow.down")
+                                    Image(systemName: "square.and.arrow.up")
                                         .font(.headline)
                                         .foregroundColor(.white)
                                         .padding(12)
@@ -301,15 +214,13 @@ struct FullscreenMediaView: View {
                                         .clipShape(Circle())
                                 }
                                 .padding(.trailing)
-                                .accessibilityLabel("Save Image")
-                                .accessibilityHint("Saves the image to your photo library")
+                                .accessibilityLabel("Share")
                             }
                         }
-                        .padding(.top)
+                        .padding(.top, 44)
 
                         Spacer()
 
-                        // Alt text display if available
                         if let currentAttachment = currentAttachment,
                             let altText = currentAttachment.altText,
                             !altText.isEmpty
@@ -323,7 +234,6 @@ struct FullscreenMediaView: View {
                                 .padding()
                         }
 
-                        // Page indicator dots
                         if currentAttachments.count > 1 {
                             HStack(spacing: 8) {
                                 ForEach(0..<currentAttachments.count, id: \.self) { index in
@@ -341,41 +251,421 @@ struct FullscreenMediaView: View {
                     .transition(.opacity)
                 }
             }
+            .contentShape(Rectangle())  // Make entire view tappable
+            .onTapGesture {
+                withAnimation {
+                    showControls.toggle()
+                }
+            }
         }
         .background(Color.black)
         .edgesIgnoringSafeArea(.all)
         .statusBar(hidden: true)
         .gesture(
-            // Add swipe down to dismiss gesture
             DragGesture()
                 .onEnded { gesture in
-                    // If the user swipes down with enough velocity, dismiss the view
                     if gesture.translation.height > 100
                         || gesture.predictedEndTranslation.height > 200
                     {
-                        dismiss()
+                        withAnimation {
+                            dismiss()
+                        }
                     }
                 }
         )
         .onTapGesture(count: 2) {
-            // Double tap to reset scale
             withAnimation {
                 scale = 1.0
                 offset = .zero
             }
         }
         .onDisappear {
-            // Cleanup when view disappears
-            pauseAllPlayersExcept(nil)
-            cleanupObservers()
-            videoPlayers.removeAll()
+            cleanup()
+        }
+    }
 
+    @ViewBuilder
+    private func mediaView(for attachment: Post.Attachment, in geometry: GeometryProxy) -> some View
+    {
+        switch attachment.type {
+        case .image:
+            if let urlString = attachment.url, let url = URL(string: urlString) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        // Show loading state immediately
+                        ZStack {
+                            Color.black
+                            VStack(spacing: 16) {
+                                ProgressView()
+                                    .scaleEffect(2)
+                                    .foregroundColor(.white)
+                                Text("Loading...")
+                                    .foregroundColor(.white)
+                                    .font(.subheadline)
+                            }
+                        }
+                        .onAppear {
+                            DispatchQueue.main.async {
+                                self.isLoading = true
+                                self.errorMessage = nil
+                            }
+                        }
+                    case .success(let image):
+                        // Success state with proper scaling and gesture handling
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: geometry.size.width, height: geometry.size.height)
+                            .scaleEffect(scale)
+                            .offset(offset)
+                            .gesture(
+                                // Combine magnification and drag gestures
+                                SimultaneousGesture(
+                                    MagnificationGesture()
+                                        .onChanged { value in
+                                            let delta = value / lastScale
+                                            lastScale = value
+                                            scale = min(max(scale * delta, 1.0), 4.0)
+                                        }
+                                        .onEnded { _ in
+                                            lastScale = 1.0
+                                            if scale < 1.2 {
+                                                withAnimation {
+                                                    scale = 1.0
+                                                    offset = .zero
+                                                }
+                                            }
+                                        },
+                                    DragGesture()
+                                        .onChanged { value in
+                                            if scale > 1.0 {
+                                                offset = CGSize(
+                                                    width: lastOffset.width
+                                                        + value.translation.width,
+                                                    height: lastOffset.height
+                                                        + value.translation.height
+                                                )
+                                            }
+                                        }
+                                        .onEnded { value in
+                                            lastOffset = offset
+                                            if scale < 1.2 {
+                                                withAnimation {
+                                                    offset = .zero
+                                                }
+                                            }
+                                        }
+                                )
+                            )
+                            .highPriorityGesture(
+                                // High priority gesture for dismissing
+                                DragGesture()
+                                    .onEnded { value in
+                                        if scale <= 1.0 {
+                                            if value.translation.height > 100
+                                                || value.predictedEndTranslation.height > 200
+                                            {
+                                                withAnimation {
+                                                    dismiss()
+                                                }
+                                            }
+                                        }
+                                    }
+                            )
+                            .onTapGesture(count: 2) {
+                                withAnimation {
+                                    if scale > 1.0 {
+                                        scale = 1.0
+                                        offset = .zero
+                                    } else {
+                                        scale = 2.0
+                                    }
+                                }
+                            }
+                            .onTapGesture {
+                                withAnimation {
+                                    showControls.toggle()
+                                }
+                            }
+                            .onAppear {
+                                DispatchQueue.main.async {
+                                    self.isLoading = false
+                                    self.errorMessage = nil
+                                }
+                            }
+                    case .failure(let error):
+                        // Error state with retry option
+                        ZStack {
+                            Color.black
+                            VStack(spacing: 16) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.largeTitle)
+                                    .foregroundColor(.yellow)
+                                Text("Failed to load image")
+                                    .foregroundColor(.white)
+                                if let error = error as NSError? {
+                                    Text(error.localizedDescription)
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal)
+                                }
+                                Button(action: {
+                                    // Clear URL cache for this URL
+                                    URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
+                                    // Retry loading by triggering a view update
+                                    DispatchQueue.main.async {
+                                        self.currentIndex = self.currentIndex
+                                    }
+                                }) {
+                                    Text("Retry")
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 10)
+                                        .background(Color.blue)
+                                        .cornerRadius(8)
+                                }
+                            }
+                        }
+                        .onAppear {
+                            DispatchQueue.main.async {
+                                self.isLoading = false
+                                self.errorMessage = error.localizedDescription
+                            }
+                        }
+                    @unknown default:
+                        // Handle unknown states
+                        ZStack {
+                            Color.black
+                            Text("Unknown state")
+                                .foregroundColor(.white)
+                        }
+                        .onAppear {
+                            DispatchQueue.main.async {
+                                self.isLoading = false
+                                self.errorMessage = "Unknown loading state"
+                            }
+                        }
+                    }
+                }
+                .transition(.opacity)
+            } else {
+                // Invalid URL state
+                ZStack {
+                    Color.black
+                    Text("Invalid image URL")
+                        .foregroundColor(.white)
+                }
+                .onAppear {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        self.errorMessage = "Invalid image URL"
+                    }
+                }
+            }
+        case .video:
+            if let urlString = attachment.url, let url = URL(string: urlString) {
+                // Use our managed player
+                let player = videoPlayers[url] ?? createPlayer(for: url)
+                VideoPlayer(player: player)
+                    .edgesIgnoringSafeArea(.all)
+                    .onAppear {
+                        currentPlayer = player
+                        player.play()
+                    }
+            } else {
+                Text("Invalid video URL")
+                    .foregroundColor(.white)
+            }
+        case .gifv:
+            if let urlString = attachment.url, let url = URL(string: urlString) {
+                // Use our managed player
+                let player = videoPlayers[url] ?? createPlayer(for: url)
+                VideoPlayer(player: player)
+                    .edgesIgnoringSafeArea(.all)
+                    .onAppear {
+                        currentPlayer = player
+                        player.play()
+                    }
+            } else {
+                Text("Invalid GIF URL")
+                    .foregroundColor(.white)
+            }
+        default:
+            Text("Unsupported media type")
+                .foregroundColor(.white)
+        }
+    }
+
+    private func setupMedia() {
+        guard let currentAttachment = currentAttachment,
+            let urlString = currentAttachment.url,
+            let url = URL(string: urlString)
+        else {
+            return
+        }
+
+        // Cancel any existing task
+        activeTask?.cancel()
+        activeTask = nil
+
+        if currentAttachment.type == .video || currentAttachment.type == .gifv {
+            setupVideoPlayer(for: url)
+        } else if currentAttachment.type == .image {
+            setupImageLoading(for: url)
+        }
+    }
+
+    private func setupVideoPlayer(for url: URL) {
+        if videoPlayers[url] == nil {
+            isVideoBuffering = true
+            let player = createPlayer(for: url)
+            videoPlayers[url] = player
+            currentPlayer = player
+        } else {
+            currentPlayer = videoPlayers[url]
+            currentPlayer?.seek(to: .zero)
+            currentPlayer?.play()
+        }
+    }
+
+    private func setupImageLoading(for url: URL) {
+        // Ensure we're on the main thread for state updates
+        DispatchQueue.main.async {
+            self.isLoading = true
+            self.errorMessage = nil
+        }
+
+        let config = URLSessionConfiguration.default
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.timeoutIntervalForRequest = 15
+        config.timeoutIntervalForResource = 30
+
+        let session = URLSession(configuration: config)
+        let task = session.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self else { return }
+
+            self.serialQueue.async {
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        self.errorMessage = error.localizedDescription
+                    }
+                    return
+                }
+
+                guard let data = data, UIImage(data: data) != nil else {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        self.errorMessage = "Invalid image data"
+                    }
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                }
+            }
+        }
+
+        activeTask = task
+        task.resume()
+    }
+
+    private func resumeVideoPlayback() {
+        guard let currentAttachment = currentAttachment,
+            let urlString = currentAttachment.url,
+            let url = URL(string: urlString),
+            let player = videoPlayers[url]
+        else {
+            return
+        }
+
+        if player.currentItem?.status == .readyToPlay {
+            isVideoBuffering = false
+            player.play()
+        } else {
+            isVideoBuffering = true
+            let newPlayer = createPlayer(for: url)
+            videoPlayers[url] = newPlayer
+            currentPlayer = newPlayer
+        }
+    }
+
+    private func retryLoading() {
+        guard let currentAttachment = currentAttachment,
+            let urlString = currentAttachment.url,
+            let url = URL(string: urlString)
+        else {
+            return
+        }
+
+        // Clear all caches for this URL
+        URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
+        if let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+            cookies.forEach { HTTPCookieStorage.shared.deleteCookie($0) }
+        }
+
+        // Reset state
+        isLoading = true
+        errorMessage = nil
+
+        if currentAttachment.type == .video || currentAttachment.type == .gifv {
+            setupVideoPlayer(for: url)
+        } else {
+            setupImageLoading(for: url)
+        }
+    }
+
+    private func shareImage(url: URL) {
+        let activityVC = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+        UIApplication.shared.windows.first?.rootViewController?
+            .present(activityVC, animated: true)
+    }
+
+    private func cleanup() {
+        // Ensure cleanup happens on the main thread
+        DispatchQueue.main.async {
+            // Cancel active task
+            self.activeTask?.cancel()
+            self.activeTask = nil
+
+            // Clean up video players
+            self.pauseAllPlayersExcept(nil)
+            self.cleanupObservers()
+            self.videoPlayers.removeAll()
+
+            // Reset state
+            self.isLoading = false
+            self.errorMessage = nil
+            self.isVideoBuffering = false
+        }
+
+        // Clean up network tasks and caches on background thread
+        serialQueue.async {
+            // Clean up network tasks
             URLSession.shared.getAllTasks { tasks in
                 tasks.forEach { task in
-                    if task.originalRequest?.url?.absoluteString.contains(
-                        currentAttachment?.url ?? "") ?? false
+                    if let url = task.originalRequest?.url,
+                        self.currentAttachments.contains(where: { $0.url == url.absoluteString })
                     {
                         task.cancel()
+                    }
+                }
+            }
+
+            // Clear caches
+            self.currentAttachments.forEach { attachment in
+                if let urlString = attachment.url,
+                    let url = URL(string: urlString)
+                {
+                    URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
+                    if let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+                        cookies.forEach { HTTPCookieStorage.shared.deleteCookie($0) }
                     }
                 }
             }
@@ -429,7 +719,6 @@ struct FullscreenMediaView: View {
                 } else if player.status == .failed {
                     self.isVideoBuffering = false
                     self.isLoading = false
-                    self.loadError = true
                     self.errorMessage = "Video failed to load"
                 }
             }
@@ -459,228 +748,6 @@ struct FullscreenMediaView: View {
             }
         }
         observers.removeAll()
-    }
-
-    // Helper function to preload media for smoother gallery experience
-    private func preloadMedia() {
-        // Ensure current media is loaded
-        if let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString)
-        {
-
-            if currentAttachment.type == .video || currentAttachment.type == .gifv {
-                // Configure video player if not already created
-                if videoPlayers[url] == nil {
-                    isVideoBuffering = true
-                    let player = createPlayer(for: url)
-                    videoPlayers[url] = player
-                    currentPlayer = player
-                } else {
-                    // Reuse existing player
-                    currentPlayer = videoPlayers[url]
-                    currentPlayer?.seek(to: .zero)
-                    currentPlayer?.play()
-                }
-            }
-        }
-
-        // Preload adjacent media
-        for index in max(0, currentIndex - 1)...min(currentAttachments.count - 1, currentIndex + 1)
-        {
-            if index != currentIndex,
-                let attachment = currentAttachments[safe: index],
-                let urlString = attachment.url,
-                let url = URL(string: urlString)
-            {
-
-                if attachment.type == .image {
-                    // Preload images
-                    URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
-                    let task = URLSession.shared.dataTask(with: url)
-                    task.resume()
-                } else if (attachment.type == .video || attachment.type == .gifv)
-                    && videoPlayers[url] == nil
-                {
-                    // Prepare video player without playing
-                    let player = createPlayer(for: url)
-                    videoPlayers[url] = player
-                    player.pause()
-                }
-            }
-        }
-    }
-
-    // Save image to photo library
-    private func saveImageToPhotos(from url: URL) {
-        let task = URLSession.shared.dataTask(with: url) { data, _, error in
-            guard let data = data, error == nil else {
-                print("Error downloading image: \(error?.localizedDescription ?? "Unknown error")")
-                return
-            }
-
-            if let image = UIImage(data: data) {
-                UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-            }
-        }
-        task.resume()
-    }
-
-    @ViewBuilder
-    private func mediaView(for attachment: Post.Attachment, in geometry: GeometryProxy) -> some View
-    {
-        switch attachment.type {
-        case .image:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        ProgressView()
-                            .foregroundColor(.white)
-                            .scaleEffect(2)
-                            .onAppear {
-                                isLoading = true
-                                loadError = false
-                            }
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: geometry.size.width, height: geometry.size.height)
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .onAppear {
-                                isLoading = false
-                                loadError = false
-                            }
-                    case .failure(let error):
-                        VStack {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.largeTitle)
-                                .foregroundColor(.yellow)
-                            Text("Failed to load image")
-                                .foregroundColor(.white)
-                            if let error = error as NSError? {
-                                Text(error.localizedDescription)
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
-                        }
-                        .onAppear {
-                            isLoading = false
-                            loadError = true
-                            errorMessage = "Failed to load image: \(error.localizedDescription)"
-                        }
-                    @unknown default:
-                        EmptyView()
-                            .onAppear {
-                                isLoading = false
-                                loadError = true
-                            }
-                    }
-                }
-                .transition(.opacity)
-            } else {
-                Text("Invalid image URL")
-                    .foregroundColor(.white)
-                    .onAppear {
-                        isLoading = false
-                        loadError = true
-                        errorMessage = "Invalid image URL"
-                    }
-            }
-        case .video:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
-                // Use our managed player
-                let player = videoPlayers[url] ?? createPlayer(for: url)
-
-                ZStack {
-                    VideoPlayer(player: player)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .onAppear {
-                            videoPlayers[url] = player
-                            currentPlayer = player
-
-                            // Set up notification for looping videos
-                            NotificationCenter.default.addObserver(
-                                forName: .AVPlayerItemDidPlayToEndTime,
-                                object: player.currentItem,
-                                queue: .main
-                            ) { _ in
-                                player.seek(to: .zero)
-                                player.play()
-                            }
-                        }
-                        .onDisappear {
-                            player.pause()
-                            NotificationCenter.default.removeObserver(
-                                self,
-                                name: .AVPlayerItemDidPlayToEndTime,
-                                object: player.currentItem)
-                        }
-                }
-            } else {
-                Text("Invalid video URL")
-                    .foregroundColor(.white)
-                    .onAppear {
-                        isLoading = false
-                        loadError = true
-                        errorMessage = "Invalid video URL"
-                    }
-            }
-        case .gifv:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
-                // Use our managed player for GIFs too
-                let player = videoPlayers[url] ?? createPlayer(for: url)
-
-                ZStack {
-                    VideoPlayer(player: player)
-                        .frame(width: geometry.size.width, height: geometry.size.height)
-                        .onAppear {
-                            videoPlayers[url] = player
-                            currentPlayer = player
-
-                            // Auto-play and loop GIFs
-                            player.play()
-                            player.actionAtItemEnd = .none
-
-                            NotificationCenter.default.addObserver(
-                                forName: .AVPlayerItemDidPlayToEndTime,
-                                object: player.currentItem,
-                                queue: .main
-                            ) { _ in
-                                player.seek(to: .zero)
-                                player.play()
-                            }
-                        }
-                        .onDisappear {
-                            player.pause()
-                            NotificationCenter.default.removeObserver(
-                                self,
-                                name: .AVPlayerItemDidPlayToEndTime,
-                                object: player.currentItem)
-                        }
-                }
-            } else {
-                Text("Invalid GIF URL")
-                    .foregroundColor(.white)
-                    .onAppear {
-                        isLoading = false
-                        loadError = true
-                        errorMessage = "Invalid GIF URL"
-                    }
-            }
-        default:
-            Text("Unsupported media type")
-                .foregroundColor(.white)
-                .onAppear {
-                    isLoading = false
-                    loadError = true
-                    errorMessage = "Unsupported media type"
-                }
-        }
     }
 }
 
