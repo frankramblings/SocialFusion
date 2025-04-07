@@ -6,6 +6,7 @@ import UIKit
 struct AddAccountView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     @State private var selectedPlatform: SocialPlatform = .mastodon
     @State private var server = ""
@@ -13,12 +14,14 @@ struct AddAccountView: View {
     @State private var password = ""
     @State private var accessToken = ""
     @State private var isLoading = false
-    @State private var errorMessage = ""
+    @State private var errorMessage: String? = nil
     @State private var authMethod: AuthMethod = .oauth
     @State private var platformSelected = true
     @State private var isOAuthFlow = true
     @State private var isAuthCodeEntered = false
     @State private var showWebAuthFailure = false
+    @State private var serverName = ""
+    @State private var showError = false
 
     enum AuthMethod: String, CaseIterable, Identifiable {
         case oauth = "OAuth"
@@ -46,7 +49,7 @@ struct AddAccountView: View {
                     }
                     .onChange(of: selectedPlatform) { _ in
                         // Clear any error when platform changes
-                        errorMessage = ""
+                        errorMessage = nil
 
                         // Set default server for Bluesky or clear for Mastodon
                         if selectedPlatform == .bluesky {
@@ -79,16 +82,7 @@ struct AddAccountView: View {
                             .autocapitalization(.none)
                             .keyboardType(.URL)
                             .disableAutocorrection(true)
-                            .toolbar(content: {
-                                ToolbarItemGroup(placement: .keyboard) {
-                                    Spacer()
-                                    Button("Done") {
-                                        UIApplication.shared.sendAction(
-                                            #selector(UIResponder.resignFirstResponder), to: nil,
-                                            from: nil, for: nil)
-                                    }
-                                }
-                            })
+                            .submitLabel(.done)
 
                         if authMethod == .manual {
                             Text("Paste your access token from your Mastodon app settings")
@@ -111,28 +105,10 @@ struct AddAccountView: View {
                             .autocapitalization(.none)
                             .keyboardType(.emailAddress)
                             .disableAutocorrection(true)
-                            .toolbar(content: {
-                                ToolbarItemGroup(placement: .keyboard) {
-                                    Spacer()
-                                    Button("Done") {
-                                        UIApplication.shared.sendAction(
-                                            #selector(UIResponder.resignFirstResponder), to: nil,
-                                            from: nil, for: nil)
-                                    }
-                                }
-                            })
+                            .submitLabel(.done)
 
                         SecureField("App Password", text: $password)
-                            .toolbar(content: {
-                                ToolbarItemGroup(placement: .keyboard) {
-                                    Spacer()
-                                    Button("Done") {
-                                        UIApplication.shared.sendAction(
-                                            #selector(UIResponder.resignFirstResponder), to: nil,
-                                            from: nil, for: nil)
-                                    }
-                                }
-                            })
+                            .submitLabel(.done)
 
                         Text(
                             "Use an app password from Bluesky settings. Go to Settings → App Passwords in your Bluesky account to create one."
@@ -144,7 +120,7 @@ struct AddAccountView: View {
                     }
                 }
 
-                if !errorMessage.isEmpty {
+                if let errorMessage = errorMessage, !errorMessage.isEmpty {
                     Section {
                         Text(errorMessage)
                             .foregroundColor(.red)
@@ -223,43 +199,31 @@ struct AddAccountView: View {
                     }
                 }
             }
-            .navigationTitle("Add Account")
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    // Only show this button for Mastodon OAuth flow if needed
-                    if selectedPlatform == .mastodon && authMethod == .oauth && isOAuthFlow
-                        && isAuthCodeEntered
-                    {
-                        Button("Add") {
-                            addAccount()
-                        }
-                        .disabled(isLoading)
-                    }
-                }
-
-                ToolbarItem(placement: .navigationBarLeading) {
+            .navigationTitle("Add \(selectedPlatform.rawValue.capitalized) Account")
+            .navigationBarBackButtonHidden(true)
+            .navigationBarItems(
+                leading:
                     Button("Cancel") {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
-                }
-            }
-            // Add an onAppear to debug account setup
-            .onAppear {
-                print("AddAccountView appeared")
-                // Set defaults
-                if selectedPlatform == .bluesky {
-                    authMethod = .oauth
-                    server = "bsky.social"
-                }
-            }
-            .alert(isPresented: $showWebAuthFailure) {
+            )
+            .alert(isPresented: $showError) {
                 Alert(
-                    title: Text("Authentication Failed"),
-                    message: Text(
-                        "Could not authenticate with \(selectedPlatform.rawValue). Please try again or use a different method."
-                    ),
+                    title: Text("Error"),
+                    message: Text(errorMessage ?? "An unknown error occurred"),
                     dismissButton: .default(Text("OK"))
                 )
+            }
+            .overlay {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(1.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.black.opacity(0.1))
+                                .frame(width: 60, height: 60)
+                        )
+                }
             }
         }
     }
@@ -268,183 +232,154 @@ struct AddAccountView: View {
         return !username.isEmpty && !password.isEmpty
     }
 
-    private func addMastodonAccount() {
-        isLoading = true
-        errorMessage = ""
-
-        // Get the trimmed server value
-        let trimmedServer = server.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // Validate the server input
-        guard !trimmedServer.isEmpty else {
-            errorMessage = "Please enter a server address"
-            isLoading = false
-            return
-        }
-
-        // Check if we're using OAuth or manual token
-        if authMethod == .manual {
-            // Validate access token
-            let trimmedToken = accessToken.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmedToken.isEmpty else {
-                errorMessage = "Please enter an access token"
-                isLoading = false
-                return
-            }
-
-            // Use the manual token method
-            Task {
-                do {
-                    let _ = try await serviceManager.addMastodonAccountWithToken(
-                        serverURL: trimmedServer,
-                        accessToken: trimmedToken
-                    )
-
-                    await MainActor.run {
-                        isLoading = false
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                } catch {
-                    await MainActor.run {
-                        isLoading = false
-                        handleError(error)
-                    }
-                }
-            }
-        } else {
-            // Use the OAuth method from the service manager
-            Task {
-                do {
-                    let _ = try await serviceManager.addMastodonAccountWithOAuth(
-                        server: trimmedServer)
-
-                    // Update the UI on the main thread
-                    await MainActor.run {
-                        isLoading = false
-                        presentationMode.wrappedValue.dismiss()
-                    }
-                } catch {
-                    // Handle errors and update the UI on the main thread
-                    await MainActor.run {
-                        isLoading = false
-                        handleError(error)
-                    }
-                }
-            }
-        }
-    }
-
-    private func handleError(_ error: Error) {
-        // Check the error details
-        if let serviceError = error as? ServiceError {
-            // Handle specific service errors with better messages
-            errorMessage = serviceError.localizedDescription
-        } else {
-            // For general errors (including network issues)
-            let nsError = error as NSError
-            if nsError.domain.contains("URLError") {
-                errorMessage =
-                    "Network error: Please check your internet connection and try again later."
-            } else {
-                errorMessage = "Failed to add account: \(error.localizedDescription)"
-            }
-        }
-    }
-
     private func addAccount() {
         isLoading = true
-        errorMessage = ""
-
-        // Add debugging output
-        print("Adding \(selectedPlatform.rawValue) account")
-        print("Server: \(server)")
-        print("Username: \(username)")
+        errorMessage = nil
 
         if selectedPlatform == .mastodon {
             addMastodonAccount()
-        } else {
+        } else if selectedPlatform == .bluesky {
             addBlueskyAccount()
         }
     }
 
-    private func addBlueskyAccount() {
-        guard !username.isEmpty && !password.isEmpty else {
-            errorMessage = "Please enter both username and password."
-            isLoading = false
-            return
-        }
-
+    private func addMastodonAccount() {
         Task {
             do {
-                print("Starting Bluesky authentication...")
-
-                // Create a temporary dummy account if needed for testing
+                // Handle test account creation
                 if username == "test" && password == "test" {
-                    let tempAccount = SocialAccount(
-                        id: "test-bluesky-\(Date().timeIntervalSince1970)",
-                        username: "test_user",
-                        displayName: "Test User",
-                        serverURL: "bsky.social",
-                        platform: .bluesky,
-                        accessToken: "test-token",
-                        refreshToken: nil
-                    )
-
-                    DispatchQueue.main.async {
-                        // Always add account to the correct platform array based on its platform property
-                        if tempAccount.platform == .bluesky {
-                            self.serviceManager.blueskyAccounts.append(tempAccount)
-                            print("Added test Bluesky account to blueskyAccounts array")
-                        } else {
-                            self.serviceManager.mastodonAccounts.append(tempAccount)
-                            print("Added test Mastodon account to mastodonAccounts array")
-                        }
-
-                        // Save all accounts to persistent storage
-                        Task {
-                            await self.serviceManager.saveAllAccounts()
-                        }
-
-                        // Also select this account for immediate use
-                        self.serviceManager.selectedAccountIds = [tempAccount.id]
-                        UserDefaults.standard.set([tempAccount.id], forKey: "selectedAccountIds")
-
-                        print(
-                            "Created account: \(tempAccount.username) with profile image URL: \(String(describing: tempAccount.profileImageURL))"
-                        )
-
-                        self.isLoading = false
-                        self.presentationMode.wrappedValue.dismiss()
-
-                        // Post a notification that accounts changed
-                        NotificationCenter.default.post(
-                            name: Notification.Name("accountsChanged"), object: nil)
-                    }
+                    createTestMastodonAccount()
                     return
                 }
 
-                let account = try await serviceManager.addBlueskyAccount(
+                // Check if the URL is valid
+                guard
+                    let url = URL(
+                        string: server.hasPrefix("https://") ? server : "https://" + server),
+                    url.scheme == "https",
+                    url.host != nil
+                else {
+                    throw NSError(
+                        domain: "AddAccountView", code: 400,
+                        userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"]
+                    )
+                }
+
+                // Use the SocialServiceManager to add the Mastodon account
+                _ = try await serviceManager.addMastodonAccount(
+                    server: url.absoluteString,
                     username: username,
                     password: password
                 )
 
+                // Update the UI
                 DispatchQueue.main.async {
-                    print("Successfully added Bluesky account: \(account.username)")
-
-                    // Post a notification that accounts changed
-                    NotificationCenter.default.post(
-                        name: Notification.Name("accountsChanged"), object: nil)
-
                     self.isLoading = false
-                    self.presentationMode.wrappedValue.dismiss()
+                    self.dismiss()
+
+                    // Notify about the account change
+                    NotificationCenter.default.post(name: .accountUpdated, object: nil)
                 }
+
             } catch {
                 DispatchQueue.main.async {
-                    print("Error adding Bluesky account: \(error.localizedDescription)")
-                    self.errorMessage = "Authentication failed: \(error.localizedDescription)"
                     self.isLoading = false
+                    self.errorMessage = "Error adding account: \(error.localizedDescription)"
                 }
             }
+        }
+    }
+
+    private func addBlueskyAccount() {
+        Task {
+            do {
+                // Handle test account creation
+                if username == "test" && password == "test" {
+                    createTestBlueskyAccount()
+                    return
+                }
+
+                // Make sure we have both username and password
+                guard !username.isEmpty, !password.isEmpty else {
+                    throw NSError(
+                        domain: "AddAccountView", code: 400,
+                        userInfo: [NSLocalizedDescriptionKey: "Username and password are required"]
+                    )
+                }
+
+                // No need to create a URL here, the manager will handle it
+                // Use the SocialServiceManager to add the Bluesky account
+                _ = try await serviceManager.addBlueskyAccount(
+                    username: username,
+                    password: password
+                )
+
+                // Update the UI
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.dismiss()
+
+                    // Notify about the account change
+                    NotificationCenter.default.post(name: .accountUpdated, object: nil)
+                }
+
+            } catch {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    // Test account creation methods
+    private func createTestMastodonAccount() {
+        // Create temporary account for testing
+        let tempAccount = SocialAccount(
+            id: UUID().uuidString,
+            username: "test_user",
+            displayName: "Test User",
+            serverURL: "mastodon.social",
+            platform: .mastodon
+        )
+
+        // Add the account to the service manager directly
+        DispatchQueue.main.async {
+            self.serviceManager.mastodonAccounts.append(tempAccount)
+            print("Added test Mastodon account")
+            self.isLoading = false
+
+            // Set this account as selected
+            self.serviceManager.selectedAccountIds = [tempAccount.id]
+
+            // Notify and dismiss
+            NotificationCenter.default.post(name: .accountUpdated, object: nil)
+            self.dismiss()
+        }
+    }
+
+    private func createTestBlueskyAccount() {
+        // Create temporary account for testing
+        let tempAccount = SocialAccount(
+            id: UUID().uuidString,
+            username: "test_user.bsky.social",
+            displayName: "Test User",
+            serverURL: "bsky.social",
+            platform: .bluesky
+        )
+
+        // Add the account to the service manager directly
+        DispatchQueue.main.async {
+            self.serviceManager.blueskyAccounts.append(tempAccount)
+            print("Added test Bluesky account")
+            self.isLoading = false
+
+            // Set this account as selected
+            self.serviceManager.selectedAccountIds = [tempAccount.id]
+
+            // Notify and dismiss
+            NotificationCenter.default.post(name: .accountUpdated, object: nil)
+            self.dismiss()
         }
     }
 

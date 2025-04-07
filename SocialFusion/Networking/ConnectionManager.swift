@@ -5,21 +5,38 @@ import UIKit
 class ConnectionManager {
     static let shared = ConnectionManager()
 
-    // Configurable parameters
-    private let maxConcurrentConnections = 4
-    private let defaultTimeoutInterval: TimeInterval = 15.0
-    private let requestRetryLimit = 2
-    private let requestRetryDelay: TimeInterval = 2.0
-
-    // Active state tracking
+    // Track active requests and connections
     private var activeConnections = 0
     private var queue = [() -> Void]()
     private var pendingRequests = [URLRequest: URLSessionTask]()
     private var completedRequestHashes = Set<Int>()
     private let serialQueue = DispatchQueue(label: "com.socialfusion.connectionmanager")
 
+    // Session configuration
+    private let session: URLSession
+
+    // Track background tasks
+    private var backgroundTaskIdentifier: UIBackgroundTaskIdentifier = .invalid
+
     private init() {
-        // Setup background task handling
+        // Create a custom URL session configuration
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = NetworkConfig.defaultRequestTimeout
+        config.timeoutIntervalForResource = NetworkConfig.defaultRequestTimeout * 2
+        config.waitsForConnectivity = true
+        config.httpMaximumConnectionsPerHost = NetworkConfig.maxConcurrentConnections
+        config.httpShouldSetCookies = true
+        config.httpCookieAcceptPolicy = .always
+        config.httpAdditionalHeaders = NetworkConfig.commonHeaders
+
+        // Create session
+        session = URLSession(configuration: config)
+
+        // Register for app state notifications
+        setupNotifications()
+    }
+
+    private func setupNotifications() {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(appDidEnterBackground),
@@ -33,6 +50,13 @@ class ConnectionManager {
             name: UIApplication.willEnterForegroundNotification,
             object: nil
         )
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appWillTerminate),
+            name: UIApplication.willTerminateNotification,
+            object: nil
+        )
     }
 
     // MARK: - Public API
@@ -42,7 +66,7 @@ class ConnectionManager {
         serialQueue.async { [weak self] in
             guard let self = self else { return }
 
-            if self.activeConnections < self.maxConcurrentConnections {
+            if self.activeConnections < NetworkConfig.maxConcurrentConnections {
                 self.activeConnections += 1
                 DispatchQueue.main.async {
                     request()
@@ -53,149 +77,74 @@ class ConnectionManager {
         }
     }
 
-    /// Send a URLRequest with retry logic and proper connection management
-    func sendRequest<T: Decodable>(
-        _ request: URLRequest,
-        responseType: T.Type,
-        attemptNumber: Int = 0
-    ) async throws -> T {
-        // Generate a unique hash for this request to track it
-        let requestHash = request.hashValue
+    /// Sends a URLRequest and handles errors in a standardized way
+    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let finalRequest = prepareRequest(request)
+        let requestHash = finalRequest.hashValue
 
-        // Check if this exact request was just completed (avoid duplicates)
+        // Check for duplicates
         if completedRequestHashes.contains(requestHash) {
             throw NetworkError.duplicateRequest
         }
 
-        // Create a proper timeout if needed
-        var finalRequest = request
-        if finalRequest.timeoutInterval == 60 {  // Default URLRequest timeout
-            finalRequest.timeoutInterval = defaultTimeoutInterval
+        // Check if URL is allowed
+        guard let url = finalRequest.url,
+            NetworkConfig.shouldAllowRequest(for: url)
+        else {
+            throw NetworkError.invalidURL
         }
 
-        // Track this request
-        return try await withCheckedThrowingContinuation { continuation in
-            let task = URLSession.shared.dataTask(with: finalRequest) {
-                [weak self] data, response, error in
-                guard let self = self else {
-                    continuation.resume(throwing: NetworkError.cancelled)
-                    return
-                }
+        do {
+            let (data, response) = try await sendWithRetries(
+                finalRequest, maxRetries: NetworkConfig.maxRetryAttempts)
 
-                // Handle request completion
-                self.serialQueue.async {
-                    // Remove from pending requests
-                    self.pendingRequests[finalRequest] = nil
-
-                    // Add to completed hashes (temporary cache to avoid duplicates)
-                    self.completedRequestHashes.insert(requestHash)
-
-                    // Clean up old completed hashes if needed
-                    if self.completedRequestHashes.count > 100 {
-                        self.completedRequestHashes.removeFirst(50)
-                    }
-
-                    // Process result
-                    if let error = error {
-                        // Check if we should retry
-                        if attemptNumber < self.requestRetryLimit {
-                            // Network error that can be retried
-                            if (error as NSError).domain == NSURLErrorDomain {
-                                // Wait then retry
-                                DispatchQueue.global().asyncAfter(
-                                    deadline: .now() + self.requestRetryDelay
-                                ) {
-                                    Task {
-                                        do {
-                                            let result = try await self.sendRequest(
-                                                finalRequest,
-                                                responseType: responseType,
-                                                attemptNumber: attemptNumber + 1
-                                            )
-                                            continuation.resume(returning: result)
-                                        } catch {
-                                            continuation.resume(throwing: error)
-                                        }
-                                    }
-                                }
-                                return
-                            }
-                        }
-
-                        // No more retries or not a retriable error
-                        continuation.resume(throwing: NetworkError.requestFailed(error))
-                        return
-                    }
-
-                    // Check HTTP status code
-                    if let httpResponse = response as? HTTPURLResponse {
-                        let statusCode = httpResponse.statusCode
-
-                        if statusCode < 200 || statusCode >= 300 {
-                            // Check if we should retry based on status code
-                            if statusCode == 429 || statusCode >= 500,
-                                attemptNumber < self.requestRetryLimit
-                            {
-                                // Server error or rate limit, retry after delay
-                                DispatchQueue.global().asyncAfter(
-                                    deadline: .now() + self.requestRetryDelay
-                                ) {
-                                    Task {
-                                        do {
-                                            let result = try await self.sendRequest(
-                                                finalRequest,
-                                                responseType: responseType,
-                                                attemptNumber: attemptNumber + 1
-                                            )
-                                            continuation.resume(returning: result)
-                                        } catch {
-                                            continuation.resume(throwing: error)
-                                        }
-                                    }
-                                }
-                                return
-                            }
-
-                            // Error response with valid status code
-                            continuation.resume(throwing: NetworkError.httpError(statusCode))
-                            return
-                        }
-                    }
-
-                    // Process successful data
-                    guard let data = data else {
-                        continuation.resume(throwing: NetworkError.noData)
-                        return
-                    }
-
-                    // Decode the response
-                    do {
-                        let decoder = JSONDecoder()
-                        decoder.keyDecodingStrategy = .convertFromSnakeCase
-                        decoder.dateDecodingStrategy = .iso8601
-
-                        let decoded = try decoder.decode(responseType, from: data)
-                        continuation.resume(returning: decoded)
-                    } catch {
-                        print("Decoding error: \(error.localizedDescription)")
-                        // Print the raw response for debugging
-                        if let dataString = String(data: data, encoding: .utf8) {
-                            print("Raw response: \(dataString.prefix(200))...")
-                        }
-                        continuation.resume(throwing: NetworkError.decodingError(error))
-                    }
-                }
-
-                // Mark this request as completed and process next
-                self.requestCompleted()
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw NetworkError.unsupportedResponse
             }
 
-            // Store task and start it
-            serialQueue.async { [weak self] in
-                guard let self = self else { return }
-                self.pendingRequests[finalRequest] = task
-                task.resume()
+            // Check for HTTP error codes
+            guard (200...299).contains(httpResponse.statusCode) else {
+                throw NetworkError.from(error: nil, response: httpResponse)
             }
+
+            // Track successful completion
+            markRequestCompleted(finalRequest, requestHash: requestHash)
+
+            return (data, httpResponse)
+        } catch {
+            // Convert to standard NetworkError
+            if let networkError = error as? NetworkError {
+                throw networkError
+            } else {
+                throw NetworkError.from(error: error, response: nil)
+            }
+        }
+    }
+
+    /// Sends a URLRequest and automatically decodes the response to a Decodable type
+    func sendRequest<T: Decodable>(
+        _ request: URLRequest,
+        responseType: T.Type
+    ) async throws -> T {
+        do {
+            let (data, response) = try await send(request)
+
+            // Attempt decoding with our standard decoder
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            decoder.dateDecodingStrategy = .iso8601
+
+            do {
+                return try decoder.decode(responseType, from: data)
+            } catch {
+                print("Decoding error: \(error)")
+                if let dataString = String(data: data, encoding: .utf8)?.prefix(200) {
+                    print("Response prefix: \(dataString)...")
+                }
+                throw NetworkError.decodingError(error)
+            }
+        } catch {
+            throw error  // Already converted to NetworkError in send method
         }
     }
 
@@ -206,12 +155,19 @@ class ConnectionManager {
 
             self.activeConnections -= 1
 
-            if !self.queue.isEmpty && self.activeConnections < self.maxConcurrentConnections {
+            if !self.queue.isEmpty
+                && self.activeConnections < NetworkConfig.maxConcurrentConnections
+            {
                 let nextRequest = self.queue.removeFirst()
                 self.activeConnections += 1
                 DispatchQueue.main.async {
                     nextRequest()
                 }
+            }
+
+            // End background task if no active connections and no queued requests
+            if self.activeConnections == 0 && self.queue.isEmpty {
+                self.endBackgroundTaskIfNeeded()
             }
         }
     }
@@ -230,6 +186,9 @@ class ConnectionManager {
             self.pendingRequests.removeAll()
             self.queue.removeAll()
             self.activeConnections = 0
+
+            // End any background task
+            self.endBackgroundTaskIfNeeded()
         }
     }
 
@@ -245,28 +204,118 @@ class ConnectionManager {
         }
     }
 
-    // MARK: - App State Handling
+    // MARK: - Private Helper Methods
 
-    @objc private func appDidEnterBackground() {
-        // Cancel non-essential requests when app goes to background
+    /// Prepare request by setting common headers and configs if not already set
+    private func prepareRequest(_ request: URLRequest) -> URLRequest {
+        var finalRequest = request
+
+        // Set timeout if not already set
+        if finalRequest.timeoutInterval == 60 {  // Default URLRequest timeout
+            finalRequest.timeoutInterval = NetworkConfig.defaultRequestTimeout
+        }
+
+        // Add common headers if not present
+        for (header, value) in NetworkConfig.commonHeaders {
+            if finalRequest.value(forHTTPHeaderField: header) == nil {
+                finalRequest.setValue(value, forHTTPHeaderField: header)
+            }
+        }
+
+        return finalRequest
+    }
+
+    /// Retry logic for network requests
+    private func sendWithRetries(_ request: URLRequest, maxRetries: Int, attempt: Int = 0)
+        async throws -> (Data, URLResponse)
+    {
+        do {
+            return try await session.data(for: request)
+        } catch {
+            // Check if we should retry
+            let networkError = NetworkError.from(error: error, response: nil)
+
+            if networkError.isRetriable && attempt < maxRetries {
+                // Calculate exponential backoff delay
+                let delay =
+                    NetworkConfig.retryDelay
+                    * pow(NetworkConfig.exponentialBackoffMultiplier, Double(attempt))
+
+                // Pause before retry
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+
+                // Try again with incremented attempt count
+                return try await sendWithRetries(
+                    request, maxRetries: maxRetries, attempt: attempt + 1)
+            } else {
+                throw networkError
+            }
+        }
+    }
+
+    /// Track completed requests to avoid duplicates
+    private func markRequestCompleted(_ request: URLRequest, requestHash: Int) {
         serialQueue.async { [weak self] in
             guard let self = self else { return }
 
-            // Keep only high-priority requests (could be implemented with a priority system)
-            // For now, cancel all for simplicity
-            self.cancelAllRequests()
+            // Remove from pending requests
+            self.pendingRequests[request] = nil
+
+            // Add to completed hashes
+            self.completedRequestHashes.insert(requestHash)
+
+            // Clean up old completed hashes if needed
+            if self.completedRequestHashes.count > 100 {
+                self.completedRequestHashes = Set(self.completedRequestHashes.suffix(50))
+            }
+
+            // Signal completion to process next request
+            self.requestCompleted()
+        }
+    }
+
+    // MARK: - Background Task Management
+
+    /// Begin a background task when needed
+    private func beginBackgroundTaskIfNeeded() {
+        if backgroundTaskIdentifier == .invalid {
+            backgroundTaskIdentifier = UIApplication.shared.beginBackgroundTask { [weak self] in
+                self?.endBackgroundTaskIfNeeded()
+            }
+        }
+    }
+
+    /// End background task when finished
+    private func endBackgroundTaskIfNeeded() {
+        if backgroundTaskIdentifier != .invalid {
+            UIApplication.shared.endBackgroundTask(backgroundTaskIdentifier)
+            backgroundTaskIdentifier = .invalid
+        }
+    }
+
+    // MARK: - App State Handling
+
+    @objc private func appDidEnterBackground() {
+        // Begin background task for critical network operations
+        beginBackgroundTaskIfNeeded()
+
+        // Cancel low-priority requests to conserve resources
+        serialQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            // For now we don't have priority system, so we keep all requests
+            // In a more sophisticated implementation, we could cancel non-essential requests here
         }
     }
 
     @objc private func appWillEnterForeground() {
-        // Reinitialize if needed when coming back to foreground
-        serialQueue.async { [weak self] in
-            guard let self = self else { return }
+        // End background task if we had one
+        endBackgroundTaskIfNeeded()
+    }
 
-            // Reset state
-            self.activeConnections = 0
-            self.completedRequestHashes.removeAll()
-        }
+    @objc private func appWillTerminate() {
+        // Cancel all pending requests
+        cancelAllRequests()
     }
 }
 
@@ -280,6 +329,21 @@ enum NetworkError: Error {
     case cancelled
     case duplicateRequest
     case timeout
+    case unsupportedResponse
+
+    static func from(error: Error?, response: HTTPURLResponse?) -> NetworkError {
+        if let error = error {
+            return .requestFailed(error)
+        } else if let response = response {
+            if (200...299).contains(response.statusCode) {
+                return .noData
+            } else {
+                return .httpError(response.statusCode)
+            }
+        } else {
+            return .noData
+        }
+    }
 }
 
 extension NetworkError: LocalizedError {
@@ -301,6 +365,8 @@ extension NetworkError: LocalizedError {
             return "Duplicate request detected"
         case .timeout:
             return "Request timed out"
+        case .unsupportedResponse:
+            return "Unsupported response format"
         }
     }
 }
