@@ -1,6 +1,6 @@
-import SwiftUI
+import Foundation
 
-/// LoadingState enum to handle different UI states consistently
+/// Represents the state of loading data
 enum LoadingState<T> {
     case loading
     case loaded(T)
@@ -8,152 +8,86 @@ enum LoadingState<T> {
     case empty
 }
 
-/// A view that shows different content based on loading state
+/// A view that displays different content based on the loading state
 struct LoadingStateView<Content: View, EmptyContent: View>: View {
     let state: LoadingState<Content>
-    let emptyContent: EmptyContent
-    let retryAction: (() -> Void)?
-
-    /// Initialize with a loading state, empty content and optional retry action
-    init(
-        state: LoadingState<Content>,
-        @ViewBuilder emptyContent: () -> EmptyContent,
-        retryAction: (() -> Void)? = nil
-    ) {
-        self.state = state
-        self.emptyContent = emptyContent()
-        self.retryAction = retryAction
-    }
+    let emptyContent: () -> EmptyContent
+    let retryAction: () -> Void
 
     var body: some View {
         switch state {
         case .loading:
-            loadingView
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let content):
             content
-        case .error(let error):
-            errorView(for: error)
         case .empty:
-            emptyContent
-        }
-    }
+            emptyContent()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .error:
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle)
+                    .foregroundColor(.orange)
 
-    // Loading spinner view
-    private var loadingView: some View {
-        VStack(spacing: 20) {
-            ProgressView()
-                .scaleEffect(1.5)
-                .progressViewStyle(CircularProgressViewStyle())
+                Text("Something went wrong")
+                    .font(.headline)
 
-            Text("Loading...")
-                .font(.callout)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemBackground))
-    }
-
-    // Error view with retry button if available
-    private func errorView(for error: Error) -> some View {
-        VStack(spacing: 20) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 40))
-                .foregroundColor(.red)
-
-            Text(errorMessage(from: error))
-                .font(.headline)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
-
-            if let retryAction = retryAction {
-                Button(action: retryAction) {
-                    HStack {
-                        Image(systemName: "arrow.clockwise")
-                        Text("Try Again")
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
-                    .background(Color.accentColor)
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
+                Button("Try Again") {
+                    retryAction()
                 }
-                .padding(.top, 8)
+                .buttonStyle(.bordered)
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemBackground))
-    }
-
-    // Get a user-friendly error message
-    private func errorMessage(from error: Error) -> String {
-        if let networkError = error as? NetworkError {
-            return networkError.userFriendlyDescription
-        } else if let appError = error as? AppError {
-            return appError.message
-        } else {
-            return error.localizedDescription
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
 
-/// Extension for simplified usage with default empty state
-extension LoadingStateView where EmptyContent == EmptyStateView {
-    init(
-        state: LoadingState<Content>,
-        message: String = "No content available",
-        systemImage: String = "tray",
-        retryAction: (() -> Void)? = nil
-    ) {
-        self.state = state
-        self.emptyContent = EmptyStateView(message: message, systemImage: systemImage)
-        self.retryAction = retryAction
-    }
-}
-
-/// Standard empty state view
+/// A view that displays an empty state with a message and icon
 struct EmptyStateView: View {
     let message: String
     let systemImage: String
-    let action: (() -> Void)?
-    let actionTitle: String?
-
-    init(
-        message: String,
-        systemImage: String = "tray",
-        actionTitle: String? = nil,
-        action: (() -> Void)? = nil
-    ) {
-        self.message = message
-        self.systemImage = systemImage
-        self.actionTitle = actionTitle
-        self.action = action
-    }
 
     var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 16) {
             Image(systemName: systemImage)
-                .font(.system(size: 40))
+                .font(.largeTitle)
                 .foregroundColor(.secondary)
 
             Text(message)
                 .font(.headline)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
-
-            if let action = action, let actionTitle = actionTitle {
-                Button(action: action) {
-                    Text(actionTitle)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(Color.accentColor)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
-                .padding(.top, 8)
-            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemBackground))
+        .padding()
     }
+}
+
+/// Previews for the EmptyStateView
+#Preview {
+    VStack(spacing: 20) {
+        EmptyStateView(message: "No posts found", systemImage: "tray")
+            .frame(height: 200)
+            .background(Color(.systemGroupedBackground))
+            .cornerRadius(12)
+
+        LoadingStateView(
+            state: .loading,
+            emptyContent: { EmptyStateView(message: "Nothing here", systemImage: "tray") },
+            retryAction: {}
+        )
+        .frame(height: 200)
+        .background(Color(.systemGroupedBackground))
+        .cornerRadius(12)
+
+        LoadingStateView(
+            state: .error(NSError(domain: "test", code: 1, userInfo: nil)),
+            emptyContent: { EmptyStateView(message: "Nothing here", systemImage: "tray") },
+            retryAction: {}
+        )
+        .frame(height: 200)
+        .background(Color(.systemGroupedBackground))
+        .cornerRadius(12)
+    }
+    .padding()
 }

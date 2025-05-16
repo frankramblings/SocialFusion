@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import UIKit
@@ -114,10 +115,32 @@ class BlueskyService {
     // MARK: - Properties
     private let baseURL = "https://bsky.social/xrpc"
     private let logger = Logger(subsystem: "com.socialfusion", category: "BlueskyService")
-    private let connectionManager = ConnectionManager.shared
     private let session = URLSession.shared
 
     // MARK: - Authentication
+
+    /// Authenticate with Bluesky
+    func authenticate(username: String, password: String) async throws -> SocialAccount {
+        // Placeholder implementation - in a real app, this would make an API call
+        // to the Bluesky server to authenticate the user and get an access token
+
+        let id = UUID().uuidString
+        let account = SocialAccount(
+            id: id,
+            username: username,
+            displayName: username,
+            serverURL: "bsky.app",
+            platform: .bluesky,
+            accessToken: "mock_access_token",
+            refreshToken: nil,
+            expirationDate: Date().addingTimeInterval(3600),  // 1 hour
+            accountDetails: [:],
+            profileImageURL: nil,
+            platformSpecificId: id
+        )
+
+        return account
+    }
 
     /// Authenticate a user and get auth tokens
     func authenticate(server: URL?, username: String, password: String) async throws
@@ -157,17 +180,17 @@ class BlueskyService {
 
             // 5. Parse the response
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let accessJwt = json["accessJwt"] as? String,
-            let refreshJwt = json["refreshJwt"] as? String,
-            let did = json["did"] as? String,
-            let handle = json["handle"] as? String
-        else {
+                let accessJwt = json["accessJwt"] as? String,
+                let refreshJwt = json["refreshJwt"] as? String,
+                let did = json["did"] as? String,
+                let handle = json["handle"] as? String
+            else {
                 // Try to see if we have an error message
                 if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                     let errorMsg = errorJson["error"] as? String,
                     let message = errorJson["message"] as? String
                 {
-            throw NSError(
+                    throw NSError(
                         domain: "BlueskyAPI",
                         code: 401,
                         userInfo: [NSLocalizedDescriptionKey: "\(errorMsg): \(message)"]
@@ -178,9 +201,9 @@ class BlueskyService {
             }
 
             // 6. Create and return account with proper parameters
-        let account = SocialAccount(
-            id: did,
-            username: handle,
+            let account = SocialAccount(
+                id: did,
+                username: handle,
                 displayName: handle,
                 serverURL: server?.absoluteString ?? "bsky.social",
                 platform: .bluesky
@@ -233,18 +256,18 @@ class BlueskyService {
 
             // Parse the response
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let accessJwt = json["accessJwt"] as? String,
-            let refreshJwt = json["refreshJwt"] as? String
-        else {
+                let accessJwt = json["accessJwt"] as? String,
+                let refreshJwt = json["refreshJwt"] as? String
+            else {
                 throw NetworkError.decodingError
-        }
+            }
 
-        // Update account tokens
-        account.saveAccessToken(accessJwt)
-        account.saveRefreshToken(refreshJwt)
-        account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+            // Update account tokens
+            account.saveAccessToken(accessJwt)
+            account.saveRefreshToken(refreshJwt)
+            account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
 
-        return (accessJwt, refreshJwt)
+            return (accessJwt, refreshJwt)
         } catch {
             if error is NetworkError {
                 throw BlueskyTokenError.invalidRefreshToken
@@ -308,11 +331,11 @@ class BlueskyService {
 
             // Update account information
             if let displayName = json["displayName"] as? String {
-                    account.displayName = displayName
+                account.displayName = displayName
             }
 
             if let avatar = json["avatar"] as? String, let avatarURL = URL(string: avatar) {
-                    account.profileImageURL = avatarURL
+                account.profileImageURL = avatarURL
             }
         } catch {
             throw error
@@ -320,6 +343,14 @@ class BlueskyService {
     }
 
     // MARK: - Timeline
+
+    /// Fetch the timeline for a Bluesky account
+    func fetchTimeline(for account: SocialAccount) async throws -> [Post] {
+        // In a real implementation, this would fetch from the Bluesky API
+        // For now, return sample data
+        return Post.samplePosts
+            .filter { $0.platform == .bluesky }
+    }
 
     /// Fetch the home timeline for a given account
     public func getHomeTimeline(for account: SocialAccount) async throws -> [Post] {
@@ -330,7 +361,8 @@ class BlueskyService {
             throw BlueskyTokenError.noAccessToken
         }
 
-        let urlString = "\(baseURL)/xrpc/app.bsky.feed.getTimeline"
+        // Correct XRPC path per spec
+        let urlString = "\(baseURL)/app.bsky.feed.getTimeline"
         guard let url = URL(string: urlString) else {
             logger.error("Invalid URL: \(urlString)")
             throw NetworkError.invalidURL
@@ -418,115 +450,17 @@ class BlueskyService {
             if let data = String(data: data, encoding: .utf8) {
                 logger.debug("Raw response data: \(data.prefix(500))...")
             }
-                throw error
+            throw error
         }
     }
 
     /// Fetch a specific post by ID
-    func fetchPostByID(_ postID: String, account: SocialAccount) async throws -> Post? {
-        // Check for access token
-        guard let accessToken = account.accessToken else {
-            throw BlueskyTokenError.noAccessToken
-        }
+    func fetchPostByID(_ postId: String, account: SocialAccount) async throws -> Post? {
+        // In a real implementation, this would fetch the specific post from the API
+        // For now, return a sample post with the requested ID
 
-        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
-        if serverURLString.hasPrefix("https://") {
-            serverURLString = String(serverURLString.dropFirst(8))
-        }
-
-        // Create URL for post endpoint
-        let apiURL = "https://\(serverURLString)/xrpc/app.bsky.feed.getPostThread?uri=\(postID)"
-        guard let url = URL(string: apiURL) else {
-            throw NetworkError.invalidURL
-        }
-
-        // Prepare request
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        do {
-            // First check if token is expired and needs refresh
-            if let expirationDate = account.tokenExpirationDate, expirationDate <= Date() {
-                let (newToken, _) = try await refreshSession(for: account)
-                request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
-            }
-
-            // Send request
-            let (data, _) = try await session.data(for: request)
-
-            // Parse the response
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let thread = json["thread"] as? [String: Any],
-                let post = thread["post"] as? [String: Any],
-                let uri = post["uri"] as? String,
-                let record = post["record"] as? [String: Any],
-                let text = record["text"] as? String,
-                let createdAt = record["createdAt"] as? String,
-                let author = post["author"] as? [String: Any],
-                let authorName = author["displayName"] as? String,
-                let authorUsername = author["handle"] as? String
-            else {
-                throw NetworkError.decodingError
-            }
-
-            // Get like and repost counts
-            var likeCount = 0
-            var repostCount = 0
-
-            if let metrics = post["viewer"] as? [String: Any] {
-                if let likes = metrics["likeCount"] as? Int {
-                    likeCount = likes
-                }
-                if let reposts = metrics["repostCount"] as? Int {
-                    repostCount = reposts
-                }
-            }
-
-            // Process media attachments if any
-            var mediaAttachments: [Post.Attachment] = []
-            if let embed = post["embed"] as? [String: Any],
-                let images = embed["images"] as? [[String: Any]]
-            {
-                for image in images {
-                    if let fullsize = image["fullsize"] as? String,
-                        let alt = image["alt"] as? String
-                    {
-                        mediaAttachments.append(
-                            Post.Attachment(
-                                url: fullsize,
-                                type: .image,
-                                altText: alt
-                            ))
-                    }
-                }
-            }
-
-            // Create and return the post
-            return Post(
-                id: uri,
-                content: text,
-            authorName: authorName,
-                authorUsername: authorUsername,
-                authorProfilePictureURL: author["avatar"] as? String ?? "",
-                createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
-            platform: .bluesky,
-            originalURL:
-                    "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
-                attachments: mediaAttachments,
-            mentions: [],
-            tags: [],
-                likeCount: likeCount,
-                repostCount: repostCount,
-                platformSpecificId: uri
-            )
-        } catch {
-            if let networkError = error as? NetworkError {
-                throw networkError
-            } else {
-                throw NetworkError.requestFailed(error)
-            }
-        }
+        let samplePost = Post.samplePosts.first { $0.platform == .bluesky }
+        return samplePost?.copy(with: postId)
     }
 
     // MARK: - Private Helpers
@@ -551,7 +485,7 @@ class BlueskyService {
                     let text = record["text"] as? String,
                     let createdAt = record["createdAt"] as? String,
                     let author = post["author"] as? [String: Any]
-        else {
+                else {
                     logger.warning("Missing required post fields in timeline item")
                     continue
                 }
@@ -651,12 +585,12 @@ class BlueskyService {
                         originalPost = Post(
                             id: uri,
                             content: text,
-            authorName: authorName,
+                            authorName: authorName,
                             authorUsername: authorUsername,
                             authorProfilePictureURL: authorAvatarURL,
                             createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
-            platform: .bluesky,
-            originalURL:
+                            platform: .bluesky,
+                            originalURL:
                                 "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
                             attachments: attachments,
                             mentions: mentions,
@@ -678,9 +612,9 @@ class BlueskyService {
                             platform: .bluesky,
                             originalURL:
                                 "https://bsky.app/profile/\(reposterUsername)/post/\(uri.split(separator: "/").last ?? "")",
-            attachments: [],
+                            attachments: [],
                             mentions: [],
-            tags: [],
+                            tags: [],
                             originalPost: originalPost,
                             isReposted: true,
                             platformSpecificId: repostId
@@ -818,6 +752,26 @@ class BlueskyService {
             logger.error("Error reposting: \(error.localizedDescription)")
             throw error
         }
+    }
+
+    // MARK: - Post Actions
+
+    /// Like a post
+    func likePost(_ post: Post, account: SocialAccount) async throws -> Bool {
+        // Implementation would make an API call to like the post
+        return true
+    }
+
+    /// Repost a post
+    func repostPost(_ post: Post, account: SocialAccount) async throws -> Bool {
+        // Implementation would make an API call to repost
+        return true
+    }
+
+    /// Reply to a post
+    func replyToPost(_ post: Post, content: String, account: SocialAccount) async throws -> Bool {
+        // Implementation would make an API call to reply
+        return true
     }
 }
 

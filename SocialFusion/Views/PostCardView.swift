@@ -1,2548 +1,288 @@
-import AVKit
-// Import URLService
-import Foundation
-import LinkPresentation
 import SwiftUI
-// Import required for HTMLFormatter and link detection
-import UIKit
 
-// Link detection helper
-class LinkDetector {
-    static func extractLinks(from string: String) -> [URL] {
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(
-            in: string, options: [], range: NSRange(location: 0, length: string.utf16.count))
-
-        return matches?.compactMap {
-            if let url = $0.url {
-                // Use URLService for validation and fixing
-                return validateURL(url)
-            }
-            return nil
-        } ?? []
-    }
-
-    // Local implementation of URL validation to avoid circular dependencies
-    static func validateURL(_ url: URL) -> URL {
-        var fixedURL = url
-
-        // Fix URLs with missing schemes
-        if url.scheme == nil {
-            if let urlWithScheme = URL(string: "https://" + url.absoluteString) {
-                fixedURL = urlWithScheme
-            }
-        }
-
-        // Fix the "www" hostname issue
-        if url.host == "www" {
-            if let correctedURL = URL(string: "https://www." + (url.path.trimmingPrefix("/"))) {
-                return correctedURL
-            }
-        }
-
-        // Fix "www." hostname without any TLD
-        if url.host == "www." || url.absoluteString.contains("://www./") {
-            return URL(string: "https://www.example.com") ?? url
-        }
-
-        // Fix "www/" hostname issue
-        if let host = url.host, host.contains("www/") {
-            let fixedHost = host.replacingOccurrences(of: "www/", with: "www.")
-            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            components?.host = fixedHost
-            if let fixedURL = components?.url {
-                return fixedURL
-            }
-        }
-
-        // Add fallback for invalid host patterns
-        if let scheme = url.scheme,
-            let host = url.host,
-            host.contains("/") || host.isEmpty
-        {
-            // If host contains slashes or is empty, try to reconstruct a valid URL
-            return URL(string: "\(scheme)://example.com") ?? url
-        }
-
-        return fixedURL
-    }
-
-    // Local friendly error message implementation
-    static func friendlyErrorMessage(for error: Error) -> String {
-        let errorDescription = error.localizedDescription
-
-        if errorDescription.contains("App Transport Security") {
-            return "Site security issue"
-        } else if errorDescription.contains("cancelled") {
-            return "Request cancelled"
-        } else if errorDescription.contains("network connection") {
-            return "Network error"
-        } else if errorDescription.contains("hostname could not be found") {
-            return "Invalid hostname"
-        } else if errorDescription.contains("timed out") {
-            return "Request timed out"
-        } else {
-            // Truncate error message if too long
-            let message = errorDescription
-            return message.count > 40 ? message.prefix(40) + "..." : message
-        }
-    }
-}
-
-// Link Preview Component
-struct LinkPreview: View {
-    let url: URL
-    @State private var title: String?
-    @State private var desc: String?
-    @State private var imageURL: URL?
-    @State private var isLoading = true
-    @State private var loadingFailed = false
-    @State private var loadingCancelled = false
-    @State private var retryCount = 0
-    @State private var urlSessionDataTask: URLSessionDataTask?
-    private let maxRetries = 1
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if isLoading && !loadingCancelled {
-                LinkPreviewPlaceholder()
-            } else if loadingFailed || loadingCancelled {
-                LinkPreviewFallback(url: url)
-            } else {
-                // Link preview content
-                VStack(alignment: .leading, spacing: 8) {
-                    if let imageURL = imageURL, !loadingCancelled {
-                        // If we have an image URL, display it
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .empty:
-                                Rectangle()
-                                    .foregroundColor(Color.gray.opacity(0.2))
-                                    .frame(height: 120)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(height: 120)
-                                    .clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            case .failure:
-                                // On image load failure, just show title/desc
-                                EmptyView()
-                            @unknown default:
-                                EmptyView()
-                            }
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        if let title = title {
-                            Text(title)
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .lineLimit(2)
-                        }
-
-                        if let desc = desc {
-                            Text(desc)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(3)
-                        }
-
-                        Text(url.host ?? "")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(UIColor.secondarySystemBackground))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                )
-            }
-        }
-        .onAppear {
-            preflightURLCheck()
-        }
-        .onDisappear {
-            cancelAllLoading()
-        }
-    }
-
-    private func preflightURLCheck() {
-        // Perform a quick preflight check to verify URL accessibility
-        let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 1.5
-        config.waitsForConnectivity = false
-
-        let session = URLSession(configuration: config)
-        let request = URLRequest(
-            url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 1.5)
-
-        let task = session.dataTask(with: request) { _, response, error in
-            DispatchQueue.main.async {
-                if let httpResponse = response as? HTTPURLResponse,
-                    (200...299).contains(httpResponse.statusCode)
-                {
-                    // URL is accessible, proceed with metadata loading
-                    loadMetadata()
-                } else {
-                    // URL is not quickly accessible, skip to fallback
-                    isLoading = false
-                    loadingFailed = true
-                }
-            }
-        }
-        task.resume()
-    }
-
-    private func loadMetadata() {
-        // Return if we've already hit max retries or if loading is cancelled
-        if retryCount >= maxRetries || loadingCancelled {
-            isLoading = false
-            loadingFailed = true
-            return
-        }
-
-        // Increment retry count
-        retryCount += 1
-
-        // Cancel any existing task
-        urlSessionDataTask?.cancel()
-
-        // Use the ConnectionManager to limit concurrent requests
-        ConnectionManager.shared.performRequest {
-            // Skip invalid or problematic URLs
-            guard url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https" else {
-                markAsFailed()
-                ConnectionManager.shared.requestCompleted()
-                return
-            }
-
-            // Create session with shorter timeout
-            let config = URLSessionConfiguration.ephemeral
-            config.timeoutIntervalForRequest = 3.0  // Reduced timeout
-            let session = URLSession(configuration: config)
-
-            let request = URLRequest(
-                url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 3.0)
-
-            // Create and store the task
-            urlSessionDataTask = session.dataTask(with: request) { data, response, error in
-                // Fallback timer to ensure we don't get stuck
-                let fallbackTimer = DispatchWorkItem {
-                    markAsFailed()
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 4.0, execute: fallbackTimer)
-
-                DispatchQueue.main.async {
-                    // Check for errors or cancelled loading
-                    if error != nil || loadingCancelled {
-                        fallbackTimer.cancel()
-                        markAsFailed()
-                        ConnectionManager.shared.requestCompleted()
-                        return
-                    }
-
-                    guard let data = data, !data.isEmpty else {
-                        fallbackTimer.cancel()
-                        markAsFailed()
-                        ConnectionManager.shared.requestCompleted()
-                        return
-                    }
-
-                    // Process the HTML
-                    if let html = String(data: data, encoding: .utf8) {
-                        parseHTML(html)
-                        isLoading = false
-                        fallbackTimer.cancel()
-                    } else {
-                        markAsFailed()
-                    }
-
-                    ConnectionManager.shared.requestCompleted()
-                }
-            }
-
-            // Start the task
-            urlSessionDataTask?.resume()
-        }
-    }
-
-    private func parseHTML(_ html: String) {
-        // Simple HTML meta tag parsing without SwiftSoup
-        // Extract Open Graph title
-        if let ogTitleRange = html.range(of: "<meta property=\"og:title\" content=\""),
-            let ogTitleEndRange = html[ogTitleRange.upperBound...].range(of: "\"")
-        {
-            let titleText = String(html[ogTitleRange.upperBound..<ogTitleEndRange.lowerBound])
-            if !titleText.isEmpty {
-                self.title = decodeHTMLEntities(titleText)
-            }
-        }
-
-        // Try regular title tag if og:title not found
-        if title == nil,
-            let titleTagRange = html.range(of: "<title>"),
-            let titleEndRange = html[titleTagRange.upperBound...].range(of: "</title>")
-        {
-            let titleText = String(html[titleTagRange.upperBound..<titleEndRange.lowerBound])
-            if !titleText.isEmpty {
-                self.title = decodeHTMLEntities(titleText)
-            }
-        }
-
-        // Extract description
-        if let ogDescRange = html.range(of: "<meta property=\"og:description\" content=\""),
-            let ogDescEndRange = html[ogDescRange.upperBound...].range(of: "\"")
-        {
-            let descText = String(html[ogDescRange.upperBound..<ogDescEndRange.lowerBound])
-            if !descText.isEmpty {
-                self.desc = decodeHTMLEntities(descText)
-            }
-        }
-
-        // Try meta description if og:description not found
-        if desc == nil,
-            let metaDescRange = html.range(of: "<meta name=\"description\" content=\""),
-            let metaDescEndRange = html[metaDescRange.upperBound...].range(of: "\"")
-        {
-            let descText = String(html[metaDescRange.upperBound..<metaDescEndRange.lowerBound])
-            if !descText.isEmpty {
-                self.desc = decodeHTMLEntities(descText)
-            }
-        }
-
-        // Extract image URL
-        if let ogImageRange = html.range(of: "<meta property=\"og:image\" content=\""),
-            let ogImageEndRange = html[ogImageRange.upperBound...].range(of: "\"")
-        {
-            let imageURLString = String(html[ogImageRange.upperBound..<ogImageEndRange.lowerBound])
-            if !imageURLString.isEmpty,
-                let encodedURLString = imageURLString.addingPercentEncoding(
-                    withAllowedCharacters: CharacterSet.urlQueryAllowed),
-                let imageURL = URL(string: encodedURLString)
-            {
-                self.imageURL = imageURL
-            }
-        }
-
-        // Try twitter image if og:image not found
-        if imageURL == nil,
-            let twitterImageRange = html.range(of: "<meta name=\"twitter:image\" content=\""),
-            let twitterImageEndRange = html[twitterImageRange.upperBound...].range(of: "\"")
-        {
-            let imageURLString = String(
-                html[twitterImageRange.upperBound..<twitterImageEndRange.lowerBound])
-            if !imageURLString.isEmpty,
-                let encodedURLString = imageURLString.addingPercentEncoding(
-                    withAllowedCharacters: CharacterSet.urlQueryAllowed),
-                let imageURL = URL(string: encodedURLString)
-            {
-                self.imageURL = imageURL
-            }
-        }
-
-        // If we couldn't extract anything useful, mark as failed
-        if title == nil && desc == nil && imageURL == nil {
-            markAsFailed()
-        }
-    }
-
-    private func markAsFailed() {
-        isLoading = false
-        loadingFailed = true
-    }
-
-    // Helper function to decode common HTML entities
-    private func decodeHTMLEntities(_ string: String) -> String {
-        var result = string
-        let entities = [
-            "&amp;": "&",
-            "&lt;": "<",
-            "&gt;": ">",
-            "&quot;": "\"",
-            "&#39;": "'",
-            "&nbsp;": " ",
-        ]
-
-        for (entity, replacement) in entities {
-            result = result.replacingOccurrences(of: entity, with: replacement)
-        }
-
-        return result
-    }
-
-    private func cancelAllLoading() {
-        loadingCancelled = true
-        urlSessionDataTask?.cancel()
-        urlSessionDataTask = nil
-    }
-}
-
-// Link preview placeholder while loading
-struct LinkPreviewPlaceholder: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Image placeholder
-            Rectangle()
-                .foregroundColor(Color.gray.opacity(0.2))
-                .frame(height: 120)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-                .overlay(
-                    ProgressView()
-                        .frame(width: 30, height: 30)
-                )
-
-            // Title placeholder
-            Rectangle()
-                .foregroundColor(Color.gray.opacity(0.2))
-                .frame(height: 16)
-                .frame(width: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-
-            // Description placeholder
-            Rectangle()
-                .foregroundColor(Color.gray.opacity(0.15))
-                .frame(height: 12)
-                .frame(width: 240)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-
-            // URL placeholder
-            Rectangle()
-                .foregroundColor(Color.gray.opacity(0.15))
-                .frame(height: 10)
-                .frame(width: 160)
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(UIColor.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-    }
-}
-
-// Fallback link preview for when loading fails
-struct LinkPreviewFallback: View {
-    let url: URL
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Link icon
-            Image(systemName: "link")
-                .font(.title2)
-                .foregroundColor(.secondary)
-                .frame(width: 36, height: 36)
-                .background(
-                    Circle()
-                        .fill(Color.gray.opacity(0.1))
-                )
-                .padding(.leading, 8)
-
-            VStack(alignment: .leading, spacing: 4) {
-                // Show the host if available, otherwise the URL string
-                Text(url.host ?? url.absoluteString)
-                    .font(.callout)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-
-                Text("Link")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            // External link icon
-            Image(systemName: "arrow.up.right")
-                .font(.callout)
-                .foregroundColor(.secondary)
-                .padding(.trailing, 12)
-        }
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color(UIColor.secondarySystemBackground))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
-    }
-}
-
-// Helper view to load images from LPImageProvider
-struct AsyncImageFromProvider: View {
-    let imageProvider: NSItemProvider
-    @State private var image: UIImage?
-    @State private var isLoading = true
-    @State private var loadFailed = false
-    @State private var errorMessage: String? = nil
-    @State private var loadingCancelled = false
-
-    var body: some View {
-        Group {
-            if let image = image {
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-            } else if isLoading {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .overlay(
-                        ProgressView()
-                    )
-            } else if loadFailed {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.1))
-                    .overlay(
-                        VStack(spacing: 4) {
-                            Image(systemName: "photo.fill.on.rectangle.fill")
-                                .font(.title)
-                                .foregroundColor(.gray)
-
-                            if let errorMessage = errorMessage {
-                                Text(errorMessage)
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal)
-                            }
-                        }
-                    )
-            }
-        }
-        .onAppear {
-            loadImage()
-        }
-        .onDisappear {
-            loadingCancelled = true
-        }
-    }
-
-    private func loadImage() {
-        // Set up timeout for image loading - shorter to prevent long waits
-        let timeout = DispatchTime.now() + 5.0
-
-        // Safely load image only if not cancelled
-        if !loadingCancelled {
-            // Main image loading task
-            imageProvider.loadObject(ofClass: UIImage.self) { image, error in
-                if !self.loadingCancelled {
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-
-                        if let error = error {
-                            self.loadFailed = true
-
-                            // Format a friendlier error message
-                            if error.localizedDescription.contains("cancelled") {
-                                self.errorMessage = "Image loading cancelled"
-                            } else if error.localizedDescription.contains("network") {
-                                self.errorMessage = "Network error"
-                            } else {
-                                self.errorMessage = "Failed to load image"
-                            }
-
-                            print(
-                                "Error loading image from provider: \(error.localizedDescription)")
-                            return
-                        }
-
-                        if let image = image as? UIImage {
-                            self.image = image
-                        } else {
-                            self.loadFailed = true
-                            self.errorMessage = "Invalid image format"
-                        }
-                    }
-                }
-            }
-        }
-
-        // Backup timeout handler
-        DispatchQueue.main.asyncAfter(deadline: timeout) {
-            if self.isLoading && !self.loadingCancelled {
-                self.isLoading = false
-                self.loadFailed = true
-                self.errorMessage = "Image loading timed out"
-                self.loadingCancelled = true
-            }
-        }
-    }
-}
-
-// Connection manager to limit concurrent requests
-class ConnectionManager {
-    static let shared = ConnectionManager()
-    private let maxConcurrentConnections = 4
-    private var activeConnections = 0
-    private var queue = [() -> Void]()
-    private let serialQueue = DispatchQueue(label: "com.socialfusion.connectionmanager")
-
-    private init() {}
-
-    func performRequest(request: @escaping () -> Void) {
-        serialQueue.async { [weak self] in
-            guard let self = self else { return }
-
-            if self.activeConnections < self.maxConcurrentConnections {
-                self.activeConnections += 1
-                DispatchQueue.main.async {
-                    request()
-                }
-            } else {
-                self.queue.append(request)
-            }
-        }
-    }
-
-    func requestCompleted() {
-        serialQueue.async { [weak self] in
-            guard let self = self else { return }
-
-            self.activeConnections -= 1
-
-            if !self.queue.isEmpty && self.activeConnections < self.maxConcurrentConnections {
-                let nextRequest = self.queue.removeFirst()
-                self.activeConnections += 1
-                DispatchQueue.main.async {
-                    nextRequest()
-                }
-            }
-        }
-    }
-
-    func cancelAllRequests() {
-        serialQueue.async { [weak self] in
-            guard let self = self else { return }
-            self.queue.removeAll()
-        }
-    }
-}
-
-struct PostCardView: View {
-    let post: Post
-    @State private var showDetailView = false
-    @State private var selectedMedia: Post.Attachment? = nil
-    @State private var showMediaFullscreen = false
-    @State private var detectedLinks: [URL] = []
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var hasProcessedLinks = false
-    @EnvironmentObject var serviceManager: SocialServiceManager
-
-    var body: some View {
-        Button(action: {
-            self.showDetailView = true
-        }) {
-            VStack(alignment: .leading, spacing: 10) {
-                // If this is a boosted/reposted post
-                if let originalPost = post.originalPost {
-                    // Boost/Repost header
-                    HStack(spacing: 4) {
-                        // Platform-specific icon for boost/repost
-                        Image(
-                            systemName: post.platform == .mastodon
-                                ? "arrow.2.squarepath" : "arrow.triangle.2.circlepath"
-                        )
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-
-                        Text("\(post.authorName) boosted")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-
-                        Spacer()
-                    }
-                    .padding(.bottom, 4)
-
-                    // Original post content
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Original post header with author info
-                        HStack(spacing: 10) {
-                            // Original author avatar with platform badge
-                            PostAuthorImageView(
-                                authorProfilePictureURL: originalPost.authorProfilePictureURL,
-                                platform: originalPost.platform
-                            )
-
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(originalPost.authorName)
-                                    .font(.subheadline)
-                                    .fontWeight(.bold)
-                                    .lineLimit(1)
-
-                                Text("@\(originalPost.authorUsername)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .lineLimit(1)
-                            }
-
-                            Spacer()
-
-                            // Post time
-                            Text(timeAgo(from: originalPost.createdAt))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-
-                        // Original post content with clickable links
-                        Text(attributedContent(from: originalPost.content))
-                            .font(.subheadline)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .multilineTextAlignment(.leading)
-                            .padding(.vertical, 4)
-                            .environment(
-                                \.openURL,
-                                OpenURLAction { url in
-                                    UIApplication.shared.open(url)
-                                    return .handled
-                                })
-
-                        // Link previews and media for original post
-                        displayLinksAndMedia(for: originalPost)
-
-                        // Action buttons for original post
-                        postActionButtons(for: originalPost)
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(
-                                colorScheme == .dark
-                                    ? Color(UIColor.tertiarySystemBackground)
-                                    : Color(UIColor.tertiarySystemGroupedBackground))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.02), radius: 1, x: 0, y: 1)
-                } else {
-                    // Regular non-boosted post
-                    // Header with author info and platform indicator
-                    HStack(spacing: 10) {
-                        // Author avatar with platform badge
-                        PostAuthorImageView(
-                            authorProfilePictureURL: post.authorProfilePictureURL,
-                            platform: post.platform
-                        )
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(post.authorName)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
-                                .lineLimit(1)
-
-                            Text("@\(post.authorUsername)")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-
-                        // Post time
-                        Text(timeAgo(from: post.createdAt))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-
-                    // Post content with clickable links
-                    Text(attributedContent(from: post.content))
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .multilineTextAlignment(.leading)
-                        .padding(.vertical, 6)
-                        .environment(
-                            \.openURL,
-                            OpenURLAction { url in
-                                UIApplication.shared.open(url)
-                                return .handled
-                            })
-
-                    // Link previews and media for this post
-                    displayLinksAndMedia(for: post)
-
-                    // Action buttons
-                    postActionButtons(for: post)
-                }
-            }
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(
-                        colorScheme == .dark
-                            ? Color(UIColor.secondarySystemBackground) : Color.white
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.gray.opacity(0.15), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
-            .padding(.bottom, 12)  // Reduced padding between posts from 20 to 12
-            .padding(.horizontal, 2)  // Small horizontal padding for visual separation
-        }
-        .buttonStyle(PlainButtonStyle())
-        .onAppear {
-            // More efficient link detection - only process once
-            if !hasProcessedLinks {
-                detectLinks()
-                hasProcessedLinks = true
-            }
-        }
-        .onDisappear {
-            // Cancel any pending network requests when view disappears
-            ConnectionManager.shared.cancelAllRequests()
-        }
-        .sheet(isPresented: $showDetailView) {
-            PostDetailView(post: post.originalPost ?? post)
-                .environmentObject(serviceManager)
-        }
-        .fullScreenCover(isPresented: $showMediaFullscreen) {
-            if let selectedAttachment = selectedMedia {
-                if !post.attachments.isEmpty,
-                    let selectedIndex = post.attachments.firstIndex(where: {
-                        $0.url == selectedAttachment.url
-                    })
-                {
-                    // Pass all attachments and the selected index to create a gallery view
-                    FullscreenMediaView(
-                        attachments: post.attachments,
-                        initialIndex: selectedIndex
-                    )
-                } else {
-                    // Fallback to single attachment view if index not found
-                    FullscreenMediaView(attachment: selectedAttachment)
-                }
-            }
-        }
-    }
-
-    // Helper method to display links and media for a post
-    // Removed @ViewBuilder to fix the warning
-    private func displayLinksAndMedia(for post: Post) -> some View {
-        VStack(spacing: 12) {
-            // Link previews if links are detected in the post content
-            if let links = extractLinks(from: post.content), !links.isEmpty {
-                let filteredLinks = removeSelfReferences(links: links, postURL: post.originalURL)
-                if !filteredLinks.isEmpty {
-                    ForEach(
-                        Array(filteredLinks.prefix(1).enumerated()), id: \.element.absoluteString
-                    ) { index, url in
-                        // Check if URL is a social media post URL
-                        if URLServiceWrapper.shared.isBlueskyPostURL(url)
-                            || URLServiceWrapper.shared.isMastodonPostURL(url)
-                        {
-                            // Show as quote post if available
-                            FetchQuotePostView(url: url)
-                                .padding(.top, 4)
-                        } else {
-                            // Show regular link preview
-                            LinkPreview(url: url)
-                                .allowsHitTesting(false)
-                                .padding(.top, 2)
-                        }
-                    }
-                }
-            }
-
-            // Media attachments if any - use the new MediaGridView
-            if !post.attachments.isEmpty {
-                MediaGridView(
-                    attachments: post.attachments,
-                    onTapAttachment: { attachment in
-                        self.selectedMedia = attachment
-                        self.showMediaFullscreen = true
-                    },
-                    maxHeight: 180  // Even more compact for timeline view
-                )
-                .padding(.top, 4)  // Add spacing between text and media
-            }
-        }
-    }
-
-    // Removes links that reference the post itself to avoid self-referential previews
-    private func removeSelfReferences(links: [URL], postURL: String) -> [URL] {
-        guard let postURL = URL(string: postURL) else { return links }
-
-        return links.filter { url in
-            // Don't show link preview for URLs that match the post itself
-            let isSameURL =
-                url.absoluteString.contains(postURL.absoluteString)
-                || postURL.absoluteString.contains(url.absoluteString)
-
-            return !isSameURL
-        }
-    }
-
-    // Helper method to create action buttons for a post
-    private func postActionButtons(for post: Post) -> some View {
-        HStack(spacing: 0) {
-            ForEach(PostAction.allCases, id: \.self) { action in
-                Spacer()
-                Button(action: {
-                    handlePostAction(action, for: post)
-                }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: action.iconName(for: post))
-                            .font(.caption)
-                            .foregroundColor(action.color(for: post))
-
-                        if action.showCount(for: post) {
-                            Text(action.count(for: post) > 0 ? "\(action.count(for: post))" : "")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(height: 24)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-                Spacer()
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    private func handlePostAction(_ action: PostAction, for post: Post) {
-        switch action {
-        case .reply:
-            showDetailView = true
-        case .repost:
-            // Handle repost action
-            print("Repost tapped for post: \(post.id)")
-        case .like:
-            // Handle like action
-            print("Like tapped for post: \(post.id)")
-        case .share:
-            if let url = URL(string: post.originalURL) {
-                let av = UIActivityViewController(
-                    activityItems: [url], applicationActivities: nil)
-
-                // Find the current window scene
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                    let rootVC = windowScene.windows.first?.rootViewController
-                {
-                    av.popoverPresentationController?.sourceView = rootVC.view
-                    rootVC.present(av, animated: true)
-                }
-            }
-        }
-    }
-
-    // Helper function to detect links in post content
-    private func detectLinks() {
-        // Use a background thread for link detection to avoid UI blocking
-        DispatchQueue.global(qos: .userInitiated).async {
-            // Detect links in this post's content
-            let links = LinkDetector.extractLinks(from: self.post.content)
-
-            // If this is a boosted post, also detect links in the original post
-            if let originalPost = self.post.originalPost {
-                // Override detected links with those from the original post
-                let originalLinks = LinkDetector.extractLinks(from: originalPost.content)
-                DispatchQueue.main.async {
-                    self.detectedLinks = originalLinks
-                }
-            } else {
-                // Update the detected links
-                DispatchQueue.main.async {
-                    self.detectedLinks = links
-                }
-            }
-        }
-    }
-
-    // Helper function to extract links from the post content
-    private func extractLinks(from content: String) -> [URL]? {
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(
-            in: content, options: [], range: NSRange(location: 0, length: content.utf16.count))
-
-        return matches?.compactMap {
-            if let url = $0.url {
-                // Always validate URLs through our service to ensure consistency
-                return URLServiceWrapper.shared.validateURL(url)
-            }
-            return nil
-        }
-    }
-
-    // Helper function for attributed content
-    private var attributedPostContent: AttributedString {
-        return attributedContent(from: post.content)
-    }
-
-    // Helper function to create attributed string from content
-    private func attributedContent(from content: String) -> AttributedString {
-        var attributedString = AttributedString(cleanHtmlString(content))
-
-        // Process links in the content
-        if let links = extractLinks(from: content) {
-            for link in links {
-                if let range = attributedString.range(of: link.absoluteString) {
-                    attributedString[range].foregroundColor = .blue
-                    attributedString[range].underlineStyle = .single
-                    attributedString[range].link = link
-                }
-            }
-        }
-
-        return attributedString
-    }
-
-    // Helper function to format dates as relative time
-    private func timeAgo(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    // Enhanced HTML cleanup function with space before links and URL fixes
-    private func cleanHtmlString(_ html: String) -> String {
-        // Replace common HTML entities
-        var result =
-            html
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-
-        // Remove HTML tags but preserve spacing
-        result = result.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
-
-        // Fix missing spaces before links using regex pattern
-        let linkPattern = "(\\S)(https?://\\S+)"
-        result = result.replacingOccurrences(
-            of: linkPattern, with: "$1 $2", options: .regularExpression, range: nil)
-
-        // Fix for www. links that don't start with http - ensure they have proper format
-        // First, add space before www if needed
-        let wwwPattern = "(\\S)(www\\.\\S+)"
-        result = result.replacingOccurrences(
-            of: wwwPattern, with: "$1 $2", options: .regularExpression, range: nil)
-
-        // Fix problematic www/ URLs - replace with www.
-        let invalidWwwPattern = "(\\s|^)(www/)([^\\s]+)"
-        result = result.replacingOccurrences(
-            of: invalidWwwPattern, with: "$1www.$3", options: .regularExpression, range: nil)
-
-        // Fix embedded www/ in the middle of URLs
-        let embeddedWwwPattern = "(https?://)(www/)([^\\s]+)"
-        result = result.replacingOccurrences(
-            of: embeddedWwwPattern, with: "$1www.$3", options: .regularExpression, range: nil)
-
-        // Fix URLs without protocols by adding https://
-        let noProtocolPattern = "(\\s|^)(www\\.[^\\s]+)"
-        result = result.replacingOccurrences(
-            of: noProtocolPattern, with: "$1https://$2", options: .regularExpression, range: nil)
-
-        return result
-    }
-
-    // Helper function to get platform color that works with iOS 16
-    private func platformColor(for platform: SocialPlatform) -> Color {
-        if #available(iOS 17.0, *) {
-            return Color(platform.color)
-        } else {
-            // Fallback for iOS 16
-            switch platform {
-            case .mastodon:
-                return Color("PrimaryColor")
-            case .bluesky:
-                return Color("SecondaryColor")
-            }
-        }
-    }
-}
-
-// Platform badge component with improved appearance
-struct PostPlatformBadge: View {
-    let platform: SocialPlatform
-
-    private func getLogoName(for platform: SocialPlatform) -> String {
-        switch platform {
-        case .mastodon:
-            return "MastodonLogo"
-        case .bluesky:
-            return "BlueskyLogo"
-        }
-    }
-
-    private func getPlatformColor() -> Color {
-        switch platform {
-        case .mastodon:
-            return Color("PrimaryColor")
-        case .bluesky:
-            return Color("SecondaryColor")
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            // Remove the white circle background
-            // Just use the platform logo with a shadow for visibility against the avatar
-            Image(getLogoName(for: platform))
-                .resizable()
-                .renderingMode(.template)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
-                .foregroundColor(getPlatformColor())
-                .shadow(color: .black.opacity(0.4), radius: 1.5, x: 0, y: 0)
-        }
-        .frame(width: 20, height: 20)
-        .offset(x: 6, y: 6)  // Increased offset to move badge more to the right and down
-    }
-}
-
-// A view for displaying media attachments
-struct MediaView: View {
-    let attachment: Post.Attachment
-    let showFullscreen: () -> Void
-
-    @State private var aspectRatio: CGFloat = 16 / 9  // Default aspect ratio
-    @State private var isLoading: Bool = true
-    @State private var loadError: Bool = false
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                if attachment.type == .image {
-                    AsyncImage(url: URL(string: attachment.url)) { phase in
-                        switch phase {
-                        case .empty:
-                            // Loading state
-                            Rectangle()
-                                .fill(Color(UIColor.secondarySystemBackground))
-                                .overlay(
-                                    ProgressView()
-                                        .scaleEffect(1.2)
-                                )
-
-                        case .success(let image):
-                            // Success state
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .onAppear {
-                                    // Calculate aspect ratio asynchronously
-                                    if let url = URL(string: attachment.url) {
-                                        Task {
-                                            do {
-                                                let (data, _) = try await URLSession.shared.data(
-                                                    from: url)
-                                                if let uiImage = UIImage(data: data) {
-                                                    DispatchQueue.main.async {
-                                                        let imageSize = uiImage.size
-                                                        // Ensure we never set a NaN or invalid aspect ratio
-                                                        if imageSize.width > 0
-                                                            && imageSize.height > 0
-                                                            && imageSize.width.isFinite
-                                                            && imageSize.height.isFinite
-                                                        {
-                                                            withAnimation(.easeInOut(duration: 0.2))
-                                                            {
-                                                                aspectRatio =
-                                                                    imageSize.width
-                                                                    / imageSize.height
-                                                                isLoading = false
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            } catch {
-                                                print("Error loading image dimensions: \(error)")
-                                                DispatchQueue.main.async {
-                                                    loadError = true
-                                                    isLoading = false
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                        case .failure(_):
-                            // Error state
-                            Rectangle()
-                                .fill(Color(UIColor.secondarySystemBackground))
-                                .overlay(
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "photo")
-                                            .font(.system(size: 30))
-                                            .foregroundColor(.gray)
-                                        Text("Image unavailable")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
-                                )
-                                .onAppear {
-                                    loadError = true
-                                    isLoading = false
-                                }
-
-                        @unknown default:
-                            Rectangle()
-                                .fill(Color(UIColor.secondarySystemBackground))
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .contentShape(Rectangle())
-
-                } else if attachment.type == .video {
-                    ZStack {
-                        if let url = URL(string: attachment.url) {
-                            VideoPlayer(player: AVPlayer(url: url))
-                                .cornerRadius(12)
-                                .onAppear {
-                                    isLoading = false
-                                }
-                        } else {
-                            Rectangle()
-                                .fill(Color(UIColor.secondarySystemBackground))
-                                .overlay(
-                                    VStack(spacing: 8) {
-                                        Image(systemName: "video.slash")
-                                            .font(.system(size: 30))
-                                            .foregroundColor(.gray)
-                                        Text("Video unavailable")
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
-                                )
-                                .cornerRadius(12)
-                                .onAppear {
-                                    loadError = true
-                                    isLoading = false
-                                }
-                        }
-
-                        // Play button overlay for videos
-                        if !loadError {
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white)
-                                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 0)
-                                .opacity(isLoading ? 0 : 0.8)
-                        }
-                    }
-                }
-
-                // Alt text indicator if available
-                if let altText = attachment.altText, !altText.isEmpty {
-                    VStack {
-                        Spacer()
-                        HStack {
-                            Spacer()
-                            Image(systemName: "text.bubble")
-                                .font(.caption)
-                                .padding(6)
-                                .background(Color.black.opacity(0.6))
-                                .foregroundColor(.white)
-                                .clipShape(Circle())
-                                .padding(8)
-                        }
-                    }
-                }
-
-                // Transparent overlay for tap handling
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        showFullscreen()
-                    }
-            }
-            .frame(
-                width: geometry.size.width,
-                height: calculateHeight(width: geometry.size.width)
-            )
-        }
-        .frame(
-            height: calculateHeight(width: UIScreen.main.bounds.width - 32)  // Approximate width accounting for padding
-        )
-    }
-
-    // Calculate appropriate height based on aspect ratio with min/max constraints
-    private func calculateHeight(width: CGFloat) -> CGFloat {
-        let calculatedHeight = width / max(aspectRatio, 0.1)
-        // More conservative max height (280 instead of 350) to prevent overlapping with buttons
-        return min(max(calculatedHeight, 150), 280)
-    }
-}
-
-struct ZoomableImageView: View {
-    let imageURL: String
-    let altText: String?
-
-    @State private var scale: CGFloat = 1.0
-    @State private var lastScale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
-    @State private var showAltText: Bool = false
-
-    var body: some View {
-        GeometryReader { geometry in
-            let size = geometry.size
-
-            ZStack {
-                // Background color
-                Color.black
-
-                // Image with zoom and pan gestures
-                AsyncImage(url: URL(string: imageURL)) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(
-                                // Pan gesture
-                                DragGesture()
-                                    .onChanged { gesture in
-                                        let newOffset = CGSize(
-                                            width: lastOffset.width + gesture.translation.width,
-                                            height: lastOffset.height + gesture.translation.height
-                                        )
-                                        // Only update offset if scale is > 1
-                                        if scale > 1.0 {
-                                            // Calculate bounds to limit panning
-                                            let maxOffsetX = (size.width * (scale - 1)) / 2
-                                            let maxOffsetY = (size.height * (scale - 1)) / 2
-
-                                            offset = CGSize(
-                                                width: min(
-                                                    maxOffsetX, max(-maxOffsetX, newOffset.width)),
-                                                height: min(
-                                                    maxOffsetY, max(-maxOffsetY, newOffset.height))
-                                            )
-                                        }
-                                    }
-                                    .onEnded { _ in
-                                        lastOffset = offset
-                                    }
-                            )
-                            .gesture(
-                                // Pinch gesture
-                                MagnificationGesture()
-                                    .onChanged { value in
-                                        let newScale = lastScale * value
-                                        scale = min(max(1.0, newScale), 4.0)  // Limit zoom between 1x and 4x
-                                    }
-                                    .onEnded { _ in
-                                        // If scale is close to 1, snap back to 1
-                                        if scale < 1.1 {
-                                            withAnimation(.spring()) {
-                                                scale = 1.0
-                                                offset = .zero
-                                            }
-                                        }
-                                        lastScale = scale
-                                    }
-                            )
-                            .onTapGesture(count: 2) {
-                                // Double tap to zoom in/out
-                                withAnimation(.spring()) {
-                                    if scale > 1.0 {
-                                        // Reset to normal
-                                        scale = 1.0
-                                        offset = .zero
-                                    } else {
-                                        // Zoom to 2x
-                                        scale = 2.0
-                                    }
-                                    lastScale = scale
-                                    lastOffset = offset
-                                }
-                            }
-                    } else if phase.error != nil {
-                        VStack(spacing: 12) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .font(.system(size: 40))
-                                .foregroundColor(.white)
-                            Text("Failed to load image")
-                                .foregroundColor(.white)
-                        }
-                    } else {
-                        ProgressView()
-                            .scaleEffect(2.0)
-                            .tint(.white)
-                    }
-                }
-
-                // Alt text overlay
-                if showAltText, let altText = altText, !altText.isEmpty {
-                    VStack {
-                        Spacer()
-                        Text(altText)
-                            .font(.callout)
-                            .padding()
-                            .frame(maxWidth: .infinity)
-                            .background(Color.black.opacity(0.7))
-                            .foregroundColor(.white)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                }
-            }
-            .frame(width: size.width, height: size.height)
-            .contentShape(Rectangle())
-            .onTapGesture(count: 1) {
-                // Single tap toggles the UI elements
-                if let altText = altText, !altText.isEmpty {
-                    withAnimation {
-                        showAltText.toggle()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Enhanced fullscreen media presentation with gallery support
-struct FullscreenMediaView: View {
-    let attachments: [Post.Attachment]
-    let initialIndex: Int
-
-    @Environment(\.presentationMode) var presentationMode
-    @State private var showShareSheet = false
-    @State private var currentAttachment: Post.Attachment
-    @State private var currentIndex: Int
-    @State private var showControls: Bool = true
-
-    // Initialize with array of attachments and starting index
-    init(attachments: [Post.Attachment], initialIndex: Int = 0) {
-        self.attachments = attachments
-        self.initialIndex = initialIndex
-        _currentAttachment = State(initialValue: attachments[initialIndex])
-        _currentIndex = State(initialValue: initialIndex)
-    }
-
-    // Initialize with a single attachment
-    init(attachment: Post.Attachment) {
-        self.attachments = [attachment]
-        self.initialIndex = 0
-        _currentAttachment = State(initialValue: attachment)
-        _currentIndex = State(initialValue: 0)
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Black background
-                Color.black.edgesIgnoringSafeArea(.all)
-
-                // Media gallery with paging
-                if attachments.count > 1 {
-                    TabView(selection: $currentIndex) {
-                        ForEach(0..<attachments.count, id: \.self) { index in
-                            mediaView(for: attachments[index])
-                                .tag(index)
-                                .gesture(
-                                    // Tap gesture to toggle controls
-                                    TapGesture().onEnded {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            showControls.toggle()
-                                        }
-                                    }
-                                )
-                        }
-                    }
-                    .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                    .onChange(of: currentIndex) { newIndex in
-                        currentAttachment = attachments[newIndex]
-                    }
-                } else {
-                    // Single attachment view
-                    mediaView(for: currentAttachment)
-                        .gesture(
-                            TapGesture().onEnded {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    showControls.toggle()
-                                }
-                            }
-                        )
-                }
-
-                // Controls overlay
-                if showControls {
-                    VStack {
-                        // Top control bar
-                        HStack {
-                            // Close button
-                            Button(action: {
-                                presentationMode.wrappedValue.dismiss()
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(12)
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
-                            }
-                            .padding(.leading, 16)
-
-                            Spacer()
-
-                            // Share button
-                            Button(action: {
-                                showShareSheet = true
-                            }) {
-                                Image(systemName: "square.and.arrow.up")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.white)
-                                    .padding(12)
-                                    .background(Color.black.opacity(0.5))
-                                    .clipShape(Circle())
-                            }
-                            .padding(.trailing, 16)
-                        }
-                        .padding(.top, geometry.safeAreaInsets.top > 0 ? 0 : 16)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-
-                        Spacer()
-
-                        // Bottom info bar
-                        VStack(spacing: 12) {
-                            // Pagination indicator for multiple attachments
-                            if attachments.count > 1 {
-                                HStack(spacing: 8) {
-                                    ForEach(0..<attachments.count, id: \.self) { index in
-                                        Circle()
-                                            .fill(
-                                                index == currentIndex
-                                                    ? Color.white : Color.white.opacity(0.4)
-                                            )
-                                            .frame(width: 8, height: 8)
-                                    }
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.5))
-                                .cornerRadius(12)
-                            }
-
-                            // Alt text button if available
-                            if let altText = currentAttachment.altText, !altText.isEmpty {
-                                Button(action: {
-                                    // This will be handled by the ZoomableImageView
-                                }) {
-                                    HStack {
-                                        Image(systemName: "text.bubble")
-                                            .foregroundColor(.white)
-                                        Text("View image description")
-                                            .font(.subheadline)
-                                            .foregroundColor(.white)
-                                    }
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 16)
-                                    .background(Color.black.opacity(0.5))
-                                    .cornerRadius(20)
-                                }
-                            }
-                        }
-                        .padding(.bottom, 16)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
-                    .animation(.easeInOut(duration: 0.2), value: showControls)
-                }
-            }
-            .statusBar(hidden: true)
-            .sheet(isPresented: $showShareSheet) {
-                if let url = URL(string: currentAttachment.url) {
-                    ShareSheet(items: [url])
-                }
-            }
-            .onAppear {
-                // Auto-hide controls after a few seconds
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    withAnimation {
-                        showControls = false
-                    }
-                }
-            }
-        }
-    }
-
-    // Helper function to create the appropriate media view based on attachment type
-    @ViewBuilder
-    private func mediaView(for attachment: Post.Attachment) -> some View {
-        if attachment.type == .image {
-            ZoomableImageView(imageURL: attachment.url, altText: attachment.altText)
-                .edgesIgnoringSafeArea(.all)
-        } else if attachment.type == .video {
-            if let url = URL(string: attachment.url) {
-                VideoPlayer(player: AVPlayer(url: url))
-                    .edgesIgnoringSafeArea(.all)
-            } else {
-                Text("Invalid video URL")
-                    .foregroundColor(.white)
-            }
-        }
-    }
-}
-
-// Helper view for share sheet
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(
-            activityItems: items, applicationActivities: nil)
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-}
-
-// A Reply view for the PostDetailView
-struct ReplyView: View {
-    let reply: Post
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                // Author avatar
-                PostAuthorImageView(
-                    authorProfilePictureURL: reply.authorProfilePictureURL,
-                    platform: reply.platform
-                )
-                .frame(width: 36, height: 36)  // Smaller size for replies
-
-                VStack(alignment: .leading, spacing: 4) {
-                    // Author info
-                    HStack {
-                        Text(reply.authorName)
-                            .font(.subheadline)
-                            .fontWeight(.bold)
-
-                        Text("@\(reply.authorUsername)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        Spacer()
-
-                        Text(timeAgo(from: reply.createdAt))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-
-                    // Content with clickable links
-                    Text(attributedContent(from: reply.content))
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .environment(
-                            \.openURL,
-                            OpenURLAction { url in
-                                UIApplication.shared.open(url)
-                                return .handled
-                            })
-
-                    // Media
-                    if !reply.attachments.isEmpty {
-                        ForEach(reply.attachments, id: \.url) { attachment in
-                            if attachment.type == .image {
-                                AsyncImage(url: URL(string: attachment.url)) { image in
-                                    image
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                } placeholder: {
-                                    Color.gray.opacity(0.3)
-                                }
-                                .frame(maxHeight: 150)
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(8)
-    }
-
-    // Helper function to create attributed string from content with clickable links
-    private func attributedContent(from content: String) -> AttributedString {
-        var attributedString = AttributedString(cleanHtmlString(content))
-
-        // Process links in the content
-        if let links = extractLinks(from: content) {
-            for link in links {
-                if let range = attributedString.range(of: link.absoluteString) {
-                    attributedString[range].foregroundColor = .blue
-                    attributedString[range].underlineStyle = .single
-                    attributedString[range].link = link
-                }
-            }
-        }
-
-        return attributedString
-    }
-
-    // Helper function to extract links from the post content
-    private func extractLinks(from content: String) -> [URL]? {
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(
-            in: content, options: [], range: NSRange(location: 0, length: content.utf16.count))
-
-        return matches?.compactMap { $0.url }
-    }
-
-    // Helper function to format dates as relative time
-    private func timeAgo(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
-    }
-
-    // Basic HTML cleanup function
-    private func cleanHtmlString(_ html: String) -> String {
-        // Replace common HTML entities
-        var result =
-            html
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-
-        // Remove HTML tags but preserve spacing
-        result = result.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
-
-        return result
-    }
-}
-
-// A detailed view for a single post
-struct PostDetailView: View {
-    let post: Post
-    @Environment(\.presentationMode) var presentationMode
-    @State private var replyText = ""
-    @State private var selectedMedia: Post.Attachment? = nil
-    @State private var showMediaFullscreen = false
-    @State private var replies: [Post] = []
-    @State private var showingComposeSheet = false
-
-    var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Main post
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Header
-                        HStack(spacing: 12) {
-                            PostAuthorImageView(
-                                authorProfilePictureURL: post.authorProfilePictureURL,
-                                platform: post.platform
-                            )
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(post.authorName)
-                                    .font(.title3)
-                                    .fontWeight(.bold)
-
-                                Text("@\(post.authorUsername)")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            PostPlatformBadge(platform: post.platform)
-                                .padding(.trailing, 4)
-                        }
-
-                        // Content with clickable links
-                        Text(attributedContent(from: post.content))
-                            .font(.body)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.vertical, 8)
-                            .environment(
-                                \.openURL,
-                                OpenURLAction { url in
-                                    UIApplication.shared.open(url)
-                                    return .handled
-                                })
-
-                        // Media attachments
-                        if !post.attachments.isEmpty {
-                            VStack(spacing: 8) {
-                                ForEach(post.attachments, id: \.url) { attachment in
-                                    MediaView(
-                                        attachment: attachment,
-                                        showFullscreen: {
-                                            selectedMedia = attachment
-                                            showMediaFullscreen = true
-                                        })
-                                }
-                            }
-                        }
-
-                        // Post metadata
-                        HStack(spacing: 16) {
-                            Text(timeAgo(from: post.createdAt))
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-
-                            if let url = URL(string: post.originalURL) {
-                                Link("View original", destination: url)
-                                    .font(.caption)
-                            }
-                        }
-                        .padding(.top, 8)
-                    }
-                    .padding()
-                    .background(Color(UIColor.secondarySystemBackground))
-
-                    // Divider between post and replies
-                    Divider()
-                        .padding(.vertical, 8)
-
-                    // Replies section
-                    VStack(alignment: .leading, spacing: 16) {
-                        Text("Replies")
-                            .font(.headline)
-                            .padding(.horizontal)
-
-                        // Sample replies (replace with actual replies when implemented)
-                        Text("No replies yet")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                    }
-                }
-            }
-            .navigationBarTitle("Post", displayMode: .inline)
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    presentationMode.wrappedValue.dismiss()
-                }
-            )
-            .sheet(isPresented: $showMediaFullscreen) {
-                if let media = selectedMedia {
-                    FullscreenMediaView(attachments: [media])
-                }
-            }
-            .sheet(isPresented: $showingComposeSheet) {
-                Text("Compose Reply")
-                    .onDisappear {
-                        // Just a placeholder for now
-                    }
-            }
-        }
-    }
-
-    // Helper function to create attributed string from content with links
-    private func attributedContent(from content: String) -> AttributedString {
-        var attributedString = AttributedString(cleanHtmlString(content))
-
-        // Process links in the content
-        if let links = extractLinks(from: content) {
-            for link in links {
-                if let range = attributedString.range(of: link.absoluteString) {
-                    attributedString[range].foregroundColor = .blue
-                    attributedString[range].underlineStyle = .single
-                    attributedString[range].link = link
-                }
-            }
-        }
-
-        return attributedString
-    }
-
-    // Helper function to extract links from the post content
-    private func extractLinks(from content: String) -> [URL]? {
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches = detector?.matches(
-            in: content, options: [], range: NSRange(location: 0, length: content.utf16.count))
-
-        return matches?.compactMap {
-            if let url = $0.url {
-                // Fix common URL issues that we've seen in the logs
-
-                // Ensure URL has a scheme
-                if url.scheme == nil {
-                    if let urlWithScheme = URL(string: "https://" + url.absoluteString) {
-                        return urlWithScheme
-                    }
-                }
-
-                // Problematic 'www/' hostname issue (without scheme)
-                if url.host == "www" {
-                    // Try to create a proper URL with the correct host
-                    if let correctedURL = URL(
-                        string: "https://www." + (url.path.trimmingPrefix("/")))
-                    {
-                        return correctedURL
-                    }
-                }
-
-                // Check for URLs with "www/" in the host part but with a scheme
-                if let host = url.host, host.contains("www/") {
-                    let fixedHost = host.replacingOccurrences(of: "www/", with: "www.")
-                    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                    components?.host = fixedHost
-                    if let fixedURL = components?.url {
-                        return fixedURL
-                    }
-                }
-
-                return url
-            }
-            return nil
-        }
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
-
-    private func timeAgo(from date: Date) -> String {
-        let calendar = Calendar.current
-        let now = Date()
-        let components = calendar.dateComponents(
-            [.minute, .hour, .day, .weekOfMonth, .month, .year], from: date, to: now)
-
-        if let years = components.year, years > 0 {
-            return years == 1 ? "1 year ago" : "\(years) years ago"
-        }
-
-        if let months = components.month, months > 0 {
-            return months == 1 ? "1 month ago" : "\(months) months ago"
-        }
-
-        if let weeks = components.weekOfMonth, weeks > 0 {
-            return weeks == 1 ? "1 week ago" : "\(weeks) weeks ago"
-        }
-
-        if let days = components.day, days > 0 {
-            return days == 1 ? "1 day ago" : "\(days) days ago"
-        }
-
-        if let hours = components.hour, hours > 0 {
-            return hours == 1 ? "1 hour ago" : "\(hours) hours ago"
-        }
-
-        if let minutes = components.minute, minutes > 0 {
-            return minutes == 1 ? "1 minute ago" : "\(minutes) minutes ago"
-        }
-
-        return "Just now"
-    }
-
-    private func cleanHtmlString(_ html: String) -> String {
-        // Replace common HTML entities
-        var result =
-            html
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
-            .replacingOccurrences(of: "&nbsp;", with: " ")
-
-        // Remove HTML tags
-        result = result.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
-
-        // Fix missing spaces before links using regex pattern
-        let linkPattern = "(\\S)(https?://\\S+)"
-        result = result.replacingOccurrences(
-            of: linkPattern, with: "$1 $2", options: .regularExpression, range: nil)
-
-        // Fix for www. links that don't start with http - ensure they have proper format
-        // First, add space before www if needed
-        let wwwPattern = "(\\S)(www\\.\\S+)"
-        result = result.replacingOccurrences(
-            of: wwwPattern, with: "$1 $2", options: .regularExpression, range: nil)
-
-        // Fix problematic www/ URLs - replace with www.
-        let invalidWwwPattern = "(\\s|^)(www/)([^\\s]+)"
-        result = result.replacingOccurrences(
-            of: invalidWwwPattern, with: "$1www.$3", options: .regularExpression, range: nil)
-
-        // Fix embedded www/ in the middle of URLs
-        let embeddedWwwPattern = "(https?://)(www/)([^\\s]+)"
-        result = result.replacingOccurrences(
-            of: embeddedWwwPattern, with: "$1www.$3", options: .regularExpression, range: nil)
-
-        // Fix URLs without protocols by adding https://
-        let noProtocolPattern = "(\\s|^)(www\\.[^\\s]+)"
-        result = result.replacingOccurrences(
-            of: noProtocolPattern, with: "$1https://$2", options: .regularExpression, range: nil)
-
-        return result
-    }
-}
-
-struct PostCardView_Previews: PreviewProvider {
-    static var previews: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                PostCardView(post: Post.samplePosts[0])  // Mastodon
-                PostCardView(post: Post.samplePosts[1])  // Bluesky with image
-            }
-            .padding()
-        }
-        .previewLayout(.sizeThatFits)
-        .preferredColorScheme(.light)
-
-        // Preview detail view
-        PostDetailView(post: Post.samplePosts[1])
-            .previewLayout(.sizeThatFits)
-            .preferredColorScheme(.dark)
-    }
-}
-// Extension to create UIColor from hex string if it doesn't already exist in this file
-extension UIColor {
-    convenience init?(hex: String) {
-        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
-
-        var rgb: UInt64 = 0
-
-        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
-
-        self.init(
-            red: CGFloat((rgb & 0xFF0000) >> 16) / 255.0,
-            green: CGFloat((rgb & 0x00FF00) >> 8) / 255.0,
-            blue: CGFloat(rgb & 0x0000FF) / 255.0,
-            alpha: 1.0
-        )
-    }
-}
-
-// View for profile image in posts
-struct PostAuthorImageView: View {
-    let authorProfilePictureURL: String
-    let platform: SocialPlatform
-    @State private var refreshTrigger = false
-    @State private var validatedURL: URL?
-
-    var body: some View {
-        ZStack {
-            if !authorProfilePictureURL.isEmpty {
-                AsyncImage(url: validatedURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 48, height: 48)
-                            .clipShape(Circle())
-                    } else if phase.error != nil {
-                        // Show initial on error
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .frame(width: 48, height: 48)
-                            .foregroundColor(.gray)
-                    } else {
-                        // Show loading placeholder
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 48, height: 48)
-                    }
-                }
-                .frame(width: 48, height: 48)
-                .clipShape(Circle())
-                .onAppear {
-                    // Use LinkDetector for URL validation to avoid dependency on URLService
-                    if let url = URL(string: authorProfilePictureURL) {
-                        validatedURL = LinkDetector.validateURL(url)
-                    }
-                }
-            } else {
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .frame(width: 48, height: 48)
-                    .foregroundColor(.gray)
-            }
-
-            // Platform badge in bottom-right corner
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    PostPlatformBadge(platform: platform)
-                }
-            }
-            .padding(0)
-            .frame(width: 48, height: 48)
-        }
-        .id(refreshTrigger)  // Force view refresh when trigger changes
-    }
-}
-
-// Media Grid View for displaying multiple attachments in a grid layout
-struct MediaGridView: View {
-    let attachments: [Post.Attachment]
-    let onTapAttachment: (Post.Attachment) -> Void
-    let maxHeight: CGFloat
-
-    var body: some View {
-        Group {
-            // Different layouts based on the number of attachments
-            if attachments.count == 1 {
-                // Single attachment - full width
-                MediaView(
-                    attachment: attachments[0],
-                    showFullscreen: { onTapAttachment(attachments[0]) }
-                )
-            } else if attachments.count == 2 {
-                // Two attachments - side by side
-                HStack(spacing: 4) {
-                    MediaView(
-                        attachment: attachments[0],
-                        showFullscreen: { onTapAttachment(attachments[0]) }
-                    )
-                    MediaView(
-                        attachment: attachments[1],
-                        showFullscreen: { onTapAttachment(attachments[1]) }
-                    )
-                }
-            } else if attachments.count == 3 {
-                // Three attachments - 1 large on left, 2 stacked on right
-                HStack(spacing: 4) {
-                    // First image takes up left side
-                    MediaView(
-                        attachment: attachments[0],
-                        showFullscreen: { onTapAttachment(attachments[0]) }
-                    )
-                    .frame(width: UIScreen.main.bounds.width * 0.55)
-
-                    // Second and third images stacked on right
-                    VStack(spacing: 4) {
-                        MediaView(
-                            attachment: attachments[1],
-                            showFullscreen: { onTapAttachment(attachments[1]) }
-                        )
-                        MediaView(
-                            attachment: attachments[2],
-                            showFullscreen: { onTapAttachment(attachments[2]) }
-                        )
-                    }
-                    .frame(width: UIScreen.main.bounds.width * 0.33)
-                }
-            } else if attachments.count >= 4 {
-                // Four or more attachments - 2x2 grid with "more" indicator if needed
-                VStack(spacing: 4) {
-                    // Top row - 2 images
-                    HStack(spacing: 4) {
-                        MediaView(
-                            attachment: attachments[0],
-                            showFullscreen: { onTapAttachment(attachments[0]) }
-                        )
-                        MediaView(
-                            attachment: attachments[1],
-                            showFullscreen: { onTapAttachment(attachments[1]) }
-                        )
-                    }
-
-                    // Bottom row - 2 images
-                    HStack(spacing: 4) {
-                        // Third image
-                        MediaView(
-                            attachment: attachments[2],
-                            showFullscreen: { onTapAttachment(attachments[2]) }
-                        )
-
-                        // Fourth image with counter if there are more
-                        if attachments.count >= 4 {
-                            ZStack {
-                                MediaView(
-                                    attachment: attachments[3],
-                                    showFullscreen: { onTapAttachment(attachments[3]) }
-                                )
-
-                                // If there are more than 4 images, show a count
-                                if attachments.count > 4 {
-                                    Rectangle()
-                                        .fill(Color.black.opacity(0.6))
-                                        .cornerRadius(12)
-
-                                    Text("+\(attachments.count - 4)")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(.white)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .frame(maxHeight: maxHeight)
-    }
-}
-
-// Post action enum for a more structured approach to action buttons
-enum PostAction: CaseIterable {
+/// Post action types
+enum PostAction {
     case reply
     case repost
     case like
     case share
+}
 
-    func iconName(for post: Post) -> String {
-        switch self {
-        case .reply:
-            return "bubble.left"
-        case .repost:
-            return post.isReposted
-                ? "arrow.triangle.2.circlepath.fill" : "arrow.triangle.2.circlepath"
-        case .like:
-            return post.isLiked ? "heart.fill" : "heart"
-        case .share:
-            return "square.and.arrow.up"
+/// A view that displays a post in the timeline
+struct PostCardView: View {
+    let post: Post
+    @State private var showDetailView = false
+    @EnvironmentObject var serviceManager: SocialServiceManager
+
+    @ViewBuilder
+    private var headerSection: some View {
+        // --- POST HEADER START ---
+        HStack {
+            AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                if let image = phase.image {
+                    image.resizable()
+                } else if phase.error != nil {
+                    Color.gray.opacity(0.3)
+                } else {
+                    Color.gray.opacity(0.1)
+                }
+            }
+            .frame(width: 48, height: 48)
+            .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                HStack {
+                    Text(post.authorName)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Circle()
+                        .fill(post.platform.color)
+                        .frame(width: 8, height: 8)
+                        .overlay(Circle().stroke(Color.white, lineWidth: 1))
+                        .shadow(color: Color.black.opacity(0.1), radius: 1)
+                }
+                HStack {
+                    Text("@\(post.authorUsername)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text(post.createdAt, style: .relative)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        // --- POST HEADER END ---
+    }
+
+    @ViewBuilder
+    private var mediaSection: some View {
+        // --- MEDIA ATTACHMENTS START ---
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
+            ForEach(post.attachments.prefix(4), id: \.id) { attachment in
+                AsyncImage(url: URL(string: attachment.url)) { phase in
+                    if let image = phase.image {
+                        image.resizable().aspectRatio(contentMode: .fill)
+                    } else {
+                        Rectangle().fill(Color.gray.opacity(0.2))
+                    }
+                }
+                .frame(maxHeight: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(contentMode: .fit)
+        .cornerRadius(8)
+        // --- MEDIA ATTACHMENTS END ---
+    }
+
+    @ViewBuilder
+    private var actionsSection: some View {
+        ActionBar(post: post, onAction: handleAction)
+    }
+
+    var body: some View {
+        cardBody
+    }
+
+    @ViewBuilder
+    private var cardBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            headerSection
+
+            // Content with link previews for timeline view
+            if !post.content.isEmpty {
+                post.contentView(showLinkPreview: true)
+            }
+
+            if !post.attachments.isEmpty {
+                mediaSection
+            }
+
+            actionsSection
+        }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(12)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .onTapGesture {
+            showDetailView = true
+        }
+        .sheet(isPresented: $showDetailView) {
+            PostDetailSheet(post: post, dismiss: { showDetailView = false })
         }
     }
 
-    func color(for post: Post) -> Color {
-        switch self {
-        case .reply:
-            return .secondary
-        case .repost:
-            return post.isReposted ? .green : .secondary
-        case .like:
-            return post.isLiked ? .red : .secondary
-        case .share:
-            return .secondary
-        }
-    }
+    private func handleAction(_ action: PostAction) {
+        Task {
+            switch action {
+            case .like:
+                do {
+                    let _ = try await serviceManager.likePost(post)
+                } catch {
+                    print("Error liking post: \(error)")
+                }
+            case .repost:
+                do {
+                    let _ = try await serviceManager.repostPost(post)
+                } catch {
+                    print("Error reposting post: \(error)")
+                }
+            case .reply:
+                // Show reply UI
+                showDetailView = true
+            case .share:
+                // Show share sheet
+                let url = URL(string: post.originalURL) ?? URL(string: "https://example.com")!
+                let activityController = UIActivityViewController(
+                    activityItems: [url], applicationActivities: nil)
 
-    func showCount(for post: Post) -> Bool {
-        switch self {
-        case .reply:
-            return false  // We don't have reply count yet
-        case .repost:
-            return true
-        case .like:
-            return true
-        case .share:
-            return false
-        }
-    }
-
-    func count(for post: Post) -> Int {
-        switch self {
-        case .reply:
-            return 0
-        case .repost:
-            return post.repostCount
-        case .like:
-            return post.likeCount
-        case .share:
-            return 0
+                // Present the activity view controller
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                    let window = windowScene.windows.first,
+                    let rootViewController = window.rootViewController
+                {
+                    rootViewController.present(activityController, animated: true, completion: nil)
+                }
+            }
         }
     }
 }
 
-// QuotePostView displays a compact embedded version of a quoted post
-struct QuotePostView: View {
+// MARK: - PostDetailSheet
+struct PostDetailSheet: View {
     let post: Post
+    let dismiss: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Author info
-            HStack {
-                // Author image
-                AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // Author info
+                    HStack(alignment: .center) {
+                        // Avatar
+                        AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                            if let image = phase.image {
+                                image.resizable()
+                            } else if phase.error != nil {
+                                Color.gray.opacity(0.3)
+                            } else {
+                                Color.gray.opacity(0.1)
+                            }
+                        }
+                        .frame(width: 56, height: 56)
+                        .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(post.authorName)
+                                .font(.headline)
+
+                            Text("@\(post.authorUsername)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+
+                        Spacer()
+
+                        // Platform indicator
+                        Circle()
+                            .fill(post.platform.color)
+                            .frame(width: 8, height: 8)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 0)
+                    }
+
+                    // Post content
+                    if !post.content.isEmpty {
+                        post.contentView(showLinkPreview: true)
+                    }
+
+                    // Media attachments
+                    if !post.attachments.isEmpty {
+                        // Simple grid layout for media
+                        mediaGrid
+                    }
+
+                    // Post metadata
+                    postMetadata
+                }
+                .padding()
+            }
+            .navigationTitle("Post")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mediaGrid: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4
+        ) {
+            ForEach(post.attachments.prefix(4), id: \.id) { attachment in
+                AsyncImage(url: URL(string: attachment.url)) { phase in
                     if let image = phase.image {
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
-                    } else if phase.error != nil {
-                        Image(systemName: "person.crop.circle.fill")
-                            .foregroundColor(.gray)
                     } else {
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.2))
                     }
                 }
-                .frame(width: 28, height: 28)
-                .clipShape(Circle())
-
-                // Author name and username
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(post.authorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .lineLimit(1)
-
-                    Text("@\(post.authorUsername)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                // Platform badge
-                PostPlatformBadge(platform: post.platform)
-            }
-
-            // Post content
-            Text(post.content)
-                .font(.caption)
-                .lineLimit(4)
-                .multilineTextAlignment(.leading)
-                .padding(.vertical, 2)
-
-            // First media attachment (if any)
-            if !post.attachments.isEmpty, let firstAttachment = post.attachments.first {
-                if firstAttachment.type == .image || firstAttachment.type == .gifv {
-                    AsyncImage(url: URL(string: firstAttachment.url)) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 100)
-                                .clipShape(RoundedRectangle(cornerRadius: 6))
-                        } else {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.gray.opacity(0.2))
-                                .frame(height: 100)
-                        }
-                    }
-                    .frame(maxWidth: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
+                .frame(maxHeight: 120)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
-        .padding(10)
-        .background(Color(UIColor.secondarySystemBackground).opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-        )
+        .frame(maxWidth: .infinity)
+        .aspectRatio(contentMode: .fit)
+        .cornerRadius(8)
+    }
+
+    @ViewBuilder
+    private var postMetadata: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Timestamp
+            Text(post.createdAt, style: .date)
+                .font(.footnote)
+                .foregroundColor(.secondary)
+
+            // Stats
+            HStack(spacing: 12) {
+                if post.repostCount > 0 {
+                    Label(
+                        "\(post.repostCount) Reposts",
+                        systemImage: "arrow.2.squarepath")
+                }
+
+                if post.likeCount > 0 {
+                    Label("\(post.likeCount) Likes", systemImage: "heart")
+                }
+            }
+            .font(.footnote)
+            .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 8)
     }
 }
 
-// View that fetches a quoted post from a URL
-struct FetchQuotePostView: View {
-    let url: URL
-    @State private var quotedPost: Post? = nil
-    @State private var isLoading = true
-    @State private var loadFailed = false
-    @EnvironmentObject var serviceManager: SocialServiceManager
-
-    var body: some View {
-        if isLoading {
-            // Loading placeholder
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.gray.opacity(0.2))
-                .frame(height: 130)
-                .overlay(
-                    ProgressView()
-                        .frame(width: 30, height: 30)
-                )
-                .onAppear {
-                    fetchQuotedPost()
-                }
-        } else if let post = quotedPost {
-            // Display the quoted post
-            Button(action: {
-                // Handle tap to open full post
-                if let url = URL(string: post.originalURL) {
-                    UIApplication.shared.open(url)
-                }
-            }) {
-                QuotePostView(post: post)
-            }
-            .buttonStyle(PlainButtonStyle())
-        } else if loadFailed {
-            // Fallback to regular link preview if fetching fails
-            LinkPreview(url: url)
-        }
-    }
-
-    private func fetchQuotedPost() {
-        // Determine platform based on URL
-        if URLServiceWrapper.shared.isBlueskyPostURL(url) {
-            // Fetch Bluesky post (would be implemented in SocialServiceManager)
-            Task {
-                do {
-                    if let postId = URLServiceWrapper.shared.extractBlueskyPostID(url),
-                        let post = try await serviceManager.fetchBlueskyPostByID(postId)
-                    {
-                        await MainActor.run {
-                            self.quotedPost = post
-                            self.isLoading = false
-                        }
-                    } else {
-                        await MainActor.run {
-                            self.loadFailed = true
-                            self.isLoading = false
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.loadFailed = true
-                        self.isLoading = false
-                    }
-                }
-            }
-        } else if URLServiceWrapper.shared.isMastodonPostURL(url) {
-            // Fetch Mastodon post (would be implemented in SocialServiceManager)
-            Task {
-                do {
-                    if let postId = URLServiceWrapper.shared.extractMastodonPostID(url),
-                        let post = try await serviceManager.fetchMastodonPostByID(postId)
-                    {
-                        await MainActor.run {
-                            self.quotedPost = post
-                            self.isLoading = false
-                        }
-                    } else {
-                        await MainActor.run {
-                            self.loadFailed = true
-                            self.isLoading = false
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        self.loadFailed = true
-                        self.isLoading = false
-                    }
-                }
-            }
-        } else {
-            // Not a recognized social post URL
-            self.loadFailed = true
-            self.isLoading = false
-        }
-    }
-}
-
-// Wrapper for URLService to access the methods needed in this file
-private struct URLServiceWrapper {
-    static let shared = URLServiceWrapper()
-
-    private init() {}
-
-    func isBlueskyPostURL(_ url: URL) -> Bool {
-        guard let host = url.host else { return false }
-
-        // Match bsky.app and bsky.social URLs
-        let isBlueskyDomain = host.contains("bsky.app") || host.contains("bsky.social")
-
-        // Check if it's a post URL pattern: /profile/{username}/post/{postId}
-        let path = url.path
-        let isPostURL = path.contains("/profile/") && path.contains("/post/")
-
-        return isBlueskyDomain && isPostURL
-    }
-
-    func isMastodonPostURL(_ url: URL) -> Bool {
-        guard let host = url.host else { return false }
-
-        // Check for common Mastodon instances or pattern
-        let isMastodonInstance =
-            host.contains("mastodon.social") || host.contains("mastodon.online")
-            || host.contains("mas.to") || host.contains("mastodon.world")
-            || host.contains(".social")
-
-        // Check if it matches Mastodon post URL pattern: /@username/postID
-        let path = url.path
-        let isPostURL = path.contains("/@") && path.split(separator: "/").count >= 3
-
-        return isMastodonInstance && isPostURL
-    }
-
-    func extractBlueskyPostID(_ url: URL) -> String? {
-        guard isBlueskyPostURL(url) else { return nil }
-
-        // Extract post ID from path components
-        let components = url.path.split(separator: "/")
-        if components.count >= 4 && components[components.count - 2] == "post" {
-            return String(components[components.count - 1])
-        }
-
-        return nil
-    }
-
-    func extractMastodonPostID(_ url: URL) -> String? {
-        guard isMastodonPostURL(url) else { return nil }
-
-        // Extract post ID from path components
-        let components = url.path.split(separator: "/")
-        if components.count >= 2 {
-            return String(components[components.count - 1])
-        }
-
-        return nil
-    }
-
-    func validateURL(_ url: URL) -> URL {
-        var fixedURL = url
-
-        // Fix URLs with missing schemes
-        if url.scheme == nil {
-            if let urlWithScheme = URL(string: "https://" + url.absoluteString) {
-                fixedURL = urlWithScheme
-            }
-        }
-
-        // Fix the "www" hostname issue
-        if url.host == "www" {
-            if let correctedURL = URL(string: "https://www." + (url.path.trimmingPrefix("/"))) {
-                return correctedURL
-            }
-        }
-
-        // Fix "www." hostname without any TLD
-        if url.host == "www." || url.absoluteString.contains("://www./") {
-            return URL(string: "https://www.example.com") ?? url
-        }
-
-        // Fix "www/" hostname issue
-        if let host = url.host, host.contains("www/") {
-            let fixedHost = host.replacingOccurrences(of: "www/", with: "www.")
-            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-            components?.host = fixedHost
-            if let fixedURL = components?.url {
-                return fixedURL
-            }
-        }
-
-        // Add fallback for invalid host patterns
-        if let scheme = url.scheme,
-            let host = url.host,
-            host.contains("/") || host.isEmpty
-        {
-            // If host contains slashes or is empty, try to reconstruct a valid URL
-            return URL(string: "\(scheme)://example.com") ?? url
-        }
-
-        return fixedURL
+// MARK: - Preview
+struct PostCardView_Previews: PreviewProvider {
+    static var previews: some View {
+        PostCardView(post: Post.samplePosts[0])
+            .environmentObject(SocialServiceManager())
+            .padding()
+            .previewLayout(.sizeThatFits)
     }
 }

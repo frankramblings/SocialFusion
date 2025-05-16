@@ -30,10 +30,8 @@ struct SocialFusionApp: App {
                 }
                 // Use NotificationCenter instead of onChange for backward compatibility
                 .onReceive(willResignActivePublisher) { _ in
-                    // App is going to background, save account data
-                    Task {
-                        await socialServiceManager.saveAllAccounts()
-                    }
+                    // App is going to background
+                    // For future implementation: save accounts state here
                 }
         }
     }

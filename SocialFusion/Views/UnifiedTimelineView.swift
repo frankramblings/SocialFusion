@@ -84,8 +84,10 @@ struct UnifiedTimelineView: View {
                                 }
                             }
                         } else {
-                            // Load sample data for testing if no accounts
-                            serviceManager.loadSamplePosts()
+                            // Load trending posts for testing if no accounts
+                            Task {
+                                await serviceManager.fetchTrendingPosts()
+                            }
                         }
                     }
             } else {
@@ -151,7 +153,7 @@ struct UnifiedTimelineView: View {
                                             .padding(.horizontal, 8)
                                     } else {
                                         // Fallback for older iOS versions
-                                        Text(post.content)
+                                        post.contentView(lineLimit: 3)
                                             .padding()
                                             .background(Color(.secondarySystemBackground))
                                             .cornerRadius(8)
@@ -227,8 +229,8 @@ struct UnifiedTimelineView: View {
                             print("Error loading timeline: \(error.localizedDescription)")
                         }
                     } else {
-                        // Only use sample posts if there are no accounts
-                        serviceManager.loadSamplePosts()
+                        // Use trending posts if there are no accounts
+                        await serviceManager.fetchTrendingPosts()
                     }
                 }
             }
@@ -252,15 +254,7 @@ struct UnifiedTimelineView: View {
             try await serviceManager.refreshTimeline(force: force)
         } catch {
             await MainActor.run {
-                if let serviceError = error as? ServiceError,
-                    case let .rateLimitError(reason, _) = serviceError
-                {
-                    // Show rate limit error
-                    errorMessage = "Rate limit hit: \(reason). Try again later."
-                } else {
-                    // Show general error
-                    errorMessage = "Error: \(error.localizedDescription)"
-                }
+                errorMessage = "Failed to refresh timeline: \(error.localizedDescription)"
                 showingErrorAlert = true
             }
         }
@@ -269,106 +263,69 @@ struct UnifiedTimelineView: View {
     private func handleServiceError(_ error: Error?) {
         guard let error = error else { return }
 
-        if let serviceError = error as? ServiceError {
-            // Handle auth errors specifically
-            if case .authenticationFailed(let message) = serviceError {
-                self.authErrorMessage = message
-                self.showingAuthError = true
+        // Process the error
+        if let socialError = error as? ServiceError {
+            switch socialError {
+            case .authenticationFailed:
+                authErrorMessage = "Authentication failed. Please check your account settings."
+                showingAuthError = true
+            case .rateLimitError:
+                authErrorMessage = "Rate limited. Please try again later."
+                showingAuthError = true
+            default:
+                errorMessage = socialError.localizedDescription
+                showingErrorAlert = true
             }
-        }
-    }
-
-    // Load timeline posts
-    private func loadPosts() async {
-        isLoadingMorePosts = true
-
-        // This would be replaced with actual API calls to Mastodon and Bluesky
-        // For now, we'll just simulate loading with some sample data
-        do {
-            try await Task.sleep(nanoseconds: 1_000_000_000)  // Simulate network delay
-
-            // Use the serviceManager to load sample posts including replies
-            serviceManager.loadSamplePosts()
-
-            // Posts are now available through serviceManager.unifiedTimeline
-            isLoadingMorePosts = false
-        } catch {
-            isLoadingMorePosts = false
-            print("Error loading posts: \(error)")
+        } else {
+            errorMessage = error.localizedDescription
+            showingErrorAlert = true
         }
     }
 }
 
-// Empty timeline view - shown when no posts are available
+// MARK: - Empty Timeline View
 struct EmptyTimelineView: View {
     let hasAccounts: Bool
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 20) {
-            // Different content based on whether user has accounts
-            if hasAccounts {
-                // User has accounts but no posts
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 70))
-                    .foregroundColor(.gray.opacity(0.3))
+            Image(systemName: "newspaper")
+                .font(.system(size: 50))
+                .foregroundColor(.gray)
 
-                Text("No Posts Yet")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+            Text(hasAccounts ? "No posts available" : "No accounts added")
+                .font(.title2)
+                .fontWeight(.semibold)
 
-                Text("Add some accounts or check back later")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-            } else {
-                // User has no accounts
-                Image(systemName: "person.crop.circle.badge.plus")
-                    .font(.system(size: 70))
-                    .foregroundColor(.gray.opacity(0.3))
+            Text(
+                hasAccounts
+                    ? "Try refreshing, or check back later for new content."
+                    : "Add a Mastodon or Bluesky account to get started."
+            )
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal)
 
-                Text("Welcome to SocialFusion")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text("Add your social accounts to get started")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-
+            if !hasAccounts {
                 NavigationLink(destination: AccountsView()) {
                     Text("Add Account")
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 10)
-                        .background(Color.blue)
-                        .cornerRadius(10)
+                        .background(Color("PrimaryColor"))
+                        .cornerRadius(8)
                 }
                 .padding(.top, 10)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemBackground))
+        .padding()
     }
 }
 
-enum BadgeSize {
-    case small
-    case regular
-}
-
-struct UnifiedTimelineView_Previews: PreviewProvider {
-    static var previews: some View {
-        UnifiedTimelineView()
-            .environmentObject(SocialServiceManager())
-    }
-}
-
-// Bottom navigation tab bar
-struct TabBarView: View {
+// MARK: - Custom Tab Bar
+struct CustomTabBar: View {
     @Binding var selectedTab: Tab
 
     enum Tab: String, CaseIterable {
@@ -421,338 +378,73 @@ struct TabBarView: View {
     }
 }
 
-// Temporary PostCardView definition to avoid import issues
-// Will be replaced by the actual view once module structure is fixed
-struct PostCardView: View {
-    let post: Post
-    @EnvironmentObject private var serviceManager: SocialServiceManager
-    @State private var replyToDisplayName: String?
-    @State private var navigateToDetail: Bool = false  // Add state for navigation
-    @State private var parentPost: Post? = nil
-    @State private var isLoadingParentPost: Bool = false
-    @State private var showParentPost: Bool = false
-    @State private var navigateToParentPost: Bool = false  // Navigation state for parent post
+// Helper for Bluesky DID-based username
+private func shortenUsername(_ username: String) -> String {
+    if username.hasPrefix("did:plc:") {
+        let shortened = String(username.prefix(16)) + "..."
+        return shortened
+    }
+    return username
+}
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Reply indicator
-            if post.isReply, let replyToUsername = post.replyToUsername {
-                // Modern reply indicator styling similar to Twitter/X/Bluesky
-                HStack {
-                    HStack(spacing: 6) {
-                        // Reply arrow icon
-                        Image(systemName: "arrowshape.turn.up.left.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(post.platform == .bluesky ? Color.blue : Color.purple)
-                            .padding(4)
-                            .background(
-                                Circle()
-                                    .fill(
-                                        (post.platform == .bluesky ? Color.blue : Color.purple)
-                                            .opacity(0.12))
-                            )
+// Cache for parent posts to avoid duplicate fetches
+class PostParentCache {
+    static let shared = PostParentCache()
+    private var cache = [String: Post]()
+    private var fetching = Set<String>()
 
-                        // Display username with proper formatting
-                        Text(
-                            "Replying to @\(replyToDisplayName ?? shortenUsername(replyToUsername))"
-                        )
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+    func getCachedPost(id: String) -> Post? {
+        return cache[id]
+    }
 
-                        Spacer()
+    func isFetching(id: String) -> Bool {
+        return fetching.contains(id)
+    }
 
-                        // Chevron indicator with rotation based on expansion state
-                        Image(systemName: showParentPost ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.gray.opacity(0.6))
-                    }
-                }
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showParentPost.toggle()
-                        if showParentPost && parentPost == nil && !isLoadingParentPost {
-                            loadParentPost(
-                                replyToUsername: replyToUsername, platform: post.platform)
-                        }
-                    }
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .background(Color(UIColor.systemGray6).opacity(0.4))
-                .cornerRadius(10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
-                .padding(.bottom, showParentPost ? 0 : 4)
-                .onAppear {
-                    // Try to load the actual username for Bluesky replies
-                    if post.platform == .bluesky,
-                        replyToUsername.hasPrefix("did:plc:"),
-                        let replyToId = post.replyToId
+    func fetchRealPost(
+        id: String, username: String, platform: SocialPlatform, serviceManager: SocialServiceManager
+    ) {
+        fetching.insert(id)
+
+        Task {
+            do {
+                var post: Post?
+
+                if platform == .mastodon {
+                    // Implementation for Mastodon parent post fetching
+                } else if platform == .bluesky {
+                    if username.hasPrefix("did:plc:"),
+                        let postId = username.split(separator: "/").last
                     {
-                        // For Bluesky, we need to look up the post to get the author
-                        Task {
-                            await lookupReplyUsername(replyToId)
-                        }
-                    } else if !replyToUsername.hasPrefix("did:plc:") {
-                        // For Mastodon or if we already have a username without DID
-                        replyToDisplayName = replyToUsername
+                        post = try? await serviceManager.fetchBlueskyPostByID(String(postId))
                     }
                 }
 
-                // Parent post preview when expanded
-                if showParentPost {
-                    if let parent = parentPost {
-                        ParentPostPreview(
-                            post: parent,
-                            onTap: {
-                                // Navigate to parent post detail view
-                                navigateToParentPost = true
-                            }
-                        )
-                        .padding(.horizontal, 12)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
-                        .background(
-                            NavigationLink(
-                                destination: PostDetailView(post: parent),
-                                isActive: $navigateToParentPost,
-                                label: { EmptyView() }
-                            )
-                        )
-                    } else if isLoadingParentPost {
-                        // Loading placeholder
-                        HStack {
-                            Spacer()
-                            ProgressView()
-                                .padding()
-                            Spacer()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
-                    } else {
-                        // Message when parent post couldn't be loaded
-                        Text("Couldn't fetch the parent post.")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .padding(.horizontal, 12)
-                            .padding(.top, 4)
-                            .padding(.bottom, 8)
+                if let post = post {
+                    await MainActor.run {
+                        cache[id] = post
+                        fetching.remove(id)
+                        NotificationCenter.default.post(name: .parentPostUpdated, object: id)
+                    }
+                } else {
+                    await MainActor.run {
+                        fetching.remove(id)
                     }
                 }
-            }
-
-            // Boost/Repost indicator
-            if post.isReposted {
-                // Use same styling as reply indicator for consistency
-                HStack {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.2.squarepath.fill")
-                            .font(.system(size: 11))
-                            .foregroundColor(post.platform == .bluesky ? Color.blue : Color.purple)
-                            .padding(4)
-                            .background(
-                                Circle()
-                                    .fill(
-                                        (post.platform == .bluesky ? Color.blue : Color.purple)
-                                            .opacity(0.12))
-                            )
-
-                        Text("\(post.authorName) boosted")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-
-                        Spacer()
-                    }
-                }
-                .padding(.vertical, 8)
-                .padding(.horizontal, 12)
-                .background(Color(UIColor.systemGray6).opacity(0.4))
-                .cornerRadius(10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 0.5)
-                )
-                .padding(.bottom, 4)
-            }
-
-            // Author info
-            HStack {
-                // Avatar
-                AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                    if let image = phase.image {
-                        image.resizable()
-                    } else {
-                        Circle().fill(Color.gray.opacity(0.3))
-                    }
-                }
-                .frame(width: 40, height: 40)
-                .clipShape(Circle())
-
-                // Author name and username
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(post.authorName)
-                        .font(.headline)
-                    Text("@\(post.authorUsername)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                // Platform indicator and time
-                HStack(spacing: 4) {
-                    Text(formattedDate(post.createdAt))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Circle()
-                        .fill(post.platform == .bluesky ? Color.blue : Color.purple)
-                        .frame(width: 8, height: 8)
-                }
-            }
-
-            // Post content
-            Text(post.content)
-                .font(.body)
-                .multilineTextAlignment(.leading)
-
-            // Interaction buttons
-            HStack(spacing: 20) {
-                Button(action: {}) {
-                    Image(systemName: "bubble.left")
-                        .foregroundColor(.secondary)
-                }
-
-                Button(action: {}) {
-                    Image(systemName: "arrow.2.squarepath")
-                        .foregroundColor(.secondary)
-                }
-
-                Button(action: {}) {
-                    Image(systemName: "heart")
-                        .foregroundColor(.secondary)
-                }
-
-                Button(action: {}) {
-                    Image(systemName: "square.and.arrow.up")
-                        .foregroundColor(.secondary)
-                }
-            }
-            .font(.system(size: 16))
-        }
-        .padding()
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            // Only navigate to post detail when tapping on the main post area
-            // (not the reply indicator or parent post preview)
-            navigateToDetail = true
-        }
-        .background(
-            // Only use the parent post if showing parent post details, otherwise use the current post
-            NavigationLink(
-                destination: PostDetailView(post: post),
-                isActive: $navigateToDetail,
-                label: { EmptyView() }
-            )
-        )
-    }
-
-    // Helper to look up a username from a reply ID
-    private func lookupReplyUsername(_ replyId: String) async {
-        // For Bluesky replies, try to fetch the original post to get the author's username
-        do {
-            if let parentPost = try await serviceManager.fetchBlueskyPostByID(replyId) {
-                // Update the display name with the actual username
+            } catch {
+                print("Error fetching parent post: \(error)")
                 await MainActor.run {
-                    replyToDisplayName = parentPost.authorUsername
+                    fetching.remove(id)
                 }
             }
-        } catch {
-            print("Error loading reply author: \(error)")
         }
-    }
-
-    // Helper function to load parent post
-    private func loadParentPost(replyToUsername: String, platform: SocialPlatform) {
-        isLoadingParentPost = true
-
-        // Cache key for looking up parent post
-        let cacheKey = "parent-\(platform.rawValue)-\(replyToUsername)"
-
-        // Check cache first
-        if let cachedPost = PostParentCache.shared.getCachedPost(id: cacheKey) {
-            parentPost = cachedPost
-            isLoadingParentPost = false
-            return
-        }
-
-        // Set up observers for parent post cache updates
-        NotificationCenter.default.addObserver(
-            forName: .parentPostUpdated,
-            object: nil,
-            queue: .main
-        ) { notification in
-            // Check if this notification is for our post
-            if let notificationId = notification.object as? String,
-                notificationId == cacheKey,
-                let updatedPost = PostParentCache.shared.getCachedPost(id: cacheKey)
-            {
-                // Update our post
-                self.parentPost = updatedPost
-                self.isLoadingParentPost = false
-            }
-        }
-
-        // Initiate fetch if not already being fetched
-        if !PostParentCache.shared.isFetching(id: cacheKey) {
-            PostParentCache.shared.fetchRealPost(
-                id: cacheKey,
-                username: replyToUsername,
-                platform: platform,
-                serviceManager: serviceManager
-            )
-        }
-
-        // Set a timeout to avoid showing loading spinner indefinitely
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-            if self.isLoadingParentPost {
-                // Check once more before giving up
-                if let cachedPost = PostParentCache.shared.getCachedPost(id: cacheKey) {
-                    self.parentPost = cachedPost
-                }
-                self.isLoadingParentPost = false
-            }
-        }
-    }
-
-    // For showing a shorter, more readable version of DIDs while loading
-    private func shortenUsername(_ username: String) -> String {
-        if username.hasPrefix("did:plc:") {
-            let parts = username.components(separatedBy: ":")
-            if parts.count >= 3 {
-                let lastPart = parts[2]
-                // Further shorten if too long
-                if lastPart.count > 12 {
-                    return String(lastPart.prefix(12)) + "..."
-                }
-                return lastPart
-            }
-        }
-        return username
-    }
-
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
+
+// Notification name for parent post updates
+extension Notification.Name {
+    static let parentPostUpdated = Notification.Name("parentPostUpdated")
+}
+
+// Parent post preview view
+// Using shared ParentPostPreview component from PostCardView.swift

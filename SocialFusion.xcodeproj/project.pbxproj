@@ -11,6 +11,16 @@
 		2EE845AC73F6E96035D64073 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28473D186DFB59778DF996BE /* Post.swift */; };
 		32234CDDD38C105F8C980909 /* PostCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BEF197BD67D84413EBCE2F /* PostCardView.swift */; };
 		4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712CCA659FBD7CD190A2972D /* KeychainHelper.swift */; };
+		50CDC8182DD7CC5500144E13 /* Post+ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */; };
+		50CDC8352DD7CDDD00144E13 /* PlatformDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */; };
+		50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82F2DD7CDDD00144E13 /* MediaGridView.swift */; };
+		50CDC8372DD7CDDD00144E13 /* LinkPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82E2DD7CDDD00144E13 /* LinkPreview.swift */; };
+		50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */; };
+		50CDC8392DD7CDDD00144E13 /* PostDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8332DD7CDDD00144E13 /* PostDetailView.swift */; };
+		50CDC83A2DD7CDDD00144E13 /* ActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */; };
+		50CDC83B2DD7CDDD00144E13 /* ParentPostPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8302DD7CDDD00144E13 /* ParentPostPreview.swift */; };
+		50CDC83C2DD7CDDD00144E13 /* FullscreenMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */; };
+		50CDC83D2DD7CDDD00144E13 /* PostAuthorImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8322DD7CDDD00144E13 /* PostAuthorImageView.swift */; };
 		5B75ACFBB0193B6FAEB26D76 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA9048F6309F63324484C491 /* Assets.xcassets */; };
 		5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */; };
 		5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */; };
@@ -33,6 +43,16 @@
 		255ADE201981E507154D54E5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		28473D186DFB59778DF996BE /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
 		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Post+ContentView.swift"; sourceTree = "<group>"; };
+		50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionBar.swift; sourceTree = "<group>"; };
+		50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchQuotePostView.swift; sourceTree = "<group>"; };
+		50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenMediaView.swift; sourceTree = "<group>"; };
+		50CDC82E2DD7CDDD00144E13 /* LinkPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreview.swift; sourceTree = "<group>"; };
+		50CDC82F2DD7CDDD00144E13 /* MediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaGridView.swift; sourceTree = "<group>"; };
+		50CDC8302DD7CDDD00144E13 /* ParentPostPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentPostPreview.swift; sourceTree = "<group>"; };
+		50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDot.swift; sourceTree = "<group>"; };
+		50CDC8322DD7CDDD00144E13 /* PostAuthorImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAuthorImageView.swift; sourceTree = "<group>"; };
+		50CDC8332DD7CDDD00144E13 /* PostDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostDetailView.swift; sourceTree = "<group>"; };
 		6B99202C32522904104EA1A6 /* SocialFusionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionApp.swift; sourceTree = "<group>"; };
 		712CCA659FBD7CD190A2972D /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialServiceManager.swift; sourceTree = "<group>"; };
@@ -57,6 +77,22 @@
 				54837CBDE79934170735E9E2 /* SocialFusion */,
 				A2991A82CF7626115148BD35 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		50CDC8342DD7CDDD00144E13 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */,
+				50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */,
+				50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */,
+				50CDC82E2DD7CDDD00144E13 /* LinkPreview.swift */,
+				50CDC82F2DD7CDDD00144E13 /* MediaGridView.swift */,
+				50CDC8302DD7CDDD00144E13 /* ParentPostPreview.swift */,
+				50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */,
+				50CDC8322DD7CDDD00144E13 /* PostAuthorImageView.swift */,
+				50CDC8332DD7CDDD00144E13 /* PostDetailView.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		54837CBDE79934170735E9E2 /* SocialFusion */ = {
@@ -85,6 +121,7 @@
 		761AB201F57C7300D7B363FD /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				50CDC8342DD7CDDD00144E13 /* Components */,
 				17A16665C419E79A3564DF6E /* AccountsView.swift */,
 				B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */,
 				12BEF197BD67D84413EBCE2F /* PostCardView.swift */,
@@ -118,6 +155,7 @@
 		EBD592315432A61E41FB3ED9 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */,
 				B838B741234EAE29B1817EBB /* BlueskyModels.swift */,
 				C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */,
 				28473D186DFB59778DF996BE /* Post.swift */,
@@ -154,7 +192,7 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1630;
 			};
-			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion - Unified Timeline Social Media Client for Mastodon and Bluesky" */;
+			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -192,8 +230,18 @@
 				DE91F47C006A959509F64E0D /* BlueskyModels.swift in Sources */,
 				CD35F1063863DA1C608F3743 /* BlueskyService.swift in Sources */,
 				8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */,
+				50CDC8182DD7CC5500144E13 /* Post+ContentView.swift in Sources */,
 				F0FEE97841E1BFE76F092DCF /* ContentView.swift in Sources */,
 				4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */,
+				50CDC8352DD7CDDD00144E13 /* PlatformDot.swift in Sources */,
+				50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */,
+				50CDC8372DD7CDDD00144E13 /* LinkPreview.swift in Sources */,
+				50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */,
+				50CDC8392DD7CDDD00144E13 /* PostDetailView.swift in Sources */,
+				50CDC83A2DD7CDDD00144E13 /* ActionBar.swift in Sources */,
+				50CDC83B2DD7CDDD00144E13 /* ParentPostPreview.swift in Sources */,
+				50CDC83C2DD7CDDD00144E13 /* FullscreenMediaView.swift in Sources */,
+				50CDC83D2DD7CDDD00144E13 /* PostAuthorImageView.swift in Sources */,
 				5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */,
 				FA9BFC76BC04492F9D12FD68 /* MastodonService.swift in Sources */,
 				2EE845AC73F6E96035D64073 /* Post.swift in Sources */,
@@ -382,7 +430,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion - Unified Timeline Social Media Client for Mastodon and Bluesky" */ = {
+		C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F2FFAB5AEE96D442BF543427 /* Debug */,

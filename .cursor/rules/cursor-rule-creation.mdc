@@ -1,0 +1,58 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Rule Creation Guide
+// Description: Provides guidance for creating new cursor rules
+// Version: 1.0.0
+
+export default {
+  name: "cursor-rule-creation",
+  description: "Provides guidance for creating new cursor rules",
+  
+  // This rule is triggered when a new .mdc file is created in the .cursor/rules directory
+  onFileCreate: async ({ file, workspace, logger }) => {
+    if (file.path.startsWith(".cursor/rules/") && file.path.endsWith(".mdc")) {
+      logger.info("New cursor rule file detected: " + file.path);
+      
+      // Check if the file already has the basic structure
+      const content = await workspace.readFile(file.path);
+      
+      if (!content.includes("export default {")) {
+        // Provide a template for the new rule
+        const template = `// Cursor Rule: [Rule Name]
+// Description: [Brief description of what this rule does]
+// Version: 1.0.0
+
+export default {
+  name: "${file.path.replace('.cursor/rules/', '').replace('.mdc', '')}",
+  description: "Description of the rule",
+  
+  // Uncomment the event handlers you need
+  
+  // onFileOpen: async ({ file, workspace, logger }) => {
+  //   // Code to run when a file is opened
+  // },
+  
+  // onFileSave: async ({ file, workspace, logger }) => {
+  //   // Code to run when a file is saved
+  // },
+  
+  // onPreBuild: async ({ workspace, logger }) => {
+  //   // Code to run before a build
+  // },
+  
+  // onPostBuild: async ({ success, workspace, logger }) => {
+  //   // Code to run after a build
+  // }
+};`;
+        
+        await workspace.writeFile(file.path, template);
+        logger.info("Added template to new rule file");
+      }
+    }
+    
+    return true;
+  }
+};

@@ -1,0 +1,41 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Build Validation
+// Description: Validates the build process and catches common errors
+// Version: 1.0.0
+
+export default {
+  name: "build-validation",
+  description: "Validates the build process and catches common errors",
+  
+  // Run before each build
+  onPreBuild: async ({ workspace, logger }) => {
+    logger.info("Running build validation...");
+    
+    // Check for common build issues
+    const issues = await workspace.findIssues({
+      severity: ["error", "warning"],
+      includePatterns: ["**/*.swift"],
+      excludePatterns: ["**/Tests/**"]
+    });
+    
+    if (issues.length > 0) {
+      logger.warn(`Found ${issues.length} potential issues that might affect the build`);
+      issues.forEach(issue => {
+        logger.info(`${issue.severity}: ${issue.message} at ${issue.file}:${issue.line}`);
+      });
+    }
+    
+    // Validate project structure
+    const projectFiles = await workspace.findFiles("*.xcodeproj/project.pbxproj");
+    if (projectFiles.length === 0) {
+      logger.error("No Xcode project file found!");
+      return false;
+    }
+    
+    return true;
+  }
+};
