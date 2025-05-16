@@ -7,9 +7,7 @@ import os.log
 // Import services
 import struct Foundation.URL
 // Import our services
-@_implementationOnly import struct Foundation.URL
 import class Foundation.URLSession
-@_implementationOnly import class Foundation.URLSession
 
 /// Errors related to token operations
 public enum TokenError: Error, LocalizedError {

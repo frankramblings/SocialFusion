@@ -126,6 +126,11 @@ public class Post: Identifiable, Codable, Equatable {
     public var likeCount: Int = 0
     public var repostCount: Int = 0
 
+    // Properties for reply and boost functionality
+    public var boostedBy: String?
+    public var parent: Post?
+    public var inReplyToID: String?
+
     // Platform-specific IDs for API operations
     public let platformSpecificId: String
 
@@ -167,6 +172,9 @@ public class Post: Identifiable, Codable, Equatable {
         case repostCount
         case likeCount
         case platformSpecificId
+        case boostedBy
+        case parent
+        case inReplyToID
     }
 
     public init(
@@ -186,7 +194,10 @@ public class Post: Identifiable, Codable, Equatable {
         isLiked: Bool = false,
         likeCount: Int = 0,
         repostCount: Int = 0,
-        platformSpecificId: String = ""
+        platformSpecificId: String = "",
+        boostedBy: String? = nil,
+        parent: Post? = nil,
+        inReplyToID: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -205,6 +216,9 @@ public class Post: Identifiable, Codable, Equatable {
         self.likeCount = likeCount
         self.repostCount = repostCount
         self.platformSpecificId = platformSpecificId
+        self.boostedBy = boostedBy
+        self.parent = parent
+        self.inReplyToID = inReplyToID
     }
 
     // Sample posts for previews and testing
@@ -329,4 +343,27 @@ public class Post: Identifiable, Codable, Equatable {
             platformSpecificId: ""
         ),
     ]
+
+    /// Create a copy of the post with a new ID
+    func copy(with newId: String) -> Post {
+        return Post(
+            id: newId,
+            content: self.content,
+            authorName: self.authorName,
+            authorUsername: self.authorUsername,
+            authorProfilePictureURL: self.authorProfilePictureURL,
+            createdAt: self.createdAt,
+            platform: self.platform,
+            originalURL: self.originalURL,
+            attachments: self.attachments,
+            mentions: self.mentions,
+            tags: self.tags,
+            originalPost: self.originalPost,
+            isReposted: self.isReposted,
+            isLiked: self.isLiked,
+            likeCount: self.likeCount,
+            repostCount: self.repostCount,
+            platformSpecificId: newId  // Update the platform-specific ID too
+        )
+    }
 }

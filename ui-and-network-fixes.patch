@@ -1,0 +1,66 @@
+*** Begin Patch
+*** Update File: SocialFusion/Networking/Bluesky/BlueskyService.swift
+@@ -1,7 +1,7 @@
+-    private let endpoint = "/xrpc/app.bsky.feed.getTimeline"
++    // 💡 Correct XRPC path per spec (drop leading slash)
++    private let endpoint = "xrpc/app.bsky.feed.getTimeline"
+*** End Patch
+*** Add File: SocialFusion/Components/BoostBanner.swift
++import SwiftUI
++
++/// “<user> boosted” pill shown above any boosted post.
++struct BoostBanner: View {
++    let handle: String
++
++    var body: some View {
++        HStack(spacing: 4) {
++            Image(systemName: "arrow.2.squarepath")
++                .font(.caption2)
++            Text("\(handle) boosted")
++        }
++        .font(.caption2)
++        .foregroundColor(.accentPurple)
++        .padding(.horizontal, 8)
++        .padding(.vertical, 4)
++        .background(Capsule().fill(Color.accentPurple.opacity(0.12)))
++        .overlay(Capsule().stroke(Color.accentPurple, lineWidth: 0.5))
++    }
++}
+*** End Patch
+*** Update File: SocialFusion/ViewModels/TimelineViewModel.swift
+@@ -45,6 +45,14 @@
+         self.posts = fetchedPosts
++
++        // Pre-load parent posts for instant expand
++        for post in self.posts {
++            if let parentID = post.inReplyToID {
++                mastodonService.fetchStatus(id: parentID) { parent in
++                    guard let parent = parent else { return }
++                    if let idx = self.posts.firstIndex(where: { $0.id == post.id }) {
++                        self.posts[idx].parent = parent
++                    }
++                }
++            }
++        }
+*** End Patch
+*** Update File: SocialFusion/Views/PostCardView.swift
+@@ -60,7 +60,7 @@
+         // boost banner
+-        if let boostedBy = post.boostedBy {
+-            BoostBanner(handle: boostedBy)
++        if let boostedBy = post.boostedBy {
++            BoostBanner(handle: boostedBy)
+         }
+
+@@ -80,7 +80,11 @@
+         // reply preview + parent post
+-        if let parent = post.parent {
+-            ReplyBanner(handle: parent.authorHandle)
++        if let parent = post.parent {
++            ReplyBanner(handle: parent.authorHandle)
++            // inline parent preview always pre-loaded
++            TimelineCard {
++                ParentPostPreview(post: parent)
++            }
+         }
+*** End Patch

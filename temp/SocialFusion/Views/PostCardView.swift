@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PostCardView: View {
     let post: Post
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header with author info and platform indicator
@@ -24,13 +24,13 @@ struct PostCardView: View {
                         .frame(width: 48, height: 48)
                         .foregroundColor(.gray)
                 }
-                
+
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         Text(post.author.displayName)
                             .font(.headline)
                             .fontWeight(.bold)
-                        
+
                         // Platform indicator
                         HStack(spacing: 4) {
                             Image(systemName: post.platform.icon)
@@ -46,25 +46,24 @@ struct PostCardView: View {
                                 .fill(Color(post.platform.color).opacity(0.1))
                         )
                     }
-                    
+
                     Text("@\(post.author.username)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
-                
+
                 Spacer()
-                
+
                 // Post time
                 Text(timeAgo(from: post.createdAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             // Post content
-            Text(post.content)
-                .font(.body)
+            post.contentView()
                 .fixedSize(horizontal: false, vertical: true)
-            
+
             // Media attachments if any
             if !post.mediaAttachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -87,7 +86,7 @@ struct PostCardView: View {
                                         .fill(Color.black.opacity(0.8))
                                         .frame(width: 200, height: 150)
                                         .cornerRadius(8)
-                                    
+
                                     Image(systemName: "play.fill")
                                         .font(.largeTitle)
                                         .foregroundColor(.white)
@@ -97,7 +96,7 @@ struct PostCardView: View {
                     }
                 }
             }
-            
+
             // Action buttons
             HStack(spacing: 24) {
                 // Reply
@@ -108,16 +107,18 @@ struct PostCardView: View {
                     }
                     .foregroundColor(.secondary)
                 }
-                
+
                 // Repost
                 Button(action: {}) {
                     HStack(spacing: 4) {
-                        Image(systemName: post.isReposted ? "arrow.2.squarepath.fill" : "arrow.2.squarepath")
+                        Image(
+                            systemName: post.isReposted
+                                ? "arrow.2.squarepath.fill" : "arrow.2.squarepath")
                         Text("\(post.repostCount)")
                     }
                     .foregroundColor(post.isReposted ? Color(post.platform.color) : .secondary)
                 }
-                
+
                 // Like
                 Button(action: {}) {
                     HStack(spacing: 4) {
@@ -126,9 +127,9 @@ struct PostCardView: View {
                     }
                     .foregroundColor(post.isLiked ? .red : .secondary)
                 }
-                
+
                 Spacer()
-                
+
                 // Share
                 Button(action: {}) {
                     Image(systemName: "square.and.arrow.up")
@@ -143,7 +144,7 @@ struct PostCardView: View {
                 .fill(Color(UIColor.secondarySystemBackground))
         )
     }
-    
+
     // Helper function to format dates as relative time
     private func timeAgo(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()

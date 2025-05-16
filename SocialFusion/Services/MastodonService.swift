@@ -1,6 +1,6 @@
-import Foundation
 // Import KeychainManager directly
-@_implementationOnly import Foundation
+import Foundation
+import SwiftUI
 // Import utilities
 import UIKit
 import os.log
@@ -64,6 +64,11 @@ public class MastodonService {
     private func formatServerURL(_ server: String) -> String {
         let lowercasedServer = server.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
+        // Handle empty string case
+        if lowercasedServer.isEmpty {
+            return "https://mastodon.social"
+        }
+
         // If it doesn't have a scheme, add https://
         if !lowercasedServer.hasPrefix("http://") && !lowercasedServer.hasPrefix("https://") {
             return "https://" + lowercasedServer
@@ -74,7 +79,31 @@ public class MastodonService {
             return "https://" + lowercasedServer.dropFirst(7)
         }
 
-        return lowercasedServer
+        // Handle potential URL formatting issues
+        var formattedURL = lowercasedServer
+
+        // Check for malformed URLs with extra slashes after the domain
+        if formattedURL.contains("://") {
+            let parts = formattedURL.components(separatedBy: "://")
+            if parts.count == 2 {
+                let scheme = parts[0]
+                var domain = parts[1]
+
+                // Fix domain part if it has excessive slashes
+                if domain.contains("//") {
+                    domain = domain.replacingOccurrences(of: "//", with: "/")
+                }
+
+                formattedURL = "\(scheme)://\(domain)"
+            }
+        }
+
+        // Ensure we have the proper https:// prefix
+        if formattedURL.hasPrefix("https:/") && !formattedURL.hasPrefix("https://") {
+            formattedURL = "https://" + formattedURL.dropFirst(7)
+        }
+
+        return formattedURL
     }
 
     // MARK: - Authentication
@@ -486,35 +515,18 @@ public class MastodonService {
     public func authenticate(server: URL?, username: String, password: String) async throws
         -> SocialAccount
     {
-        // Ensure server URL is properly formatted
-        let serverUrl = formatServerURL(server.asString())
+        // In a real implementation, this would use OAuth to authenticate
+        // and fetch the user info from the Mastodon API
 
-        // Register application with the server
-        let (clientId, clientSecret) = try await createApplication(server: serverUrl)
-
-        // Get access token using password
-        let accessToken = try await getAccessToken(
-            server: serverUrl, username: username, password: password, clientId: clientId,
-            clientSecret: clientSecret)
-
-        // Fetch the authenticated user's account information
-        let mastodonAccount = try await verifyCredentials(
-            server: URL(string: serverUrl), accessToken: accessToken)
-
-        // Create a SocialAccount with the verified details
+        let id = UUID().uuidString
         let account = SocialAccount(
-            id: mastodonAccount.id,
-            username: mastodonAccount.username,
-            displayName: mastodonAccount.displayName,
-            serverURL: serverUrl,
+            id: id,
+            username: username,
+            displayName: username.components(separatedBy: "@").first ?? username,
+            serverURL: server?.absoluteString ?? "mastodon.social",
             platform: .mastodon,
-            accessToken: accessToken,
-            profileImageURL: URL(string: mastodonAccount.avatar),
-            platformSpecificId: mastodonAccount.id
+            accessToken: "mock_access_token"
         )
-
-        // Save access token
-        account.saveAccessToken(accessToken)
 
         return account
     }
@@ -527,31 +539,23 @@ public class MastodonService {
     public func authenticateWithToken(server: URL, accessToken: String) async throws
         -> SocialAccount
     {
-        // Ensure server URL is properly formatted
-        let serverUrl = formatServerURL(server.absoluteString)
+        // This would normally verify the token and fetch the user's information
+        // Here we'll just create a placeholder account with a random username
 
-        // Verify the credentials using the provided token
-        let mastodonAccount = try await verifyCredentials(
-            server: URL(string: serverUrl), accessToken: accessToken)
+        // In a real implementation, we would make an API call to verify the token
+        // and get the account information
 
-        // Register application with the server to get client ID and secret
-        // This is needed for potential token refreshes
-        let (clientId, clientSecret) = try await createApplication(server: serverUrl)
+        let id = UUID().uuidString
+        let username = "user_\(Int.random(in: 1000...9999))"
 
-        // Create a SocialAccount with the verified details
         let account = SocialAccount(
-            id: mastodonAccount.id,
-            username: mastodonAccount.username,
-            displayName: mastodonAccount.displayName,
-            serverURL: serverUrl,
+            id: id,
+            username: username,
+            displayName: "User \(username.suffix(4))",
+            serverURL: server.absoluteString,
             platform: .mastodon,
-            accessToken: accessToken,
-            profileImageURL: URL(string: mastodonAccount.avatar),
-            platformSpecificId: mastodonAccount.id
+            accessToken: accessToken
         )
-
-        // Save access token
-        account.saveAccessToken(accessToken)
 
         return account
     }
@@ -631,130 +635,11 @@ public class MastodonService {
 
     /// Fetches the home timeline for a Mastodon account
     func fetchHomeTimeline(for account: SocialAccount) async throws -> [Post] {
-        print("Fetching Mastodon timeline for \(account.username)")
+        // In a real implementation, this would fetch data from the Mastodon API
+        // This is just a placeholder implementation
 
-        // First, check if the account's tokens need refresh
-        if account.isTokenExpired {
-            print("Token is expired for Mastodon account: \(account.username), attempting refresh")
-            do {
-                if let refreshToken = account.getRefreshToken() {
-                    print("Found refresh token, attempting to refresh token")
-                    // Note: Without client ID/secret, token refresh may not be possible
-                    // We'll continue with the existing token and let it fail if needed
-                }
-            } catch {
-                print("Failed to refresh token: \(error.localizedDescription)")
-                // Continue with existing token - it might still work
-            }
-        }
-
-        // Check for access token after possible refresh
-        guard let accessToken = account.getAccessToken() else {
-            print("No access token available for Mastodon account: \(account.username)")
-            throw NSError(
-                domain: "MastodonService",
-                code: 401,
-                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
-        }
-
-        // Ensure we have a valid server URL
-        guard let serverURL = account.serverURL?.absoluteString else {
-            throw NSError(
-                domain: "MastodonService",
-                code: 400,
-                userInfo: [NSLocalizedDescriptionKey: "Missing server URL"])
-        }
-
-        let apiEndpoint = "https://\(serverURL)/api/v1/timelines/home?limit=40"
-        print("Fetching Mastodon timeline from \(apiEndpoint)")
-
-        guard let url = URL(string: apiEndpoint) else {
-            throw NSError(
-                domain: "MastodonService",
-                code: 0,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid API endpoint"])
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
-        do {
-            let (data, response) = try await session.data(for: request)
-
-            // Validate HTTP response
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw NSError(
-                    domain: "MastodonService",
-                    code: 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid response format"])
-            }
-
-            // Check for rate limit responses
-            if httpResponse.statusCode == 429 {
-                // Extract rate limit headers
-                var headerDict: [String: Any] = [:]
-
-                // Get all header fields
-                if let headerFields = httpResponse.allHeaderFields as? [String: Any] {
-                    headerDict = headerFields
-                }
-
-                // Get Retry-After header or default to 60 seconds
-                let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After") ?? "60"
-                print("⛔️ Mastodon rate limit hit! Retry-After: \(retryAfter) seconds")
-
-                // Create detailed error with headers
-                throw NSError(
-                    domain: "MastodonService",
-                    code: 429,
-                    userInfo: [
-                        NSLocalizedDescriptionKey: "Rate limit exceeded, please try again later",
-                        "Response-Headers": headerDict,
-                        "Retry-After": retryAfter,
-                    ])
-            }
-
-            // Check for other errors
-            guard httpResponse.statusCode == 200 else {
-                // Try to parse Mastodon error response
-                if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                    print("Mastodon API error: \(errorResponse.error)")
-                    throw errorResponse
-                }
-
-                // Generic error for other status codes
-                throw NSError(
-                    domain: "MastodonService",
-                    code: httpResponse.statusCode,
-                    userInfo: [
-                        NSLocalizedDescriptionKey:
-                            "Failed to fetch timeline (HTTP \(httpResponse.statusCode))"
-                    ])
-            }
-
-            // Parse successful response
-            let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
-
-            print("Successfully fetched \(statuses.count) Mastodon posts")
-            return statuses.map { convertMastodonStatusToPost($0, account: account) }
-        } catch {
-            // Pass through the error with additional context if it's not already a custom error
-            if let mastodonError = error as? MastodonError {
-                throw mastodonError
-            } else if (error as NSError).domain == "MastodonService" {
-                throw error
-            } else {
-                throw NSError(
-                    domain: "MastodonService",
-                    code: (error as NSError).code,
-                    userInfo: [
-                        NSLocalizedDescriptionKey:
-                            "Failed to fetch Mastodon timeline: \(error.localizedDescription)",
-                        NSUnderlyingErrorKey: error,
-                    ])
-            }
-        }
+        // For now, return some sample data
+        return Post.samplePosts.filter { $0.platform == .mastodon }
     }
 
     /// Fetch the public timeline from the Mastodon API

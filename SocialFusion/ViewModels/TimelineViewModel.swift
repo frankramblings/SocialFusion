@@ -98,6 +98,24 @@ public class TimelineViewModel: ObservableObject {
                         self.state = .empty
                     } else {
                         self.state = .loaded(posts)
+
+                        // Pre-load parent posts for instant expand
+                        for post in posts {
+                            if let parentID = post.inReplyToID {
+                                socialServiceManager.mastodonService.fetchStatus(id: parentID) {
+                                    parent in
+                                    guard let parent = parent else { return }
+                                    if case .loaded(var currentPosts) = self.state {
+                                        if let idx = currentPosts.firstIndex(where: {
+                                            $0.id == post.id
+                                        }) {
+                                            currentPosts[idx].parent = parent
+                                            self.state = .loaded(currentPosts)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     self.logger.info("Timeline refreshed for \(account.username, privacy: .public)")
@@ -142,6 +160,24 @@ public class TimelineViewModel: ObservableObject {
                         self.state = .empty
                     } else {
                         self.state = .loaded(posts)
+
+                        // Pre-load parent posts for instant expand
+                        for post in posts {
+                            if let parentID = post.inReplyToID {
+                                socialServiceManager.mastodonService.fetchStatus(id: parentID) {
+                                    parent in
+                                    guard let parent = parent else { return }
+                                    if case .loaded(var currentPosts) = self.state {
+                                        if let idx = currentPosts.firstIndex(where: {
+                                            $0.id == post.id
+                                        }) {
+                                            currentPosts[idx].parent = parent
+                                            self.state = .loaded(currentPosts)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     self.logger.info("Unified timeline refreshed for \(accounts.count) accounts")
