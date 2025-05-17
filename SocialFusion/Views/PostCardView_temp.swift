@@ -1,3 +1,4 @@
+/*
 import SwiftUI
 
 struct PostCardView: View {
@@ -7,3 +8,4 @@ struct PostCardView: View {
         Text("Test")
     }
 }
+*/

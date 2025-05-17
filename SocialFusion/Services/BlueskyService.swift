@@ -115,31 +115,23 @@ class BlueskyService {
     // MARK: - Properties
     private let baseURL = "https://bsky.social/xrpc"
     private let logger = Logger(subsystem: "com.socialfusion", category: "BlueskyService")
-    private let session = URLSession.shared
+
+    // Configure a custom URLSession with more robust settings
+    private lazy var session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30.0
+        config.timeoutIntervalForResource = 60.0
+        config.waitsForConnectivity = true
+        config.httpMaximumConnectionsPerHost = 5
+        return URLSession(configuration: config)
+    }()
 
     // MARK: - Authentication
 
     /// Authenticate with Bluesky
     func authenticate(username: String, password: String) async throws -> SocialAccount {
-        // Placeholder implementation - in a real app, this would make an API call
-        // to the Bluesky server to authenticate the user and get an access token
-
-        let id = UUID().uuidString
-        let account = SocialAccount(
-            id: id,
-            username: username,
-            displayName: username,
-            serverURL: "bsky.app",
-            platform: .bluesky,
-            accessToken: "mock_access_token",
-            refreshToken: nil,
-            expirationDate: Date().addingTimeInterval(3600),  // 1 hour
-            accountDetails: [:],
-            profileImageURL: nil,
-            platformSpecificId: id
-        )
-
-        return account
+        return try await authenticate(
+            server: URL(string: "bsky.social"), username: username, password: password)
     }
 
     /// Authenticate a user and get auth tokens
@@ -346,74 +338,113 @@ class BlueskyService {
 
     /// Fetch the timeline for a Bluesky account
     func fetchTimeline(for account: SocialAccount) async throws -> [Post] {
-        // In a real implementation, this would fetch from the Bluesky API
-        // For now, return sample data
-        return Post.samplePosts
-            .filter { $0.platform == .bluesky }
+        // Call the actual API implementation instead of using sample data
+        return try await fetchHomeTimeline(for: account)
     }
 
-    /// Fetch the home timeline for a given account
-    public func getHomeTimeline(for account: SocialAccount) async throws -> [Post] {
-        logger.info("Getting home timeline for account \(account.username)")
-
-        guard let token = account.accessToken else {
-            logger.error("No access token for account \(account.username)")
-            throw BlueskyTokenError.noAccessToken
+    /// Fetch home timeline for a Bluesky account
+    public func fetchHomeTimeline(for account: SocialAccount, limit: Int = 20) async throws
+        -> [Post]
+    {
+        guard account.platform == .bluesky else {
+            throw ServiceError.invalidAccount(reason: "Account is not a Bluesky account")
         }
 
-        // Correct XRPC path per spec
-        let urlString = "\(baseURL)/app.bsky.feed.getTimeline"
-        guard let url = URL(string: urlString) else {
-            logger.error("Invalid URL: \(urlString)")
-            throw NetworkError.invalidURL
+        guard let token = account.getAccessToken() else {
+            logger.error("No access token available for Bluesky account: \(account.username)")
+            throw ServiceError.unauthorized("No access token available")
         }
 
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        logger.info("Using Bluesky server: \(serverURLString)")
+
+        // Create API endpoint URL
+        let apiURL = "https://\(serverURLString)/xrpc/app.bsky.feed.getTimeline"
+        guard let url = URL(string: apiURL) else {
+            logger.error("Invalid Bluesky API URL: \(apiURL)")
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        logger.info("Fetching Bluesky timeline from: \(apiURL)")
+
+        // Create request
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30.0  // Set a longer timeout to handle slow connections
+
+        // Add query parameters
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "limit", value: "\(limit)")
+        ]
+
+        if let finalURL = components?.url {
+            request.url = finalURL
+            logger.info("Final Bluesky API URL with params: \(finalURL.absoluteString)")
+        }
 
         do {
-            // First attempt with current token
+            // Check if token is expired and needs refresh
+            if account.isTokenExpired, let refreshToken = account.refreshToken {
+                // Try to refresh token
+                logger.info("Refreshing expired Bluesky token for: \(account.username)")
+                do {
+                    let newToken = try await refreshAccessToken(for: account)
+                    request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                    logger.info("Successfully refreshed Bluesky token")
+                } catch {
+                    logger.error("Failed to refresh Bluesky token: \(error.localizedDescription)")
+                    // Continue with existing token as fallback
+                }
+            }
+
+            // Make the API request
+            logger.info("Making Bluesky API request...")
             let (data, response) = try await session.data(for: request)
 
-            // Check if we need to refresh the token
-            if let httpResponse = response as? HTTPURLResponse,
-                httpResponse.statusCode == 401
-            {
-                logger.info("Token expired, refreshing session for \(account.username)")
-                let (newToken, _) = try await refreshSession(for: account)
+            // Check response status
+            guard let httpResponse = response as? HTTPURLResponse else {
+                logger.error("Invalid HTTP response from Bluesky API")
+                throw ServiceError.networkError(
+                    underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+            }
 
-                // Try again with the refreshed token
-                var newRequest = URLRequest(url: url)
-                newRequest.httpMethod = "GET"
-                newRequest.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+            logger.info("Bluesky API response status: \(httpResponse.statusCode)")
 
-                let (newData, newResponse) = try await session.data(for: newRequest)
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                logger.error("Authentication failed or expired for Bluesky API")
+                throw ServiceError.unauthorized("Authentication failed or expired")
+            }
 
-                // Check if the refresh helped
-                if let httpResponse = newResponse as? HTTPURLResponse,
-                    httpResponse.statusCode != 200
-                {
-                    logger.error(
-                        "Timeline request failed after token refresh: \(httpResponse.statusCode)")
-                    throw NetworkError.httpError(httpResponse.statusCode, nil)
+            if httpResponse.statusCode != 200 {
+                logger.error(
+                    "Bluesky API returned non-success status code: \(httpResponse.statusCode)")
+                // Log the response body to help diagnose issues
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    logger.error("Response body: \(responseBody)")
                 }
-
-                return try processFeedData(newData, account: account)
+                throw ServiceError.apiError(
+                    "Server returned status code \(httpResponse.statusCode)")
             }
 
-            // Process the original response if no refresh was needed
-            return try processFeedData(data, account: account)
-
+            // Process the timeline data
+            logger.info("Processing Bluesky timeline data...")
+            let posts = try processFeedData(data, account: account)
+            logger.info("Successfully processed \(posts.count) Bluesky posts")
+            return posts
         } catch {
-            if let networkError = error as? NetworkError {
-                throw networkError
-            } else if let tokenError = error as? BlueskyTokenError {
-                throw tokenError
-            } else {
-                logger.error("Timeline fetch error: \(error.localizedDescription)")
-                throw NetworkError.requestFailed(error)
+            logger.error("Error fetching Bluesky timeline: \(error.localizedDescription)")
+            if let urlError = error as? URLError {
+                logger.error(
+                    "URLError code: \(urlError.code.rawValue), description: \(urlError.localizedDescription)"
+                )
             }
+            throw ServiceError.timelineError(underlying: error)
         }
     }
 
@@ -423,6 +454,10 @@ class BlueskyService {
             // First try to decode as raw JSON to inspect the structure
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 logger.error("Failed to decode timeline response as JSON")
+                // Log the raw data for debugging
+                if let rawString = String(data: data, encoding: .utf8) {
+                    logger.debug("Raw data: \(rawString.prefix(200))...")
+                }
                 throw NetworkError.decodingError
             }
 
@@ -439,12 +474,25 @@ class BlueskyService {
                     throw NetworkError.apiError(message)
                 }
 
-                logger.error("Missing feed items in timeline response")
+                // See if there might be a different structure in the response
+                let allKeys = json.keys.joined(separator: ", ")
+                logger.error("Missing feed items in timeline response. Available keys: \(allKeys)")
+
+                // If the response is empty but valid JSON, return empty array instead of error
+                if json.isEmpty {
+                    logger.warning("Empty JSON response, returning empty post array")
+                    return []
+                }
+
                 throw NetworkError.decodingError
             }
 
+            logger.info("Found \(feed.count) items in Bluesky feed")
+
             // Process the feed items
-            return try processTimelineResponse(feed, account: account)
+            let posts = try processTimelineResponse(feed, account: account)
+            logger.info("Successfully processed \(posts.count) Bluesky posts")
+            return posts
         } catch {
             logger.error("Timeline processing error: \(error.localizedDescription)")
             if let data = String(data: data, encoding: .utf8) {
@@ -456,11 +504,106 @@ class BlueskyService {
 
     /// Fetch a specific post by ID
     func fetchPostByID(_ postId: String, account: SocialAccount) async throws -> Post? {
-        // In a real implementation, this would fetch the specific post from the API
-        // For now, return a sample post with the requested ID
+        guard account.platform == .bluesky else {
+            throw ServiceError.invalidAccount(reason: "Account is not a Bluesky account")
+        }
 
-        let samplePost = Post.samplePosts.first { $0.platform == .bluesky }
-        return samplePost?.copy(with: postId)
+        guard let token = account.getAccessToken() else {
+            logger.error("No access token available for Bluesky account: \(account.username)")
+            throw ServiceError.unauthorized("No access token available")
+        }
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        // Changed endpoint from getPost to getPostThread which is implemented
+        let apiURL = "https://\(serverURLString)/xrpc/app.bsky.feed.getPostThread"
+
+        // Create URL components to add query parameters
+        var components = URLComponents(string: apiURL)
+        components?.queryItems = [
+            URLQueryItem(name: "uri", value: postId)
+        ]
+
+        guard let url = components?.url else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL or post ID")
+        }
+
+        logger.info("Fetching Bluesky post from: \(url.absoluteString)")
+
+        // Create request
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30.0  // Set a longer timeout to handle slow connections
+
+        do {
+            // Check if token is expired and needs refresh
+            if account.isTokenExpired, let refreshToken = account.refreshToken {
+                // Try to refresh token
+                logger.info("Refreshing expired Bluesky token for fetching post")
+                do {
+                    let newToken = try await refreshAccessToken(for: account)
+                    request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+                } catch {
+                    logger.error("Failed to refresh Bluesky token: \(error.localizedDescription)")
+                    // Continue with existing token as fallback
+                }
+            }
+
+            // Make the API request
+            let (data, response) = try await session.data(for: request)
+
+            // Check response status
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ServiceError.networkError(
+                    underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+            }
+
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw ServiceError.unauthorized("Authentication failed or expired")
+            }
+
+            if httpResponse.statusCode != 200 {
+                // Log the response body to help diagnose issues
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    logger.error("Response body: \(responseBody)")
+                }
+                throw ServiceError.apiError(
+                    "Server returned status code \(httpResponse.statusCode)")
+            }
+
+            // Parse the post data
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                throw NetworkError.decodingError
+            }
+
+            // The response format from getPostThread contains a thread object with the post
+            guard let thread = json["thread"] as? [String: Any],
+                let post = thread["post"] as? [String: Any]
+            else {
+                logger.error("Missing thread or post in response")
+                return nil
+            }
+
+            // Create a wrapper we can process with our existing code
+            let feedItems = [["post": post]]
+
+            // Use our existing processing method to convert the data
+            let posts = try processTimelineResponse(feedItems, account: account)
+
+            if let post = posts.first {
+                return post
+            } else {
+                logger.warning("No post returned from processing")
+                return nil
+            }
+        } catch {
+            logger.error("Error fetching Bluesky post: \(error.localizedDescription)")
+            throw ServiceError.timelineError(underlying: error)
+        }
     }
 
     // MARK: - Private Helpers
@@ -509,6 +652,16 @@ class BlueskyService {
                 else if let metrics = post["likeCount"] as? Int {
                     likeCount = metrics
                     repostCount = post["repostCount"] as? Int ?? 0
+                }
+
+                // Check if this is a reply to another post
+                var inReplyToID: String? = nil
+                if let reply = record["reply"] as? [String: Any],
+                    let parent = reply["parent"] as? [String: Any],
+                    let parentUri = parent["uri"] as? String
+                {
+                    inReplyToID = parentUri
+                    logger.info("Found reply post with parent: \(parentUri)")
                 }
 
                 // Process media attachments - handle different API embed formats
@@ -571,6 +724,8 @@ class BlueskyService {
 
                 // Check if this is a repost
                 var originalPost: Post? = nil
+                var boostedBy: String? = nil
+
                 if let reason = item["reason"] as? [String: Any],
                     let reasonType = reason["$type"] as? String,
                     reasonType == "app.bsky.feed.defs#reasonRepost"
@@ -581,6 +736,9 @@ class BlueskyService {
                             as? String,
                         let reposterUsername = reasonBy["handle"] as? String
                     {
+                        // Set the boosted by field
+                        boostedBy = reposterName
+
                         // Create the original post
                         originalPost = Post(
                             id: uri,
@@ -617,7 +775,8 @@ class BlueskyService {
                             tags: [],
                             originalPost: originalPost,
                             isReposted: true,
-                            platformSpecificId: repostId
+                            platformSpecificId: repostId,
+                            boostedBy: reposterName
                         )
 
                         posts.append(repost)
@@ -641,7 +800,9 @@ class BlueskyService {
                     tags: tags,
                     likeCount: likeCount,
                     repostCount: repostCount,
-                    platformSpecificId: uri
+                    platformSpecificId: uri,
+                    boostedBy: boostedBy,
+                    inReplyToID: inReplyToID
                 )
 
                 posts.append(newPost)

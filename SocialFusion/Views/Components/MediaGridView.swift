@@ -2,9 +2,10 @@ import SwiftUI
 
 /// A view that displays media attachments in a grid layout
 struct MediaGridView: View {
-    let attachments: [MediaAttachment]
-    @State private var selectedMedia: MediaAttachment?
+    let attachments: [Post.Attachment]
+    @State private var selectedMedia: Post.Attachment?
     @State private var showFullscreen = false
+    var maxHeight: CGFloat? = nil
 
     var body: some View {
         GeometryReader { geometry in
@@ -75,6 +76,7 @@ struct MediaGridView: View {
                 }
             }
         }
+        .frame(maxHeight: maxHeight)
         .aspectRatio(contentMode: .fit)
         .sheet(
             isPresented: $showFullscreen,
@@ -85,12 +87,12 @@ struct MediaGridView: View {
             })
     }
 
-    private func singleAttachmentView(attachment: MediaAttachment, size: CGFloat) -> some View {
+    private func singleAttachmentView(attachment: Post.Attachment, size: CGFloat) -> some View {
         Button(action: {
             selectedMedia = attachment
             showFullscreen = true
         }) {
-            AsyncImage(url: attachment.url) { phase in
+            AsyncImage(url: URL(string: attachment.url)) { phase in
                 if let image = phase.image {
                     image
                         .resizable()
@@ -118,24 +120,24 @@ struct MediaGridView: View {
 struct MediaGridView_Previews: PreviewProvider {
     static var previews: some View {
         let sampleAttachments = [
-            MediaAttachment(
-                id: "1",
-                url: URL(string: "https://picsum.photos/400")!,
+            Post.Attachment(
+                url: "https://picsum.photos/400",
+                type: .image,
                 altText: "Sample image 1"
             ),
-            MediaAttachment(
-                id: "2",
-                url: URL(string: "https://picsum.photos/401")!,
+            Post.Attachment(
+                url: "https://picsum.photos/401",
+                type: .image,
                 altText: "Sample image 2"
             ),
-            MediaAttachment(
-                id: "3",
-                url: URL(string: "https://picsum.photos/402")!,
+            Post.Attachment(
+                url: "https://picsum.photos/402",
+                type: .image,
                 altText: "Sample image 3"
             ),
-            MediaAttachment(
-                id: "4",
-                url: URL(string: "https://picsum.photos/403")!,
+            Post.Attachment(
+                url: "https://picsum.photos/403",
+                type: .image,
                 altText: "Sample image 4"
             ),
         ]

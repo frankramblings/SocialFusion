@@ -1,6 +1,7 @@
+/*
 import SwiftUI
 
-/// “Replying to …” pill above a reply chain.
+/// "Replying to …" pill above a reply chain.
 struct ReplyBanner: View {
     let handle: String
     var body: some View {
@@ -17,3 +18,4 @@ struct ReplyBanner: View {
         .overlay(Capsule().stroke(Color.accentPurple, lineWidth: 0.5))
     }
 }
+*/

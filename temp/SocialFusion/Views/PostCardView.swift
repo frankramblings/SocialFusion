@@ -1,3 +1,4 @@
+/*
 import SwiftUI
 
 struct PostCardView: View {
@@ -163,3 +164,4 @@ struct PostCardView_Previews: PreviewProvider {
         .previewLayout(.sizeThatFits)
     }
 }
+*/

@@ -1,3 +1,4 @@
+/*
 import SwiftUI
 
 /// Post action types
@@ -102,3 +103,4 @@ struct PostCardView: View {
         }
     }
 }
+*/

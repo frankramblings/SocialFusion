@@ -150,15 +150,10 @@ struct UnifiedTimelineView: View {
                                     if #available(iOS 16.0, *) {
                                         PostCardView(post: post)
                                             .padding(.vertical, 4)
-                                            .padding(.horizontal, 8)
                                     } else {
                                         // Fallback for older iOS versions
-                                        post.contentView(lineLimit: 3)
-                                            .padding()
-                                            .background(Color(.secondarySystemBackground))
-                                            .cornerRadius(8)
+                                        PostCardView(post: post)
                                             .padding(.vertical, 4)
-                                            .padding(.horizontal, 8)
                                     }
                                 }
                             }
@@ -328,6 +323,9 @@ struct EmptyTimelineView: View {
 struct CustomTabBar: View {
     @Binding var selectedTab: Tab
 
+    // Purple accent color from the screenshot
+    private let accentPurple = Color(red: 102 / 255, green: 51 / 255, blue: 204 / 255)
+
     enum Tab: String, CaseIterable {
         case home = "Home"
         case notifications = "Notifications"
@@ -339,7 +337,7 @@ struct CustomTabBar: View {
             case .home: return "house.fill"
             case .notifications: return "bell.fill"
             case .search: return "magnifyingglass"
-            case .profile: return "person.crop.circle"
+            case .profile: return "person.circle.fill"
             }
         }
     }
@@ -356,11 +354,11 @@ struct CustomTabBar: View {
                     VStack(spacing: 4) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 20))
-                            .foregroundColor(selectedTab == tab ? Color("PrimaryColor") : .gray)
+                            .foregroundColor(selectedTab == tab ? accentPurple : .gray)
 
                         Text(tab.rawValue)
-                            .font(.caption2)
-                            .foregroundColor(selectedTab == tab ? Color("PrimaryColor") : .gray)
+                            .font(.system(size: 12))
+                            .foregroundColor(selectedTab == tab ? accentPurple : .gray)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -369,11 +367,11 @@ struct CustomTabBar: View {
             }
         }
         .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.bottom, 16)  // Add extra padding for bottom safe area
         .background(
             Rectangle()
-                .fill(Color(UIColor.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: -2)
+                .fill(Color(UIColor.systemBackground).opacity(0.95))
+                .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: -1)
         )
     }
 }
@@ -416,7 +414,7 @@ class PostParentCache {
                     if username.hasPrefix("did:plc:"),
                         let postId = username.split(separator: "/").last
                     {
-                        post = try? await serviceManager.fetchBlueskyPostByID(String(postId))
+                        post = try await serviceManager.fetchBlueskyPostByID(String(postId))
                     }
                 }
 

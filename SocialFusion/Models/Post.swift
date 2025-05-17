@@ -131,6 +131,11 @@ public class Post: Identifiable, Codable, Equatable {
     public var parent: Post?
     public var inReplyToID: String?
 
+    // Computed properties for convenience
+    public var authorHandle: String {
+        return authorUsername
+    }
+
     // Platform-specific IDs for API operations
     public let platformSpecificId: String
 

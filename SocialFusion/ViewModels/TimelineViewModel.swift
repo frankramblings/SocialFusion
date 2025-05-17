@@ -121,10 +121,10 @@ public class TimelineViewModel: ObservableObject {
                     self.logger.info("Timeline refreshed for \(account.username, privacy: .public)")
                 }
             } catch {
-                // Handle specific error types
+                // Update UI on main thread
                 await MainActor.run {
                     self.isRefreshing = false
-                    self.handleError(error)
+                    self.state = .error(error)
                 }
             }
         }
@@ -183,10 +183,10 @@ public class TimelineViewModel: ObservableObject {
                     self.logger.info("Unified timeline refreshed for \(accounts.count) accounts")
                 }
             } catch {
-                // Handle specific error types
+                // Update UI on main thread
                 await MainActor.run {
                     self.isRefreshing = false
-                    self.handleError(error)
+                    self.state = .error(error)
                 }
             }
         }
@@ -213,23 +213,30 @@ public class TimelineViewModel: ObservableObject {
             guard let self = self else { return }
             do {
                 try await socialServiceManager.repostPost(post)
-                self.logger.info("Post reposted: \(post.id, privacy: .public)")
+                await MainActor.run {
+                    self.logger.info("Post reposted: \(post.id, privacy: .public)")
+                }
             } catch {
-                self.logger.error(
-                    "Failed to repost: \(error.localizedDescription, privacy: .public)")
-                // Handle error appropriately
+                await MainActor.run {
+                    self.logger.error(
+                        "Failed to repost: \(error.localizedDescription, privacy: .public)")
+                    // Handle error appropriately
+                }
             }
         }
     }
 
     /// Cancel any ongoing refresh operations
     public func cancelRefresh() {
-        refreshTask?.cancel()
-        refreshTask = nil
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            refreshTask?.cancel()
+            refreshTask = nil
 
-        // Update state
-        if isRefreshing {
-            isRefreshing = false
+            // Update state
+            if isRefreshing {
+                isRefreshing = false
+            }
         }
     }
 
@@ -238,6 +245,7 @@ public class TimelineViewModel: ObservableObject {
     private func setupObservers() {
         // Listen for account changes or other relevant notifications
         NotificationCenter.default.publisher(for: .accountProfileImageUpdated)
+            .receive(on: RunLoop.main)  // Ensure on main thread
             .sink { [weak self] _ in
                 // Refresh posts if needed when account profile images update
                 if case .loaded(let posts) = self?.state, !posts.isEmpty {

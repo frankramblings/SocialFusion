@@ -47,18 +47,10 @@ struct PostDetailView: View {
 
                 // Media attachments
                 if !post.attachments.isEmpty {
-                    MediaGridView(
-                        attachments: post.attachments.map {
-                            MediaAttachment(
-                                id: $0.id,
-                                url: URL(string: $0.url) ?? URL(string: "https://example.com")!,
-                                altText: $0.altText
-                            )
-                        }
-                    )
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(contentMode: .fit)
-                    .cornerRadius(8)
+                    MediaGridView(attachments: post.attachments)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(contentMode: .fit)
+                        .cornerRadius(8)
                 }
 
                 // Post metadata

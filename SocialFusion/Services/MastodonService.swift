@@ -446,7 +446,10 @@ public class MastodonService {
             print("Found Mastodon avatar URL: \(avatarURL)")
 
             // Ensure UI updates happen on the main thread
+            // Store a copy of the required values to avoid Sendable issues
+            let accountId = verifiedAccount.id
             DispatchQueue.main.async {
+                // Use a captured local copy of verifiedAccount to avoid Sendable warning
                 verifiedAccount.profileImageURL = avatarURL
                 print("Updated Mastodon account with new profile image URL")
 
@@ -454,7 +457,7 @@ public class MastodonService {
                 NotificationCenter.default.post(
                     name: .profileImageUpdated,
                     object: nil,
-                    userInfo: ["accountId": verifiedAccount.id, "profileImageURL": avatarURL]
+                    userInfo: ["accountId": accountId, "profileImageURL": avatarURL]
                 )
             }
         }
@@ -539,25 +542,40 @@ public class MastodonService {
     public func authenticateWithToken(server: URL, accessToken: String) async throws
         -> SocialAccount
     {
-        // This would normally verify the token and fetch the user's information
-        // Here we'll just create a placeholder account with a random username
+        // Format the server URL properly
+        let serverUrlStr = server.absoluteString
+        let formattedServerURL =
+            serverUrlStr.contains("://") ? serverUrlStr : "https://" + serverUrlStr
 
-        // In a real implementation, we would make an API call to verify the token
-        // and get the account information
-
-        let id = UUID().uuidString
-        let username = "user_\(Int.random(in: 1000...9999))"
-
-        let account = SocialAccount(
-            id: id,
-            username: username,
-            displayName: "User \(username.suffix(4))",
-            serverURL: server.absoluteString,
-            platform: .mastodon,
+        // Verify the account's credentials with the Mastodon API
+        print("Verifying Mastodon credentials with server: \(formattedServerURL)")
+        let mastodonAccount = try await verifyCredentials(
+            server: URL(string: formattedServerURL),
             accessToken: accessToken
         )
 
-        return account
+        // Create a SocialAccount with the verified details
+        let verifiedAccount = SocialAccount(
+            id: mastodonAccount.id,
+            username: mastodonAccount.username,
+            displayName: mastodonAccount.displayName,
+            serverURL: formattedServerURL,
+            platform: .mastodon,
+            accessToken: accessToken,
+            profileImageURL: URL(string: mastodonAccount.avatar),
+            platformSpecificId: mastodonAccount.id
+        )
+
+        // Save the access token securely
+        verifiedAccount.saveAccessToken(accessToken)
+
+        // Set a default expiration time (24 hours) if none provided
+        if verifiedAccount.tokenExpirationDate == nil {
+            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(24 * 60 * 60))
+        }
+
+        print("Successfully verified Mastodon account: \(mastodonAccount.username)")
+        return verifiedAccount
     }
 
     /// Verifies credentials and creates a social account with the provided access token
@@ -633,13 +651,60 @@ public class MastodonService {
 
     // MARK: - Timeline
 
-    /// Fetches the home timeline for a Mastodon account
-    func fetchHomeTimeline(for account: SocialAccount) async throws -> [Post] {
-        // In a real implementation, this would fetch data from the Mastodon API
-        // This is just a placeholder implementation
+    /// Fetch home timeline for a Mastodon account
+    public func fetchHomeTimeline(for account: SocialAccount, limit: Int = 20) async throws
+        -> [Post]
+    {
+        guard account.platform == .mastodon else {
+            throw ServiceError.invalidAccount(reason: "Account is not a Mastodon account")
+        }
 
-        // For now, return some sample data
-        return Post.samplePosts.filter { $0.platform == .mastodon }
+        guard let token = account.getAccessToken(), let serverURL = account.serverURL else {
+            throw ServiceError.unauthorized("No access token or server URL available")
+        }
+
+        // Format server URL and create endpoint URL
+        let serverUrlString = serverURL.absoluteString
+        let formattedURL =
+            serverUrlString.contains("://") ? serverUrlString : "https://" + serverUrlString
+
+        guard let url = URL(string: "\(formattedURL)/api/v1/timelines/home?limit=\(limit)") else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        // Create authenticated request
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            // Make the API request
+            let (data, response) = try await session.data(for: request)
+
+            // Check response status
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ServiceError.networkError(
+                    underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+            }
+
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw ServiceError.unauthorized("Authentication failed or expired")
+            }
+
+            if httpResponse.statusCode != 200 {
+                throw ServiceError.apiError(
+                    "Server returned status code \(httpResponse.statusCode)")
+            }
+
+            // Decode the response
+            let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
+
+            // Convert to post models
+            return statuses.map { convertMastodonStatusToPost($0, account: account) }
+        } catch {
+            print("Error fetching Mastodon timeline: \(error.localizedDescription)")
+            throw ServiceError.timelineError(underlying: error)
+        }
     }
 
     /// Fetch the public timeline from the Mastodon API
@@ -652,7 +717,7 @@ public class MastodonService {
         }
 
         // Check if token needs refresh
-        if account.isTokenExpired, let refreshTokenStr = account.getRefreshToken() {
+        if account.isTokenExpired, account.getRefreshToken() != nil {
             print("Token refresh is needed but client credentials are not available")
             // Without client credentials, refresh isn't possible
             // Continue with existing token
@@ -763,7 +828,7 @@ public class MastodonService {
         }
 
         // Check if token needs refresh
-        if account.isTokenExpired, let refreshTokenStr = account.getRefreshToken() {
+        if account.isTokenExpired, account.getRefreshToken() != nil {
             print("Token refresh is needed but client credentials are not available")
             // Without client credentials, refresh isn't possible
             // Continue with existing token
@@ -1262,7 +1327,9 @@ public class MastodonService {
                 print("Found Mastodon avatar URL: \(avatarURL)")
 
                 // Ensure UI updates happen on the main thread
-                DispatchQueue.main.async {
+                // Make local copies of values to avoid Sendable issues
+                let accountId = account.id
+                DispatchQueue.main.async { [avatarURL] in
                     account.profileImageURL = avatarURL
                     print("Updated Mastodon account with new profile image URL")
 
@@ -1270,7 +1337,7 @@ public class MastodonService {
                     NotificationCenter.default.post(
                         name: .profileImageUpdated,
                         object: nil,
-                        userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
+                        userInfo: ["accountId": accountId, "profileImageURL": avatarURL]
                     )
                 }
             }
@@ -1384,6 +1451,95 @@ public class MastodonService {
         }
 
         throw TokenError.noAccessToken
+    }
+
+    // MARK: - Status methods
+
+    /// Fetches a status by its ID
+    /// - Parameter id: The ID of the status to fetch
+    /// - Parameter account: The account to use for authentication
+    /// - Returns: The post if found, nil otherwise
+    func fetchStatus(id: String, account: SocialAccount) async throws -> Post? {
+        guard let serverURLString = account.serverURL else {
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "No server URL"])
+        }
+
+        // Ensure server has the scheme
+        let serverUrl = formatServerURL(serverURLString.absoluteString)
+
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(id)") else {
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or status ID"])
+        }
+
+        logger.info("Fetching Mastodon status \(id) from \(serverUrl)")
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200
+            else {
+                if let errorMessage = String(data: data, encoding: .utf8) {
+                    logger.error("Error response: \(errorMessage)")
+                }
+                throw NSError(
+                    domain: "MastodonService",
+                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status"])
+            }
+
+            // Decode the status
+            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+
+            // Convert to our Post model using the existing convertMastodonStatusToPost method
+            return convertMastodonStatusToPost(status, account: account)
+        } catch {
+            logger.error("Error fetching status: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// For compatibility with existing code - fetches a status by its ID using a callback
+    /// - Parameters:
+    ///   - id: The ID of the status to fetch
+    ///   - completion: Completion handler called with the result
+    func fetchStatus(id: String, completion: @escaping (Post?) -> Void) {
+        // Find an account to use
+        guard let account = findValidAccount() else {
+            logger.error("No valid account found for fetching status")
+            completion(nil)
+            return
+        }
+
+        Task {
+            do {
+                let post = try await fetchStatus(id: id, account: account)
+                // Copy the post to a local variable to avoid Sendable capture issues
+                let finalPost = post
+                DispatchQueue.main.async {
+                    completion(finalPost)
+                }
+            } catch {
+                logger.error("Error fetching status: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+            }
+        }
+    }
+
+    /// Find a valid account to use for API requests
+    private func findValidAccount() -> SocialAccount? {
+        // This method should look for a valid account in your account storage
+        // For now, we'll use this placeholder
+        let accounts = SocialServiceManager.shared.mastodonAccounts
+        return accounts.first
     }
 }
 

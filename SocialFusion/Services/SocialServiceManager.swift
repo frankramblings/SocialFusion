@@ -114,17 +114,72 @@ final class SocialServiceManager: ObservableObject {
     public init() {
         // Load saved accounts
         loadAccounts()
+
+        // Register for app termination notification to save accounts
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(saveAccountsBeforeTermination),
+            name: UIApplication.willTerminateNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func saveAccountsBeforeTermination() {
+        saveAccounts()
     }
 
     // MARK: - Account Management
 
     /// Load saved accounts from UserDefaults
     private func loadAccounts() {
-        // Implementation would load accounts from UserDefaults or Keychain
-        // This is a simplified version
+        let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
+        logger.info("Loading saved accounts")
+
+        guard let data = UserDefaults.standard.data(forKey: "savedAccounts") else {
+            logger.info("No saved accounts found")
+            updateAccountLists()
+            return
+        }
+
+        do {
+            let decoder = JSONDecoder()
+            let decodedAccounts = try decoder.decode([SocialAccount].self, from: data)
+            accounts = decodedAccounts
+
+            logger.info("Successfully loaded \(decodedAccounts.count) accounts")
+
+            // Load tokens for each account from keychain
+            for account in accounts {
+                account.loadTokensFromKeychain()
+                logger.debug("Loaded tokens for account: \(account.username, privacy: .public)")
+            }
+        } catch {
+            logger.error(
+                "Failed to decode saved accounts: \(error.localizedDescription, privacy: .public)")
+        }
 
         // After loading accounts, separate them by platform
         updateAccountLists()
+    }
+
+    /// Save accounts to UserDefaults
+    public func saveAccounts() {
+        let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
+        logger.info("Saving \(self.accounts.count) accounts")
+
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(self.accounts)
+            UserDefaults.standard.set(data, forKey: "savedAccounts")
+            logger.info("Successfully saved accounts")
+        } catch {
+            logger.error(
+                "Failed to encode accounts: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Update the platform-specific account lists
@@ -137,7 +192,8 @@ final class SocialServiceManager: ObservableObject {
     /// Add a new account
     func addAccount(_ account: SocialAccount) {
         accounts.append(account)
-        // Would normally save to UserDefaults or Keychain
+        // Save to UserDefaults
+        saveAccounts()
 
         // Update platform-specific lists
         updateAccountLists()
@@ -273,10 +329,40 @@ final class SocialServiceManager: ObservableObject {
             } else {
                 // Fetch from each account
                 for account in accounts {
-                    try await Task.sleep(nanoseconds: 100_000_000)  // Small delay between requests
-                    let accountPosts = try await fetchPosts(for: account)
-                    posts.append(contentsOf: accountPosts)
+                    do {
+                        try await Task.sleep(nanoseconds: 100_000_000)  // Small delay between requests
+                        print("Fetching posts for \(account.platform) account: \(account.username)")
+                        let accountPosts = try await fetchPosts(for: account)
+                        print(
+                            "Successfully fetched \(accountPosts.count) posts for \(account.username)"
+                        )
+                        posts.append(contentsOf: accountPosts)
+                    } catch {
+                        // Log the error but continue with other accounts
+                        print(
+                            "Error fetching posts for \(account.platform) account \(account.username): \(error.localizedDescription)"
+                        )
+                        if let serviceError = error as? ServiceError {
+                            print(
+                                "Service error details: \(serviceError.errorDescription ?? "Unknown")"
+                            )
+                        }
+                        self.error = error
+                    }
                 }
+
+                // If we couldn't get any posts from real accounts, and we have an error, throw it
+                if posts.isEmpty && error != nil {
+                    throw error!
+                }
+
+                // If we still don't have any posts but no error occurred, use sample posts
+                if posts.isEmpty {
+                    posts = Post.samplePosts
+                }
+
+                // Fetch parent posts for replies
+                await fetchParentPosts(for: &posts)
             }
 
             // Sort by date (newest first)
@@ -286,7 +372,73 @@ final class SocialServiceManager: ObservableObject {
             self.unifiedTimeline = posts
         } catch {
             self.error = error
+            print("Timeline refresh failed with error: \(error.localizedDescription)")
             throw error
+        }
+    }
+
+    /// Fetch parent posts for replies
+    private func fetchParentPosts(for posts: inout [Post]) async {
+        let replyPosts = posts.filter { $0.inReplyToID != nil && $0.parent == nil }
+
+        if replyPosts.isEmpty {
+            return
+        }
+
+        print("Fetching \(replyPosts.count) parent posts for replies")
+
+        // Instead of updating the posts array directly in async context, collect all the updates
+        // and then create a completely new array with the updates applied
+        var parentPosts: [String: Post] = [:]  // Dictionary to hold parent posts with inReplyToID as key
+
+        // Fetch all parent posts
+        for post in replyPosts {
+            if let inReplyToID = post.inReplyToID {
+                do {
+                    var parentPost: Post?
+
+                    // Determine which service to use based on platform
+                    switch post.platform {
+                    case .mastodon:
+                        if let account = self.mastodonAccounts.first {
+                            // Use the Mastodon service to fetch the parent post
+                            parentPost = try? await self.mastodonService.fetchStatus(
+                                id: inReplyToID, account: account)
+                        }
+                    case .bluesky:
+                        if let account = self.blueskyAccounts.first {
+                            // Use the Bluesky service to fetch the parent post
+                            parentPost = try? await self.blueskyService.fetchPostByID(
+                                inReplyToID, account: account)
+                        }
+                    }
+
+                    if let parentPost = parentPost {
+                        // Store the parent post in our dictionary
+                        parentPosts[inReplyToID] = parentPost
+                        print("Fetched parent post for reply to \(inReplyToID)")
+                    }
+                }
+                // No catch block needed since we're using try? which doesn't throw
+
+                // Small delay to avoid rate limits
+                try? await Task.sleep(nanoseconds: 100_000_000)
+            }
+        }
+
+        // Apply updates only if we found any parent posts
+        if !parentPosts.isEmpty {
+            print("Applying \(parentPosts.count) parent post updates")
+
+            // Create a new array with updates applied
+            posts = posts.map { post in
+                // If this post has a parent that we found, update it
+                let updatedPost = post
+                if let inReplyToID = post.inReplyToID, let parentPost = parentPosts[inReplyToID] {
+                    updatedPost.parent = parentPost
+                }
+                return updatedPost
+            }
         }
     }
 

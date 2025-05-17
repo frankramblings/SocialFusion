@@ -1,3 +1,4 @@
+// Forward imports
 import SwiftUI
 
 /// Post action types
@@ -8,281 +9,544 @@ enum PostAction {
     case share
 }
 
-/// A view that displays a post in the timeline
-struct PostCardView: View {
-    let post: Post
-    @State private var showDetailView = false
-    @EnvironmentObject var serviceManager: SocialServiceManager
-
-    @ViewBuilder
-    private var headerSection: some View {
-        // --- POST HEADER START ---
-        HStack {
-            AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                if let image = phase.image {
-                    image.resizable()
-                } else if phase.error != nil {
-                    Color.gray.opacity(0.3)
-                } else {
-                    Color.gray.opacity(0.1)
-                }
-            }
-            .frame(width: 48, height: 48)
-            .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(post.authorName)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Spacer()
-                    Circle()
-                        .fill(post.platform.color)
-                        .frame(width: 8, height: 8)
-                        .overlay(Circle().stroke(Color.white, lineWidth: 1))
-                        .shadow(color: Color.black.opacity(0.1), radius: 1)
-                }
-                HStack {
-                    Text("@\(post.authorUsername)")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(post.createdAt, style: .relative)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        // --- POST HEADER END ---
+// Using Color extensions from Color+Theme.swift
+@available(iOS 16.0, *)
+extension Color {
+    static var cardBackground: Color {
+        Color("CardBackground")
     }
 
-    @ViewBuilder
-    private var mediaSection: some View {
-        // --- MEDIA ATTACHMENTS START ---
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4) {
-            ForEach(post.attachments.prefix(4), id: \.id) { attachment in
-                AsyncImage(url: URL(string: attachment.url)) { phase in
-                    if let image = phase.image {
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        Rectangle().fill(Color.gray.opacity(0.2))
-                    }
-                }
-                .frame(maxHeight: 120)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(contentMode: .fit)
-        .cornerRadius(8)
-        // --- MEDIA ATTACHMENTS END ---
+    static var subtleBorder: Color {
+        Color.gray.opacity(0.2)
     }
 
-    @ViewBuilder
-    private var actionsSection: some View {
-        ActionBar(post: post, onAction: handleAction)
+    static var elementBackground: Color {
+        Color.white.opacity(0.07)
     }
 
-    var body: some View {
-        cardBody
+    static var elementBorder: Color {
+        Color.white.opacity(0.15)
     }
 
-    @ViewBuilder
-    private var cardBody: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            headerSection
-
-            // Content with link previews for timeline view
-            if !post.content.isEmpty {
-                post.contentView(showLinkPreview: true)
-            }
-
-            if !post.attachments.isEmpty {
-                mediaSection
-            }
-
-            actionsSection
-        }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
-        .onTapGesture {
-            showDetailView = true
-        }
-        .sheet(isPresented: $showDetailView) {
-            PostDetailSheet(post: post, dismiss: { showDetailView = false })
-        }
+    static var elementShadow: Color {
+        Color.white.opacity(0.05)
     }
 
-    private func handleAction(_ action: PostAction) {
-        Task {
-            switch action {
-            case .like:
-                do {
-                    let _ = try await serviceManager.likePost(post)
-                } catch {
-                    print("Error liking post: \(error)")
-                }
-            case .repost:
-                do {
-                    let _ = try await serviceManager.repostPost(post)
-                } catch {
-                    print("Error reposting post: \(error)")
-                }
-            case .reply:
-                // Show reply UI
-                showDetailView = true
-            case .share:
-                // Show share sheet
-                let url = URL(string: post.originalURL) ?? URL(string: "https://example.com")!
-                let activityController = UIActivityViewController(
-                    activityItems: [url], applicationActivities: nil)
+    static func adaptiveElementBackground(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.03)
+    }
 
-                // Present the activity view controller
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                    let window = windowScene.windows.first,
-                    let rootViewController = window.rootViewController
-                {
-                    rootViewController.present(activityController, animated: true, completion: nil)
-                }
-            }
-        }
+    static func adaptiveElementBorder(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.08)
     }
 }
 
-// MARK: - PostDetailSheet
-struct PostDetailSheet: View {
+/// Rounded card with border/shadow for timeline posts.
+struct TimelineCard<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        content
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.cardBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.subtleBorder, lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+    }
+}
+
+/// A view that displays a post in the timeline exactly matching the reference design
+struct PostCardView: View {
     let post: Post
-    let dismiss: () -> Void
+    @State private var showDetailView = false
+    @State private var showParentPost = false
+    @State private var parentPost: Post? = nil
+    @State private var isParentExpanded = false
+    @State private var isLoadingParent = false
+    @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Bluesky blue color
+    private let blueskyBlue = Color(red: 0, green: 122 / 255, blue: 255 / 255)
+
+    // Animation duration for sliding the parent post
+    private let animationDuration: Double = 0.35
+
+    // Determine which post to show (original or boosted)
+    private var displayPost: Post {
+        // If this is a boosted post with an original post, use that
+        if let originalPost = post.originalPost {
+            return originalPost
+        }
+        return post
+    }
+
+    // Determine which parent post to use (from post.parent or our local state)
+    private var effectiveParentPost: Post? {
+        return displayPost.parent ?? parentPost
+    }
 
     var body: some View {
-        NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    // Author info
-                    HStack(alignment: .center) {
-                        // Avatar
-                        AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                            if let image = phase.image {
-                                image.resizable()
-                            } else if phase.error != nil {
-                                Color.gray.opacity(0.3)
-                            } else {
-                                Color.gray.opacity(0.1)
+        TimelineCard {
+            VStack(alignment: .leading, spacing: 0) {
+                // Boost/Repost banner if applicable
+                if post.boostedBy != nil {
+                    BoostBannerView(handle: post.boostedBy ?? "", platform: post.platform)
+                        .padding(.bottom, 4)
+                }
+
+                // Reply section with expandable parent
+                if displayPost.inReplyToID != nil {
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Reply banner
+                        replyBannerView
+
+                        // Add spacing between reply banner and parent post
+                        if isParentExpanded {
+                            Spacer()
+                                .frame(height: 6)
+                        }
+
+                        // Parent post content (slides up from behind the main post)
+                        if let parent = effectiveParentPost {
+                            ParentPostContainer(
+                                parent: parent,
+                                isExpanded: isParentExpanded,
+                                onTap: { showParentPost = true }
+                            )
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                        } else if isLoadingParent {
+                            // Loading state for parent post
+                            if isParentExpanded {
+                                LoadingParentView()
+                                    .transition(.move(edge: .top).combined(with: .opacity))
                             }
                         }
-                        .frame(width: 56, height: 56)
-                        .clipShape(Circle())
+                    }
+                    .padding(.bottom, isParentExpanded ? 12 : 8)
+                    .clipped()
+                }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(post.authorName)
-                                .font(.headline)
+                // Main post content with visual distinction
+                VStack(alignment: .leading, spacing: 10) {
+                    // Post header with author info
+                    HStack(alignment: .center) {
+                        // Profile image with platform indicator
+                        PostAuthorImageView(
+                            authorProfilePictureURL: displayPost.authorProfilePictureURL,
+                            platform: displayPost.platform,
+                            size: 44
+                        )
 
-                            Text("@\(post.authorUsername)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                        VStack(alignment: .leading, spacing: 2) {
+                            // Author name
+                            Text(displayPost.authorName)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.primary)
+
+                            // Username
+                            HStack(spacing: 4) {
+                                Text("@\(displayPost.authorUsername)")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+
+                                if displayPost.platform == .bluesky {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 6))
+                                        .foregroundColor(blueskyBlue)
+                                }
+                            }
                         }
 
                         Spacer()
 
-                        // Platform indicator
-                        Circle()
-                            .fill(post.platform.color)
-                            .frame(width: 8, height: 8)
-                            .overlay(
-                                Circle()
-                                    .stroke(Color.white, lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.1), radius: 1, x: 0, y: 0)
+                        // Timestamp with chevron
+                        HStack(spacing: 2) {
+                            Text(displayPost.createdAt, style: .relative)
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary)
+
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12))
+                                .foregroundColor(.secondary)
+                        }
                     }
 
                     // Post content
-                    if !post.content.isEmpty {
-                        post.contentView(showLinkPreview: true)
+                    if !displayPost.content.isEmpty {
+                        Text(displayPost.content)
+                            .font(.system(size: 16))
+                            .foregroundColor(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 2)
                     }
 
-                    // Media attachments
-                    if !post.attachments.isEmpty {
-                        // Simple grid layout for media
-                        mediaGrid
+                    // Media attachments if any
+                    if !displayPost.attachments.isEmpty {
+                        mediaSection(for: displayPost)
+                            .padding(.top, 8)
                     }
 
-                    // Post metadata
-                    postMetadata
+                    // Action bar
+                    ActionBar(
+                        isLiked: displayPost.isLiked,
+                        isReposted: displayPost.isReposted,
+                        likeCount: displayPost.likeCount,
+                        repostCount: displayPost.repostCount,
+                        replyCount: 0,
+                        onAction: handleAction
+                    )
                 }
-                .padding()
+                // Add padding when parent is expanded but no visual box
+                .padding(.top, isParentExpanded ? 8 : 0)
             }
-            .navigationTitle("Post")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") {
-                        dismiss()
+        }
+        .onTapGesture {
+            showDetailView = true
+        }
+        .sheet(isPresented: $showDetailView) {
+            NavigationView {
+                PostDetailView(post: displayPost)
+            }
+        }
+        .sheet(isPresented: $showParentPost) {
+            if let parent = effectiveParentPost {
+                NavigationView {
+                    PostDetailView(post: parent)
+                }
+            }
+        }
+    }
+
+    // Reply banner at the top of reply posts
+    private var replyBannerView: some View {
+        Button(action: {
+            // Toggle parent post expansion with animation
+            withAnimation(.spring(response: animationDuration, dampingFraction: 0.8)) {
+                isParentExpanded.toggle()
+            }
+
+            // If we're expanding and need to fetch the parent
+            if isParentExpanded && effectiveParentPost == nil {
+                if let replyToID = displayPost.inReplyToID {
+                    Task {
+                        isLoadingParent = true
+                        await fetchParentPost(replyToID: replyToID)
+                        isLoadingParent = false
+                    }
+                }
+            }
+        }) {
+            HStack {
+                Image(systemName: "arrow.turn.up.left")
+                    .font(.caption)
+                    .foregroundColor(blueskyBlue)
+
+                Text("Replying to ")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    + Text(
+                        "@\(effectiveParentPost?.authorUsername ?? displayPost.inReplyToID?.components(separatedBy: "/").last ?? "...")"
+                    )
+                    .font(.footnote)
+                    .foregroundColor(blueskyBlue)
+
+                Spacer()
+
+                // Chevron indicator
+                Image(systemName: isParentExpanded ? "chevron.down" : "chevron.right")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color.adaptiveElementBackground(for: colorScheme))
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
+            )
+            .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+            .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
+            .shadow(
+                color: colorScheme == .dark ? Color.elementShadow : Color.black.opacity(0.05),
+                radius: 1, y: 1)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    // Fetch parent post if not already loaded
+    private func fetchParentPost(replyToID: String) async {
+        // If already loaded, just show it
+        if effectiveParentPost != nil {
+            return
+        }
+
+        // Otherwise try to fetch it based on platform
+        if displayPost.platform == .bluesky {
+            do {
+                let fetchedParent = try await serviceManager.fetchBlueskyPostByID(replyToID)
+                await MainActor.run {
+                    // Use our @State property to store the parent post
+                    parentPost = fetchedParent
+                }
+            } catch {
+                print("Error fetching parent post: \(error)")
+            }
+        } else if displayPost.platform == .mastodon {
+            // Implement Mastodon parent post fetching if needed
+        }
+    }
+
+    // Media attachments grid
+    @ViewBuilder
+    private func mediaSection(for post: Post) -> some View {
+        VStack {
+            ForEach(post.attachments) { attachment in
+                if let url = URL(string: attachment.url) {
+                    AsyncImage(url: url) { phase in
+                        if let image = phase.image {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxHeight: 200)
+                                .cornerRadius(12)
+                        } else if phase.error != nil {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(height: 150)
+                                .cornerRadius(12)
+                                .overlay(
+                                    Image(systemName: "photo")
+                                        .foregroundColor(.secondary)
+                                )
+                        } else {
+                            Rectangle()
+                                .fill(Color.gray.opacity(0.1))
+                                .frame(height: 150)
+                                .cornerRadius(12)
+                                .overlay(
+                                    ProgressView()
+                                )
+                        }
                     }
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private var mediaGrid: some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 4
-        ) {
-            ForEach(post.attachments.prefix(4), id: \.id) { attachment in
-                AsyncImage(url: URL(string: attachment.url)) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } else {
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.2))
-                    }
+    // Handle action button taps
+    private func handleAction(_ action: PostAction) {
+        switch action {
+        case .reply:
+            showDetailView = true
+        case .repost:
+            Task {
+                do {
+                    _ = try await serviceManager.repostPost(displayPost)
+                } catch {
+                    print("Error reposting: \(error)")
                 }
-                .frame(maxHeight: 120)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+        case .like:
+            Task {
+                do {
+                    _ = try await serviceManager.likePost(displayPost)
+                } catch {
+                    print("Error liking: \(error)")
+                }
+            }
+        case .share:
+            // Share the post URL
+            let url = URL(string: displayPost.originalURL) ?? URL(string: "https://example.com")!
+            let activityController = UIActivityViewController(
+                activityItems: [url], applicationActivities: nil)
+
+            // Present the activity view controller
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                let window = windowScene.windows.first,
+                let rootViewController = window.rootViewController
+            {
+                rootViewController.present(activityController, animated: true, completion: nil)
             }
         }
-        .frame(maxWidth: .infinity)
-        .aspectRatio(contentMode: .fit)
-        .cornerRadius(8)
     }
 
-    @ViewBuilder
-    private var postMetadata: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Timestamp
-            Text(post.createdAt, style: .date)
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
+    }
+}
+
+/// Parent post container with expansion capabilities
+struct ParentPostContainer: View {
+    let parent: Post
+    let isExpanded: Bool
+    let onTap: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack {
+            if isExpanded {
+                ParentPostPreview(post: parent, onTap: onTap)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 10)
+                    .background(Color.adaptiveElementBackground(for: colorScheme))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    // Add a subtle border
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
+                    )
+                    // Multiple shadows for the subtle glow effect - adapts to color scheme
+                    .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+                    .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
+                    .shadow(
+                        color: colorScheme == .dark
+                            ? Color.elementShadow : Color.black.opacity(0.05), radius: 1, y: 1)
+            }
+        }
+        .frame(height: isExpanded ? nil : 0)
+        .opacity(isExpanded ? 1 : 0)
+    }
+
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
+    }
+}
+
+/// Loading indicator for parent post
+struct LoadingParentView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        HStack {
+            Spacer()
+            VStack(spacing: 8) {
+                ProgressView()
+                Text("Loading parent post...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+            Spacer()
+        }
+        .frame(height: 80)
+        .background(Color.adaptiveElementBackground(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
+        )
+        // Multiple shadows for the subtle glow effect - adapts to color scheme
+        .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+        .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
+        .shadow(
+            color: colorScheme == .dark ? Color.elementShadow : Color.black.opacity(0.05),
+            radius: 1, y: 1)
+    }
+
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
+    }
+}
+
+/// "<user> boosted" banner with clean styling
+struct BoostBannerView: View {
+    let handle: String
+    var platform: SocialPlatform = .bluesky  // Default to Bluesky if not specified
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Platform colors
+    private var platformColor: Color {
+        switch platform {
+        case .bluesky:
+            return Color(red: 0, green: 122 / 255, blue: 255 / 255)  // Bluesky blue
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // Mastodon purple
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "arrow.2.squarepath")
+                .font(.caption)
+                .foregroundColor(platformColor)
+
+            Text("\(handle) boosted")
                 .font(.footnote)
                 .foregroundColor(.secondary)
 
-            // Stats
-            HStack(spacing: 12) {
-                if post.repostCount > 0 {
-                    Label(
-                        "\(post.repostCount) Reposts",
-                        systemImage: "arrow.2.squarepath")
-                }
-
-                if post.likeCount > 0 {
-                    Label("\(post.likeCount) Likes", systemImage: "heart")
-                }
-            }
-            .font(.footnote)
-            .foregroundColor(.secondary)
+            Spacer()
         }
+        .padding(.horizontal, 10)
         .padding(.vertical, 8)
+        .background(Color.adaptiveElementBackground(for: colorScheme))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        // Add a subtle border
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
+        )
+        // Multiple shadows for the subtle glow effect - adapts to color scheme
+        .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+        .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
+        .shadow(
+            color: colorScheme == .dark
+                ? Color.elementShadow : Color.black.opacity(0.05), radius: 1, y: 1)
+    }
+
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
+    }
+}
+
+// Extension to apply rounded corners to specific corners only
+extension View {
+    func cornerRadius(_ radius: CGFloat, corners: UIRectCorner) -> some View {
+        clipShape(RoundedCorner(radius: radius, corners: corners))
+    }
+}
+
+// Custom shape for rounded corners
+struct RoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }
 
 // MARK: - Preview
-struct PostCardView_Previews: PreviewProvider {
-    static var previews: some View {
-        PostCardView(post: Post.samplePosts[0])
-            .environmentObject(SocialServiceManager())
-            .padding()
-            .previewLayout(.sizeThatFits)
-    }
+#Preview("Standard Post") {
+    PostCardView(post: Post.samplePosts[0])
+        .environmentObject(SocialServiceManager())
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Reply Post") {
+    PostCardView(post: Post.samplePosts[1])
+        .environmentObject(SocialServiceManager())
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Boosted Post") {
+    PostCardView(post: Post.samplePosts[2])
+        .environmentObject(SocialServiceManager())
+        .preferredColorScheme(.dark)
 }

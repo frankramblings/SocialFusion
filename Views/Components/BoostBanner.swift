@@ -1,6 +1,7 @@
+/*
 import SwiftUI
 
-/// “<user> boosted” pill styled like ReplyBanner.
+/// "<user> boosted" pill styled like ReplyBanner.
 struct BoostBanner: View {
     let handle: String
 
@@ -18,3 +19,4 @@ struct BoostBanner: View {
         .overlay(Capsule().stroke(Color.accentPurple, lineWidth: 0.5))
     }
 }
+*/

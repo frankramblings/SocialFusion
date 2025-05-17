@@ -1,3 +1,4 @@
+/*
 // boost banner
 if let boostedBy = post.boostedBy {
     BoostBanner(handle: boostedBy)
@@ -11,3 +12,4 @@ if let parent = post.parent {
         ParentPostPreview(post: parent)
     }
 }
+*/

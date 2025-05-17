@@ -194,13 +194,9 @@ extension Post {
                 let attributed = createTextWithLinks(from: plainText)
 
                 Text(attributed)
-                    .font(.body)
-                    .foregroundColor(.primary)  // Reinforces visible text
                     .lineLimit(lineLimit)
             default:
                 Text(content)
-                    .font(.body)
-                    .foregroundColor(.primary)
                     .lineLimit(lineLimit)
             }
 

@@ -9,68 +9,92 @@ struct ActionBar: View {
     var replyCount: Int = 0
     var onAction: (PostAction) -> Void
 
+    // Consistent spacing between action buttons
+    private let buttonSpacing: CGFloat = 32
+    // Icon size for better visibility
+    private let iconSize: CGFloat = 18
+
     var body: some View {
-        HStack(spacing: 24) {
+        HStack(spacing: buttonSpacing) {
             // Reply button
             Button {
                 onAction(.reply)
             } label: {
-                Label {
+                HStack(spacing: 4) {
+                    Image(systemName: "bubble.left")
+                        .font(.system(size: iconSize))
+                        .foregroundColor(.secondary)
+
                     if replyCount > 0 {
                         Text("\(replyCount)")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                    } else {
+                        Text("0")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                } icon: {
-                    Image(systemName: "bubble.left")
-                        .foregroundColor(.secondary)
                 }
             }
+            .buttonStyle(PlainButtonStyle())
 
             // Repost button
             Button {
                 onAction(.repost)
             } label: {
-                Label {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.2.squarepath")
+                        .font(.system(size: iconSize))
+                        .foregroundColor(isReposted ? .green : .secondary)
+
                     if repostCount > 0 {
                         Text("\(repostCount)")
                             .font(.caption)
                             .foregroundColor(isReposted ? .green : .secondary)
+                    } else {
+                        Text("0")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                } icon: {
-                    Image(systemName: "arrow.2.squarepath")
-                        .foregroundColor(isReposted ? .green : .secondary)
                 }
             }
+            .buttonStyle(PlainButtonStyle())
 
             // Like button
             Button {
                 onAction(.like)
             } label: {
-                Label {
+                HStack(spacing: 4) {
+                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                        .font(.system(size: iconSize))
+                        .foregroundColor(isLiked ? .red : .secondary)
+
                     if likeCount > 0 {
                         Text("\(likeCount)")
                             .font(.caption)
                             .foregroundColor(isLiked ? .red : .secondary)
+                    } else {
+                        Text("0")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                     }
-                } icon: {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .foregroundColor(isLiked ? .red : .secondary)
                 }
             }
+            .buttonStyle(PlainButtonStyle())
+
+            Spacer()
 
             // Share button
             Button {
                 onAction(.share)
             } label: {
                 Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
             }
-
-            Spacer()
+            .buttonStyle(PlainButtonStyle())
         }
-        .font(.system(size: 16))
-        .padding(.vertical, 8)
+        .padding(.vertical, 4)
     }
 }
 
@@ -81,40 +105,41 @@ extension ActionBar {
         self.isReposted = post.isReposted
         self.likeCount = post.likeCount
         self.repostCount = post.repostCount
-        self.replyCount = 0  // Post doesn't include replyCount
+        self.replyCount = 0  // Post doesn't include replyCount yet
         self.onAction = onAction
     }
 }
 
-struct ActionBar_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            ActionBar(
-                isLiked: false,
-                isReposted: false,
-                likeCount: 5,
-                repostCount: 2,
-                replyCount: 1,
-                onAction: { _ in }
-            )
-            .previewDisplayName("Normal State")
+#Preview("Normal State") {
+    ActionBar(
+        isLiked: false,
+        isReposted: false,
+        likeCount: 5,
+        repostCount: 2,
+        replyCount: 1,
+        onAction: { _ in }
+    )
+    .padding()
+    .background(Color.black)
+}
 
-            ActionBar(
-                isLiked: true,
-                isReposted: true,
-                likeCount: 5,
-                repostCount: 2,
-                replyCount: 1,
-                onAction: { _ in }
-            )
-            .previewDisplayName("Active State")
+#Preview("Active State") {
+    ActionBar(
+        isLiked: true,
+        isReposted: true,
+        likeCount: 5,
+        repostCount: 2,
+        replyCount: 1,
+        onAction: { _ in }
+    )
+    .padding()
+    .background(Color.black)
+}
 
-            ActionBar(
-                onAction: { _ in }
-            )
-            .previewDisplayName("No Counts")
-        }
-        .padding()
-        .previewLayout(.sizeThatFits)
-    }
+#Preview("No Counts") {
+    ActionBar(
+        onAction: { _ in }
+    )
+    .padding()
+    .background(Color.black)
 }

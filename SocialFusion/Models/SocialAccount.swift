@@ -300,6 +300,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         case platform
         case profileImageURL
         case platformSpecificId
+        case accountDetails
     }
 
     // MARK: - Initialization
@@ -380,7 +381,8 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
         serverURL = try container.decodeIfPresent(URL.self, forKey: .serverURL)
         platform = try container.decode(SocialPlatform.self, forKey: .platform)
-        platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
+        platformSpecificId =
+            try container.decodeIfPresent(String.self, forKey: .platformSpecificId) ?? id
 
         // Decode profile image URL with proper error handling
         if let profileImageURLString = try container.decodeIfPresent(
@@ -394,12 +396,13 @@ public class SocialAccount: Identifiable, Codable, Equatable {
             print("No profile image URL found for \(username)")
         }
 
-        // Load tokens from keychain after initialization
+        // Initialize token properties to nil; we'll load them from keychain separately
         _accessToken = nil
         _refreshToken = nil
         _tokenExpirationDate = nil
 
-        // We'll load tokens from keychain the first time they're accessed
+        // Load tokens from keychain
+        loadTokensFromKeychain()
     }
 
     // MARK: - Token Management
@@ -587,7 +590,8 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         _tokenExpirationDate = nil
     }
 
-    private func loadTokensFromKeychain() {
+    /// Load tokens from UserDefaults (to be replaced with KeychainService in future)
+    public func loadTokensFromKeychain() {
         // Load tokens from UserDefaults
         _accessToken = UserDefaults.standard.string(forKey: "accessToken-\(id)")
         _refreshToken = UserDefaults.standard.string(forKey: "refreshToken-\(id)")
@@ -598,12 +602,39 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         {
             _tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
         }
+
+        print(
+            "Loaded tokens for \(username): Access token exists: \(_accessToken != nil), Refresh token exists: \(_refreshToken != nil)"
+        )
     }
 
     // MARK: - Equatable
 
     public static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
         return lhs.id == rhs.id
+    }
+
+    // Custom encoding to ensure we don't encode sensitive data
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encode(username, forKey: .username)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
+        try container.encodeIfPresent(serverURL, forKey: .serverURL)
+        try container.encode(platform, forKey: .platform)
+        try container.encode(platformSpecificId, forKey: .platformSpecificId)
+
+        // Encode profile image URL as string if it exists
+        if let url = profileImageURL {
+            try container.encode(url.absoluteString, forKey: .profileImageURL)
+        }
+
+        // Encode account details if present
+        try container.encodeIfPresent(accountDetails, forKey: .accountDetails)
+
+        // Note: We deliberately don't encode tokens here. They're stored in UserDefaults
+        // and loaded separately via loadTokensFromKeychain()
     }
 }
 

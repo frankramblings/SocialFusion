@@ -16,6 +16,10 @@ struct SocialFusionApp: App {
     private let willResignActivePublisher = NotificationCenter.default.publisher(
         for: UIApplication.willResignActiveNotification)
 
+    // App termination observer
+    private let willTerminatePublisher = NotificationCenter.default.publisher(
+        for: UIApplication.willTerminateNotification)
+
     var body: some Scene {
         WindowGroup {
             ContentView()
@@ -30,8 +34,21 @@ struct SocialFusionApp: App {
                 }
                 // Use NotificationCenter instead of onChange for backward compatibility
                 .onReceive(willResignActivePublisher) { _ in
-                    // App is going to background
-                    // For future implementation: save accounts state here
+                    // App is going to background - trigger account saving
+                    print("App entering background - saving accounts")
+                    socialServiceManager.saveAccounts()
+                }
+                .onReceive(willTerminatePublisher) { _ in
+                    // App is terminating - ensure accounts are saved
+                    print("App terminating - final account save")
+                    socialServiceManager.saveAccounts()
+                }
+                .onChange(of: scenePhase) { newPhase in
+                    if newPhase == .background || newPhase == .inactive {
+                        // App is entering background - save state
+                        print("Scene phase changed to \(newPhase) - saving app state")
+                        socialServiceManager.saveAccounts()
+                    }
                 }
         }
     }
