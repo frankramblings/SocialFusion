@@ -8,6 +8,18 @@ import os.log
 @_exported import struct Foundation.URL
 @_exported import class Foundation.URLSession
 
+// MARK: - Thread Safety Note
+/*
+ IMPORTANT: When updating any @Published properties or UI state, always use:
+
+ await MainActor.run {
+    // Update UI state here
+ }
+
+ This ensures thread safety and prevents EXC_BAD_ACCESS crashes when modifying
+ state from background threads.
+*/
+
 /// Using TokenError from TokenManager
 enum BlueskyTokenError: Error, Equatable {
     case noAccessToken
@@ -656,12 +668,43 @@ class BlueskyService {
 
                 // Check if this is a reply to another post
                 var inReplyToID: String? = nil
+                var inReplyToUsername: String? = nil
+                var parentPost: Post? = nil
+
                 if let reply = record["reply"] as? [String: Any],
                     let parent = reply["parent"] as? [String: Any],
                     let parentUri = parent["uri"] as? String
                 {
                     inReplyToID = parentUri
                     logger.info("Found reply post with parent: \(parentUri)")
+
+                    // Try to extract username from parent
+                    if let parentAuthor = parent["author"] as? [String: Any],
+                        let parentHandle = parentAuthor["handle"] as? String
+                    {
+                        inReplyToUsername = parentHandle
+                        logger.info("Found parent username: \(parentHandle)")
+
+                        // If we have sufficient information, create a simple parent post
+                        // This gives us immediate access to parent info without additional fetching
+                        if let parentDisplayName = parentAuthor["displayName"] as? String,
+                            let parentAvatar = parentAuthor["avatar"] as? String
+                        {
+                            // Create a minimal parent post with the basic information we already have
+                            // We'll hydrate this more fully if the user expands it
+                            parentPost = Post(
+                                id: parentUri,
+                                content: "...",  // Placeholder until user requests full content
+                                authorName: parentDisplayName,
+                                authorUsername: parentHandle,
+                                authorProfilePictureURL: parentAvatar,
+                                createdAt: Date(),  // Placeholder
+                                platform: .bluesky,
+                                originalURL:
+                                    "https://bsky.app/profile/\(parentHandle)/post/\(parentUri.split(separator: "/").last ?? "")"
+                            )
+                        }
+                    }
                 }
 
                 // Process media attachments - handle different API embed formats
@@ -802,7 +845,9 @@ class BlueskyService {
                     repostCount: repostCount,
                     platformSpecificId: uri,
                     boostedBy: boostedBy,
-                    inReplyToID: inReplyToID
+                    parent: parentPost,
+                    inReplyToID: inReplyToID,
+                    inReplyToUsername: inReplyToUsername
                 )
 
                 posts.append(newPost)

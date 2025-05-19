@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// A view that displays the details of a post
@@ -6,6 +7,14 @@ struct PostDetailView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @State private var replyText: String = ""
     @State private var isReplying: Bool = false
+
+    // Date formatter for detailed timestamp
+    private let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
 
     var body: some View {
         ScrollView {
@@ -56,7 +65,7 @@ struct PostDetailView: View {
                 // Post metadata
                 VStack(alignment: .leading, spacing: 8) {
                     // Timestamp
-                    Text(post.createdAt, style: .date)
+                    Text(dateFormatter.string(from: post.createdAt))
                         .font(.footnote)
                         .foregroundColor(.secondary)
 

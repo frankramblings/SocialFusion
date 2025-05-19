@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 // Parent post preview component with styling to match the Bluesky design
@@ -7,6 +8,32 @@ struct ParentPostPreview: View {
 
     // Maximum characters before content is trimmed
     private let maxCharacters = 500
+
+    // Formatter for relative timestamps
+    private func formatRelativeTime(from date: Date) -> String {
+        let now = Date()
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: date, to: now)
+
+        if let year = components.year, year > 0 {
+            return "\(year)y"
+        } else if let month = components.month, month > 0 {
+            return "\(month)mo"
+        } else if let day = components.day, day > 0 {
+            if day < 7 {
+                return "\(day)d"
+            } else {
+                let week = day / 7
+                return "\(week)w"
+            }
+        } else if let hour = components.hour, hour > 0 {
+            return "\(hour)h"
+        } else if let minute = components.minute, minute > 0 {
+            return "\(minute)m"
+        } else {
+            return "now"
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -43,16 +70,18 @@ struct ParentPostPreview: View {
                 Spacer()
 
                 // Time ago
-                Text(post.createdAt, style: .relative)
+                Text(formatRelativeTime(from: post.createdAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
 
             // Post content with conditional line limit
-            post.contentView(lineLimit: post.content.count > maxCharacters ? 8 : nil)
-                .font(.system(size: 14))  // Smaller size for parent posts
-                .padding(.leading, 4)
-                .padding(.trailing, 8)
+            post.contentView(
+                lineLimit: post.content.count > maxCharacters ? 8 : nil, showLinkPreview: false
+            )
+            .font(.callout)  // Use smaller Dynamic Type size for parent posts
+            .padding(.leading, 4)
+            .padding(.trailing, 8)
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())

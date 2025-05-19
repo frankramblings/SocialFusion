@@ -4,7 +4,8 @@ import LinkPresentation
 import SwiftUI
 import UIKit
 
-// A detailed view for a single post
+// MARK: - Post Detail View
+/// A detailed view for viewing a post with rich interactive elements
 struct PostDetailView: View {
     let post: Post
     @Environment(\.presentationMode) var presentationMode
@@ -374,7 +375,27 @@ struct PostDetailView: View {
     }
 
     private var attributedPostContent: AttributedString {
+        // Handle Mastodon HTML content differently
+        if post.platform == .mastodon {
+            // Use our contentView's HTML handling
+            let htmlString = HTMLString(raw: post.content)
+            var attributedString = htmlString.attributedStringFromHTML()
+
+            // Ensure proper foreground color
+            attributedString.foregroundColor = .primary
+
+            // Use Dynamic Type styling
+            attributedString.font = .body
+
+            return attributedString
+        }
+
+        // For other platforms like Bluesky
         var attributedString = AttributedString(post.content)
+        attributedString.foregroundColor = .primary
+
+        // Use Dynamic Type styling
+        attributedString.font = .body
 
         // Make mentions blue
         for mention in post.mentions {
@@ -396,12 +417,15 @@ struct PostDetailView: View {
     }
 
     private func detectLinks() {
+        // Use the safer plainTextContent method for all posts
+        let contentToSearch = post.plainTextContent
+
         // Parse content for clickable links
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         if let detector = detector,
             let matches = detector.matches(
-                in: post.content, options: [],
-                range: NSRange(location: 0, length: post.content.utf16.count))
+                in: contentToSearch, options: [],
+                range: NSRange(location: 0, length: contentToSearch.utf16.count))
                 as? [NSTextCheckingResult]
         {
             detectedLinks = matches.compactMap { match -> URL? in
@@ -474,8 +498,8 @@ struct ReplyView: View {
             }
 
             // Reply content
-            Text(reply.content)
-                .font(.subheadline)
+            reply.contentView(lineLimit: nil, showLinkPreview: false)
+                .font(.body)  // Use system Dynamic Type
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
 

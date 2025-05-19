@@ -130,6 +130,7 @@ public class Post: Identifiable, Codable, Equatable {
     public var boostedBy: String?
     public var parent: Post?
     public var inReplyToID: String?
+    public var inReplyToUsername: String?
 
     // Computed properties for convenience
     public var authorHandle: String {
@@ -180,6 +181,7 @@ public class Post: Identifiable, Codable, Equatable {
         case boostedBy
         case parent
         case inReplyToID
+        case inReplyToUsername
     }
 
     public init(
@@ -202,7 +204,8 @@ public class Post: Identifiable, Codable, Equatable {
         platformSpecificId: String = "",
         boostedBy: String? = nil,
         parent: Post? = nil,
-        inReplyToID: String? = nil
+        inReplyToID: String? = nil,
+        inReplyToUsername: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -224,6 +227,7 @@ public class Post: Identifiable, Codable, Equatable {
         self.boostedBy = boostedBy
         self.parent = parent
         self.inReplyToID = inReplyToID
+        self.inReplyToUsername = inReplyToUsername
     }
 
     // Sample posts for previews and testing

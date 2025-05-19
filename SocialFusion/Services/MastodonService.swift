@@ -1,9 +1,22 @@
-// Import KeychainManager directly
+import Combine
 import Foundation
+/// A service for interacting with the Mastodon API
 import SwiftUI
 // Import utilities
 import UIKit
 import os.log
+
+// MARK: - Thread Safety Note
+/*
+ IMPORTANT: When updating any @Published properties or UI state, always use:
+
+ await MainActor.run {
+    // Update UI state here
+ }
+
+ This ensures thread safety and prevents EXC_BAD_ACCESS crashes when modifying
+ state from background threads.
+*/
 
 // Add URL extension for optional URL
 extension Optional where Wrapped == URL {
@@ -1171,6 +1184,63 @@ public class MastodonService {
 
         let createdDate = formatter.date(from: status.createdAt) ?? Date()
 
+        // Log reply status information
+        if let replyToId = status.inReplyToId {
+            logger.info(
+                "Converting Mastodon reply post: id=\(status.id), in_reply_to_id=\(replyToId)")
+        } else {
+            logger.debug("Converting regular Mastodon post (not a reply): id=\(status.id)")
+        }
+
+        // Try to find the username being replied to from mentions
+        var replyToUsername: String? = nil
+        var parentPost: Post? = nil
+
+        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
+            // Improved reply username extraction logic
+
+            // First try to find the username from mentions that match the account ID
+            if let mention = status.mentions.first(where: { $0.id == replyToAccountId }) {
+                replyToUsername = mention.username
+                logger.info(
+                    "Found username from mention: \(mention.username) for reply to account ID: \(replyToAccountId)"
+                )
+            }
+            // If not found in direct mention match, try the first mention as a fallback
+            else if let firstMention = status.mentions.first {
+                replyToUsername = firstMention.username
+                logger.info(
+                    "Using first mention as fallback: \(firstMention.username) (reply account ID: \(replyToAccountId))"
+                )
+            }
+            // If we have any mentions at all that don't match the replyToAccountId
+            else if !status.mentions.isEmpty {
+                // Just use the first mention as a best guess (Mastodon traditionally mentions the person you're replying to first)
+                replyToUsername = status.mentions.first?.username
+                logger.info(
+                    "Using best-guess mention: \(replyToUsername ?? "nil") for reply to account ID: \(replyToAccountId)"
+                )
+            }
+
+            // Create a minimal parent post with the info we have to display immediately
+            // This gives us a parent post without needing an additional API call
+            // The full content will be loaded on demand when expanded
+            parentPost = Post(
+                id: replyToId,
+                content: "...",  // Placeholder until expanded
+                authorName: replyToUsername ?? "Loading...",  // Use username as display name until we have more info
+                authorUsername: replyToUsername ?? "...",
+                authorProfilePictureURL: "",  // We don't have the avatar URL yet
+                createdAt: createdDate.addingTimeInterval(-60),  // Estimate 1 minute earlier
+                platform: .mastodon,
+                originalURL: ""
+            )
+
+            // Log what we're using for the parent post
+            logger.info(
+                "Created parent post placeholder with username: \(replyToUsername ?? "nil")")
+        }
+
         return Post(
             id: status.id,
             content: status.content,
@@ -1186,7 +1256,10 @@ public class MastodonService {
             isReposted: status.reblogged ?? false,
             isLiked: status.favourited ?? false,
             likeCount: status.favouritesCount,
-            repostCount: status.reblogsCount
+            repostCount: status.reblogsCount,
+            parent: parentPost,
+            inReplyToID: status.inReplyToId,
+            inReplyToUsername: replyToUsername
         )
     }
 
@@ -1455,12 +1528,22 @@ public class MastodonService {
 
     // MARK: - Status methods
 
+    /// Local cache for recently fetched status posts
+    private var statusCache: [String: (post: Post, timestamp: Date)] = [:]
+
     /// Fetches a status by its ID
     /// - Parameter id: The ID of the status to fetch
     /// - Parameter account: The account to use for authentication
     /// - Returns: The post if found, nil otherwise
     func fetchStatus(id: String, account: SocialAccount) async throws -> Post? {
+        // Check cache first - posts are valid for 5 minutes
+        if let cached = statusCache[id], Date().timeIntervalSince(cached.timestamp) < 300 {
+            logger.info("Using cached Mastodon status for ID: \(id)")
+            return cached.post
+        }
+
         guard let serverURLString = account.serverURL else {
+            logger.error("No server URL for Mastodon account")
             throw NSError(
                 domain: "MastodonService", code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "No server URL"])
@@ -1470,6 +1553,7 @@ public class MastodonService {
         let serverUrl = formatServerURL(serverURLString.absoluteString)
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(id)") else {
+            logger.error("Invalid server URL or status ID: \(serverUrl)/api/v1/statuses/\(id)")
             throw NSError(
                 domain: "MastodonService", code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or status ID"])
@@ -1480,25 +1564,56 @@ public class MastodonService {
         let request = try await createAuthenticatedRequest(
             url: url, method: "GET", account: account)
 
+        // Create the URLRequest before executing to minimize main-thread time
+        let finalRequest = request
+
         do {
-            let (data, response) = try await session.data(for: request)
+            // Execute the request with a high priority for better UI responsiveness
+            return try await Task.detached(priority: .userInitiated) {
+                // Log the actual request
+                self.logger.info("Sending request to fetch Mastodon status: \(url.absoluteString)")
 
-            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200
-            else {
-                if let errorMessage = String(data: data, encoding: .utf8) {
-                    logger.error("Error response: \(errorMessage)")
+                let (data, response) = try await self.session.data(for: finalRequest)
+
+                guard let httpResponse = response as? HTTPURLResponse,
+                    httpResponse.statusCode == 200
+                else {
+                    if let errorMessage = String(data: data, encoding: .utf8) {
+                        self.logger.error(
+                            "Error response (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorMessage)"
+                        )
+                    }
+                    throw NSError(
+                        domain: "MastodonService",
+                        code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                        userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status"])
                 }
-                throw NSError(
-                    domain: "MastodonService",
-                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status"])
-            }
 
-            // Decode the status
-            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+                // Log the response for debugging
+                if let responseStr = String(data: data, encoding: .utf8) {
+                    self.logger.debug(
+                        "Raw response from Mastodon API: \(responseStr.prefix(200))...")
+                }
 
-            // Convert to our Post model using the existing convertMastodonStatusToPost method
-            return convertMastodonStatusToPost(status, account: account)
+                // Decode the status
+                let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+                self.logger.info(
+                    "Successfully decoded Mastodon status: id=\(status.id), in_reply_to_id=\(status.inReplyToId ?? "nil")"
+                )
+
+                // Convert to our Post model using the existing convertMastodonStatusToPost method
+                let post = self.convertMastodonStatusToPost(status, account: account)
+                self.logger.info(
+                    "Converted to Post model: id=\(post.id), inReplyToID=\(post.inReplyToID ?? "nil")"
+                )
+
+                // Store in cache
+                await MainActor.run {
+                    self.statusCache[id] = (post: post, timestamp: Date())
+                }
+
+                return post
+            }.value
         } catch {
             logger.error("Error fetching status: \(error.localizedDescription)")
             throw error
@@ -1510,6 +1625,13 @@ public class MastodonService {
     ///   - id: The ID of the status to fetch
     ///   - completion: Completion handler called with the result
     func fetchStatus(id: String, completion: @escaping (Post?) -> Void) {
+        // Check cache first
+        if let cached = statusCache[id], Date().timeIntervalSince(cached.timestamp) < 300 {
+            logger.info("Using cached Mastodon status for callback API: \(id)")
+            completion(cached.post)
+            return
+        }
+
         // Find an account to use
         guard let account = findValidAccount() else {
             logger.error("No valid account found for fetching status")
@@ -1517,11 +1639,19 @@ public class MastodonService {
             return
         }
 
-        Task {
+        // Use a higher priority task for better UI responsiveness
+        Task(priority: .userInitiated) {
             do {
                 let post = try await fetchStatus(id: id, account: account)
                 // Copy the post to a local variable to avoid Sendable capture issues
                 let finalPost = post
+
+                if let post = post {
+                    // Store in cache (no need to use MainActor here since we're calling from non-UI code)
+                    statusCache[id] = (post: post, timestamp: Date())
+                }
+
+                // Call completion on main thread for UI updates
                 DispatchQueue.main.async {
                     completion(finalPost)
                 }

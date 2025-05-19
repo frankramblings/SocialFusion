@@ -1,3 +1,4 @@
+import Foundation
 import LinkPresentation
 import SwiftUI
 
@@ -11,6 +12,15 @@ final class MetadataProviderManager {
     func startFetchingMetadata(
         for url: URL, completion: @escaping (LPLinkMetadata?, Error?) -> Void
     ) {
+        // Check cache first - temporarily disabled until we fix import issues
+        // TODO: Re-enable caching once dependencies are fixed
+        /*
+        if let cachedMetadata = LinkPreviewCache.shared.getMetadata(for: url) {
+            completion(cachedMetadata, nil)
+            return
+        }
+        */
+
         // Cancel any existing provider for this URL
         cancelProvider(for: url)
 
@@ -23,6 +33,15 @@ final class MetadataProviderManager {
             // Remove the provider from active providers when done
             DispatchQueue.main.async {
                 self?.removeProvider(for: url)
+
+                // Cache the successful result - temporarily disabled
+                // TODO: Re-enable caching once dependencies are fixed
+                /*
+                if let metadata = metadata, error == nil {
+                    LinkPreviewCache.shared.cache(metadata: metadata, for: url)
+                }
+                */
+
                 completion(metadata, error)
             }
         }
@@ -120,6 +139,14 @@ struct LinkPreview: View {
             UIApplication.shared.open(url)
         }
         .onAppear {
+            // Check for cached image URL first - temporarily disabled
+            // TODO: Re-enable caching once dependencies are fixed
+            /*
+            if let cachedImageURL = LinkPreviewCache.shared.getImageURL(for: url) {
+                self.imageURL = cachedImageURL
+            }
+            */
+
             loadMetadata()
         }
         .onDisappear {
@@ -131,8 +158,24 @@ struct LinkPreview: View {
     private func loadMetadata() {
         isLoading = true
 
+        // First, check if we're allowed to fetch from this URL based on robots.txt - temporarily disabled
+        // TODO: Re-enable robots.txt checking once dependencies are fixed
+        /*
+        RobotsTxtChecker.shared.isAllowedToFetch(url: url) { isAllowed in
+            if !isAllowed {
+                DispatchQueue.main.async {
+                    print("Fetching metadata for \(self.url) is not allowed by robots.txt")
+                    self.isLoading = false
+                    self.loadingFailed = true
+                }
+                return
+            }
+        */
+
+        // */ // Close the comment block
+
         // Use the manager to handle the fetch
-        MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
+        MetadataProviderManager.shared.startFetchingMetadata(for: self.url) { metadata, error in
             DispatchQueue.main.async {
                 self.isLoading = false
 
@@ -173,6 +216,9 @@ struct LinkPreview: View {
                                 try data.write(to: tempUrl)
                                 DispatchQueue.main.async {
                                     self.imageURL = tempUrl
+                                    // Cache the image URL - temporarily disabled
+                                    // TODO: Re-enable caching once dependencies are fixed
+                                    // LinkPreviewCache.shared.cacheImage(url: tempUrl, for: self.url)
                                 }
                             } catch {
                                 print("Failed to save image: \(error)")

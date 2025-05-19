@@ -5,29 +5,27 @@ class TimeFormatters {
     /// Shared instance of TimeFormatters
     static let shared = TimeFormatters()
 
-    /// Returns a user-friendly relative time string (e.g., "1m ago", "3h ago")
+    /// Returns a user-friendly relative time string (e.g., "6m", "2h", "1d")
     func relativeTimeString(from date: Date) -> String {
         let now = Date()
         let components = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute, .second], from: date, to: now)
 
         if let year = components.year, year > 0 {
-            return "\(year)y ago"
+            return "\(year)y"
         } else if let month = components.month, month > 0 {
-            return "\(month)mo ago"
+            return "\(month)mo"
         } else if let day = components.day, day > 0 {
-            if day == 1 {
-                return "1d ago"
-            } else if day < 7 {
-                return "\(day)d ago"
+            if day < 7 {
+                return "\(day)d"
             } else {
                 let week = day / 7
-                return "\(week)w ago"
+                return "\(week)w"
             }
         } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h ago"
+            return "\(hour)h"
         } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m ago"
+            return "\(minute)m"
         } else {
             return "now"
         }
@@ -36,7 +34,7 @@ class TimeFormatters {
     /// Returns a precise timestamp for posts
     func timestampWithChevron(from date: Date) -> String {
         let timeString = relativeTimeString(from: date)
-        return "\(timeString) ›"
+        return timeString
     }
 
     /// Returns a detailed date format for profile views or permalinks

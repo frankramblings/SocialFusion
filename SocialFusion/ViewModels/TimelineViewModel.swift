@@ -102,15 +102,188 @@ public class TimelineViewModel: ObservableObject {
                         // Pre-load parent posts for instant expand
                         for post in posts {
                             if let parentID = post.inReplyToID {
-                                socialServiceManager.mastodonService.fetchStatus(id: parentID) {
-                                    parent in
-                                    guard let parent = parent else { return }
-                                    if case .loaded(var currentPosts) = self.state {
-                                        if let idx = currentPosts.firstIndex(where: {
-                                            $0.id == post.id
-                                        }) {
-                                            currentPosts[idx].parent = parent
-                                            self.state = .loaded(currentPosts)
+                                // Handle different platforms
+                                switch post.platform {
+                                case .mastodon:
+                                    // For logging/debugging
+                                    self.logger.info(
+                                        "Pre-loading Mastodon parent post for: \(post.id), parentID: \(parentID)"
+                                    )
+
+                                    // Use a higher-priority task for Mastodon parent posts
+                                    Task(priority: .userInitiated) {
+                                        // Try to find a matching Mastodon account
+                                        let mastodonAccount = await MainActor.run {
+                                            () -> SocialAccount? in
+                                            return accounts.first(where: {
+                                                $0.platform == .mastodon
+                                            })
+                                        }
+
+                                        if let mastodonAccount = mastodonAccount {
+                                            do {
+                                                // Attempt to fetch synchronously via the async API for more reliable results
+                                                if let parent = try await self.socialServiceManager
+                                                    .fetchMastodonStatus(
+                                                        id: parentID, account: mastodonAccount)
+                                                {
+                                                    // Extract username for faster display even if post details take time to load
+                                                    let username = parent.authorUsername
+
+                                                    // Update immediately with the username for the reply banner
+                                                    await MainActor.run {
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: { $0.id == post.id })
+                                                            {
+                                                                if currentPosts[idx]
+                                                                    .inReplyToUsername == nil
+                                                                    || currentPosts[idx]
+                                                                        .inReplyToUsername?.isEmpty
+                                                                        == true
+                                                                {
+                                                                    self.logger.info(
+                                                                        "Setting reply username to: \(username)"
+                                                                    )
+                                                                    currentPosts[idx]
+                                                                        .inReplyToUsername =
+                                                                        username
+                                                                }
+
+                                                                // Store the parent post and update the state
+                                                                self.logger.info(
+                                                                    "Successfully pre-loaded Mastodon parent post for: \(post.id)"
+                                                                )
+                                                                currentPosts[idx].parent = parent
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    self.logger.error(
+                                                        "Failed to pre-load Mastodon parent post: nil result"
+                                                    )
+                                                }
+                                            } catch {
+                                                self.logger.error(
+                                                    "Error pre-loading Mastodon parent post: \(error.localizedDescription)"
+                                                )
+
+                                                // Fallback to the old method as backup
+                                                socialServiceManager.mastodonService.fetchStatus(
+                                                    id: parentID
+                                                ) { parent in
+                                                    guard let parent = parent else {
+                                                        self.logger.error(
+                                                            "Fallback also failed to pre-load Mastodon parent post for: \(post.id)"
+                                                        )
+                                                        return
+                                                    }
+
+                                                    Task { @MainActor in
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: { $0.id == post.id })
+                                                            {
+                                                                // Store the parent post and update the state
+                                                                self.logger.info(
+                                                                    "Successfully pre-loaded Mastodon parent post via fallback method for: \(post.id)"
+                                                                )
+                                                                currentPosts[idx].parent = parent
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            // Fallback to the old method if no account is found
+                                            socialServiceManager.mastodonService.fetchStatus(
+                                                id: parentID
+                                            ) { parent in
+                                                guard let parent = parent else {
+                                                    self.logger.error(
+                                                        "Failed to pre-load Mastodon parent post for: \(post.id)"
+                                                    )
+                                                    return
+                                                }
+
+                                                Task { @MainActor in
+                                                    if case .loaded(var currentPosts) = self.state {
+                                                        if let idx = currentPosts.firstIndex(
+                                                            where: { $0.id == post.id })
+                                                        {
+                                                            // Store the parent post and update the state
+                                                            self.logger.info(
+                                                                "Successfully pre-loaded Mastodon parent post for: \(post.id)"
+                                                            )
+                                                            currentPosts[idx].parent = parent
+                                                            self.state = .loaded(currentPosts)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                case .bluesky:
+                                    // For Bluesky, use the async fetchPostByID method in a Task
+                                    Task {
+                                        do {
+                                            // For logging/debugging
+                                            self.logger.info(
+                                                "Pre-loading Bluesky parent post for: \(post.id), parentID: \(parentID)"
+                                            )
+
+                                            // Find a Bluesky account to use
+                                            let blueskyAccount = await MainActor.run {
+                                                () -> SocialAccount? in
+                                                return accounts.first(where: {
+                                                    $0.platform == .bluesky
+                                                })
+                                            }
+
+                                            if let blueskyAccount = blueskyAccount {
+                                                if let parent = try await self.socialServiceManager
+                                                    .blueskyService.fetchPostByID(
+                                                        parentID, account: blueskyAccount)
+                                                {
+                                                    // On main thread, update the posts array
+                                                    await MainActor.run {
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: {
+                                                                    $0.id == post.id
+                                                                })
+                                                            {
+                                                                // Store the parent post and update the state
+                                                                self.logger.info(
+                                                                    "Successfully pre-loaded Bluesky parent post for: \(post.id)"
+                                                                )
+                                                                currentPosts[idx].parent = parent
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    self.logger.warning(
+                                                        "Bluesky parent post not found for: \(post.id), parentID: \(parentID)"
+                                                    )
+                                                }
+                                            } else {
+                                                self.logger.error(
+                                                    "No Bluesky account available for fetching parent post"
+                                                )
+                                            }
+                                        } catch {
+                                            self.logger.error(
+                                                "Error pre-loading Bluesky parent post: \(error.localizedDescription)"
+                                            )
                                         }
                                     }
                                 }
@@ -164,15 +337,188 @@ public class TimelineViewModel: ObservableObject {
                         // Pre-load parent posts for instant expand
                         for post in posts {
                             if let parentID = post.inReplyToID {
-                                socialServiceManager.mastodonService.fetchStatus(id: parentID) {
-                                    parent in
-                                    guard let parent = parent else { return }
-                                    if case .loaded(var currentPosts) = self.state {
-                                        if let idx = currentPosts.firstIndex(where: {
-                                            $0.id == post.id
-                                        }) {
-                                            currentPosts[idx].parent = parent
-                                            self.state = .loaded(currentPosts)
+                                // Handle different platforms
+                                switch post.platform {
+                                case .mastodon:
+                                    // For logging/debugging
+                                    self.logger.info(
+                                        "Pre-loading Mastodon parent post for: \(post.id), parentID: \(parentID)"
+                                    )
+
+                                    // Use a higher-priority task for Mastodon parent posts
+                                    Task(priority: .userInitiated) {
+                                        // Try to find a matching Mastodon account
+                                        let mastodonAccount = await MainActor.run {
+                                            () -> SocialAccount? in
+                                            return accounts.first(where: {
+                                                $0.platform == .mastodon
+                                            })
+                                        }
+
+                                        if let mastodonAccount = mastodonAccount {
+                                            do {
+                                                // Attempt to fetch synchronously via the async API for more reliable results
+                                                if let parent = try await self.socialServiceManager
+                                                    .fetchMastodonStatus(
+                                                        id: parentID, account: mastodonAccount)
+                                                {
+                                                    // Extract username for faster display even if post details take time to load
+                                                    let username = parent.authorUsername
+
+                                                    // Update immediately with the username for the reply banner
+                                                    await MainActor.run {
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: { $0.id == post.id })
+                                                            {
+                                                                if currentPosts[idx]
+                                                                    .inReplyToUsername == nil
+                                                                    || currentPosts[idx]
+                                                                        .inReplyToUsername?.isEmpty
+                                                                        == true
+                                                                {
+                                                                    self.logger.info(
+                                                                        "Setting reply username to: \(username)"
+                                                                    )
+                                                                    currentPosts[idx]
+                                                                        .inReplyToUsername =
+                                                                        username
+                                                                }
+
+                                                                // Store the parent post and update the state
+                                                                self.logger.info(
+                                                                    "Successfully pre-loaded Mastodon parent post for: \(post.id)"
+                                                                )
+                                                                currentPosts[idx].parent = parent
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    self.logger.error(
+                                                        "Failed to pre-load Mastodon parent post: nil result"
+                                                    )
+                                                }
+                                            } catch {
+                                                self.logger.error(
+                                                    "Error pre-loading Mastodon parent post: \(error.localizedDescription)"
+                                                )
+
+                                                // Fallback to the old method as backup
+                                                socialServiceManager.mastodonService.fetchStatus(
+                                                    id: parentID
+                                                ) { parent in
+                                                    guard let parent = parent else {
+                                                        self.logger.error(
+                                                            "Fallback also failed to pre-load Mastodon parent post for: \(post.id)"
+                                                        )
+                                                        return
+                                                    }
+
+                                                    Task { @MainActor in
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: { $0.id == post.id })
+                                                            {
+                                                                // Store the parent post and update the state
+                                                                self.logger.info(
+                                                                    "Successfully pre-loaded Mastodon parent post via fallback method for: \(post.id)"
+                                                                )
+                                                                currentPosts[idx].parent = parent
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } else {
+                                            // Fallback to the old method if no account is found
+                                            socialServiceManager.mastodonService.fetchStatus(
+                                                id: parentID
+                                            ) { parent in
+                                                guard let parent = parent else {
+                                                    self.logger.error(
+                                                        "Failed to pre-load Mastodon parent post for: \(post.id)"
+                                                    )
+                                                    return
+                                                }
+
+                                                Task { @MainActor in
+                                                    if case .loaded(var currentPosts) = self.state {
+                                                        if let idx = currentPosts.firstIndex(
+                                                            where: { $0.id == post.id })
+                                                        {
+                                                            // Store the parent post and update the state
+                                                            self.logger.info(
+                                                                "Successfully pre-loaded Mastodon parent post for: \(post.id)"
+                                                            )
+                                                            currentPosts[idx].parent = parent
+                                                            self.state = .loaded(currentPosts)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                case .bluesky:
+                                    // For Bluesky, use the async fetchPostByID method in a Task
+                                    Task {
+                                        do {
+                                            // For logging/debugging
+                                            self.logger.info(
+                                                "Pre-loading Bluesky parent post for: \(post.id), parentID: \(parentID)"
+                                            )
+
+                                            // Find a Bluesky account to use
+                                            let blueskyAccount = await MainActor.run {
+                                                () -> SocialAccount? in
+                                                return accounts.first(where: {
+                                                    $0.platform == .bluesky
+                                                })
+                                            }
+
+                                            if let blueskyAccount = blueskyAccount {
+                                                if let parent = try await self.socialServiceManager
+                                                    .blueskyService.fetchPostByID(
+                                                        parentID, account: blueskyAccount)
+                                                {
+                                                    // On main thread, update the posts array
+                                                    await MainActor.run {
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: {
+                                                                    $0.id == post.id
+                                                                })
+                                                            {
+                                                                // Store the parent post and update the state
+                                                                self.logger.info(
+                                                                    "Successfully pre-loaded Bluesky parent post for: \(post.id)"
+                                                                )
+                                                                currentPosts[idx].parent = parent
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                } else {
+                                                    self.logger.warning(
+                                                        "Bluesky parent post not found for: \(post.id), parentID: \(parentID)"
+                                                    )
+                                                }
+                                            } else {
+                                                self.logger.error(
+                                                    "No Bluesky account available for fetching parent post"
+                                                )
+                                            }
+                                        } catch {
+                                            self.logger.error(
+                                                "Error pre-loading Bluesky parent post: \(error.localizedDescription)"
+                                            )
                                         }
                                     }
                                 }

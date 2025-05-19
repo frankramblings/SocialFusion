@@ -108,6 +108,9 @@ final class SocialServiceManager: ObservableObject {
     private let mastodonService = MastodonService()
     private let blueskyService = BlueskyService()
 
+    // Cache for Mastodon parent posts to avoid redundant fetches
+    private var mastodonPostCache: [String: (post: Post, timestamp: Date)] = [:]
+
     // MARK: - Initialization
 
     // Make initializer public so it can be used in SocialFusionApp
@@ -270,175 +273,92 @@ final class SocialServiceManager: ObservableObject {
 
     // MARK: - Timeline
 
-    /// Fetch posts for an account or all accounts
-    func fetchPosts(for account: SocialAccount? = nil) async throws -> [Post] {
-        isLoading = true
-        defer { isLoading = false }
+    /// Fetch posts for a specific account
+    private func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
+        // Based on the platform, use the appropriate service
+        switch account.platform {
+        case .mastodon:
+            return try await mastodonService.fetchHomeTimeline(for: account)
+        case .bluesky:
+            return try await blueskyService.fetchTimeline(for: account)
+        }
+    }
 
+    /// Refresh timeline, with option to force refresh
+    func refreshTimeline(force: Bool = false) async throws {
+        try await fetchTimeline()
+    }
+
+    /// Refresh timeline for specific accounts
+    func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
         var allPosts: [Post] = []
 
-        do {
-            if let account = account {
-                // Fetch for specific account
-                switch account.platform {
-                case .mastodon:
-                    // Fetch Mastodon posts
-                    let posts = try await mastodonService.fetchHomeTimeline(for: account)
-                    allPosts.append(contentsOf: posts)
-                case .bluesky:
-                    // Fetch Bluesky posts
-                    let posts = try await blueskyService.fetchTimeline(for: account)
-                    allPosts.append(contentsOf: posts)
-                }
-            } else {
-                // Fetch for all accounts
-                for account in accounts {
-                    // Fetch posts for each account
-                    let posts = try await fetchPosts(for: account)
-                    allPosts.append(contentsOf: posts)
-                }
+        // Fetch posts from each account and combine
+        for account in accounts {
+            do {
+                let posts = try await fetchPostsForAccount(account)
+                allPosts.append(contentsOf: posts)
+            } catch {
+                print("Error fetching posts for \(account.username): \(error)")
+                // Continue with other accounts even if one fails
             }
-
-            // For testing, return sample data if we don't have real posts
-            if allPosts.isEmpty {
-                return Post.samplePosts
-            }
-
-            return allPosts
-        } catch {
-            self.error = error
-            throw error
         }
+
+        // Sort all posts by date (newest first)
+        let sortedPosts = allPosts.sorted(by: { $0.createdAt > $1.createdAt })
+
+        // Update unified timeline on main thread
+        await MainActor.run {
+            unifiedTimeline = sortedPosts
+        }
+
+        return sortedPosts
     }
 
-    /// Refresh the unified timeline
-    @MainActor
-    func refreshTimeline(force: Bool = false) async throws {
-        guard !isLoadingTimeline || force else { return }
-
-        isLoadingTimeline = true
-        defer { isLoadingTimeline = false }
-
-        // Fetch posts from all accounts
-        var posts: [Post] = []
-
-        do {
-            if accounts.isEmpty {
-                // Use sample posts if no accounts
-                posts = Post.samplePosts
-            } else {
-                // Fetch from each account
-                for account in accounts {
-                    do {
-                        try await Task.sleep(nanoseconds: 100_000_000)  // Small delay between requests
-                        print("Fetching posts for \(account.platform) account: \(account.username)")
-                        let accountPosts = try await fetchPosts(for: account)
-                        print(
-                            "Successfully fetched \(accountPosts.count) posts for \(account.username)"
-                        )
-                        posts.append(contentsOf: accountPosts)
-                    } catch {
-                        // Log the error but continue with other accounts
-                        print(
-                            "Error fetching posts for \(account.platform) account \(account.username): \(error.localizedDescription)"
-                        )
-                        if let serviceError = error as? ServiceError {
-                            print(
-                                "Service error details: \(serviceError.errorDescription ?? "Unknown")"
-                            )
-                        }
-                        self.error = error
-                    }
-                }
-
-                // If we couldn't get any posts from real accounts, and we have an error, throw it
-                if posts.isEmpty && error != nil {
-                    throw error!
-                }
-
-                // If we still don't have any posts but no error occurred, use sample posts
-                if posts.isEmpty {
-                    posts = Post.samplePosts
-                }
-
-                // Fetch parent posts for replies
-                await fetchParentPosts(for: &posts)
-            }
-
-            // Sort by date (newest first)
-            posts.sort { $0.createdAt > $1.createdAt }
-
-            // Update the unified timeline
-            self.unifiedTimeline = posts
-        } catch {
-            self.error = error
-            print("Timeline refresh failed with error: \(error.localizedDescription)")
-            throw error
-        }
-    }
-
-    /// Fetch parent posts for replies
-    private func fetchParentPosts(for posts: inout [Post]) async {
-        let replyPosts = posts.filter { $0.inReplyToID != nil && $0.parent == nil }
-
-        if replyPosts.isEmpty {
+    /// Fetch the unified timeline for all accounts
+    private func fetchTimeline() async throws {
+        // Check if we're already loading
+        guard !isLoadingTimeline else {
             return
         }
 
-        print("Fetching \(replyPosts.count) parent posts for replies")
-
-        // Instead of updating the posts array directly in async context, collect all the updates
-        // and then create a completely new array with the updates applied
-        var parentPosts: [String: Post] = [:]  // Dictionary to hold parent posts with inReplyToID as key
-
-        // Fetch all parent posts
-        for post in replyPosts {
-            if let inReplyToID = post.inReplyToID {
-                do {
-                    var parentPost: Post?
-
-                    // Determine which service to use based on platform
-                    switch post.platform {
-                    case .mastodon:
-                        if let account = self.mastodonAccounts.first {
-                            // Use the Mastodon service to fetch the parent post
-                            parentPost = try? await self.mastodonService.fetchStatus(
-                                id: inReplyToID, account: account)
-                        }
-                    case .bluesky:
-                        if let account = self.blueskyAccounts.first {
-                            // Use the Bluesky service to fetch the parent post
-                            parentPost = try? await self.blueskyService.fetchPostByID(
-                                inReplyToID, account: account)
-                        }
-                    }
-
-                    if let parentPost = parentPost {
-                        // Store the parent post in our dictionary
-                        parentPosts[inReplyToID] = parentPost
-                        print("Fetched parent post for reply to \(inReplyToID)")
-                    }
-                }
-                // No catch block needed since we're using try? which doesn't throw
-
-                // Small delay to avoid rate limits
-                try? await Task.sleep(nanoseconds: 100_000_000)
-            }
+        // Update loading state on main thread
+        await MainActor.run {
+            isLoadingTimeline = true
+            timelineError = nil
         }
 
-        // Apply updates only if we found any parent posts
-        if !parentPosts.isEmpty {
-            print("Applying \(parentPosts.count) parent post updates")
+        do {
+            // Determine which accounts to fetch based on selection
+            var accountsToFetch: [SocialAccount] = []
 
-            // Create a new array with updates applied
-            posts = posts.map { post in
-                // If this post has a parent that we found, update it
-                let updatedPost = post
-                if let inReplyToID = post.inReplyToID, let parentPost = parentPosts[inReplyToID] {
-                    updatedPost.parent = parentPost
-                }
-                return updatedPost
+            if selectedAccountIds.contains("all") {
+                // Fetch from all accounts
+                accountsToFetch = accounts
+            } else {
+                // Fetch only from selected accounts
+                accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
             }
+
+            guard !accountsToFetch.isEmpty else {
+                await MainActor.run {
+                    isLoadingTimeline = false
+                }
+                return
+            }
+
+            // Use our other method to fetch and process the posts
+            let _ = try await refreshTimeline(accounts: accountsToFetch)
+
+            await MainActor.run {
+                isLoadingTimeline = false
+            }
+        } catch {
+            await MainActor.run {
+                timelineError = error
+                isLoadingTimeline = false
+            }
+            throw error
         }
     }
 
@@ -467,6 +387,96 @@ final class SocialServiceManager: ObservableObject {
         }
 
         return try await blueskyService.fetchPostByID(postId, account: account)
+    }
+
+    /// Fetch a specific post by ID from Mastodon with caching
+    func fetchMastodonStatus(id: String, account: SocialAccount) async throws -> Post? {
+        print("📊 SocialServiceManager: Fetching Mastodon status with ID: \(id)")
+
+        // Check cache first (valid for 5 minutes)
+        if let cached = mastodonPostCache[id],
+            Date().timeIntervalSince(cached.timestamp) < 300
+        {  // 5 minutes
+            print("📊 SocialServiceManager: Using cached Mastodon post for ID: \(id)")
+            return cached.post
+        }
+
+        guard account.platform == .mastodon else {
+            print(
+                "📊 SocialServiceManager: Invalid account platform - expected Mastodon but got \(account.platform)"
+            )
+            throw ServiceError.invalidAccount(
+                reason: "The provided account is not a Mastodon account")
+        }
+
+        do {
+            // Use a task with higher priority for better UI responsiveness
+            return try await Task.detached(priority: .userInitiated) {
+                let result = try await self.mastodonService.fetchStatus(id: id, account: account)
+                if let post = result {
+                    print(
+                        "📊 SocialServiceManager: Successfully fetched Mastodon post \(post.id), inReplyToID: \(post.inReplyToID ?? "nil")"
+                    )
+
+                    // Store in cache
+                    await MainActor.run {
+                        self.mastodonPostCache[id] = (post: post, timestamp: Date())
+                    }
+                } else {
+                    print(
+                        "📊 SocialServiceManager: Mastodon service returned nil post for ID: \(id)")
+                }
+                return result
+            }.value
+        } catch {
+            print("📊 SocialServiceManager: Error fetching Mastodon status: \(error)")
+            throw error
+        }
+    }
+
+    /// Fetch posts for the specified account
+    func fetchPosts(for account: SocialAccount? = nil) async throws -> [Post] {
+        await MainActor.run {
+            isLoading = true
+            error = nil
+        }
+
+        do {
+            var posts: [Post] = []
+
+            if let account = account {
+                // Fetch for specific account
+                posts = try await fetchPostsForAccount(account)
+            } else {
+                // Fetch for all accounts
+                for account in accounts {
+                    do {
+                        let accountPosts = try await fetchPostsForAccount(account)
+                        posts.append(contentsOf: accountPosts)
+                    } catch {
+                        print("Error fetching posts for \(account.username): \(error)")
+                        // Continue with other accounts even if one fails
+                    }
+                }
+            }
+
+            // Use sample posts if no real posts available
+            if posts.isEmpty {
+                posts = Post.samplePosts
+            }
+
+            await MainActor.run {
+                isLoading = false
+            }
+
+            return posts
+        } catch {
+            await MainActor.run {
+                self.error = error
+                isLoading = false
+            }
+            throw error
+        }
     }
 
     // MARK: - Post Actions

@@ -14,17 +14,38 @@ private class HTMLString {
 
     /// Plain text version with HTML tags removed but preserving line breaks
     var plainText: String {
-        // First replace <br> and </p> with markers
+        // First replace <br> and <p> tags with proper line breaks
         let withLineBreaks =
             raw
             .replacingOccurrences(of: "<br\\s*/*>", with: "\n", options: .regularExpression)
+            .replacingOccurrences(of: "<p>", with: "", options: .regularExpression)
             .replacingOccurrences(of: "</p>", with: "\n\n", options: .regularExpression)
+            .replacingOccurrences(of: "<span[^>]*>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "</span>", with: "", options: .regularExpression)
+
+        // Clean up anchor tags but preserve the text content
+        // Extract href URLs for later use if needed
+        var cleanedText = withLineBreaks
+        let anchorPattern = "<a[^>]*href=[\"']([^\"']*)[\"'][^>]*>(.*?)</a>"
+        if let regex = try? NSRegularExpression(
+            pattern: anchorPattern, options: [.dotMatchesLineSeparators])
+        {
+            let range = NSRange(cleanedText.startIndex..<cleanedText.endIndex, in: cleanedText)
+            cleanedText = regex.stringByReplacingMatches(
+                in: cleanedText,
+                options: [],
+                range: range,
+                withTemplate: "$2"
+            )
+        }
 
         // Then strip remaining HTML tags
+        cleanedText = cleanedText.replacingOccurrences(
+            of: "<[^>]+>", with: "", options: .regularExpression)
+
+        // Clean up HTML entities
         return
-            withLineBreaks
-            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            // Clean up HTML entities
+            cleanedText
             .replacingOccurrences(of: "&nbsp;", with: " ")
             .replacingOccurrences(of: "&amp;", with: "&")
             .replacingOccurrences(of: "&lt;", with: "<")
@@ -38,7 +59,37 @@ private class HTMLString {
 
     /// Extract the first URL from the HTML content
     var extractFirstURL: URL? {
-        // Use NSDataDetector to find URLs in the plain text
+        // Look for href in the HTML first
+        let hrefPattern = "href=[\"']([^\"']*)[\"']"
+        if let regex = try? NSRegularExpression(pattern: hrefPattern, options: []) {
+            let nsString = raw as NSString
+            let matches = regex.matches(
+                in: raw, options: [],
+                range: NSRange(location: 0, length: nsString.length))
+
+            // Return the first href URL that's not a hashtag
+            for match in matches where match.numberOfRanges > 1 {
+                let urlRange = match.range(at: 1)
+                let urlString = nsString.substring(with: urlRange)
+
+                // Skip obvious hashtag URLs
+                if urlString.contains("/tags/") || urlString.contains("/tag/")
+                    || urlString.hasPrefix("#") || urlString.contains("/hashtag/")
+                {
+                    continue
+                }
+
+                if let url = URL(string: urlString) {
+                    // Skip if it's a hashtag URL
+                    if isHashtagOrMentionURL(url) {
+                        continue
+                    }
+                    return url
+                }
+            }
+        }
+
+        // Fallback to plain text URL detection
         if let detector = try? NSDataDetector(
             types: NSTextCheckingResult.CheckingType.link.rawValue)
         {
@@ -46,17 +97,176 @@ private class HTMLString {
             let matches = detector.matches(
                 in: plainText, options: [], range: NSRange(location: 0, length: plainText.count))
 
-            // Return the first detected URL
-            if let match = matches.first, let url = match.url {
-                return url
+            // Skip any hashtags first
+            let hashtags = getHashtags(from: plainText)
+
+            // Process all detected URLs
+            for match in matches {
+                if let url = match.url {
+                    // Skip if the URL is one of our hashtags
+                    let urlString = url.absoluteString.lowercased()
+                    if hashtags.contains(where: { urlString.contains($0.lowercased()) }) {
+                        continue
+                    }
+
+                    // Skip if it's a hashtag URL
+                    if isHashtagOrMentionURL(url) {
+                        continue
+                    }
+
+                    return url
+                }
             }
         }
+
         return nil
+    }
+
+    /// Extract hashtags from text
+    private func getHashtags(from text: String) -> [String] {
+        let hashtagPattern = "#[\\w]+"
+        var hashtags: [String] = []
+
+        if let regex = try? NSRegularExpression(pattern: hashtagPattern, options: []) {
+            let nsString = text as NSString
+            let matches = regex.matches(
+                in: text, options: [],
+                range: NSRange(location: 0, length: nsString.length))
+
+            for match in matches {
+                let hashtagRange = match.range
+                let hashtag = nsString.substring(with: hashtagRange)
+                hashtags.append(hashtag)
+            }
+        }
+
+        return hashtags
+    }
+
+    /// Convert HTML to AttributedString for proper rendering
+    func attributedStringFromHTML() -> AttributedString {
+        // Clean the HTML
+        let cleanHTML = cleanHTMLForRendering(raw)
+
+        // Convert to NSAttributedString using native HTML parser
+        guard let data = cleanHTML.data(using: .utf8) else {
+            return AttributedString(raw)
+        }
+
+        do {
+            let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+                .documentType: NSAttributedString.DocumentType.html,
+                .characterEncoding: String.Encoding.utf8.rawValue,
+            ]
+
+            let attributedString = try NSAttributedString(
+                data: data, options: options, documentAttributes: nil)
+
+            // Convert to AttributedString
+            var result = AttributedString(attributedString)
+
+            // Let the system handle Dynamic Type instead of hardcoding
+            result.font = .body
+
+            return result
+        } catch {
+            print("Error parsing HTML: \(error)")
+            return AttributedString(plainText)
+        }
+    }
+
+    /// Helper function to clean HTML content for rendering
+    private func cleanHTMLForRendering(_ html: String) -> String {
+        // Handle common HTML tags and styling
+        var cleanHTML =
+            html
+            .replacingOccurrences(of: "<p>", with: "<div>")
+            .replacingOccurrences(of: "</p>", with: "</div>")
+
+        // Get system color scheme to decide text color - ensure this happens on main thread
+        let isDarkMode: Bool
+        if Thread.isMainThread {
+            isDarkMode = UITraitCollection.current.userInterfaceStyle == .dark
+        } else {
+            // When called from background thread, use a safer default
+            // or dispatch to main for UI trait access
+            var darkMode = false
+            DispatchQueue.main.sync {
+                darkMode = UITraitCollection.current.userInterfaceStyle == .dark
+            }
+            isDarkMode = darkMode
+        }
+
+        let textColor = isDarkMode ? "white" : "black"
+        let linkColor = isDarkMode ? "#1DA1F2" : "#1DA1F2"  // Keep links blue regardless of theme
+
+        // Improve link styling and ensure they're clickable
+        cleanHTML =
+            cleanHTML
+            .replacingOccurrences(
+                of: "<a href=",
+                with: "<a style=\"color: \(linkColor); text-decoration: underline;\" href="
+            )
+
+        // Wrap in a div with styling for proper rendering - we don't set explicit font size
+        // to allow Dynamic Type to control sizing through the AttributedString
+        cleanHTML =
+            "<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: \(textColor);\">\(cleanHTML)</div>"
+
+        return cleanHTML
     }
 
     /// Initialize with raw HTML content
     init(raw: String) {
         self.raw = raw
+    }
+
+    /// Helper method to determine if a URL is a hashtag or mention
+    private func isHashtagOrMentionURL(_ url: URL) -> Bool {
+        // Check for our custom socialfusion scheme for hashtags and mentions
+        if url.scheme == "socialfusion" {
+            return url.host == "tag" || url.host == "user"
+        }
+
+        // Check for URLs that are just fragment identifiers
+        let urlString = url.absoluteString.lowercased()
+        if urlString.hasPrefix("#") || urlString.hasPrefix("@") {
+            return true
+        }
+
+        // Check for Mastodon-style hashtag URLs
+        // Examples:
+        // - https://instance.social/tags/hashtag
+        // - https://mastodon.social/tags/trending
+        if url.pathComponents.contains("tags") || url.pathComponents.contains("tag")
+            || url.path.contains("/hashtag/")
+        {
+            return true
+        }
+
+        // Check for profile URLs which should be treated as mentions
+        if url.path.contains("/profile/") || url.path.contains("/@") || url.path.contains("/users/")
+        {
+            return true
+        }
+
+        // Additional check for hashtag domains that might be mistakenly treated as URLs
+        if let host = url.host?.lowercased() {
+            // Common words that often appear in hashtags but shouldn't be treated as domains
+            let commonHashtagWords = [
+                "workingclass", "laborhistory", "genocide", "dictatorship",
+                "humanrights", "freespeech", "uprising", "actuallyautistic",
+                "germany", "gaza", "mastodon",
+            ]
+
+            for word in commonHashtagWords {
+                if host == word || host.hasPrefix(word + ".") {
+                    return true
+                }
+            }
+        }
+
+        return false
     }
 }
 
@@ -123,6 +333,15 @@ extension Post {
         return htmlString.extractFirstURL
     }
 
+    /// Extract plain text from HTML content for Mastodon posts
+    public var plainTextContent: String {
+        if platform == .mastodon {
+            let htmlString = HTMLString(raw: content)
+            return htmlString.plainText
+        }
+        return content
+    }
+
     /// Creates an AttributedString with links for URLs and hashtags
     private func createTextWithLinks(from text: String) -> AttributedString {
         var attributedString = AttributedString(text)
@@ -178,6 +397,30 @@ extension Post {
             }
         }
 
+        // Add mention detection for Mastodon
+        let mentionPattern = "@[\\w.]+"
+        if let regex = try? NSRegularExpression(pattern: mentionPattern, options: []) {
+            let nsString = text as NSString
+            let matches = regex.matches(
+                in: text, options: [],
+                range: NSRange(location: 0, length: nsString.length))
+
+            for match in matches {
+                // Extract the mention
+                let mention = nsString.substring(with: match.range)
+                let username = String(mention.dropFirst())  // Remove @ symbol
+
+                // Create a URL for the mention
+                if let mentionURL = URL(string: "socialfusion://user/\(username)") {
+                    // Find this mention in our AttributedString
+                    if let range = attributedString.range(of: mention) {
+                        attributedString[range].link = mentionURL
+                        attributedString[range].foregroundColor = .accentColor
+                    }
+                }
+            }
+        }
+
         return attributedString
     }
 
@@ -187,24 +430,129 @@ extension Post {
         VStack(alignment: .leading, spacing: 8) {
             switch platform {
             case .mastodon:
-                // Get plain text with line breaks preserved
-                let plainText = HTMLString(raw: content).plainText
+                // Use built-in HTML to AttributedString conversion for Mastodon
+                let htmlString = HTMLString(raw: content)
+                let attributedContent = htmlString.attributedStringFromHTML()
 
-                // Create AttributedString with clickable links and hashtags
-                let attributed = createTextWithLinks(from: plainText)
-
-                Text(attributed)
+                Text(attributedContent)
+                    .font(.body)  // Use Dynamic Type instead of hardcoded size
+                    .foregroundColor(.primary)
                     .lineLimit(lineLimit)
+                    // Prevent automatic dynamic type adjustments which could cause threading issues
+                    .fixedSize(horizontal: false, vertical: true)
             default:
-                Text(content)
+                // For Bluesky and other platforms
+                let attributed = createTextWithLinks(from: content)
+                Text(attributed)
+                    .font(.body)  // Use Dynamic Type instead of hardcoded size
+                    .foregroundColor(.primary)
                     .lineLimit(lineLimit)
+                    // Prevent automatic dynamic type adjustments which could cause threading issues
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // Show link preview if enabled and URL exists
-            if showLinkPreview, let url = firstURL {
-                LinkPreview(url: url)
-                    .padding(.top, 4)
+            if showLinkPreview, let url = firstURL, !isHashtagOrMentionURL(url) {
+                // Check if it's a social media post URL
+                if isSocialMediaPostURL(url) {
+                    // For social media posts, show a quote post view
+                    FetchQuotePostView(url: url)
+                        .padding(.top, 4)
+                } else {
+                    // For regular links, show the standard link preview
+                    LinkPreview(url: url)
+                        .padding(.top, 4)
+                }
             }
         }
+    }
+
+    /// Helper method to determine if a URL is a hashtag or mention
+    private func isHashtagOrMentionURL(_ url: URL) -> Bool {
+        // Check for our custom socialfusion scheme for hashtags and mentions
+        if url.scheme == "socialfusion" {
+            return url.host == "tag" || url.host == "user"
+        }
+
+        // Check for URLs that are just fragment identifiers
+        let urlString = url.absoluteString.lowercased()
+        if urlString.hasPrefix("#") || urlString.hasPrefix("@") {
+            return true
+        }
+
+        // Check for Mastodon-style hashtag URLs
+        // Examples:
+        // - https://instance.social/tags/hashtag
+        // - https://mastodon.social/tags/trending
+        if url.pathComponents.contains("tags") || url.pathComponents.contains("tag")
+            || url.path.contains("/hashtag/")
+        {
+            return true
+        }
+
+        // Check for profile URLs which should be treated as mentions
+        if url.path.contains("/profile/") || url.path.contains("/@") || url.path.contains("/users/")
+        {
+            return true
+        }
+
+        // Additional check for hashtag domains that might be mistakenly treated as URLs
+        if let host = url.host?.lowercased() {
+            // Common words that often appear in hashtags but shouldn't be treated as domains
+            let commonHashtagWords = [
+                "workingclass", "laborhistory", "genocide", "dictatorship",
+                "humanrights", "freespeech", "uprising", "actuallyautistic",
+                "germany", "gaza", "mastodon",
+            ]
+
+            for word in commonHashtagWords {
+                if host == word || host.hasPrefix(word + ".") {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /// Helper method to determine if a URL is a social media post
+    private func isSocialMediaPostURL(_ url: URL) -> Bool {
+        let urlString = url.absoluteString.lowercased()
+        let path = url.path
+
+        // Check for Bluesky post URLs (must have both profile and post components)
+        if urlString.contains("bsky.app") || urlString.contains("bsky.social") {
+            // Must contain both profile and post in the path: /profile/{username}/post/{postId}
+            let hasProfileAndPost = path.contains("/profile/") && path.contains("/post/")
+
+            // Don't treat it as a post URL if it's just a profile
+            if path.contains("/profile/") && !path.contains("/post/") {
+                return false
+            }
+
+            return hasProfileAndPost
+        }
+
+        // Check for Mastodon post URLs - this requires a numeric ID at the end
+        if url.host?.contains(".social") == true || url.host?.contains("mastodon") == true
+            || url.host?.contains("mas.to") == true
+        {
+            // Must match pattern: /@username/numeric_status_id or /users/username/statuses/numeric_id
+            let components = path.split(separator: "/")
+
+            // Don't treat it as a post URL if it's just a profile
+            if path.contains("/@") && components.count < 3 {
+                return false
+            }
+
+            // Check if last component is numeric (status ID)
+            if components.count >= 3 {
+                // Last component should be a numeric ID
+                let lastComponent = components.last!
+                return lastComponent.allSatisfy { $0.isNumber }
+            }
+        }
+
+        return false
     }
 }
