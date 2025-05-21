@@ -14,7 +14,7 @@ public class HTMLString {
 
     /// Plain text version with HTML tags removed
     public var plainText: String {
-        // Basic HTML tag stripping for fallback
+        // Robust HTML tag stripping for fallback
         return raw.replacingOccurrences(
             of: "<[^>]+>", with: "", options: .regularExpression, range: nil
         )
@@ -30,6 +30,32 @@ public class HTMLString {
     public init(raw: String) {
         self.raw = raw
     }
+
+    /// Returns the first URL found in the raw HTML string
+    public var extractFirstURL: URL? {
+        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        let matches = detector?.matches(
+            in: raw, options: [], range: NSRange(location: 0, length: raw.utf16.count))
+        return matches?.compactMap { $0.url }.first
+    }
+
+    /// Returns an AttributedString representation of the HTML
+    public func attributedStringFromHTML() -> AttributedString {
+        guard let data = raw.data(using: .utf16) else {
+            return AttributedString(raw)
+        }
+        if let nsAttr = try? NSAttributedString(
+            data: data,
+            options: [
+                .documentType: NSAttributedString.DocumentType.html,
+                .characterEncoding: String.Encoding.utf16.rawValue,
+            ], documentAttributes: nil)
+        {
+            return AttributedString(nsAttr)
+        } else {
+            return AttributedString(raw)
+        }
+    }
 }
 
 /// A custom text component for rendering HTML content with emoji support
@@ -38,11 +64,22 @@ public struct EmojiTextApp: View {
     let customEmoji: [String: URL]?
     var font: Font = .body
     var foregroundColor: Color = .primary
-    private var lineLimit: Int?
+    var lineLimit: Int? = nil
+    var mentions: [String] = []
+    var tags: [String] = []
 
-    public init(htmlString: HTMLString, customEmoji: [String: URL]? = nil) {
+    public init(
+        htmlString: HTMLString, customEmoji: [String: URL]? = nil, font: Font = .body,
+        foregroundColor: Color = .primary, lineLimit: Int? = nil, mentions: [String] = [],
+        tags: [String] = []
+    ) {
         self.htmlString = htmlString
         self.customEmoji = customEmoji
+        self.font = font
+        self.foregroundColor = foregroundColor
+        self.lineLimit = lineLimit
+        self.mentions = mentions
+        self.tags = tags
     }
 
     /// Set font for the text
@@ -67,12 +104,62 @@ public struct EmojiTextApp: View {
     }
 
     public var body: some View {
-        // Basic implementation that uses plainText as fallback
-        Text(htmlString.plainText)
-            .font(font)
-            .foregroundColor(foregroundColor)
+        let attributed = Self.buildAttributedString(
+            htmlString: htmlString,
+            customEmoji: customEmoji,
+            font: font,
+            foregroundColor: foregroundColor,
+            mentions: mentions,
+            tags: tags
+        )
+        Text(attributed)
             .lineLimit(lineLimit)
-        // In a real implementation, we would parse HTML and render with emojis
+    }
+
+    // Build AttributedString with robust mention/tag/web link handling
+    static func buildAttributedString(
+        htmlString: HTMLString, customEmoji: [String: URL]?, font: Font, foregroundColor: Color,
+        mentions: [String], tags: [String]
+    ) -> AttributedString {
+        // Parse HTML and build AttributedString
+        guard let data = htmlString.raw.data(using: .utf8) else {
+            return AttributedString(htmlString.plainText)
+        }
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue,
+        ]
+        let nsAttr = try? NSMutableAttributedString(
+            data: data, options: options, documentAttributes: nil)
+        var attributed = AttributedString(
+            nsAttr ?? NSAttributedString(string: htmlString.plainText))
+
+        // Gather mention/tag URLs
+        let mentionURLs = mentions.compactMap { URL(string: $0) }
+        let tagURLs = tags.compactMap { URL(string: $0) }
+
+        // Walk all runs and reassign links as needed
+        for run in attributed.runs {
+            if let url = run.link {
+                // If this is a mention or tag, convert to custom scheme
+                if mentionURLs.contains(url) {
+                    let username = url.lastPathComponent
+                    attributed[run.range].link = URL(string: "socialfusion://user/\(username)")
+                    attributed[run.range].foregroundColor = .accentColor
+                } else if tagURLs.contains(url) {
+                    let tag = url.lastPathComponent
+                    attributed[run.range].link = URL(string: "socialfusion://tag/\(tag)")
+                    attributed[run.range].foregroundColor = .accentColor
+                } else {
+                    // Real web link: style as link
+                    attributed[run.range].foregroundColor = .accentColor
+                }
+            }
+            // Always apply font and color
+            attributed[run.range].font = font
+            attributed[run.range].foregroundColor = foregroundColor
+        }
+        return attributed
     }
 }
 

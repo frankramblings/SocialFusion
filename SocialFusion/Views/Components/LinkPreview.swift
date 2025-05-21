@@ -83,20 +83,21 @@ struct LinkPreview: View {
                 // Link preview content
                 VStack(alignment: .leading, spacing: 8) {
                     if let imageURL = imageURL {
-                        // If we have an image URL, display it
                         AsyncImage(url: imageURL) { phase in
                             if let image = phase.image {
                                 image
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
-                                    .frame(height: 120)
+                                    .frame(maxWidth: .infinity, maxHeight: 220)
+                                    .cornerRadius(14)
                                     .clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .accessibilityAddTraits(.isImage)
+                            } else if phase.error != nil {
+                                EmptyView() // Hide on error
                             } else {
-                                Rectangle()
-                                    .foregroundColor(Color.gray.opacity(0.2))
-                                    .frame(height: 120)
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                                Color.gray.opacity(0.15)
+                                    .frame(maxWidth: .infinity, maxHeight: 220)
+                                    .cornerRadius(14)
                             }
                         }
                     }

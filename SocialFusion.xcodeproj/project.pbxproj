@@ -21,6 +21,16 @@
 		50CDC83B2DD7CDDD00144E13 /* ParentPostPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8302DD7CDDD00144E13 /* ParentPostPreview.swift */; };
 		50CDC83C2DD7CDDD00144E13 /* FullscreenMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */; };
 		50CDC83D2DD7CDDD00144E13 /* PostAuthorImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8322DD7CDDD00144E13 /* PostAuthorImageView.swift */; };
+		50E2887A2DDC1DF200E1B621 /* HTMLString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288722DDC1DF200E1B621 /* HTMLString.swift */; };
+		50E2887B2DDC1DF200E1B621 /* LinkDetection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288742DDC1DF200E1B621 /* LinkDetection.swift */; };
+		50E2887C2DDC1DF200E1B621 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288702DDC1DF200E1B621 /* ErrorHandler.swift */; };
+		50E2887D2DDC1DF200E1B621 /* URLService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288782DDC1DF200E1B621 /* URLService.swift */; };
+		50E2887E2DDC1DF200E1B621 /* HTMLFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288712DDC1DF200E1B621 /* HTMLFormatter.swift */; };
+		50E2887F2DDC1DF200E1B621 /* TimeFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288762DDC1DF200E1B621 /* TimeFormatters.swift */; };
+		50E288802DDC1DF200E1B621 /* TokenManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288772DDC1DF200E1B621 /* TokenManager.swift */; };
+		50E288812DDC1DF200E1B621 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288792DDC1DF200E1B621 /* Utilities.swift */; };
+		50E288822DDC1DF200E1B621 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288732DDC1DF200E1B621 /* KeychainManager.swift */; };
+		50E288832DDC1DF200E1B621 /* RobotsTxtChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288752DDC1DF200E1B621 /* RobotsTxtChecker.swift */; };
 		5B75ACFBB0193B6FAEB26D76 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA9048F6309F63324484C491 /* Assets.xcassets */; };
 		5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */; };
 		5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */; };
@@ -53,6 +63,16 @@
 		50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDot.swift; sourceTree = "<group>"; };
 		50CDC8322DD7CDDD00144E13 /* PostAuthorImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAuthorImageView.swift; sourceTree = "<group>"; };
 		50CDC8332DD7CDDD00144E13 /* PostDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostDetailView.swift; sourceTree = "<group>"; };
+		50E288702DDC1DF200E1B621 /* ErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
+		50E288712DDC1DF200E1B621 /* HTMLFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLFormatter.swift; sourceTree = "<group>"; };
+		50E288722DDC1DF200E1B621 /* HTMLString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLString.swift; sourceTree = "<group>"; };
+		50E288732DDC1DF200E1B621 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		50E288742DDC1DF200E1B621 /* LinkDetection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkDetection.swift; sourceTree = "<group>"; };
+		50E288752DDC1DF200E1B621 /* RobotsTxtChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RobotsTxtChecker.swift; sourceTree = "<group>"; };
+		50E288762DDC1DF200E1B621 /* TimeFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatters.swift; sourceTree = "<group>"; };
+		50E288772DDC1DF200E1B621 /* TokenManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenManager.swift; sourceTree = "<group>"; };
+		50E288782DDC1DF200E1B621 /* URLService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLService.swift; sourceTree = "<group>"; };
+		50E288792DDC1DF200E1B621 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		6B99202C32522904104EA1A6 /* SocialFusionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionApp.swift; sourceTree = "<group>"; };
 		712CCA659FBD7CD190A2972D /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialServiceManager.swift; sourceTree = "<group>"; };
@@ -114,6 +134,16 @@
 			isa = PBXGroup;
 			children = (
 				712CCA659FBD7CD190A2972D /* KeychainHelper.swift */,
+				50E288702DDC1DF200E1B621 /* ErrorHandler.swift */,
+				50E288712DDC1DF200E1B621 /* HTMLFormatter.swift */,
+				50E288722DDC1DF200E1B621 /* HTMLString.swift */,
+				50E288732DDC1DF200E1B621 /* KeychainManager.swift */,
+				50E288742DDC1DF200E1B621 /* LinkDetection.swift */,
+				50E288752DDC1DF200E1B621 /* RobotsTxtChecker.swift */,
+				50E288762DDC1DF200E1B621 /* TimeFormatters.swift */,
+				50E288772DDC1DF200E1B621 /* TokenManager.swift */,
+				50E288782DDC1DF200E1B621 /* URLService.swift */,
+				50E288792DDC1DF200E1B621 /* Utilities.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -248,6 +278,16 @@
 				32234CDDD38C105F8C980909 /* PostCardView.swift in Sources */,
 				86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */,
 				8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */,
+				50E2887A2DDC1DF200E1B621 /* HTMLString.swift in Sources */,
+				50E2887B2DDC1DF200E1B621 /* LinkDetection.swift in Sources */,
+				50E2887C2DDC1DF200E1B621 /* ErrorHandler.swift in Sources */,
+				50E2887D2DDC1DF200E1B621 /* URLService.swift in Sources */,
+				50E2887E2DDC1DF200E1B621 /* HTMLFormatter.swift in Sources */,
+				50E2887F2DDC1DF200E1B621 /* TimeFormatters.swift in Sources */,
+				50E288802DDC1DF200E1B621 /* TokenManager.swift in Sources */,
+				50E288812DDC1DF200E1B621 /* Utilities.swift in Sources */,
+				50E288822DDC1DF200E1B621 /* KeychainManager.swift in Sources */,
+				50E288832DDC1DF200E1B621 /* RobotsTxtChecker.swift in Sources */,
 				F2B3CD86D065126B32D48F84 /* SocialFusionApp.swift in Sources */,
 				EF81248BA79EBA60C432C031 /* SocialServiceManager.swift in Sources */,
 				5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */,

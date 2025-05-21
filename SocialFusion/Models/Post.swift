@@ -140,6 +140,9 @@ public class Post: Identifiable, Codable, Equatable {
     // Platform-specific IDs for API operations
     public let platformSpecificId: String
 
+    let quotedPostUri: String?
+    let quotedPostAuthorHandle: String?
+
     public struct Attachment: Identifiable, Codable {
         public var id: String { url }  // Use URL as unique identifier
         public let url: String
@@ -182,6 +185,8 @@ public class Post: Identifiable, Codable, Equatable {
         case parent
         case inReplyToID
         case inReplyToUsername
+        case quotedPostUri
+        case quotedPostAuthorHandle
     }
 
     public init(
@@ -205,7 +210,9 @@ public class Post: Identifiable, Codable, Equatable {
         boostedBy: String? = nil,
         parent: Post? = nil,
         inReplyToID: String? = nil,
-        inReplyToUsername: String? = nil
+        inReplyToUsername: String? = nil,
+        quotedPostUri: String? = nil,
+        quotedPostAuthorHandle: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -228,6 +235,8 @@ public class Post: Identifiable, Codable, Equatable {
         self.parent = parent
         self.inReplyToID = inReplyToID
         self.inReplyToUsername = inReplyToUsername
+        self.quotedPostUri = quotedPostUri
+        self.quotedPostAuthorHandle = quotedPostAuthorHandle
     }
 
     // Sample posts for previews and testing
@@ -247,7 +256,9 @@ public class Post: Identifiable, Codable, Equatable {
             isLiked: true,
             likeCount: 5,
             repostCount: 2,
-            platformSpecificId: ""
+            platformSpecificId: "",
+            quotedPostUri: nil,
+            quotedPostAuthorHandle: nil
         ),
         Post(
             id: "2",
@@ -269,7 +280,9 @@ public class Post: Identifiable, Codable, Equatable {
             tags: [],
             likeCount: 3,
             repostCount: 1,
-            platformSpecificId: ""
+            platformSpecificId: "",
+            quotedPostUri: nil,
+            quotedPostAuthorHandle: nil
         ),
         // Sample boosted post (Mastodon)
         Post(
@@ -305,11 +318,15 @@ public class Post: Identifiable, Codable, Equatable {
                 tags: ["Mastodon"],
                 likeCount: 12,
                 repostCount: 5,
-                platformSpecificId: ""
+                platformSpecificId: "",
+                quotedPostUri: nil,
+                quotedPostAuthorHandle: nil
             ),
             isReposted: true,
             repostCount: 5,
-            platformSpecificId: ""
+            platformSpecificId: "",
+            quotedPostUri: nil,
+            quotedPostAuthorHandle: nil
         ),
         // Sample boosted post (Bluesky)
         Post(
@@ -345,11 +362,15 @@ public class Post: Identifiable, Codable, Equatable {
                 isLiked: true,
                 likeCount: 25,
                 repostCount: 8,
-                platformSpecificId: ""
+                platformSpecificId: "",
+                quotedPostUri: nil,
+                quotedPostAuthorHandle: nil
             ),
             isReposted: true,
             repostCount: 8,
-            platformSpecificId: ""
+            platformSpecificId: "",
+            quotedPostUri: nil,
+            quotedPostAuthorHandle: nil
         ),
     ]
 
@@ -372,7 +393,54 @@ public class Post: Identifiable, Codable, Equatable {
             isLiked: self.isLiked,
             likeCount: self.likeCount,
             repostCount: self.repostCount,
-            platformSpecificId: newId  // Update the platform-specific ID too
+            platformSpecificId: newId,  // Update the platform-specific ID too
+            boostedBy: self.boostedBy,
+            parent: self.parent,
+            inReplyToID: self.inReplyToID,
+            inReplyToUsername: self.inReplyToUsername,
+            quotedPostUri: self.quotedPostUri,
+            quotedPostAuthorHandle: self.quotedPostAuthorHandle
         )
+    }
+
+    var firstQuoteOrPreviewCardView: AnyView? {
+        // Helper to check if a URL is a self-link
+        func isSelfLink(_ url: URL, post: Post) -> Bool {
+            guard let postURL = URL(string: post.originalURL) else { return false }
+            return url.absoluteString == postURL.absoluteString
+        }
+
+        // 1. Bluesky: Prefer official quote
+        if platform == .bluesky,
+            let quotedUri = quotedPostUri,
+            let quotedHandle = quotedPostAuthorHandle
+        {
+            let postId = quotedUri.split(separator: "/").last ?? ""
+            if let url = URL(string: "https://bsky.app/profile/\(quotedHandle)/post/\(postId)") {
+                return AnyView(FetchQuotePostView(url: url))
+            }
+        }
+
+        // 2. For both Bluesky and Mastodon: look for first valid post link (not self-link)
+        if let links = extractLinks(from: content) {
+            for link in links {
+                let isBlueskyPost = URLServiceWrapper.shared.isBlueskyPostURL(link)
+                let isMastodonPost = URLServiceWrapper.shared.isMastodonPostURL(link)
+                if (platform == .bluesky && isBlueskyPost)
+                    || (platform == .mastodon && isMastodonPost)
+                {
+                    if !isSelfLink(link, post: self) {
+                        return AnyView(FetchQuotePostView(url: link))
+                    }
+                }
+            }
+            // 3. Otherwise, show link preview for first valid previewable link (not self-link)
+            for link in links {
+                if !isSelfLink(link, post: self) {
+                    return AnyView(LinkPreview(url: link))
+                }
+            }
+        }
+        return nil
     }
 }

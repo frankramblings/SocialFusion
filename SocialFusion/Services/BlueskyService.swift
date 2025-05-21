@@ -713,14 +713,12 @@ class BlueskyService {
                     // First try the images array format
                     if let images = embed["images"] as? [[String: Any]] {
                         for image in images {
-                            if let fullsize = image["fullsize"] as? String {
-                                let alt = image["alt"] as? String ?? ""
+                            if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
+                                URL(string: fullsize) != nil
+                            {
+                                let alt = image["alt"] as? String ?? "Image"
                                 attachments.append(
-                                    Post.Attachment(
-                                        url: fullsize,
-                                        type: .image,
-                                        altText: alt
-                                    ))
+                                    Post.Attachment(url: fullsize, type: .image, altText: alt))
                             }
                         }
                     }
@@ -729,15 +727,18 @@ class BlueskyService {
                         let mediaType = media["$type"] as? String,
                         mediaType.contains("image"),
                         let imgUrl = media["image"] as? [String: Any],
-                        let url = imgUrl["url"] as? String
+                        let url = imgUrl["url"] as? String, !url.isEmpty, URL(string: url) != nil
                     {
-
+                        let alt = media["alt"] as? String ?? "Image"
+                        print("[Bluesky] Parsed image attachment: \(url) alt: \(alt)")
                         attachments.append(
                             Post.Attachment(
                                 url: url,
                                 type: .image,
-                                altText: media["alt"] as? String ?? ""
+                                altText: alt
                             ))
+                    } else {
+                        print("[Bluesky] Skipping invalid or non-image embed")
                     }
                 }
 
@@ -827,6 +828,20 @@ class BlueskyService {
                     }
                 }
 
+                // Extract quote post info if present
+                var quotedPostUri: String? = nil
+                var quotedPostAuthorHandle: String? = nil
+                if let embed = post["embed"] as? [String: Any],
+                    let record = embed["record"] as? [String: Any],
+                    let quotedRecord = record["record"] as? [String: Any],
+                    let quotedUri = quotedRecord["uri"] as? String,
+                    let quotedAuthor = quotedRecord["author"] as? [String: Any],
+                    let quotedHandle = quotedAuthor["handle"] as? String
+                {
+                    quotedPostUri = quotedUri
+                    quotedPostAuthorHandle = quotedHandle
+                }
+
                 // Create regular post
                 let newPost = Post(
                     id: uri,
@@ -847,7 +862,9 @@ class BlueskyService {
                     boostedBy: boostedBy,
                     parent: parentPost,
                     inReplyToID: inReplyToID,
-                    inReplyToUsername: inReplyToUsername
+                    inReplyToUsername: inReplyToUsername,
+                    quotedPostUri: quotedPostUri,
+                    quotedPostAuthorHandle: quotedPostAuthorHandle
                 )
 
                 posts.append(newPost)
@@ -859,6 +876,60 @@ class BlueskyService {
         }
 
         return posts
+    }
+
+    private func convertBlueskyPostToOriginalPost(_ post: BlueskyPost) -> Post {
+        let quotedPostUri = post.embed?.record?.record.uri
+        let quotedPostAuthorHandle: String? = nil  // Not available from Bluesky API
+        let authorName = post.author.displayName ?? post.author.handle
+        let authorUsername = post.author.handle
+        let authorProfilePictureURL = post.author.avatar ?? ""
+        let createdAt = ISO8601DateFormatter().date(from: post.record.createdAt) ?? Date()
+        let content = post.record.text
+        let originalURL =
+            "https://bsky.app/profile/\(authorUsername)/post/\(post.uri.split(separator: "/").last ?? "")"
+        var attachments: [Post.Attachment] = []
+        if let embed = post.embed as? [String: Any] {
+            // First try the images array format
+            if let images = embed["images"] as? [[String: Any]] {
+                for image in images {
+                    if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
+                        URL(string: fullsize) != nil
+                    {
+                        let alt = image["alt"] as? String ?? "Image"
+                        attachments.append(
+                            Post.Attachment(url: fullsize, type: .image, altText: alt))
+                    }
+                }
+            }
+        }
+        let mentions: [String] = []  // TODO: Extract mentions from Bluesky post if available
+        let tags: [String] = []  // TODO: Extract tags from Bluesky post if available
+        return Post(
+            id: UUID().uuidString,
+            content: content,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            authorProfilePictureURL: authorProfilePictureURL,
+            createdAt: createdAt,
+            platform: .bluesky,
+            originalURL: originalURL,
+            attachments: attachments,
+            mentions: mentions,
+            tags: tags,
+            originalPost: nil,
+            isReposted: post.viewer?.repostUri != nil,
+            isLiked: post.viewer?.likeUri != nil,
+            likeCount: post.likeCount,
+            repostCount: post.repostCount,
+            platformSpecificId: post.uri,
+            boostedBy: nil,
+            parent: nil,
+            inReplyToID: nil,
+            inReplyToUsername: nil,
+            quotedPostUri: quotedPostUri,
+            quotedPostAuthorHandle: quotedPostAuthorHandle
+        )
     }
 
     // Other methods from original implementation...

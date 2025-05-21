@@ -1155,18 +1155,26 @@ public class MastodonService {
                 isReposted: status.reblogged ?? false,
                 isLiked: status.favourited ?? false,
                 likeCount: status.favouritesCount,
-                repostCount: status.reblogsCount
+                repostCount: status.reblogsCount,
+                boostedBy: status.account.displayName.isEmpty
+                    ? status.account.acct : status.account.displayName
             )
         }
 
         // Regular non-boosted post
         let attachments = status.mediaAttachments.compactMap { media -> Post.Attachment? in
+            guard media.type == "image", let url = URL(string: media.url), !media.url.isEmpty else {
+                print(
+                    "[Mastodon] Skipping non-image or invalid attachment: \(media.url ?? "nil") type: \(media.type)"
+                )
+                return nil
+            }
+            let alt = media.description ?? "Image"
+            print("[Mastodon] Parsed image attachment: \(url) alt: \(alt)")
             return Post.Attachment(
                 url: media.url,
-                type: media.type == "image"
-                    ? .image
-                    : media.type == "video" ? .video : media.type == "gifv" ? .gifv : .audio,
-                altText: media.description ?? ""
+                type: .image,
+                altText: alt
             )
         }
 

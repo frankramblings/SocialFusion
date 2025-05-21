@@ -7,6 +7,7 @@
 // This file can be safely deleted after confirming the new extensions work properly.
 
 import Foundation
+import SwiftUI
 import UIKit
 
 class HTMLFormatter {

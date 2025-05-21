@@ -16,57 +16,54 @@ struct MediaGridView: View {
                 EmptyView()
 
             case 1:
-                // Single attachment gets full width
-                singleAttachmentView(attachment: attachments[0], size: width)
+                // Single attachment fills card width, fits aspect ratio
+                singleAttachmentView(attachment: attachments[0], width: width)
+                    .padding(.horizontal, 2)
 
             case 2:
-                // Two attachments side by side
                 HStack(spacing: 2) {
-                    singleAttachmentView(attachment: attachments[0], size: width / 2 - 1)
-                    singleAttachmentView(attachment: attachments[1], size: width / 2 - 1)
+                    singleAttachmentView(attachment: attachments[0], width: width / 2 - 2)
+                    singleAttachmentView(attachment: attachments[1], width: width / 2 - 2)
                 }
+                .padding(.horizontal, 2)
 
             case 3:
-                // One large on left, two stacked on right
                 HStack(spacing: 2) {
-                    singleAttachmentView(attachment: attachments[0], size: width * 0.66 - 1)
-
+                    singleAttachmentView(attachment: attachments[0], width: width * 0.66 - 2)
                     VStack(spacing: 2) {
-                        singleAttachmentView(attachment: attachments[1], size: width * 0.33 - 1)
-                        singleAttachmentView(attachment: attachments[2], size: width * 0.33 - 1)
+                        singleAttachmentView(attachment: attachments[1], width: width * 0.34 - 2)
+                        singleAttachmentView(attachment: attachments[2], width: width * 0.34 - 2)
                     }
                 }
+                .padding(.horizontal, 2)
 
             case 4:
-                // 2x2 grid
                 VStack(spacing: 2) {
                     HStack(spacing: 2) {
-                        singleAttachmentView(attachment: attachments[0], size: width / 2 - 1)
-                        singleAttachmentView(attachment: attachments[1], size: width / 2 - 1)
+                        singleAttachmentView(attachment: attachments[0], width: width / 2 - 2)
+                        singleAttachmentView(attachment: attachments[1], width: width / 2 - 2)
                     }
                     HStack(spacing: 2) {
-                        singleAttachmentView(attachment: attachments[2], size: width / 2 - 1)
-                        singleAttachmentView(attachment: attachments[3], size: width / 2 - 1)
+                        singleAttachmentView(attachment: attachments[2], width: width / 2 - 2)
+                        singleAttachmentView(attachment: attachments[3], width: width / 2 - 2)
                     }
                 }
+                .padding(.horizontal, 2)
 
             default:
-                // 2x2 grid with "+X more" overlay on last item
                 VStack(spacing: 2) {
                     HStack(spacing: 2) {
-                        singleAttachmentView(attachment: attachments[0], size: width / 2 - 1)
-                        singleAttachmentView(attachment: attachments[1], size: width / 2 - 1)
+                        singleAttachmentView(attachment: attachments[0], width: width / 2 - 2)
+                        singleAttachmentView(attachment: attachments[1], width: width / 2 - 2)
                     }
                     HStack(spacing: 2) {
-                        singleAttachmentView(attachment: attachments[2], size: width / 2 - 1)
-
+                        singleAttachmentView(attachment: attachments[2], width: width / 2 - 2)
                         ZStack {
-                            singleAttachmentView(attachment: attachments[3], size: width / 2 - 1)
-
+                            singleAttachmentView(attachment: attachments[3], width: width / 2 - 2)
                             if attachments.count > 4 {
                                 Rectangle()
                                     .fill(Color.black.opacity(0.6))
-
+                                    .cornerRadius(14)
                                 Text("+\(attachments.count - 4) more")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -74,46 +71,66 @@ struct MediaGridView: View {
                         }
                     }
                 }
+                .padding(.horizontal, 2)
             }
         }
         .frame(maxHeight: maxHeight)
-        .aspectRatio(contentMode: .fit)
-        .sheet(
-            isPresented: $showFullscreen,
-            content: {
-                if let media = selectedMedia {
-                    FullscreenMediaView(media: media, allMedia: attachments)
-                }
-            })
+        .sheet(isPresented: $showFullscreen) {
+            if let media = selectedMedia {
+                FullscreenMediaView(media: media, allMedia: attachments)
+            }
+        }
     }
 
-    private func singleAttachmentView(attachment: Post.Attachment, size: CGFloat) -> some View {
-        Button(action: {
-            selectedMedia = attachment
-            showFullscreen = true
-        }) {
-            AsyncImage(url: URL(string: attachment.url)) { phase in
-                if let image = phase.image {
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } else if phase.error != nil {
-                    Image(systemName: "exclamationmark.triangle")
+    private func singleAttachmentView(attachment: Post.Attachment, width: CGFloat) -> some View {
+        // Check for valid URL
+        guard let url = URL(string: attachment.url), !attachment.url.isEmpty else {
+            return AnyView(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: width, height: width * 0.75)
+                    Image(systemName: "photo")
                         .font(.largeTitle)
                         .foregroundColor(.gray)
-                } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.2))
-                        .overlay(
+                }
+            )
+        }
+        return AnyView(
+            Button(action: {
+                selectedMedia = attachment
+                showFullscreen = true
+            }) {
+                AsyncImage(url: url) { phase in
+                    if let image = phase.image {
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: attachments.count == 1 ? .fit : .fill)
+                            .frame(width: width)
+                            .cornerRadius(14)
+                            .accessibilityLabel(attachment.altText ?? "Image")
+                    } else if phase.error != nil {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: width, height: width * 0.75)
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.largeTitle)
+                                .foregroundColor(.gray)
+                        }
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(Color.gray.opacity(0.2))
+                                .frame(width: width, height: width * 0.75)
                             ProgressView()
                                 .progressViewStyle(CircularProgressViewStyle())
-                        )
+                        }
+                    }
                 }
             }
-            .frame(width: size, height: size)
-            .clipped()
-        }
-        .buttonStyle(PlainButtonStyle())
+            .buttonStyle(PlainButtonStyle())
+        )
     }
 }
 

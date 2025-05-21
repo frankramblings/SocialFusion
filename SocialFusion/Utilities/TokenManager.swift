@@ -248,3 +248,9 @@ public class TokenManager {
         }
     }
 }
+
+extension SocialAccount {
+    // Temporary stubs to fix build errors. Replace with real implementation as needed.
+    func getClientId() -> String? { return nil }  // TODO: Implement properly
+    func getClientSecret() -> String? { return nil }  // TODO: Implement properly
+}

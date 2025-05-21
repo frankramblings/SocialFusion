@@ -125,42 +125,6 @@ private class CodablePublished<T: Codable>: ObservableObject {
     }
 }
 
-// Embedded TokenManager to avoid import issues
-private class TokenManager {
-    enum TokenError: Error {
-        case refreshFailed
-        case noRefreshToken
-        case noClientCredentials
-        case invalidServerURL
-        case networkError(Error)
-    }
-
-    /// Ensures an account has a valid, non-expired token
-    static func ensureValidToken(for account: SocialAccount) async throws -> String {
-        // Only refresh if token is expired and we have refresh token
-        if account.isTokenExpired,
-            account.getRefreshToken() != nil
-        {
-            // Use existing token handling
-            let tokens = loadTokens(for: account.id)
-            if let token = tokens.accessToken {
-                return token
-            }
-        }
-
-        // Use existing token if available
-        if let token = account.getAccessToken() {
-            return token
-        }
-
-        throw NSError(
-            domain: "TokenManager", code: 401,
-            userInfo: [
-                NSLocalizedDescriptionKey: "No valid token available"
-            ])
-    }
-}
-
 // Embedded Keychain extension to avoid import issues
 extension UserDefaults {
     fileprivate static func saveAccessToken(_ token: String, for accountId: String) {

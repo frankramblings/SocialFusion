@@ -17,9 +17,17 @@ struct FetchQuotePostView: View {
         return isProbablyBluesky ? .bluesky : .mastodon
     }
 
+    // Helper to determine if a post has meaningful content
+    private func hasMeaningfulContent(_ post: Post) -> Bool {
+        let hasText = !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasMedia = !post.attachments.isEmpty
+        let hasAuthor = !post.authorName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return hasText || hasMedia || hasAuthor
+    }
+
     var body: some View {
         VStack {
-            if let post = quotedPost {
+            if let post = quotedPost, hasMeaningfulContent(post) {
                 QuotedPostView(post: post)
             } else if isLoading {
                 LoadingQuoteView(platform: platform)
@@ -211,14 +219,14 @@ private struct PostAttachmentView: View {
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .frame(maxHeight: 120)
-                    .cornerRadius(8)
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .cornerRadius(14)
                     .clipped()
             } else if phase.error != nil {
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
-                    .frame(height: 80)
-                    .cornerRadius(8)
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .cornerRadius(14)
                     .overlay(
                         Image(systemName: "photo")
                             .foregroundColor(.secondary)
@@ -226,8 +234,8 @@ private struct PostAttachmentView: View {
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.1))
-                    .frame(height: 80)
-                    .cornerRadius(8)
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .cornerRadius(14)
                     .overlay(
                         ProgressView()
                     )

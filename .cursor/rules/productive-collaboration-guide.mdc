@@ -1,0 +1,50 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Productive Collaboration Guide
+// Description: Ensures all conversations and code reviews are clear, context-rich, and feedback-driven, inspired by the SocialFusion project workflow.
+// Version: 1.0.0
+
+export default {
+  name: "productive-collaboration-guide",
+  description: "Promotes clear, context-rich, and feedback-driven communication for all code and design discussions.",
+
+  // On file open, remind the user to provide context and goals
+  onFileOpen: async ({ file, workspace, logger }) => {
+    logger.info("Welcome! For best results, please provide:");
+    logger.info("- A clear description of your goal or problem.");
+    logger.info("- Screenshots, code snippets, or examples if possible.");
+    logger.info("- Any constraints (e.g., must not break X, must match Y style).");
+    logger.info("- Your design/UX philosophy if relevant.");
+    return true;
+  },
+
+  // On file save, prompt for feedback and next steps
+  onFileSave: async ({ file, workspace, logger }) => {
+    logger.info("After saving, consider:");
+    logger.info("- Did you test the change? What was the result?");
+    logger.info("- Is there feedback for your collaborator or AI?");
+    logger.info("- What's the next step or open question?");
+    return true;
+  },
+
+  // On pre-build, summarize the current context and constraints
+  onPreBuild: async ({ workspace, logger }) => {
+    logger.info("Pre-build check: Are all requirements and constraints documented?");
+    logger.info("Is the intended user experience clear?");
+    return true;
+  },
+
+  // On post-build, encourage review and iteration
+  onPostBuild: async ({ success, workspace, logger }) => {
+    if (success) {
+      logger.info("Build succeeded! Review the UI/UX and confirm it matches your vision.");
+      logger.info("Share screenshots or feedback for further refinement.");
+    } else {
+      logger.warn("Build failed. Review errors and clarify any ambiguous requirements.");
+    }
+    return true;
+  }
+};

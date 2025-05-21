@@ -1,0 +1,50 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Session Onboarding
+// Description: Injects project context, layout, user info, and active rules into every new chat/session.
+// Version: 1.0.0
+
+export default {
+  name: "session-onboarding",
+  description: "Injects project context, layout, user info, and active rules into every new chat/session.",
+
+  // On session start, inject all key context files
+  onSessionStart: async ({ workspace, logger }) => {
+    // Inject notepad context
+    try {
+      const context = await workspace.readFile(".cursor/context/SocialFusion.md");
+      logger.info("[Project Context]\n" + context);
+    } catch (e) {
+      logger.warn("Could not load notepad context: " + e.message);
+    }
+
+    // Inject project layout
+    try {
+      const layout = await workspace.readFile(".cursor/PROJECT_LAYOUT.md");
+      logger.info("[Project Layout]\n" + layout);
+    } catch (e) {
+      logger.warn("Could not load project layout: " + e.message);
+    }
+
+    // Inject user/environment info
+    try {
+      const userInfo = await workspace.readFile(".cursor/user_info.json");
+      logger.info("[User/Environment Info]\n" + userInfo);
+    } catch (e) {
+      logger.warn("Could not load user/environment info: " + e.message);
+    }
+
+    // List active rules
+    try {
+      const rules = await workspace.listFiles(".cursor/rules/");
+      logger.info("[Active Cursor Rules]\n" + rules.join("\n"));
+    } catch (e) {
+      logger.warn("Could not list active rules: " + e.message);
+    }
+
+    return true;
+  }
+};

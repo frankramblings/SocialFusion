@@ -241,6 +241,9 @@ class BlueskyService {
     
     /// Helper method to convert a Bluesky post to our app's Post model
     private func convertBlueskyPostToOriginalPost(_ post: BlueskyPost) -> Post {
+        let quotedPostUri = post.embed?.record?.record.uri
+        // The handle of the quoted post's author is not directly available in the embed, so leave nil for now
+        let quotedPostAuthorHandle: String? = nil
         return Post(
             id: UUID().uuidString,
             platform: .bluesky,
@@ -261,7 +264,9 @@ class BlueskyService {
             isLiked: post.viewer?.likeUri != nil,
             isReposted: post.viewer?.repostUri != nil,
             originalPost: nil,
-            platformSpecificId: post.uri
+            platformSpecificId: post.uri,
+            quotedPostUri: quotedPostUri,
+            quotedPostAuthorHandle: quotedPostAuthorHandle
         )
     }
     

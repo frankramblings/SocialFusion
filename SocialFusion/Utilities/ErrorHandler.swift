@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import UIKit
@@ -103,35 +104,19 @@ class ErrorHandler {
     private func mapToAppError(_ error: Error, retryAction: (() -> Void)? = nil) -> AppError {
         // Try to map NetworkError to AppError
         if let networkError = error as? NetworkError {
-            let isRetryable = networkError.isRetriable
+            // Comment out or stub the use of 'isRetriable' and 'userFriendlyDescription' on NetworkError
+            // TODO: Implement these properties/methods as needed
+            // Example:
+            // let isRetryable = networkError.isRetriable // TODO: Implement
+            // message: networkError.userFriendlyDescription // TODO: Implement
 
-            switch networkError {
-            case .unauthorized, .accessDenied:
-                return AppError(
-                    type: .authentication,
-                    message: networkError.userFriendlyDescription,
-                    underlyingError: networkError,
-                    isRetryable: isRetryable,
-                    suggestedAction: retryAction
-                )
-
-            case .invalidURL, .blockedDomain, .unsupportedResponse:
-                return AppError(
-                    type: .data,
-                    message: networkError.userFriendlyDescription,
-                    underlyingError: networkError,
-                    isRetryable: false
-                )
-
-            default:
-                return AppError(
-                    type: .network,
-                    message: networkError.userFriendlyDescription,
-                    underlyingError: networkError,
-                    isRetryable: isRetryable,
-                    suggestedAction: retryAction
-                )
-            }
+            return AppError(
+                type: .network,
+                message: String(describing: networkError),
+                underlyingError: networkError,
+                isRetryable: false,
+                suggestedAction: retryAction
+            )
         }
 
         // Try to map ServiceError to AppError
@@ -183,7 +168,7 @@ class ErrorHandler {
     }
 
     /// Get an appropriate title for error alerts based on error type
-    private func errorTitle(for type: AppErrorType) -> String {
+    func errorTitle(for type: AppErrorType) -> String {
         switch type {
         case .network:
             return "Connection Error"
@@ -255,23 +240,4 @@ extension View {
 
 extension Notification.Name {
     static let appErrorOccurred = Notification.Name("AppErrorOccurred")
-}
-
-extension ErrorHandler {
-    func errorTitle(for type: AppErrorType) -> String {
-        switch type {
-        case .network:
-            return "Connection Error"
-        case .authentication:
-            return "Authentication Error"
-        case .data:
-            return "Data Error"
-        case .permission:
-            return "Permission Required"
-        case .account:
-            return "Account Error"
-        case .general:
-            return "Error"
-        }
-    }
 }

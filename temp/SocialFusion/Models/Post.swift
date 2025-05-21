@@ -3,16 +3,16 @@ import Foundation
 enum SocialPlatform: String, Codable, CaseIterable {
     case mastodon = "Mastodon"
     case bluesky = "Bluesky"
-    
+
     var color: String {
         switch self {
         case .mastodon:
-            return "PrimaryColor" // Mastodon Purple
+            return "PrimaryColor"  // Mastodon Purple
         case .bluesky:
-            return "SecondaryColor" // Bluesky Blue
+            return "SecondaryColor"  // Bluesky Blue
         }
     }
-    
+
     var icon: String {
         switch self {
         case .mastodon:
@@ -36,10 +36,13 @@ struct Post: Identifiable, Equatable {
     let isLiked: Bool
     let isReposted: Bool
     let originalPost: Post?
-    
+
     // Platform-specific IDs for API operations
     let platformSpecificId: String
-    
+
+    let quotedPostUri: String?
+    let quotedPostAuthorHandle: String?
+
     static func == (lhs: Post, rhs: Post) -> Bool {
         lhs.id == rhs.id
     }
@@ -51,10 +54,10 @@ struct Author: Identifiable, Equatable {
     let displayName: String
     let avatarURL: URL?
     let platform: SocialPlatform
-    
+
     // Platform-specific IDs for API operations
     let platformSpecificId: String
-    
+
     static func == (lhs: Author, rhs: Author) -> Bool {
         lhs.id == rhs.id
     }
@@ -65,7 +68,7 @@ struct MediaAttachment: Identifiable {
     let url: URL
     let type: MediaType
     let altText: String?
-    
+
     enum MediaType: String, Codable {
         case image
         case video
@@ -91,14 +94,16 @@ extension Post {
                 ),
                 content: "Just had a great meeting with the SpaceX team about Starship progress!",
                 mediaAttachments: [],
-                createdAt: Date().addingTimeInterval(-3600), // 1 hour ago
+                createdAt: Date().addingTimeInterval(-3600),  // 1 hour ago
                 likeCount: 1024,
                 repostCount: 512,
                 replyCount: 128,
                 isLiked: false,
                 isReposted: false,
                 originalPost: nil,
-                platformSpecificId: "post1_mastodon"
+                platformSpecificId: "post1_mastodon",
+                quotedPostUri: nil,
+                quotedPostAuthorHandle: nil
             ),
             Post(
                 id: "2",
@@ -120,14 +125,16 @@ extension Post {
                         altText: "iPhone 15 Pro"
                     )
                 ],
-                createdAt: Date().addingTimeInterval(-7200), // 2 hours ago
+                createdAt: Date().addingTimeInterval(-7200),  // 2 hours ago
                 likeCount: 2048,
                 repostCount: 1024,
                 replyCount: 256,
                 isLiked: true,
                 isReposted: false,
                 originalPost: nil,
-                platformSpecificId: "post2_bluesky"
+                platformSpecificId: "post2_bluesky",
+                quotedPostUri: nil,
+                quotedPostAuthorHandle: nil
             ),
             Post(
                 id: "3",
@@ -142,15 +149,17 @@ extension Post {
                 ),
                 content: "Google I/O is coming up! Can't wait to share what we've been working on.",
                 mediaAttachments: [],
-                createdAt: Date().addingTimeInterval(-10800), // 3 hours ago
+                createdAt: Date().addingTimeInterval(-10800),  // 3 hours ago
                 likeCount: 1536,
                 repostCount: 768,
                 replyCount: 192,
                 isLiked: false,
                 isReposted: true,
                 originalPost: nil,
-                platformSpecificId: "post3_mastodon"
-            )
+                platformSpecificId: "post3_mastodon",
+                quotedPostUri: nil,
+                quotedPostAuthorHandle: nil
+            ),
         ]
     }
 }
