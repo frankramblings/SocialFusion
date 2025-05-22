@@ -10,6 +10,10 @@ struct MediaGridView: View {
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
+            Color.clear
+                .onAppear {
+                    print("MediaGridView width: \(width)")
+                }
 
             switch attachments.count {
             case 0:
@@ -74,7 +78,7 @@ struct MediaGridView: View {
                 .padding(.horizontal, 2)
             }
         }
-        .frame(maxHeight: maxHeight)
+        .frame(maxWidth: .infinity, maxHeight: maxHeight)
         .sheet(isPresented: $showFullscreen) {
             if let media = selectedMedia {
                 FullscreenMediaView(media: media, allMedia: attachments)
@@ -103,12 +107,22 @@ struct MediaGridView: View {
             }) {
                 AsyncImage(url: url) { phase in
                     if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: attachments.count == 1 ? .fit : .fill)
-                            .frame(width: width)
-                            .cornerRadius(14)
-                            .accessibilityLabel(attachment.altText ?? "Image")
+                        if attachments.count == 1 {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(maxWidth: .infinity, maxHeight: 300)
+                                .cornerRadius(14)
+                                .accessibilityLabel(attachment.altText ?? "Image")
+                        } else {
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: width, height: width * 0.75)
+                                .clipped()
+                                .cornerRadius(14)
+                                .accessibilityLabel(attachment.altText ?? "Image")
+                        }
                     } else if phase.error != nil {
                         ZStack {
                             RoundedRectangle(cornerRadius: 14)

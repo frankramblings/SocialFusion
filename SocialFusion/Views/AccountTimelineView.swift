@@ -8,6 +8,10 @@ struct AccountTimelineView: View {
     @State private var isLoading = false
     @State private var error: Error? = nil
 
+    private var timelineEntries: [TimelineEntry] {
+        serviceManager.makeTimelineEntries(from: posts)
+    }
+
     var body: some View {
         ZStack {
             Color(UIColor.systemBackground)
@@ -37,8 +41,9 @@ struct AccountTimelineView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 12) {
-                        ForEach(posts) { post in
-                            PostCardView(post: post)
+                        ForEach(timelineEntries) { entry in
+                            PostCardView(entry: entry)
+                                .id(entry.id)
                                 .padding(.horizontal)
                         }
                     }

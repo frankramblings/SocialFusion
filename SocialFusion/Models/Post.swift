@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+// MARK: - AttributedTextOverlay for per-segment tap support
 import UIKit
 
 // MARK: - Post visibility level
@@ -442,5 +443,82 @@ public class Post: Identifiable, Codable, Equatable {
             }
         }
         return nil
+    }
+
+    /// Returns a SwiftUI View for Bluesky content with tappable mentions and links (SwiftUI-native, no SwiftUIX)
+    func blueskyContentView(onMentionTap: ((String) -> Void)? = nil) -> some View {
+        let text = self.content
+        let mentionRegex = try! NSRegularExpression(
+            pattern: "@([A-Za-z0-9_]+)(\\.[A-Za-z0-9_]+)?", options: [])
+        let urlRegex = try! NSRegularExpression(
+            pattern: "https?://[A-Za-z0-9./?=_%-]+", options: [])
+        let nsText = text as NSString
+        var ranges: [(range: NSRange, type: String, value: String, extra: String?)] = []
+
+        // Find mentions
+        for match in mentionRegex.matches(
+            in: text, options: [], range: NSRange(location: 0, length: nsText.length))
+        {
+            let usernameRange = match.range(at: 1)
+            let username = nsText.substring(with: usernameRange)
+            var domain: String? = nil
+            if match.numberOfRanges > 2, match.range(at: 2).location != NSNotFound {
+                domain = nsText.substring(with: match.range(at: 2))
+            }
+            let punctuationSet = CharacterSet(charactersIn: ".,!?;:")
+            let cleanDomain = domain?.trimmingCharacters(in: punctuationSet)
+            ranges.append((match.range, "mention", username, cleanDomain))
+        }
+        // Find links
+        for match in urlRegex.matches(
+            in: text, options: [], range: NSRange(location: 0, length: nsText.length))
+        {
+            var value = nsText.substring(with: match.range)
+            while let last = value.last, ".,!?;:".contains(last) {
+                value = String(value.dropLast())
+            }
+            ranges.append((match.range, "link", value, nil))
+        }
+        ranges.sort { $0.range.location < $1.range.location }
+
+        // Build segments
+        var segments: [(type: String, value: String, extra: String?)] = []
+        var lastLoc = 0
+        for r in ranges {
+            if r.range.location > lastLoc {
+                let plain = nsText.substring(
+                    with: NSRange(location: lastLoc, length: r.range.location - lastLoc))
+                segments.append(("plain", plain, nil))
+            }
+            segments.append((r.type, r.value, r.extra))
+            lastLoc = r.range.location + r.range.length
+        }
+        if lastLoc < nsText.length {
+            let plain = nsText.substring(from: lastLoc)
+            segments.append(("plain", plain, nil))
+        }
+
+        // Build a single Text view for proper wrapping
+        var textView = Text("")
+        for seg in segments {
+            switch seg.type {
+            case "mention":
+                let mentionText = Text("@" + seg.value)
+                    .foregroundColor(.blue)
+                    .bold()
+                textView = textView + mentionText
+                if let domain = seg.extra, !domain.isEmpty {
+                    textView = textView + Text(domain)
+                }
+            case "link":
+                let linkText = Text(seg.value)
+                    .foregroundColor(.blue)
+                    .underline()
+                textView = textView + linkText
+            default:
+                textView = textView + Text(seg.value)
+            }
+        }
+        return textView
     }
 }

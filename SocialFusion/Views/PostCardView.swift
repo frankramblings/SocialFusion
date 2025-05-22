@@ -200,12 +200,13 @@ struct TimelineCard<Content: View>: View {
             .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
     }
 }
 
 /// A view that displays a post in the timeline exactly matching the reference design
 struct PostCardView: View {
-    let post: Post
+    let entry: TimelineEntry
     @State private var showDetailView = false
     @State private var showParentPost = false
     @State private var parentPost: Post? = nil
@@ -249,62 +250,24 @@ struct PostCardView: View {
         }
     }
 
-    // Determine which post to show (original or boosted)
-    private var displayPost: Post {
-        // If this is a boosted post with an original post, use that
-        if let originalPost = post.originalPost {
-            return originalPost
-        }
-        return post
-    }
-
     // Determine which parent post to use (from post.parent or our local state)
     private var effectiveParentPost: Post? {
-        return displayPost.parent ?? parentPost
+        return entry.post.parent ?? parentPost
     }
 
     var body: some View {
         TimelineCard {
             VStack(alignment: .leading, spacing: 0) {
                 // Boost/Repost banner if applicable
-                if post.boostedBy != nil {
-                    BoostBannerView(handle: post.boostedBy ?? "", platform: post.platform)
+                if case let .boost(boostedBy) = entry.kind {
+                    BoostBannerView(handle: boostedBy, platform: entry.post.platform)
                         .padding(.bottom, 4)
                 }
 
-                // Reply section with expandable parent
-                if displayPost.inReplyToID != nil {
-                    let _ = print(
-                        "📱 Found reply post: platform=\(displayPost.platform), postID=\(displayPost.id), inReplyToID=\(displayPost.inReplyToID ?? "nil")"
-                    )
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Reply banner
-                        replyBannerView
-
-                        // Add spacing between reply banner and parent post
-                        if isParentExpanded {
-                            Spacer()
-                                .frame(height: 6)
-                        }
-
-                        // Parent post content (slides up from behind the main post)
-                        if let parent = effectiveParentPost {
-                            ParentPostContainer(
-                                parent: parent,
-                                isExpanded: isParentExpanded,
-                                onTap: { showParentPost = true }
-                            )
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        } else if isLoadingParent {
-                            // Loading state for parent post
-                            if isParentExpanded {
-                                LoadingParentView()
-                                    .transition(.move(edge: .top).combined(with: .opacity))
-                            }
-                        }
-                    }
-                    .padding(.bottom, isParentExpanded ? 12 : 8)
-                    .clipped()
+                // Reply banner if applicable
+                if case .reply = entry.kind {
+                    replyBannerView
+                        .padding(.bottom, 4)
                 }
 
                 // Main post content with visual distinction
@@ -313,64 +276,64 @@ struct PostCardView: View {
                     HStack(alignment: .center) {
                         // Profile image with platform indicator
                         PostAuthorImageView(
-                            authorProfilePictureURL: displayPost.authorProfilePictureURL,
-                            platform: displayPost.platform,
+                            authorProfilePictureURL: entry.post.authorProfilePictureURL,
+                            platform: entry.post.platform,
                             size: 44
                         )
-
                         VStack(alignment: .leading, spacing: 2) {
                             // Author name
-                            Text(displayPost.authorName)
+                            Text(entry.post.authorName)
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.primary)
-
                             // Username
                             HStack(spacing: 4) {
-                                Text("@\(displayPost.authorUsername)")
+                                Text("@\(entry.post.authorUsername)")
                                     .font(.system(size: 14))
                                     .foregroundColor(.secondary)
                             }
                         }
-
                         Spacer()
-
                         // Timestamp with chevron
                         HStack(spacing: 2) {
-                            Text(formatRelativeTime(from: displayPost.createdAt))
+                            Text(formatRelativeTime(from: entry.createdAt))
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondary)
                         }
                     }
-
-                    // Post content - ensure we show content even if it's a reply
-                    displayPost.contentView(lineLimit: nil, showLinkPreview: false)
-                        .font(.system(size: 16))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 2)
-
+                    // Post content
+                    Group {
+                        if entry.post.platform == .bluesky {
+                            entry.post.blueskyContentView()
+                                .font(.system(size: 16))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 2)
+                        } else {
+                            entry.post.contentView(lineLimit: nil, showLinkPreview: false)
+                                .font(.system(size: 16))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 2)
+                        }
+                    }
                     // --- One preview/quote card per post logic ---
-                    if let quoteOrPreview = displayPost.firstQuoteOrPreviewCardView {
+                    if let quoteOrPreview = entry.post.firstQuoteOrPreviewCardView {
                         quoteOrPreview
                             .padding(.top, 8)
                     }
-
                     // Media attachments if any
-                    if !displayPost.attachments.isEmpty {
-                        MediaGridView(attachments: displayPost.attachments, maxHeight: 400)
-                            .padding(.top, 8)
+                    if !entry.post.attachments.isEmpty {
+                        UnifiedMediaGridView(attachments: entry.post.attachments, maxHeight: 400)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-
-                    // Action bar
+                    // Action bar (use entry.post for actions)
                     ActionBar(
-                        isLiked: displayPost.isLiked,
-                        isReposted: displayPost.isReposted,
-                        likeCount: displayPost.likeCount,
-                        repostCount: displayPost.repostCount,
+                        isLiked: entry.post.isLiked,
+                        isReposted: entry.post.isReposted,
+                        likeCount: entry.post.likeCount,
+                        repostCount: entry.post.repostCount,
                         replyCount: 0,
                         onAction: handleAction
                     )
                 }
-                // Add padding when parent is expanded but no visual box
                 .padding(.top, isParentExpanded ? 8 : 0)
             }
         }
@@ -379,39 +342,32 @@ struct PostCardView: View {
         }
         .sheet(isPresented: $showDetailView) {
             NavigationView {
-                PostDetailView(post: displayPost)
-            }
-        }
-        .sheet(isPresented: $showParentPost) {
-            if let parent = effectiveParentPost {
-                NavigationView {
-                    PostDetailView(post: parent)
-                }
+                PostDetailView(post: entry.post)
             }
         }
         .onAppear {
             // Pre-fetch parent post information if this is a reply
-            if displayPost.inReplyToID != nil && effectiveParentPost == nil {
+            if case .reply = entry.kind, effectiveParentPost == nil {
                 // Print debug information
                 print(
-                    "DEBUG: Reply post - platform: \(displayPost.platform), inReplyToID: \(displayPost.inReplyToID ?? "nil"), inReplyToUsername: \(displayPost.inReplyToUsername ?? "nil")"
+                    "DEBUG: Reply post - platform: \(entry.post.platform), inReplyToID: \(entry.post.inReplyToID ?? "nil"), inReplyToUsername: \(entry.post.inReplyToUsername ?? "nil")"
                 )
 
-                if let parent = displayPost.parent {
+                if let parent = entry.post.parent {
                     print("DEBUG: Parent post is already available: \(parent.authorUsername)")
                 } else {
                     print("DEBUG: No parent post available, will attempt to fetch")
 
                     // For Mastodon posts, immediately start pre-loading parent to ensure instant availability
                     // when the user taps the reply banner - crucial for UX
-                    if displayPost.platform == .mastodon, let replyToID = displayPost.inReplyToID {
+                    if entry.post.platform == .mastodon, let replyToID = entry.post.inReplyToID {
                         Task(priority: .userInitiated) {
                             print(
                                 "📱 Preemptively loading Mastodon parent post on appear: \(replyToID)"
                             )
                             await fetchMastodonParentPost(replyToID: replyToID)
                         }
-                    } else if let replyToID = displayPost.inReplyToID {
+                    } else if let replyToID = entry.post.inReplyToID {
                         Task {
                             // Standard pre-loading for other platforms
                             await fetchParentPost(replyToID: replyToID)
@@ -427,7 +383,7 @@ struct PostCardView: View {
         guard replyID != nil else { return "..." }
 
         // First check if the post has a stored reply username
-        if let storedUsername = displayPost.inReplyToUsername, !storedUsername.isEmpty {
+        if let storedUsername = entry.post.inReplyToUsername, !storedUsername.isEmpty {
             print("📱 Using stored username for reply banner: \(storedUsername)")
             return storedUsername
         }
@@ -446,7 +402,7 @@ struct PostCardView: View {
         // Platform-specific fallbacks to avoid showing "user"
         if platform == .mastodon, let replyID = replyID {
             // For Mastodon, try to extract account ID from mentions if possible
-            if let firstMention = displayPost.mentions.first {
+            if let firstMention = entry.post.mentions.first {
                 print("📱 Using first mention as fallback for Mastodon reply: \(firstMention)")
                 return firstMention
             }
@@ -490,14 +446,14 @@ struct PostCardView: View {
 
             // If we're expanding and need to fetch the parent
             if isParentExpanded && effectiveParentPost == nil {
-                if let replyToID = displayPost.inReplyToID {
+                if let replyToID = entry.post.inReplyToID {
                     Task {
                         await MainActor.run {
                             isLoadingParent = true
                         }
 
                         // Optimized path for Mastodon - higher priority and more aggressive fetching
-                        if displayPost.platform == .mastodon {
+                        if entry.post.platform == .mastodon {
                             await fetchMastodonParentPost(replyToID: replyToID)
                         } else {
                             await fetchParentPost(replyToID: replyToID)
@@ -510,14 +466,14 @@ struct PostCardView: View {
                 }
             } else if isParentExpanded && effectiveParentPost?.content == "..." {
                 // We have a placeholder parent post - fetch the full content
-                if let replyToID = displayPost.inReplyToID {
+                if let replyToID = entry.post.inReplyToID {
                     Task {
                         await MainActor.run {
                             isLoadingParent = true
                         }
 
                         // Optimized path for Mastodon - higher priority and more aggressive fetching
-                        if displayPost.platform == .mastodon {
+                        if entry.post.platform == .mastodon {
                             await fetchMastodonParentPost(replyToID: replyToID)
                         } else {
                             await fetchParentPost(replyToID: replyToID)
@@ -534,17 +490,17 @@ struct PostCardView: View {
                 Image(systemName: "arrow.turn.up.left")
                     .font(.caption)
                     .foregroundColor(
-                        displayPost.platform == .bluesky ? blueskyBlue : mastodonPurple)
+                        entry.post.platform == .bluesky ? blueskyBlue : mastodonPurple)
 
                 Text("Replying to ")
                     .font(.footnote)
                     .foregroundColor(.secondary)
                     + Text(
-                        "@\(effectiveParentPost?.authorUsername ?? displayPost.inReplyToUsername ?? extractReplyUsername(from: displayPost.inReplyToID, platform: displayPost.platform))"
+                        "@\(effectiveParentPost?.authorUsername ?? entry.post.inReplyToUsername ?? extractReplyUsername(from: entry.post.inReplyToID, platform: entry.post.platform))"
                     )
                     .font(.footnote)
                     .foregroundColor(
-                        displayPost.platform == .bluesky ? blueskyBlue : mastodonPurple)
+                        entry.post.platform == .bluesky ? blueskyBlue : mastodonPurple)
 
                 Spacer()
 
@@ -575,7 +531,7 @@ struct PostCardView: View {
         print("📱 Aggressively fetching Mastodon parent post with ID: \(replyToID)")
 
         // First check if already preloaded via the TimelineViewModel
-        if let parent = displayPost.parent, parent.content != "..." {
+        if let parent = entry.post.parent, parent.content != "..." {
             print("📱 Found already preloaded Mastodon parent post in post.parent")
             await MainActor.run {
                 parentPost = parent
@@ -659,7 +615,7 @@ struct PostCardView: View {
     private func fetchParentPost(replyToID: String) async {
         print("📱 Attempting to fetch parent post with ID: \(replyToID)")
         print(
-            "📱 Current post details: platform=\(displayPost.platform), id=\(displayPost.id), inReplyToUsername=\(displayPost.inReplyToUsername ?? "nil")"
+            "📱 Current post details: platform=\(entry.post.platform), id=\(entry.post.id), inReplyToUsername=\(entry.post.inReplyToUsername ?? "nil")"
         )
 
         // If already loaded with full content, just show it
@@ -670,7 +626,7 @@ struct PostCardView: View {
         }
 
         // Otherwise try to fetch it based on platform
-        if displayPost.platform == .bluesky {
+        if entry.post.platform == .bluesky {
             print("📱 Fetching Bluesky parent post...")
             do {
                 let fetchedParent = try await serviceManager.fetchBlueskyPostByID(replyToID)
@@ -684,7 +640,7 @@ struct PostCardView: View {
             } catch {
                 print("📱 Error fetching Bluesky parent post: \(error)")
             }
-        } else if displayPost.platform == .mastodon {
+        } else if entry.post.platform == .mastodon {
             print("📱 Fetching Mastodon parent post...")
             do {
                 // Find the account for this platform to use for fetching
@@ -725,7 +681,7 @@ struct PostCardView: View {
         case .repost:
             Task {
                 do {
-                    _ = try await serviceManager.repostPost(displayPost)
+                    _ = try await serviceManager.repostPost(entry.post)
                 } catch {
                     print("Error reposting: \(error)")
                 }
@@ -733,14 +689,14 @@ struct PostCardView: View {
         case .like:
             Task {
                 do {
-                    _ = try await serviceManager.likePost(displayPost)
+                    _ = try await serviceManager.likePost(entry.post)
                 } catch {
                     print("Error liking: \(error)")
                 }
             }
         case .share:
             // Share the post URL
-            let url = URL(string: displayPost.originalURL) ?? URL(string: "https://example.com")!
+            let url = URL(string: entry.post.originalURL) ?? URL(string: "https://example.com")!
 
             // Use MainActor for UIKit interactions
             Task { @MainActor in
@@ -762,16 +718,6 @@ struct PostCardView: View {
     private func adaptiveGlowColor(opacity: Double) -> Color {
         colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
     }
-
-    // Add this computed property to Post (or as an extension) to encapsulate the logic for the first quote/preview card
-    // extension Post {
-    //     var firstQuoteOrPreviewCardView: some View? {
-    //         // 1. If Bluesky and has official quote, show FetchQuotePostView
-    //         // 2. Else, for both platforms, show quote card for first valid post link (not self-link)
-    //         // 3. Else, show link preview for first valid previewable link
-    //         // (Implementation details omitted for brevity)
-    //     }
-    // }
 }
 
 /// Parent post container with expansion capabilities
@@ -924,19 +870,40 @@ struct RoundedCorner: Shape {
 
 // MARK: - Preview
 #Preview("Standard Post") {
-    PostCardView(post: Post.samplePosts[0])
-        .environmentObject(SocialServiceManager())
-        .preferredColorScheme(.dark)
+    PostCardView(
+        entry: TimelineEntry(
+            id: "sample-0",
+            kind: .normal,
+            post: Post.samplePosts[0],
+            createdAt: Date()
+        )
+    )
+    .environmentObject(SocialServiceManager())
+    .preferredColorScheme(.dark)
 }
 
 #Preview("Reply Post") {
-    PostCardView(post: Post.samplePosts[1])
-        .environmentObject(SocialServiceManager())
-        .preferredColorScheme(.dark)
+    PostCardView(
+        entry: TimelineEntry(
+            id: "reply-sample-1",
+            kind: .reply(parentId: Post.samplePosts[1].inReplyToID),
+            post: Post.samplePosts[1],
+            createdAt: Date()
+        )
+    )
+    .environmentObject(SocialServiceManager())
+    .preferredColorScheme(.dark)
 }
 
 #Preview("Boosted Post") {
-    PostCardView(post: Post.samplePosts[2])
-        .environmentObject(SocialServiceManager())
-        .preferredColorScheme(.dark)
+    PostCardView(
+        entry: TimelineEntry(
+            id: "boost-sample-2",
+            kind: .boost(boostedBy: Post.samplePosts[2].boostedBy ?? "someone"),
+            post: Post.samplePosts[2],
+            createdAt: Date()
+        )
+    )
+    .environmentObject(SocialServiceManager())
+    .preferredColorScheme(.dark)
 }

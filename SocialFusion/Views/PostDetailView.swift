@@ -95,13 +95,9 @@ struct PostDetailView: View {
 
                         // Media grid for attachments
                         if !post.attachments.isEmpty {
-                            MediaGridView(
+                            UnifiedMediaGridView(
                                 attachments: post.attachments,
-                                onTapAttachment: { attachment in
-                                    selectedMedia = attachment
-                                    showMediaFullscreen = true
-                                },
-                                maxHeight: 220  // More compact for detail view
+                                maxHeight: 220
                             )
                             .padding(.horizontal)
                             .padding(.bottom, 8)  // Add bottom padding

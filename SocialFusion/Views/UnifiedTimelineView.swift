@@ -62,6 +62,10 @@ struct UnifiedTimelineView: View {
         return nil
     }
 
+    private var timelineEntries: [TimelineEntry] {
+        serviceManager.makeTimelineEntries(from: serviceManager.unifiedTimeline)
+    }
+
     var body: some View {
         ZStack {
             Color(UIColor.systemBackground)
@@ -144,17 +148,11 @@ struct UnifiedTimelineView: View {
                                 .padding(.top, 8)
                             }
 
-                            ForEach(displayPosts) { post in
+                            ForEach(timelineEntries) { entry in
                                 VStack {
-                                    // Use the proper view for displaying posts
-                                    if #available(iOS 16.0, *) {
-                                        PostCardView(post: post)
-                                            .padding(.vertical, 4)
-                                    } else {
-                                        // Fallback for older iOS versions
-                                        PostCardView(post: post)
-                                            .padding(.vertical, 4)
-                                    }
+                                    PostCardView(entry: entry)
+                                        .id(entry.id)
+                                        .padding(.vertical, 4)
                                 }
                             }
 

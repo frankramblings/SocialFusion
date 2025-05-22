@@ -304,8 +304,22 @@ final class SocialServiceManager: ObservableObject {
             }
         }
 
-        // Sort all posts by date (newest first)
-        let sortedPosts = allPosts.sorted(by: { $0.createdAt > $1.createdAt })
+        // Patch: Ensure all posts have unique IDs, especially for boosts/reposts
+        let uniquePosts = allPosts.map { post -> Post in
+            if let original = post.originalPost {
+                // Synthesize a unique id for the boost/repost wrapper
+                let boostId = "boost-\(post.authorUsername)-\(original.id)"
+                // Only patch if the id is not already unique
+                if post.id == original.id {
+                    // Create a copy with the new id
+                    let patched = post.copy(with: boostId)
+                    patched.originalPost = original  // preserve reference
+                    return patched
+                }
+            }
+            return post
+        }
+        let sortedPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
 
         // Update unified timeline on main thread
         await MainActor.run {
@@ -497,5 +511,44 @@ final class SocialServiceManager: ObservableObject {
     func replyToPost(_ post: Post, content: String) async throws -> Bool {
         // Implementation would call the appropriate service based on the post's platform
         return true
+    }
+
+    // MARK: - TimelineEntry Construction
+
+    /// Converts an array of Post objects into TimelineEntry objects for robust SwiftUI rendering
+    func makeTimelineEntries(from posts: [Post]) -> [TimelineEntry] {
+        var entries: [TimelineEntry] = []
+        for post in posts {
+            if let original = post.originalPost {
+                // This is a boost/repost
+                let entry = TimelineEntry(
+                    id: "boost-\(post.authorUsername)-\(original.id)",
+                    kind: .boost(boostedBy: post.authorUsername),
+                    post: original,
+                    createdAt: post.createdAt
+                )
+                entries.append(entry)
+            } else if let parentId = post.inReplyToID {
+                // This is a reply
+                let entry = TimelineEntry(
+                    id: "reply-\(post.id)",
+                    kind: .reply(parentId: parentId),
+                    post: post,
+                    createdAt: post.createdAt
+                )
+                entries.append(entry)
+            } else {
+                // Normal post
+                let entry = TimelineEntry(
+                    id: post.id,
+                    kind: .normal,
+                    post: post,
+                    createdAt: post.createdAt
+                )
+                entries.append(entry)
+            }
+        }
+        // Sort by date, newest first
+        return entries.sorted(by: { $0.createdAt > $1.createdAt })
     }
 }

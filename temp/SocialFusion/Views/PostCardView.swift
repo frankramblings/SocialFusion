@@ -154,14 +154,14 @@ struct PostCardView: View {
     }
 }
 
-struct PostCardView_Previews: PreviewProvider {
-    static var previews: some View {
-        VStack(spacing: 16) {
-            PostCardView(post: Post.samplePosts[0])
-            PostCardView(post: Post.samplePosts[1])
-        }
-        .padding()
-        .previewLayout(.sizeThatFits)
-    }
-}
+//struct PostCardView_Previews: PreviewProvider {
+//    static var previews: some View {
+//        VStack(spacing: 16) {
+//            PostCardView(post: Post.samplePosts[0])
+//            PostCardView(post: Post.samplePosts[1])
+//        }
+//        .padding()
+//        .previewLayout(.sizeThatFits)
+//    }
+//}
 */

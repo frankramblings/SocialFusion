@@ -31,6 +31,8 @@
 		50E288812DDC1DF200E1B621 /* Utilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288792DDC1DF200E1B621 /* Utilities.swift */; };
 		50E288822DDC1DF200E1B621 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288732DDC1DF200E1B621 /* KeychainManager.swift */; };
 		50E288832DDC1DF200E1B621 /* RobotsTxtChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288752DDC1DF200E1B621 /* RobotsTxtChecker.swift */; };
+		50E288852DDEC59300E1B621 /* UnifiedMediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */; };
+		50E288D82DDED2DB00E1B621 /* TimelineEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */; };
 		5B75ACFBB0193B6FAEB26D76 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA9048F6309F63324484C491 /* Assets.xcassets */; };
 		5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */; };
 		5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */; };
@@ -73,6 +75,8 @@
 		50E288772DDC1DF200E1B621 /* TokenManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenManager.swift; sourceTree = "<group>"; };
 		50E288782DDC1DF200E1B621 /* URLService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLService.swift; sourceTree = "<group>"; };
 		50E288792DDC1DF200E1B621 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
+		50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
+		50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineEntry.swift; sourceTree = "<group>"; };
 		6B99202C32522904104EA1A6 /* SocialFusionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionApp.swift; sourceTree = "<group>"; };
 		712CCA659FBD7CD190A2972D /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialServiceManager.swift; sourceTree = "<group>"; };
@@ -102,6 +106,7 @@
 		50CDC8342DD7CDDD00144E13 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */,
 				50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */,
 				50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */,
 				50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */,
@@ -185,6 +190,7 @@
 		EBD592315432A61E41FB3ED9 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */,
 				50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */,
 				B838B741234EAE29B1817EBB /* BlueskyModels.swift */,
 				C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */,
@@ -231,6 +237,9 @@
 				en,
 			);
 			mainGroup = 4383FFA39CCDB6E82979FB67;
+			packageReferences = (
+				50E288D92DDEDBBD00E1B621 /* XCRemoteSwiftPackageReference "SwiftUIX" */,
+			);
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -264,6 +273,7 @@
 				F0FEE97841E1BFE76F092DCF /* ContentView.swift in Sources */,
 				4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */,
 				50CDC8352DD7CDDD00144E13 /* PlatformDot.swift in Sources */,
+				50E288852DDEC59300E1B621 /* UnifiedMediaGridView.swift in Sources */,
 				50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */,
 				50CDC8372DD7CDDD00144E13 /* LinkPreview.swift in Sources */,
 				50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */,
@@ -277,6 +287,7 @@
 				2EE845AC73F6E96035D64073 /* Post.swift in Sources */,
 				32234CDDD38C105F8C980909 /* PostCardView.swift in Sources */,
 				86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */,
+				50E288D82DDED2DB00E1B621 /* TimelineEntry.swift in Sources */,
 				8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */,
 				50E2887A2DDC1DF200E1B621 /* HTMLString.swift in Sources */,
 				50E2887B2DDC1DF200E1B621 /* LinkDetection.swift in Sources */,
@@ -480,6 +491,17 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		50E288D92DDEDBBD00E1B621 /* XCRemoteSwiftPackageReference "SwiftUIX" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SwiftUIX/SwiftUIX";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.2.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 19B8E72CFBCD5EE4BD467684 /* Project object */;
 }
