@@ -268,8 +268,14 @@ struct PostCardView: View {
 
                 // Reply banner if applicable
                 if case .reply = viewModel.kind {
-                    replyBannerView
-                        .padding(.bottom, 4)
+                    Group {
+                        replyBannerView
+                            .padding(.bottom, 4)
+                    }
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(
+                        .spring(response: animationDuration, dampingFraction: 0.8),
+                        value: viewModel.isParentExpanded)
                     // Parent post preview (when expanded) appears above main post content
                     if viewModel.isParentExpanded {
                         if let parent = viewModel.effectiveParentPost, !parent.content.isEmpty {
@@ -575,7 +581,7 @@ struct BoostBannerView: View {
                 .font(.caption)
                 .foregroundColor(platformColor)
 
-            Text("\(handle) boosted 🧪")
+            Text("\(handle) boosted")
                 .font(.footnote)
                 .foregroundColor(.secondary)
 

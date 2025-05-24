@@ -111,12 +111,14 @@ extension Post {
 
     /// Renders post content, handling Mastodon HTML & custom emoji.
     @ViewBuilder
-    public func contentView(lineLimit: Int? = nil, showLinkPreview: Bool = true) -> some View {
+    public func contentView(lineLimit: Int? = nil, showLinkPreview: Bool = true, font: Font = .body)
+        -> some View
+    {
         VStack(alignment: .leading, spacing: 8) {
             EmojiTextApp(
                 htmlString: HTMLString(raw: content),
                 customEmoji: customEmoji,
-                font: .body,
+                font: font,
                 foregroundColor: .primary,
                 lineLimit: lineLimit,
                 mentions: mentions,

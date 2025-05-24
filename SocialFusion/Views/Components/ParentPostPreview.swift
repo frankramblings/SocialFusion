@@ -77,9 +77,10 @@ struct ParentPostPreview: View {
 
             // Post content with conditional line limit
             post.contentView(
-                lineLimit: post.content.count > maxCharacters ? 8 : nil, showLinkPreview: false
+                lineLimit: post.content.count > maxCharacters ? 8 : nil,
+                showLinkPreview: false,
+                font: .callout  // Explicitly set font for parent post text
             )
-            .font(.callout)  // Use smaller Dynamic Type size for parent posts
             .padding(.leading, 4)
             .padding(.trailing, 8)
         }
