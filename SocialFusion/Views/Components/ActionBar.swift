@@ -24,7 +24,7 @@ struct ActionBar: View {
                     Image(systemName: "bubble.left")
                         .font(.system(size: iconSize))
                         .foregroundColor(.secondary)
-
+                        .accessibilityLabel("Reply")
                     if replyCount > 0 {
                         Text("\(replyCount)")
                             .font(.caption)
@@ -37,6 +37,7 @@ struct ActionBar: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Reply")
 
             // Repost button
             Button {
@@ -46,7 +47,7 @@ struct ActionBar: View {
                     Image(systemName: "arrow.2.squarepath")
                         .font(.system(size: iconSize))
                         .foregroundColor(isReposted ? .green : .secondary)
-
+                        .accessibilityLabel(isReposted ? "Undo Repost" : "Repost")
                     if repostCount > 0 {
                         Text("\(repostCount)")
                             .font(.caption)
@@ -59,6 +60,7 @@ struct ActionBar: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel(isReposted ? "Undo Repost" : "Repost")
 
             // Like button
             Button {
@@ -68,7 +70,7 @@ struct ActionBar: View {
                     Image(systemName: isLiked ? "heart.fill" : "heart")
                         .font(.system(size: iconSize))
                         .foregroundColor(isLiked ? .red : .secondary)
-
+                        .accessibilityLabel(isLiked ? "Unlike" : "Like")
                     if likeCount > 0 {
                         Text("\(likeCount)")
                             .font(.caption)
@@ -81,6 +83,7 @@ struct ActionBar: View {
                 }
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel(isLiked ? "Unlike" : "Like")
 
             Spacer()
 
@@ -91,8 +94,10 @@ struct ActionBar: View {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
+                    .accessibilityLabel("Share")
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Share")
         }
         .padding(.vertical, 4)
     }

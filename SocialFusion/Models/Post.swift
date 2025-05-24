@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 // MARK: - AttributedTextOverlay for per-segment tap support
@@ -107,7 +108,7 @@ public struct MediaAttachment: Codable, Identifiable, Equatable {
 }
 
 // MARK: - Post class
-public class Post: Identifiable, Codable, Equatable {
+public class Post: ObservableObject, Identifiable, Codable, Equatable {
     public let id: String
     public let content: String
     public let authorName: String
@@ -128,8 +129,8 @@ public class Post: Identifiable, Codable, Equatable {
     public var repostCount: Int = 0
 
     // Properties for reply and boost functionality
-    public var boostedBy: String?
-    public var parent: Post?
+    @Published public var boostedBy: String?
+    @Published public var parent: Post?
     public var inReplyToID: String?
     public var inReplyToUsername: String?
 
@@ -188,6 +189,88 @@ public class Post: Identifiable, Codable, Equatable {
         case inReplyToUsername
         case quotedPostUri
         case quotedPostAuthorHandle
+    }
+
+    public required convenience init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try container.decode(String.self, forKey: .id)
+        let content = try container.decode(String.self, forKey: .content)
+        let authorName = try container.decode(String.self, forKey: .authorName)
+        let authorUsername = try container.decode(String.self, forKey: .authorUsername)
+        let authorProfilePictureURL = try container.decode(
+            String.self, forKey: .authorProfilePictureURL)
+        let createdAt = try container.decode(Date.self, forKey: .createdAt)
+        let platform = try container.decode(SocialPlatform.self, forKey: .platform)
+        let originalURL = try container.decode(String.self, forKey: .originalURL)
+        let attachments = try container.decode([Attachment].self, forKey: .attachments)
+        let mentions = try container.decode([String].self, forKey: .mentions)
+        let tags = try container.decode([String].self, forKey: .tags)
+        let originalPost = try container.decodeIfPresent(Post.self, forKey: .originalPost)
+        let isReposted = try container.decode(Bool.self, forKey: .isReposted)
+        let isLiked = try container.decode(Bool.self, forKey: .isLiked)
+        let likeCount = try container.decode(Int.self, forKey: .likeCount)
+        let repostCount = try container.decode(Int.self, forKey: .repostCount)
+        let platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
+        let boostedBy = try container.decodeIfPresent(String.self, forKey: .boostedBy)
+        let parent = try container.decodeIfPresent(Post.self, forKey: .parent)
+        let inReplyToID = try container.decodeIfPresent(String.self, forKey: .inReplyToID)
+        let inReplyToUsername = try container.decodeIfPresent(
+            String.self, forKey: .inReplyToUsername)
+        let quotedPostUri = try container.decodeIfPresent(String.self, forKey: .quotedPostUri)
+        let quotedPostAuthorHandle = try container.decodeIfPresent(
+            String.self, forKey: .quotedPostAuthorHandle)
+        self.init(
+            id: id,
+            content: content,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            authorProfilePictureURL: authorProfilePictureURL,
+            createdAt: createdAt,
+            platform: platform,
+            originalURL: originalURL,
+            attachments: attachments,
+            mentions: mentions,
+            tags: tags,
+            originalPost: originalPost,
+            isReposted: isReposted,
+            isLiked: isLiked,
+            likeCount: likeCount,
+            repostCount: repostCount,
+            platformSpecificId: platformSpecificId,
+            boostedBy: boostedBy,
+            parent: parent,
+            inReplyToID: inReplyToID,
+            inReplyToUsername: inReplyToUsername,
+            quotedPostUri: quotedPostUri,
+            quotedPostAuthorHandle: quotedPostAuthorHandle
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(content, forKey: .content)
+        try container.encode(authorName, forKey: .authorName)
+        try container.encode(authorUsername, forKey: .authorUsername)
+        try container.encode(authorProfilePictureURL, forKey: .authorProfilePictureURL)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(platform, forKey: .platform)
+        try container.encode(originalURL, forKey: .originalURL)
+        try container.encode(attachments, forKey: .attachments)
+        try container.encode(mentions, forKey: .mentions)
+        try container.encode(tags, forKey: .tags)
+        try container.encodeIfPresent(originalPost, forKey: .originalPost)
+        try container.encode(isReposted, forKey: .isReposted)
+        try container.encode(isLiked, forKey: .isLiked)
+        try container.encode(likeCount, forKey: .likeCount)
+        try container.encode(repostCount, forKey: .repostCount)
+        try container.encode(platformSpecificId, forKey: .platformSpecificId)
+        try container.encodeIfPresent(boostedBy, forKey: .boostedBy)
+        try container.encodeIfPresent(parent, forKey: .parent)
+        try container.encodeIfPresent(inReplyToID, forKey: .inReplyToID)
+        try container.encodeIfPresent(inReplyToUsername, forKey: .inReplyToUsername)
+        try container.encodeIfPresent(quotedPostUri, forKey: .quotedPostUri)
+        try container.encodeIfPresent(quotedPostAuthorHandle, forKey: .quotedPostAuthorHandle)
     }
 
     public init(
@@ -520,5 +603,114 @@ public class Post: Identifiable, Codable, Equatable {
             }
         }
         return textView
+    }
+}
+
+class PostViewModel: ObservableObject, Identifiable {
+    enum Kind: Equatable {
+        case normal
+        case boost(boostedBy: String)
+        case reply(parentId: String?)
+    }
+
+    @Published var post: Post
+    @Published var isLiked: Bool
+    @Published var isReposted: Bool
+    @Published var likeCount: Int
+    @Published var repostCount: Int
+    @Published var error: AppError? = nil
+
+    // Timeline context
+    let kind: Kind
+    @Published var isParentExpanded: Bool = false
+    @Published var isLoadingParent: Bool = false
+    @Published var effectiveParentPost: Post? = nil
+
+    var id: String { post.id }
+
+    private var serviceManager: SocialServiceManager
+    private var cancellables = Set<AnyCancellable>()
+
+    init(post: Post, serviceManager: SocialServiceManager, kind: Kind? = nil) {
+        self.post = post
+        self.isLiked = post.isLiked
+        self.isReposted = post.isReposted
+        self.likeCount = post.likeCount
+        self.repostCount = post.repostCount
+        self.serviceManager = serviceManager
+        // Determine kind if not provided
+        if let kind = kind {
+            self.kind = kind
+        } else if let boostedBy = post.boostedBy {
+            self.kind = .boost(boostedBy: boostedBy)
+        } else if post.inReplyToID != nil {
+            self.kind = .reply(parentId: post.inReplyToID)
+        } else {
+            self.kind = .normal
+        }
+        // Observe parent changes
+        post.$parent
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] parent in
+                self?.effectiveParentPost = parent
+            }
+            .store(in: &cancellables)
+        // Set initial value
+        self.effectiveParentPost = post.parent
+    }
+
+    @MainActor
+    func like() async {
+        let prevLiked = isLiked
+        let prevCount = likeCount
+        isLiked.toggle()
+        likeCount += isLiked ? 1 : -1
+        do {
+            _ = try await serviceManager.likePost(post)
+            post.isLiked = isLiked
+            post.likeCount = likeCount
+            // Patch: Refresh timeline to rebuild banners
+            try? await serviceManager.refreshTimeline(force: true)
+        } catch {
+            isLiked = prevLiked
+            likeCount = prevCount
+            self.error = AppError(
+                type: .general, message: error.localizedDescription, underlyingError: error)
+        }
+    }
+
+    @MainActor
+    func repost() async {
+        let prevReposted = isReposted
+        let prevCount = repostCount
+        isReposted.toggle()
+        repostCount += isReposted ? 1 : -1
+        do {
+            _ = try await serviceManager.repostPost(post)
+            post.isReposted = isReposted
+            post.repostCount = repostCount
+            // Patch: Refresh timeline to rebuild banners
+            try? await serviceManager.refreshTimeline(force: true)
+        } catch {
+            isReposted = prevReposted
+            repostCount = prevCount
+            self.error = AppError(
+                type: .general, message: error.localizedDescription, underlyingError: error)
+        }
+    }
+
+    func share() {
+        let url = URL(string: post.originalURL) ?? URL(string: "https://example.com")!
+        let activityController = UIActivityViewController(
+            activityItems: [url], applicationActivities: nil)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let window = windowScene.windows.first,
+            let rootViewController = window.rootViewController
+        {
+            rootViewController.present(activityController, animated: true, completion: nil)
+        } else {
+            self.error = AppError(
+                type: .general, message: "Unable to present share sheet", underlyingError: nil)
+        }
     }
 }

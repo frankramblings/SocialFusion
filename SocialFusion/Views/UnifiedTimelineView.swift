@@ -124,53 +124,8 @@ struct UnifiedTimelineView: View {
 
                     // Post list
                     ScrollView {
-                        LazyVStack(spacing: 0) {
-                            // Display error alert if there's an authentication issue
-                            if showingAuthError {
-                                HStack {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                    Text(authErrorMessage)
-                                        .font(.footnote)
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    Button(action: {
-                                        showingAuthError = false
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(10)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                            }
-
-                            ForEach(timelineEntries) { entry in
-                                VStack {
-                                    PostCardView(entry: entry)
-                                        .id(entry.id)
-                                        .padding(.vertical, 4)
-                                }
-                            }
-
-                            // Show loading indicator at the bottom when more posts are loading
-                            if isLoadingMorePosts {
-                                ProgressView("Loading more posts...")
-                                    .padding()
-                                    .onAppear {
-                                        Task {
-                                            isLoadingMorePosts = false
-                                        }
-                                    }
-                            }
-
-                            // Add spacing at bottom to prevent content being hidden behind tab bar
-                            Color.clear.frame(height: 60)
-                        }
-                        .padding(.top, 0)
+                        postListView
+                            .padding(.top, 0)
                     }
                     .background(Color(.systemBackground))
                     .refreshable {
@@ -236,7 +191,7 @@ struct UnifiedTimelineView: View {
         isRefreshing = true
         Task {
             await refreshTimelineAsync()
-            await MainActor.run {
+            _ = await MainActor.run {
                 isRefreshing = false
             }
         }
@@ -246,7 +201,7 @@ struct UnifiedTimelineView: View {
         do {
             try await serviceManager.refreshTimeline(force: force)
         } catch {
-            await MainActor.run {
+            _ = await MainActor.run {
                 errorMessage = "Failed to refresh timeline: \(error.localizedDescription)"
                 showingErrorAlert = true
             }
@@ -272,6 +227,60 @@ struct UnifiedTimelineView: View {
         } else {
             errorMessage = error.localizedDescription
             showingErrorAlert = true
+        }
+    }
+
+    // Extracted post list view
+    @ViewBuilder
+    private var postListView: some View {
+        LazyVStack(spacing: 0) {
+            // Display error alert if there's an authentication issue
+            if showingAuthError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(authErrorMessage)
+                        .font(.footnote)
+                        .foregroundColor(.primary)
+                    Spacer()
+                    Button(action: {
+                        showingAuthError = false
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding()
+                .background(Color(.systemGray6))
+                .cornerRadius(10)
+                .padding(.horizontal)
+                .padding(.top, 8)
+            }
+            ForEach(timelineEntries) { entry in
+                PostCardView(
+                    viewModel: PostViewModel(
+                        post: entry.post,
+                        serviceManager: serviceManager,
+                        kind: {
+                            switch entry.kind {
+                            case .normal: return .normal
+                            case .boost(let boostedBy): return .boost(boostedBy: boostedBy)
+                            case .reply(let parentId): return .reply(parentId: parentId)
+                            }
+                        }()
+                    )
+                )
+            }
+            if isLoadingMorePosts {
+                ProgressView("Loading more posts...")
+                    .padding()
+                    .onAppear {
+                        Task {
+                            isLoadingMorePosts = false
+                        }
+                    }
+            }
+            Color.clear.frame(height: 60)
         }
     }
 }

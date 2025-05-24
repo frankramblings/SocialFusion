@@ -3,10 +3,12 @@ import SwiftUI
 
 /// A view that displays the details of a post
 struct PostDetailView: View {
-    let post: Post
+    @ObservedObject var viewModel: PostViewModel
+    @Binding var focusReplyComposer: Bool
     @EnvironmentObject var serviceManager: SocialServiceManager
     @State private var replyText: String = ""
     @State private var isReplying: Bool = false
+    @State private var error: AppError? = nil
 
     // Date formatter for detailed timestamp
     private let dateFormatter: DateFormatter = {
@@ -22,7 +24,7 @@ struct PostDetailView: View {
                 // Author info
                 HStack(alignment: .center) {
                     // Avatar
-                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                    AsyncImage(url: URL(string: viewModel.post.authorProfilePictureURL)) { phase in
                         if let image = phase.image {
                             image.resizable()
                         } else if phase.error != nil {
@@ -35,10 +37,10 @@ struct PostDetailView: View {
                     .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(post.authorName)
+                        Text(viewModel.post.authorName)
                             .font(.headline)
 
-                        Text("@\(post.authorUsername)")
+                        Text("@\(viewModel.post.authorUsername)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -46,17 +48,17 @@ struct PostDetailView: View {
                     Spacer()
 
                     // Platform indicator
-                    PlatformDot(platform: post.platform)
+                    PlatformDot(platform: viewModel.post.platform)
                 }
 
                 // Post content
-                if !post.content.isEmpty {
-                    post.contentView()
+                if !viewModel.post.content.isEmpty {
+                    viewModel.post.contentView()
                 }
 
                 // Media attachments
-                if !post.attachments.isEmpty {
-                    MediaGridView(attachments: post.attachments)
+                if !viewModel.post.attachments.isEmpty {
+                    MediaGridView(attachments: viewModel.post.attachments)
                         .frame(maxWidth: .infinity)
                         .aspectRatio(contentMode: .fit)
                         .cornerRadius(8)
@@ -65,18 +67,20 @@ struct PostDetailView: View {
                 // Post metadata
                 VStack(alignment: .leading, spacing: 8) {
                     // Timestamp
-                    Text(dateFormatter.string(from: post.createdAt))
+                    Text(dateFormatter.string(from: viewModel.post.createdAt))
                         .font(.footnote)
                         .foregroundColor(.secondary)
 
                     // Stats
                     HStack(spacing: 12) {
-                        if post.repostCount > 0 {
-                            Label("\(post.repostCount) Reposts", systemImage: "arrow.2.squarepath")
+                        if viewModel.repostCount > 0 {
+                            Label(
+                                "\(viewModel.repostCount) Reposts",
+                                systemImage: "arrow.2.squarepath")
                         }
 
-                        if post.likeCount > 0 {
-                            Label("\(post.likeCount) Likes", systemImage: "heart")
+                        if viewModel.likeCount > 0 {
+                            Label("\(viewModel.likeCount) Likes", systemImage: "heart")
                         }
                     }
                     .font(.footnote)
@@ -88,11 +92,11 @@ struct PostDetailView: View {
 
                 // Action bar
                 ActionBar(
-                    isLiked: post.isLiked,
-                    isReposted: post.isReposted,
-                    likeCount: post.likeCount,
-                    repostCount: post.repostCount,
-                    replyCount: 0,  // No replyCount in the model
+                    isLiked: viewModel.isLiked,
+                    isReposted: viewModel.isReposted,
+                    likeCount: viewModel.likeCount,
+                    repostCount: viewModel.repostCount,
+                    replyCount: 0,
                     onAction: handleAction
                 )
 
@@ -101,7 +105,7 @@ struct PostDetailView: View {
                     Divider()
 
                     VStack(alignment: .leading) {
-                        Text("Reply to \(post.authorName)")
+                        Text("Reply to \(viewModel.post.authorName)")
                             .font(.headline)
                             .padding(.bottom, 8)
 
@@ -110,6 +114,16 @@ struct PostDetailView: View {
                             .padding(8)
                             .background(Color(.systemGray6))
                             .cornerRadius(8)
+                            .onAppear {
+                                if focusReplyComposer {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        UIApplication.shared.sendAction(
+                                            #selector(UIResponder.becomeFirstResponder), to: nil,
+                                            from: nil, for: nil)
+                                        focusReplyComposer = false
+                                    }
+                                }
+                            }
 
                         HStack {
                             Spacer()
@@ -134,46 +148,26 @@ struct PostDetailView: View {
             }
             .padding()
         }
+        .handleAppErrors(error: $viewModel.error)
     }
 
     private func handleAction(_ action: PostAction) {
-        Task {
-            switch action {
-            case .like:
-                do {
-                    let _ = try await serviceManager.likePost(post)
-                } catch {
-                    print("Error liking post: \(error)")
-                }
-            case .repost:
-                do {
-                    let _ = try await serviceManager.repostPost(post)
-                } catch {
-                    print("Error reposting post: \(error)")
-                }
-            case .reply:
-                isReplying = true
-            case .share:
-                // Show share sheet
-                let url = URL(string: post.originalURL) ?? URL(string: "https://example.com")!
-                let activityController = UIActivityViewController(
-                    activityItems: [url], applicationActivities: nil)
-
-                // Present the activity view controller
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                    let window = windowScene.windows.first,
-                    let rootViewController = window.rootViewController
-                {
-                    rootViewController.present(activityController, animated: true, completion: nil)
-                }
-            }
+        switch action {
+        case .like:
+            Task { await viewModel.like() }
+        case .repost:
+            Task { await viewModel.repost() }
+        case .reply:
+            isReplying = true
+        case .share:
+            viewModel.share()
         }
     }
 
     private func sendReply() {
         Task {
             do {
-                let _ = try await serviceManager.replyToPost(post, content: replyText)
+                let _ = try await serviceManager.replyToPost(viewModel.post, content: replyText)
                 // Reset state after successful reply
                 isReplying = false
                 replyText = ""
@@ -186,7 +180,11 @@ struct PostDetailView: View {
 
 struct PostDetailView_Previews: PreviewProvider {
     static var previews: some View {
-        PostDetailView(post: Post.samplePosts[0])
-            .environmentObject(SocialServiceManager())
+        PostDetailView(
+            viewModel: PostViewModel(
+                post: Post.samplePosts[0], serviceManager: SocialServiceManager()),
+            focusReplyComposer: .constant(false)
+        )
+        .environmentObject(SocialServiceManager())
     }
 }

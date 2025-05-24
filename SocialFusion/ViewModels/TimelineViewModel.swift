@@ -261,10 +261,23 @@ public class TimelineViewModel: ObservableObject {
                                                                     $0.id == post.id
                                                                 })
                                                             {
-                                                                // Store the parent post and update the state
-                                                                self.logger.info(
-                                                                    "Successfully pre-loaded Bluesky parent post for: \(post.id)"
-                                                                )
+                                                                // Set the reply username if missing or empty
+                                                                if currentPosts[idx]
+                                                                    .inReplyToUsername == nil
+                                                                    || currentPosts[idx]
+                                                                        .inReplyToUsername?.isEmpty
+                                                                        == true
+                                                                {
+                                                                    let username = parent
+                                                                        .authorUsername
+                                                                    self.logger.info(
+                                                                        "Setting reply username to: \(username)"
+                                                                    )
+                                                                    currentPosts[idx]
+                                                                        .inReplyToUsername =
+                                                                        username
+                                                                }
+                                                                // Attach the parent post
                                                                 currentPosts[idx].parent = parent
                                                                 self.state = .loaded(currentPosts)
                                                             }
@@ -283,6 +296,75 @@ public class TimelineViewModel: ObservableObject {
                                         } catch {
                                             self.logger.error(
                                                 "Error pre-loading Bluesky parent post: \(error.localizedDescription)"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Pre-load original posts for boosts/reposts
+                        let isBoost = post.kind == .boost || post.isBoost == true
+                        let originalPostMissing = post.originalPost == nil
+                        if isBoost, let originalURI = post.originalPostURI, originalPostMissing {
+                            switch post.platform {
+                            case .mastodon:
+                                Task(priority: .userInitiated) {
+                                    let mastodonAccount = await MainActor.run {
+                                        () -> SocialAccount? in
+                                        return accounts.first(where: { $0.platform == .mastodon })
+                                    }
+                                    if let mastodonAccount = mastodonAccount {
+                                        do {
+                                            if let original = try await self.socialServiceManager
+                                                .fetchMastodonStatus(
+                                                    id: originalURI, account: mastodonAccount)
+                                            {
+                                                await MainActor.run {
+                                                    if case .loaded(var currentPosts) = self.state {
+                                                        if let idx = currentPosts.firstIndex(
+                                                            where: { $0.id == post.id })
+                                                        {
+                                                            currentPosts[idx].originalPost =
+                                                                original
+                                                            self.state = .loaded(currentPosts)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } catch {
+                                            self.logger.error(
+                                                "Error pre-loading Mastodon original post: \(error.localizedDescription)"
+                                            )
+                                        }
+                                    }
+                                }
+                            case .bluesky:
+                                Task {
+                                    let blueskyAccount = await MainActor.run {
+                                        () -> SocialAccount? in
+                                        return accounts.first(where: { $0.platform == .bluesky })
+                                    }
+                                    if let blueskyAccount = blueskyAccount {
+                                        do {
+                                            if let original = try await self.socialServiceManager
+                                                .blueskyService.fetchPostByID(
+                                                    originalURI, account: blueskyAccount)
+                                            {
+                                                await MainActor.run {
+                                                    if case .loaded(var currentPosts) = self.state {
+                                                        if let idx = currentPosts.firstIndex(
+                                                            where: { $0.id == post.id })
+                                                        {
+                                                            currentPosts[idx].originalPost =
+                                                                original
+                                                            self.state = .loaded(currentPosts)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        } catch {
+                                            self.logger.error(
+                                                "Error pre-loading Bluesky original post: \(error.localizedDescription)"
                                             )
                                         }
                                     }
@@ -496,10 +578,23 @@ public class TimelineViewModel: ObservableObject {
                                                                     $0.id == post.id
                                                                 })
                                                             {
-                                                                // Store the parent post and update the state
-                                                                self.logger.info(
-                                                                    "Successfully pre-loaded Bluesky parent post for: \(post.id)"
-                                                                )
+                                                                // Set the reply username if missing or empty
+                                                                if currentPosts[idx]
+                                                                    .inReplyToUsername == nil
+                                                                    || currentPosts[idx]
+                                                                        .inReplyToUsername?.isEmpty
+                                                                        == true
+                                                                {
+                                                                    let username = parent
+                                                                        .authorUsername
+                                                                    self.logger.info(
+                                                                        "Setting reply username to: \(username)"
+                                                                    )
+                                                                    currentPosts[idx]
+                                                                        .inReplyToUsername =
+                                                                        username
+                                                                }
+                                                                // Attach the parent post
                                                                 currentPosts[idx].parent = parent
                                                                 self.state = .loaded(currentPosts)
                                                             }
@@ -519,6 +614,87 @@ public class TimelineViewModel: ObservableObject {
                                             self.logger.error(
                                                 "Error pre-loading Bluesky parent post: \(error.localizedDescription)"
                                             )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Pre-load original posts for boosts/reposts
+                        for post in posts {
+                            let isBoost = post.kind == .boost || post.isBoost == true
+                            let originalPostMissing = post.originalPost == nil
+                            if isBoost, let originalURI = post.originalPostURI, originalPostMissing
+                            {
+                                switch post.platform {
+                                case .mastodon:
+                                    Task(priority: .userInitiated) {
+                                        let mastodonAccount = await MainActor.run {
+                                            () -> SocialAccount? in
+                                            return accounts.first(where: {
+                                                $0.platform == .mastodon
+                                            })
+                                        }
+                                        if let mastodonAccount = mastodonAccount {
+                                            do {
+                                                if let original =
+                                                    try await self.socialServiceManager
+                                                    .fetchMastodonStatus(
+                                                        id: originalURI, account: mastodonAccount)
+                                                {
+                                                    await MainActor.run {
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: { $0.id == post.id })
+                                                            {
+                                                                currentPosts[idx].originalPost =
+                                                                    original
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } catch {
+                                                self.logger.error(
+                                                    "Error pre-loading Mastodon original post: \(error.localizedDescription)"
+                                                )
+                                            }
+                                        }
+                                    }
+                                case .bluesky:
+                                    Task {
+                                        let blueskyAccount = await MainActor.run {
+                                            () -> SocialAccount? in
+                                            return accounts.first(where: { $0.platform == .bluesky }
+                                            )
+                                        }
+                                        if let blueskyAccount = blueskyAccount {
+                                            do {
+                                                if let original =
+                                                    try await self.socialServiceManager
+                                                    .blueskyService.fetchPostByID(
+                                                        originalURI, account: blueskyAccount)
+                                                {
+                                                    await MainActor.run {
+                                                        if case .loaded(var currentPosts) = self
+                                                            .state
+                                                        {
+                                                            if let idx = currentPosts.firstIndex(
+                                                                where: { $0.id == post.id })
+                                                            {
+                                                                currentPosts[idx].originalPost =
+                                                                    original
+                                                                self.state = .loaded(currentPosts)
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            } catch {
+                                                self.logger.error(
+                                                    "Error pre-loading Bluesky original post: \(error.localizedDescription)"
+                                                )
+                                            }
                                         }
                                     }
                                 }

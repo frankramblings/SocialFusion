@@ -10,6 +10,8 @@ struct FullscreenMediaView: View {
     @State private var currentOffset: CGSize = .zero
     @State private var previousOffset: CGSize = .zero
     @State private var currentIndex: Int
+    @State private var overlaysVisible: Bool = true
+    @State private var showAltText: Bool = false
     @Environment(\.dismiss) private var dismiss
 
     init(media: Post.Attachment, allMedia: [Post.Attachment]) {
@@ -27,34 +29,46 @@ struct FullscreenMediaView: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                Color.black.edgesIgnoringSafeArea(.all)
+                // Dark vertical gradient background
+                LinearGradient(
+                    gradient: Gradient(colors: [Color.black, Color(white: 0.12)]),
+                    startPoint: .top, endPoint: .bottom
+                )
+                .ignoresSafeArea()
 
                 TabView(selection: $currentIndex) {
                     ForEach(Array(allMedia.enumerated()), id: \.element.id) { index, attachment in
                         ZStack {
                             mediaView(for: attachment)
-                                .scaleEffect(attachment.id == media.id ? currentScale : 1.0)
-                                .offset(attachment.id == media.id ? currentOffset : .zero)
+                                .scaleEffect(
+                                    attachment.id == allMedia[currentIndex].id ? currentScale : 1.0
+                                )
+                                .offset(
+                                    attachment.id == allMedia[currentIndex].id
+                                        ? currentOffset : .zero
+                                )
+                                .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
+                                .accessibilityLabel(attachment.altText ?? "Image")
                                 .gesture(
                                     MagnificationGesture()
                                         .onChanged { value in
-                                            if attachment.id == media.id {
+                                            if attachment.id == allMedia[currentIndex].id {
                                                 let delta = value / previousScale
                                                 previousScale = value
-                                                // Limit zoom to avoid extreme scaling
                                                 currentScale = min(
                                                     max(currentScale * delta, 1.0), 5.0)
                                             }
                                         }
                                         .onEnded { _ in
-                                            previousScale = 1.0  // Reset for next gesture
+                                            previousScale = 1.0
                                         }
                                 )
                                 .gesture(
                                     DragGesture()
                                         .onChanged { value in
-                                            if attachment.id == media.id && currentScale > 1.0 {
-                                                // Only allow panning when zoomed in
+                                            if attachment.id == allMedia[currentIndex].id
+                                                && currentScale > 1.0
+                                            {
                                                 currentOffset = CGSize(
                                                     width: previousOffset.width
                                                         + value.translation.width,
@@ -79,54 +93,208 @@ struct FullscreenMediaView: View {
                                         }
                                     }
                                 }
+                                .onTapGesture(count: 1) {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        overlaysVisible.toggle()
+                                        if !overlaysVisible { showAltText = false }
+                                    }
+                                }
                         }
                         .tag(index)
                     }
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
 
-                // Close button in the top-right corner
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button(action: {
-                            dismiss()
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .padding()
-                                .shadow(color: .black.opacity(0.5), radius: 2)
+                // Overlays (X, alt text, sharrow)
+                if overlaysVisible {
+                    VStack {
+                        // Top overlay: Close button and ALT/info button
+                        HStack {
+                            Spacer()
+                            // ALT/info button (shows if alt text exists)
+                            if let altText = allMedia[currentIndex].altText, !altText.isEmpty {
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        showAltText.toggle()
+                                    }
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                }) {
+                                    Image(systemName: "info.circle.fill")
+                                        .font(.title2)
+                                        .foregroundColor(showAltText ? .yellow : .white)
+                                        .padding(10)
+                                }
+                                .buttonStyle(GlassyButtonStyle())
+                                .accessibilityLabel("Show image description")
+                                .accessibilityHint("Toggles the alt text overlay")
+                                .padding(.trailing, 4)
+                            }
+                            Button(action: { dismiss() }) {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(10)
+                            }
+                            .buttonStyle(GlassyButtonStyle())
+                            .accessibilityLabel("Close fullscreen viewer")
+                            .padding(.trailing, 8)
                         }
+                        .padding(.top, 12)
+                        .padding(.trailing, 8)
+                        Spacer()
+                        // Bottom overlay: Alt text (if toggled) and share button
+                        HStack(alignment: .bottom) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                if showAltText, let altText = allMedia[currentIndex].altText,
+                                    !altText.isEmpty
+                                {
+                                    Text(altText)
+                                        .font(.body)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 12)
+                                        .background(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Color.black.opacity(0.85),
+                                                    Color.black.opacity(0.0),
+                                                ]),
+                                                startPoint: .bottom, endPoint: .top
+                                            )
+                                        )
+                                        .cornerRadius(16)
+                                        .padding(.bottom, 12)
+                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                        .accessibilityLabel("Image description: \(altText)")
+                                }
+                            }
+                            Spacer()
+                            VStack {
+                                Button(action: {
+                                    // Share the image URL
+                                    if let url = URL(string: allMedia[currentIndex].url) {
+                                        let av = UIActivityViewController(
+                                            activityItems: [url], applicationActivities: nil)
+                                        if let windowScene = UIApplication.shared.connectedScenes
+                                            .first as? UIWindowScene,
+                                            let window = windowScene.windows.first,
+                                            let rootVC = window.rootViewController
+                                        {
+                                            rootVC.present(av, animated: true, completion: nil)
+                                        }
+                                    }
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                }) {
+                                    Image(systemName: "square.and.arrow.up")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                        .padding(12)
+                                }
+                                .buttonStyle(GlassyButtonStyle())
+                                .accessibilityLabel("Share image")
+                                .padding(.bottom, 8)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
-                    Spacer()
+                    .animation(.easeInOut(duration: 0.2), value: overlaysVisible)
+                }
+
+                // Page indicator dots (only if multiple images)
+                if allMedia.count > 1 {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 8) {
+                            ForEach(0..<allMedia.count, id: \.self) { idx in
+                                Circle()
+                                    .fill(
+                                        idx == currentIndex ? Color.white : Color.white.opacity(0.3)
+                                    )
+                                    .frame(width: 7, height: 7)
+                            }
+                        }
+                        .padding(8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
+                        .padding(.bottom, 18)
+                    }
                 }
             }
         }
         .ignoresSafeArea()
         .statusBar(hidden: true)
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    if value.translation.height > 100 || value.predictedEndTranslation.height > 200
+                    {
+                        withAnimation { dismiss() }
+                    }
+                }
+        )
     }
 
     private func mediaView(for attachment: Post.Attachment) -> some View {
-        // For images
-        AsyncImage(url: URL(string: attachment.url)) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFit()
-            } else if phase.error != nil {
+        print("FullscreenMediaView loading URL: \(attachment.url) type: \(attachment.type)")
+        guard attachment.type == .image else {
+            return AnyView(
                 VStack {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.largeTitle)
-                    Text("Failed to load image")
+                    Text("Unsupported media type")
                 }
                 .foregroundColor(.white)
-            } else {
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(2)
-            }
+            )
         }
+        guard let url = URL(string: attachment.url), !attachment.url.isEmpty else {
+            return AnyView(
+                VStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                    Text("Invalid image URL")
+                }
+                .foregroundColor(.white)
+            )
+        }
+        return AnyView(
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image
+                        .resizable()
+                        .scaledToFit()
+                } else if phase.error != nil {
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                        Text("Failed to load image")
+                    }
+                    .foregroundColor(.white)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(2)
+                }
+            }
+        )
+    }
+}
+
+// GlassyButtonStyle for overlay buttons
+struct GlassyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(.ultraThinMaterial)
+            .clipShape(Circle())
+            .overlay(
+                Circle().stroke(Color.white.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 2)
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(
+                .spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

@@ -110,6 +110,10 @@ final class SocialServiceManager: ObservableObject {
 
     // Cache for Mastodon parent posts to avoid redundant fetches
     private var mastodonPostCache: [String: (post: Post, timestamp: Date)] = [:]
+    // Cache for Bluesky parent posts to avoid redundant fetches
+    private var blueskyPostCache: [String: Post] = [:]
+    // Track in-progress parent fetches to avoid redundant network calls
+    private var parentFetchInProgress: Set<String> = []
 
     // MARK: - Initialization
 
@@ -321,6 +325,78 @@ final class SocialServiceManager: ObservableObject {
         }
         let sortedPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
 
+        // Hydrate parent posts for replies
+        for post in sortedPosts {
+            if let parent = post.parent, parent.content == "..." {
+                // Schedule hydration for Mastodon or Bluesky
+                Task {
+                    print(
+                        "[Hydration] Triggering parent fetch for post id=\(post.id), parent id=\(parent.id), platform=\(post.platform)"
+                    )
+                    if post.platform == .mastodon, let parentId = post.inReplyToID,
+                        let account = mastodonAccounts.first
+                    {
+                        if let cached = mastodonPostCache[parentId]?.post {
+                            print(
+                                "[Hydration] Using cached Mastodon parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
+                            )
+                            post.parent = cached
+                            post.inReplyToUsername = cached.authorUsername
+                        } else {
+                            do {
+                                let realParentOpt = try await self.fetchMastodonStatus(
+                                    id: parentId, account: account)
+                                if let realParent = realParentOpt {
+                                    print(
+                                        "[Hydration] Fetched Mastodon parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
+                                    )
+                                    mastodonPostCache[parentId] = (realParent, Date())
+                                    post.parent = realParent
+                                    post.inReplyToUsername = realParent.authorUsername
+                                } else {
+                                    print(
+                                        "[Hydration] Fetched Mastodon parent for id=\(parentId): result was nil"
+                                    )
+                                }
+                            } catch {
+                                print(
+                                    "[Hydration] Failed to fetch Mastodon parent for id=\(parentId): \(error)"
+                                )
+                            }
+                        }
+                    } else if post.platform == .bluesky, let parentId = post.inReplyToID {
+                        if let cached = blueskyPostCache[parentId] {
+                            print(
+                                "[Hydration] Using cached Bluesky parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
+                            )
+                            post.parent = cached
+                            post.inReplyToUsername = cached.authorUsername
+                        } else {
+                            do {
+                                let realParentOpt = try await self.fetchBlueskyPostByID(parentId)
+                                if let realParent = realParentOpt {
+                                    print(
+                                        "[Hydration] Fetched Bluesky parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
+                                    )
+                                    blueskyPostCache[parentId] = realParent
+                                    post.parent = realParent
+                                    post.inReplyToUsername = realParent.authorUsername
+                                } else {
+                                    print(
+                                        "[Hydration] Fetched Bluesky parent for id=\(parentId): result was nil"
+                                    )
+                                }
+                            } catch {
+                                print(
+                                    "[Hydration] Failed to fetch Bluesky parent for id=\(parentId): \(error)"
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Update unified timeline on main thread
         await MainActor.run {
             unifiedTimeline = sortedPosts
@@ -493,26 +569,6 @@ final class SocialServiceManager: ObservableObject {
         }
     }
 
-    // MARK: - Post Actions
-
-    /// Like/favorite a post
-    func likePost(_ post: Post) async throws -> Bool {
-        // Implementation would call the appropriate service based on the post's platform
-        return true
-    }
-
-    /// Repost/boost a post
-    func repostPost(_ post: Post) async throws -> Bool {
-        // Implementation would call the appropriate service based on the post's platform
-        return true
-    }
-
-    /// Reply to a post
-    func replyToPost(_ post: Post, content: String) async throws -> Bool {
-        // Implementation would call the appropriate service based on the post's platform
-        return true
-    }
-
     // MARK: - TimelineEntry Construction
 
     /// Converts an array of Post objects into TimelineEntry objects for robust SwiftUI rendering
@@ -550,5 +606,53 @@ final class SocialServiceManager: ObservableObject {
         }
         // Sort by date, newest first
         return entries.sorted(by: { $0.createdAt > $1.createdAt })
+    }
+
+    /// Reply to a post (Mastodon or Bluesky)
+    func replyToPost(_ post: Post, content: String) async throws -> Post {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.replyToPost(post, content: content, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            return try await blueskyService.replyToPost(post, content: content, account: account)
+        }
+    }
+
+    /// Like a post (Mastodon or Bluesky)
+    func likePost(_ post: Post) async throws -> Post {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.likePost(post, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            return try await blueskyService.likePost(post, account: account)
+        }
+    }
+
+    /// Repost a post (Mastodon or Bluesky)
+    func repostPost(_ post: Post) async throws -> Post {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.repostPost(post, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            return try await blueskyService.repostPost(post, account: account)
+        }
     }
 }

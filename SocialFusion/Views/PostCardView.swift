@@ -206,12 +206,9 @@ struct TimelineCard<Content: View>: View {
 
 /// A view that displays a post in the timeline exactly matching the reference design
 struct PostCardView: View {
-    let entry: TimelineEntry
+    @ObservedObject var viewModel: PostViewModel
     @State private var showDetailView = false
-    @State private var showParentPost = false
-    @State private var parentPost: Post? = nil
-    @State private var isParentExpanded = false
-    @State private var isLoadingParent = false
+    @State private var shouldFocusReplyComposer = false
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) private var colorScheme
 
@@ -250,190 +247,144 @@ struct PostCardView: View {
         }
     }
 
-    // Determine which parent post to use (from post.parent or our local state)
-    private var effectiveParentPost: Post? {
-        return entry.post.parent ?? parentPost
+    // Helper to extract Bluesky handle from at:// URI
+    private func extractBlueskyHandle(from inReplyToID: String?) -> String? {
+        guard let id = inReplyToID, id.hasPrefix("at://") else { return nil }
+        let parts = id.split(separator: "/")
+        if parts.count > 2 {
+            return String(parts[1])
+        }
+        return nil
     }
 
     var body: some View {
         TimelineCard {
             VStack(alignment: .leading, spacing: 0) {
                 // Boost/Repost banner if applicable
-                if case let .boost(boostedBy) = entry.kind {
-                    BoostBannerView(handle: boostedBy, platform: entry.post.platform)
+                if case let .boost(boostedBy) = viewModel.kind {
+                    BoostBannerView(handle: boostedBy, platform: viewModel.post.platform)
                         .padding(.bottom, 4)
                 }
 
                 // Reply banner if applicable
-                if case .reply = entry.kind {
+                if case .reply = viewModel.kind {
                     replyBannerView
                         .padding(.bottom, 4)
+                    // Parent post preview (when expanded) appears above main post content
+                    if viewModel.isParentExpanded {
+                        if let parent = viewModel.effectiveParentPost, !parent.content.isEmpty {
+                            ParentPostPreview(post: parent, onTap: { /* ... */  })
+                        } else if viewModel.isLoadingParent {
+                            LoadingParentView()
+                        }
+                        // else: show nothing
+                    }
                 }
 
                 // Main post content with visual distinction
                 VStack(alignment: .leading, spacing: 10) {
-                    // Post header with author info
-                    HStack(alignment: .center) {
-                        // Profile image with platform indicator
-                        PostAuthorImageView(
-                            authorProfilePictureURL: entry.post.authorProfilePictureURL,
-                            platform: entry.post.platform,
-                            size: 44
-                        )
-                        VStack(alignment: .leading, spacing: 2) {
-                            // Author name
-                            Text(entry.post.authorName)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.primary)
-                            // Username
-                            HStack(spacing: 4) {
-                                Text("@\(entry.post.authorUsername)")
+                    // For boosts, only show content if originalPost exists and has content or media
+                    let displayPost = viewModel.post.originalPost ?? viewModel.post
+                    let hasContentOrMedia =
+                        !displayPost.content.isEmpty || !displayPost.attachments.isEmpty
+                    if case .boost = viewModel.kind, !hasContentOrMedia {
+                        // Only show banner and author info, skip content
+                        HStack(alignment: .center) {
+                            PostAuthorImageView(
+                                authorProfilePictureURL: displayPost.authorProfilePictureURL,
+                                platform: displayPost.platform,
+                                size: 44
+                            )
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(displayPost.authorName)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                HStack(spacing: 4) {
+                                    Text("@\(displayPost.authorUsername)")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                            HStack(spacing: 2) {
+                                Text(formatRelativeTime(from: displayPost.createdAt))
                                     .font(.system(size: 14))
                                     .foregroundColor(.secondary)
                             }
                         }
-                        Spacer()
-                        // Timestamp with chevron
-                        HStack(spacing: 2) {
-                            Text(formatRelativeTime(from: entry.createdAt))
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
+                    } else {
+                        // Post header with author info
+                        HStack(alignment: .center) {
+                            PostAuthorImageView(
+                                authorProfilePictureURL: displayPost.authorProfilePictureURL,
+                                platform: displayPost.platform,
+                                size: 44
+                            )
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(displayPost.authorName)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.primary)
+                                HStack(spacing: 4) {
+                                    Text("@\(displayPost.authorUsername)")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            Spacer()
+                            HStack(spacing: 2) {
+                                Text(formatRelativeTime(from: displayPost.createdAt))
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                    }
-                    // Post content
-                    Group {
-                        if entry.post.platform == .bluesky {
-                            entry.post.blueskyContentView()
-                                .font(.system(size: 16))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 2)
-                        } else {
-                            entry.post.contentView(lineLimit: nil, showLinkPreview: false)
-                                .font(.system(size: 16))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.top, 2)
+                        // Post content
+                        Group {
+                            if displayPost.platform == .bluesky {
+                                displayPost.blueskyContentView()
+                                    .font(.system(size: 16))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.top, 2)
+                            } else {
+                                displayPost.contentView(lineLimit: nil, showLinkPreview: false)
+                                    .font(.system(size: 16))
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(.top, 2)
+                            }
                         }
-                    }
-                    // --- One preview/quote card per post logic ---
-                    if let quoteOrPreview = entry.post.firstQuoteOrPreviewCardView {
-                        quoteOrPreview
-                            .padding(.top, 8)
-                    }
-                    // Media attachments if any
-                    if !entry.post.attachments.isEmpty {
-                        UnifiedMediaGridView(attachments: entry.post.attachments, maxHeight: 400)
+                        // --- One preview/quote card per post logic ---
+                        if let quoteOrPreview = displayPost.firstQuoteOrPreviewCardView {
+                            quoteOrPreview
+                                .padding(.top, 8)
+                        }
+                        // Media attachments if any
+                        if !displayPost.attachments.isEmpty {
+                            UnifiedMediaGridView(
+                                attachments: displayPost.attachments, maxHeight: 400
+                            )
                             .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        // Action bar (use viewModel for actions)
+                        ActionBar(
+                            isLiked: viewModel.isLiked,
+                            isReposted: viewModel.isReposted,
+                            likeCount: viewModel.likeCount,
+                            repostCount: viewModel.repostCount,
+                            replyCount: 0,
+                            onAction: handleAction
+                        )
                     }
-                    // Action bar (use entry.post for actions)
-                    ActionBar(
-                        isLiked: entry.post.isLiked,
-                        isReposted: entry.post.isReposted,
-                        likeCount: entry.post.likeCount,
-                        repostCount: entry.post.repostCount,
-                        replyCount: 0,
-                        onAction: handleAction
-                    )
                 }
-                .padding(.top, isParentExpanded ? 8 : 0)
+                .padding(.top, viewModel.isParentExpanded ? 8 : 0)
             }
         }
         .onTapGesture {
             showDetailView = true
         }
-        .sheet(isPresented: $showDetailView) {
+        .sheet(isPresented: $showDetailView, onDismiss: { shouldFocusReplyComposer = false }) {
             NavigationView {
-                PostDetailView(post: entry.post)
+                PostDetailView(viewModel: viewModel, focusReplyComposer: $shouldFocusReplyComposer)
             }
         }
-        .onAppear {
-            // Pre-fetch parent post information if this is a reply
-            if case .reply = entry.kind, effectiveParentPost == nil {
-                // Print debug information
-                print(
-                    "DEBUG: Reply post - platform: \(entry.post.platform), inReplyToID: \(entry.post.inReplyToID ?? "nil"), inReplyToUsername: \(entry.post.inReplyToUsername ?? "nil")"
-                )
-
-                if let parent = entry.post.parent {
-                    print("DEBUG: Parent post is already available: \(parent.authorUsername)")
-                } else {
-                    print("DEBUG: No parent post available, will attempt to fetch")
-
-                    // For Mastodon posts, immediately start pre-loading parent to ensure instant availability
-                    // when the user taps the reply banner - crucial for UX
-                    if entry.post.platform == .mastodon, let replyToID = entry.post.inReplyToID {
-                        Task(priority: .userInitiated) {
-                            print(
-                                "📱 Preemptively loading Mastodon parent post on appear: \(replyToID)"
-                            )
-                            await fetchMastodonParentPost(replyToID: replyToID)
-                        }
-                    } else if let replyToID = entry.post.inReplyToID {
-                        Task {
-                            // Standard pre-loading for other platforms
-                            await fetchParentPost(replyToID: replyToID)
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Helper function to extract username from replyToID based on platform
-    private func extractReplyUsername(from replyID: String?, platform: SocialPlatform) -> String {
-        guard replyID != nil else { return "..." }
-
-        // First check if the post has a stored reply username
-        if let storedUsername = entry.post.inReplyToUsername, !storedUsername.isEmpty {
-            print("📱 Using stored username for reply banner: \(storedUsername)")
-            return storedUsername
-        }
-
-        // If we have a parent post, use its username
-        if let parentUsername = effectiveParentPost?.authorUsername, !parentUsername.isEmpty {
-            print("📱 Using parent post username for reply banner: \(parentUsername)")
-            return parentUsername
-        }
-
-        // If we're currently loading the parent post, show loading indicator
-        if isLoadingParent {
-            return "..."
-        }
-
-        // Platform-specific fallbacks to avoid showing "user"
-        if platform == .mastodon, let replyID = replyID {
-            // For Mastodon, try to extract account ID from mentions if possible
-            if let firstMention = entry.post.mentions.first {
-                print("📱 Using first mention as fallback for Mastodon reply: \(firstMention)")
-                return firstMention
-            }
-
-            // If no mentions, at least return a portion of the ID for debugging
-            let shortenedID = String(replyID.suffix(8))
-            print("📱 No username found, using shortened ID: \(shortenedID)")
-            return "..."  // Still using "..." instead of raw ID in UI
-        }
-
-        // If we're here, trigger parent post preload for next time
-        if let replyToID = replyID, !isLoadingParent {
-            Task {
-                await MainActor.run {
-                    isLoadingParent = true
-                }
-
-                if platform == .mastodon {
-                    await fetchMastodonParentPost(replyToID: replyToID)
-                } else {
-                    await fetchParentPost(replyToID: replyToID)
-                }
-
-                await MainActor.run {
-                    isLoadingParent = false
-                }
-            }
-        }
-
-        // Generic fallback
-        return "..."
     }
 
     // Reply banner at the top of reply posts
@@ -441,48 +392,18 @@ struct PostCardView: View {
         Button(action: {
             // Toggle parent post expansion with animation
             withAnimation(.spring(response: animationDuration, dampingFraction: 0.8)) {
-                isParentExpanded.toggle()
+                viewModel.isParentExpanded.toggle()
             }
 
             // If we're expanding and need to fetch the parent
-            if isParentExpanded && effectiveParentPost == nil {
-                if let replyToID = entry.post.inReplyToID {
-                    Task {
-                        await MainActor.run {
-                            isLoadingParent = true
-                        }
-
-                        // Optimized path for Mastodon - higher priority and more aggressive fetching
-                        if entry.post.platform == .mastodon {
-                            await fetchMastodonParentPost(replyToID: replyToID)
-                        } else {
-                            await fetchParentPost(replyToID: replyToID)
-                        }
-
-                        await MainActor.run {
-                            isLoadingParent = false
-                        }
-                    }
+            if viewModel.isParentExpanded && viewModel.effectiveParentPost == nil {
+                if let replyToID = viewModel.post.inReplyToID {
+                    // No-op: parent hydration is now automatic and handled by the model/service
                 }
-            } else if isParentExpanded && effectiveParentPost?.content == "..." {
-                // We have a placeholder parent post - fetch the full content
-                if let replyToID = entry.post.inReplyToID {
-                    Task {
-                        await MainActor.run {
-                            isLoadingParent = true
-                        }
-
-                        // Optimized path for Mastodon - higher priority and more aggressive fetching
-                        if entry.post.platform == .mastodon {
-                            await fetchMastodonParentPost(replyToID: replyToID)
-                        } else {
-                            await fetchParentPost(replyToID: replyToID)
-                        }
-
-                        await MainActor.run {
-                            isLoadingParent = false
-                        }
-                    }
+            } else if viewModel.isParentExpanded && viewModel.effectiveParentPost?.content == "..."
+            {
+                if let replyToID = viewModel.post.inReplyToID {
+                    // No-op: parent hydration is now automatic and handled by the model/service
                 }
             }
         }) {
@@ -490,24 +411,34 @@ struct PostCardView: View {
                 Image(systemName: "arrow.turn.up.left")
                     .font(.caption)
                     .foregroundColor(
-                        entry.post.platform == .bluesky ? blueskyBlue : mastodonPurple)
+                        viewModel.post.platform == .bluesky ? blueskyBlue : mastodonPurple)
 
-                Text("Replying to ")
+                let replyUsername: String =
+                    viewModel.effectiveParentPost?.authorUsername
+                    ?? viewModel.post.inReplyToUsername
+                    ?? "user"
+
+                (Text("Replying to ")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-                    + Text(
-                        "@\(effectiveParentPost?.authorUsername ?? entry.post.inReplyToUsername ?? extractReplyUsername(from: entry.post.inReplyToID, platform: entry.post.platform))"
-                    )
+                    + Text("@\(replyUsername)")
                     .font(.footnote)
                     .foregroundColor(
-                        entry.post.platform == .bluesky ? blueskyBlue : mastodonPurple)
+                        viewModel.post.platform == .bluesky ? blueskyBlue : mastodonPurple))
+                    .onAppear {
+                        print(
+                            "[PostCardView] replyUsername: \(replyUsername), parent.authorUsername: \(String(describing: viewModel.effectiveParentPost?.authorUsername))"
+                        )
+                    }
 
                 Spacer()
 
-                // Chevron indicator
-                Image(systemName: isParentExpanded ? "chevron.down" : "chevron.right")
+                // Chevron indicator with rotation animation
+                Image(systemName: "chevron.right")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(viewModel.isParentExpanded ? 90 : 0))
+                    .animation(.easeInOut(duration: 0.2), value: viewModel.isParentExpanded)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -526,197 +457,24 @@ struct PostCardView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    // New optimized method for Mastodon parent posts
-    private func fetchMastodonParentPost(replyToID: String) async {
-        print("📱 Aggressively fetching Mastodon parent post with ID: \(replyToID)")
-
-        // First check if already preloaded via the TimelineViewModel
-        if let parent = entry.post.parent, parent.content != "..." {
-            print("📱 Found already preloaded Mastodon parent post in post.parent")
-            await MainActor.run {
-                parentPost = parent
-            }
-            return
-        }
-
-        // Try to use a cached value from a previous fetch
-        if let parent = parentPost, parent.content != "..." {
-            print("📱 Using previously fetched Mastodon parent post from local state")
-            return
-        }
-
-        // Use highest priority task to ensure responsiveness
-        await withTaskGroup(of: Post?.self) { group in
-            // Try multiple fetch approaches in parallel for redundancy
-
-            // Approach 1: Direct via SocialServiceManager with higher-level account handling
-            group.addTask(priority: .userInitiated) {
-                do {
-                    let accountCopy = await MainActor.run { () -> SocialAccount? in
-                        return self.serviceManager.accounts.first(where: {
-                            $0.platform == .mastodon
-                        })
-                    }
-
-                    if let account = accountCopy {
-                        print("📱 Using Mastodon account: \(account.username) for direct fetch")
-                        return try await self.serviceManager.fetchMastodonStatus(
-                            id: replyToID, account: account)
-                    }
-                    return nil
-                } catch {
-                    print("📱 Error in direct Mastodon parent fetch: \(error)")
-                    return nil
-                }
-            }
-
-            // Approach 2: Using a Task instead of direct access to mastodonService
-            group.addTask(priority: .userInitiated) {
-                return await withCheckedContinuation { continuation in
-                    Task {
-                        // Find a Mastodon account to use
-                        let accountCopy = await MainActor.run { () -> SocialAccount? in
-                            return self.serviceManager.accounts.first(where: {
-                                $0.platform == .mastodon
-                            })
-                        }
-
-                        if let account = accountCopy {
-                            do {
-                                let parentPost = try await self.serviceManager.fetchMastodonStatus(
-                                    id: replyToID, account: account)
-                                continuation.resume(returning: parentPost)
-                            } catch {
-                                print("📱 Error fetching parent post: \(error)")
-                                continuation.resume(returning: nil)
-                            }
-                        } else {
-                            continuation.resume(returning: nil)
-                        }
-                    }
-                }
-            }
-
-            // Take the first successful result and update state
-            for await result in group {
-                if let post = result {
-                    print("📱 Successfully fetched Mastodon parent post: \(post.id)")
-                    await MainActor.run {
-                        self.parentPost = post
-                    }
-                    // Break out of the loop once we have a result
-                    break
-                }
-            }
-        }
-    }
-
-    // Existing fetch parent post method for other platforms
-    private func fetchParentPost(replyToID: String) async {
-        print("📱 Attempting to fetch parent post with ID: \(replyToID)")
-        print(
-            "📱 Current post details: platform=\(entry.post.platform), id=\(entry.post.id), inReplyToUsername=\(entry.post.inReplyToUsername ?? "nil")"
-        )
-
-        // If already loaded with full content, just show it
-        if let parent = effectiveParentPost, parent.content != "..." {
-            print("📱 Parent post already loaded with full content, using cached version")
-            print("📱 Parent post: username=\(parent.authorUsername), id=\(parent.id)")
-            return
-        }
-
-        // Otherwise try to fetch it based on platform
-        if entry.post.platform == .bluesky {
-            print("📱 Fetching Bluesky parent post...")
-            do {
-                let fetchedParent = try await serviceManager.fetchBlueskyPostByID(replyToID)
-                print(
-                    "📱 Successfully fetched Bluesky parent post: \(fetchedParent?.id ?? "nil"), username=\(fetchedParent?.authorUsername ?? "nil")"
-                )
-                await MainActor.run {
-                    // Use our @State property to store the parent post
-                    parentPost = fetchedParent
-                }
-            } catch {
-                print("📱 Error fetching Bluesky parent post: \(error)")
-            }
-        } else if entry.post.platform == .mastodon {
-            print("📱 Fetching Mastodon parent post...")
-            do {
-                // Find the account for this platform to use for fetching
-                let mastodonAccount = await MainActor.run { () -> SocialAccount? in
-                    return serviceManager.accounts.first(where: { $0.platform == .mastodon })
-                }
-
-                if let account = mastodonAccount {
-                    print("📱 Using Mastodon account: \(account.username) to fetch parent")
-                    // Use the fetchStatus method from MastodonService
-                    if let fetchedParent = try await serviceManager.fetchMastodonStatus(
-                        id: replyToID, account: account)
-                    {
-                        print(
-                            "📱 Successfully fetched Mastodon parent post: \(fetchedParent.id), username=\(fetchedParent.authorUsername)"
-                        )
-                        await MainActor.run {
-                            // Use our @State property to store the parent post
-                            parentPost = fetchedParent
-                        }
-                    } else {
-                        print("📱 Mastodon parent post fetch returned nil")
-                    }
-                } else {
-                    print("📱 No Mastodon account available to fetch parent post")
-                }
-            } catch {
-                print("📱 Error fetching Mastodon parent post: \(error)")
-            }
-        }
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
     }
 
     // Handle action button taps
     private func handleAction(_ action: PostAction) {
         switch action {
         case .reply:
+            shouldFocusReplyComposer = true
             showDetailView = true
         case .repost:
-            Task {
-                do {
-                    _ = try await serviceManager.repostPost(entry.post)
-                } catch {
-                    print("Error reposting: \(error)")
-                }
-            }
+            Task { await viewModel.repost() }
         case .like:
-            Task {
-                do {
-                    _ = try await serviceManager.likePost(entry.post)
-                } catch {
-                    print("Error liking: \(error)")
-                }
-            }
+            Task { await viewModel.like() }
         case .share:
-            // Share the post URL
-            let url = URL(string: entry.post.originalURL) ?? URL(string: "https://example.com")!
-
-            // Use MainActor for UIKit interactions
-            Task { @MainActor in
-                let activityController = UIActivityViewController(
-                    activityItems: [url], applicationActivities: nil)
-
-                // Present the activity view controller
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                    let window = windowScene.windows.first,
-                    let rootViewController = window.rootViewController
-                {
-                    rootViewController.present(activityController, animated: true, completion: nil)
-                }
-            }
+            viewModel.share()
         }
-    }
-
-    // Helper function to return appropriate glow color based on color scheme
-    private func adaptiveGlowColor(opacity: Double) -> Color {
-        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
     }
 }
 
@@ -817,7 +575,7 @@ struct BoostBannerView: View {
                 .font(.caption)
                 .foregroundColor(platformColor)
 
-            Text("\(handle) boosted")
+            Text("\(handle) boosted 🧪")
                 .font(.footnote)
                 .foregroundColor(.secondary)
 
@@ -871,12 +629,7 @@ struct RoundedCorner: Shape {
 // MARK: - Preview
 #Preview("Standard Post") {
     PostCardView(
-        entry: TimelineEntry(
-            id: "sample-0",
-            kind: .normal,
-            post: Post.samplePosts[0],
-            createdAt: Date()
-        )
+        viewModel: PostViewModel(post: Post.samplePosts[0], serviceManager: SocialServiceManager())
     )
     .environmentObject(SocialServiceManager())
     .preferredColorScheme(.dark)
@@ -884,12 +637,7 @@ struct RoundedCorner: Shape {
 
 #Preview("Reply Post") {
     PostCardView(
-        entry: TimelineEntry(
-            id: "reply-sample-1",
-            kind: .reply(parentId: Post.samplePosts[1].inReplyToID),
-            post: Post.samplePosts[1],
-            createdAt: Date()
-        )
+        viewModel: PostViewModel(post: Post.samplePosts[1], serviceManager: SocialServiceManager())
     )
     .environmentObject(SocialServiceManager())
     .preferredColorScheme(.dark)
@@ -897,12 +645,7 @@ struct RoundedCorner: Shape {
 
 #Preview("Boosted Post") {
     PostCardView(
-        entry: TimelineEntry(
-            id: "boost-sample-2",
-            kind: .boost(boostedBy: Post.samplePosts[2].boostedBy ?? "someone"),
-            post: Post.samplePosts[2],
-            createdAt: Date()
-        )
+        viewModel: PostViewModel(post: Post.samplePosts[2], serviceManager: SocialServiceManager())
     )
     .environmentObject(SocialServiceManager())
     .preferredColorScheme(.dark)

@@ -683,15 +683,11 @@ class BlueskyService {
                         let parentHandle = parentAuthor["handle"] as? String
                     {
                         inReplyToUsername = parentHandle
-                        logger.info("Found parent username: \(parentHandle)")
-
+                        logger.info("[Bluesky] Setting inReplyToUsername to: \(parentHandle)")
                         // If we have sufficient information, create a simple parent post
-                        // This gives us immediate access to parent info without additional fetching
                         if let parentDisplayName = parentAuthor["displayName"] as? String,
                             let parentAvatar = parentAuthor["avatar"] as? String
                         {
-                            // Create a minimal parent post with the basic information we already have
-                            // We'll hydrate this more fully if the user expands it
                             parentPost = Post(
                                 id: parentUri,
                                 content: "...",  // Placeholder until user requests full content
@@ -703,7 +699,45 @@ class BlueskyService {
                                 originalURL:
                                     "https://bsky.app/profile/\(parentHandle)/post/\(parentUri.split(separator: "/").last ?? "")"
                             )
+                            logger.info(
+                                "[Bluesky] Created parent post with authorUsername: \(parentHandle) for parent id: \(parentUri)"
+                            )
+                        } else {
+                            // Fallback: create a minimal parent post with just the handle
+                            parentPost = Post(
+                                id: parentUri,
+                                content: "...",
+                                authorName: parentHandle,
+                                authorUsername: parentHandle,
+                                authorProfilePictureURL: "",
+                                createdAt: Date(),
+                                platform: .bluesky,
+                                originalURL:
+                                    "https://bsky.app/profile/\(parentHandle)/post/\(parentUri.split(separator: "/").last ?? "")"
+                            )
+                            logger.info(
+                                "[Bluesky] Created minimal parent post with authorUsername: \(parentHandle) for parent id: \(parentUri)"
+                            )
                         }
+                    } else if let parentUri = parent["uri"] as? String {
+                        // Fallback: try to extract handle from the URI
+                        let handle =
+                            parentUri.split(separator: "/").dropFirst(1).first.map(String.init)
+                            ?? "user"
+                        parentPost = Post(
+                            id: parentUri,
+                            content: "...",
+                            authorName: handle,
+                            authorUsername: handle,
+                            authorProfilePictureURL: "",
+                            createdAt: Date(),
+                            platform: .bluesky,
+                            originalURL:
+                                "https://bsky.app/profile/\(handle)/post/\(parentUri.split(separator: "/").last ?? "")"
+                        )
+                        logger.info(
+                            "[Bluesky] Created fallback parent post with authorUsername: \(handle) for parent id: \(parentUri)"
+                        )
                     }
                 }
 
@@ -1033,22 +1067,183 @@ class BlueskyService {
 
     // MARK: - Post Actions
 
-    /// Like a post
-    func likePost(_ post: Post, account: SocialAccount) async throws -> Bool {
-        // Implementation would make an API call to like the post
-        return true
+    /// Get a specific post by URI
+    func getPost(uri: String, account: SocialAccount) async throws -> Post {
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "BlueskyService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+        let encodedUri = uri.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? uri
+        let url = URL(
+            string:
+                "https://\(account.serverURL)/xrpc/app.bsky.feed.getPostThread?uri=\(encodedUri)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to get post"])
+        }
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let thread = json["thread"] as? [String: Any],
+            let post = thread["post"] as? [String: Any]
+        else {
+            throw NSError(
+                domain: "BlueskyService", code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to parse post thread"])
+        }
+        let postData = try JSONSerialization.data(withJSONObject: post)
+        let blueskyPost = try JSONDecoder().decode(BlueskyPost.self, from: postData)
+        return convertBlueskyPostToOriginalPost(blueskyPost)
     }
 
-    /// Repost a post
-    func repostPost(_ post: Post, account: SocialAccount) async throws -> Bool {
-        // Implementation would make an API call to repost
-        return true
+    /// Like a post on Bluesky
+    func likePost(_ post: Post, account: SocialAccount) async throws -> Post {
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "BlueskyService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+        if account.isTokenExpired {
+            _ = try await refreshSession(for: account)
+        }
+        let url = URL(string: "https://\(account.serverURL)/xrpc/com.atproto.repo.createRecord")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let parameters: [String: Any] = [
+            "repo": account.id,
+            "collection": "app.bsky.feed.like",
+            "record": [
+                "$type": "app.bsky.feed.like",
+                "subject": [
+                    "uri": post.platformSpecificId,
+                    "cid": post.platformSpecificId.components(separatedBy: "/").last ?? "",
+                ],
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+            ],
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to like post"])
+        }
+        // Fetch and return the updated post
+        return try await self.getPost(uri: post.platformSpecificId, account: account)
     }
 
-    /// Reply to a post
-    func replyToPost(_ post: Post, content: String, account: SocialAccount) async throws -> Bool {
-        // Implementation would make an API call to reply
-        return true
+    /// Repost a post on Bluesky
+    func repostPost(_ post: Post, account: SocialAccount) async throws -> Post {
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "BlueskyService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+        if account.isTokenExpired {
+            _ = try await refreshSession(for: account)
+        }
+        let url = URL(string: "https://\(account.serverURL)/xrpc/com.atproto.repo.createRecord")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let parameters: [String: Any] = [
+            "repo": account.id,
+            "collection": "app.bsky.feed.repost",
+            "record": [
+                "$type": "app.bsky.feed.repost",
+                "subject": [
+                    "uri": post.platformSpecificId,
+                    "cid": post.platformSpecificId.components(separatedBy: "/").last ?? "",
+                ],
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+            ],
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to repost"])
+        }
+        // Fetch and return the updated post
+        return try await self.getPost(uri: post.platformSpecificId, account: account)
+    }
+
+    /// Reply to a post on Bluesky
+    func replyToPost(_ post: Post, content: String, account: SocialAccount) async throws -> Post {
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "BlueskyService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+        // Check if token needs refresh
+        if account.isTokenExpired {
+            _ = try await refreshSession(for: account)
+        }
+        let url = URL(string: "https://\(account.serverURL)/xrpc/com.atproto.repo.createRecord")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Get the post's URI components for the reply reference
+        let postUri = post.platformSpecificId
+        let postCid = postUri.components(separatedBy: "/").last ?? ""
+        var record: [String: Any] = [
+            "$type": "app.bsky.feed.post",
+            "text": content,
+            "createdAt": ISO8601DateFormatter().string(from: Date()),
+            "reply": [
+                "root": [
+                    "uri": postUri,
+                    "cid": postCid,
+                ],
+                "parent": [
+                    "uri": postUri,
+                    "cid": postCid,
+                ],
+            ],
+        ]
+        let parameters: [String: Any] = [
+            "repo": account.id,
+            "collection": "app.bsky.feed.post",
+            "record": record,
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to reply to post"])
+        }
+        // Parse the response to get the post URI
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw NSError(
+                domain: "BlueskyService", code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to parse post URI"])
+        }
+        // Fetch the created reply to return it
+        return try await getPost(uri: uri, account: account)
     }
 }
 
