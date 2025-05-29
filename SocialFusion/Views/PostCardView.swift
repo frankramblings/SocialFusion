@@ -211,6 +211,10 @@ struct PostCardView: View {
     @State private var shouldFocusReplyComposer = false
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) private var colorScheme
+    let post: Post
+    let account: SocialAccount?
+    @State private var shouldShowParentPost = false
+    @State private var bannerWasTapped = false
 
     // Bluesky blue color
     private let blueskyBlue = Color(red: 0, green: 122 / 255, blue: 255 / 255)
@@ -258,228 +262,103 @@ struct PostCardView: View {
     }
 
     var body: some View {
-        TimelineCard {
-            VStack(alignment: .leading, spacing: 0) {
-                // Boost/Repost banner if applicable
-                if case let .boost(boostedBy) = viewModel.kind {
-                    BoostBannerView(handle: boostedBy, platform: viewModel.post.platform)
-                        .padding(.bottom, 4)
-                }
-
-                // Reply banner if applicable
-                if case .reply = viewModel.kind {
-                    Group {
-                        replyBannerView
-                            .padding(.bottom, 4)
-                    }
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .animation(
-                        .spring(response: animationDuration, dampingFraction: 0.8),
-                        value: viewModel.isParentExpanded)
-                    // Parent post preview (when expanded) appears above main post content
-                    if viewModel.isParentExpanded {
-                        if let parent = viewModel.effectiveParentPost, !parent.content.isEmpty {
-                            ParentPostPreview(post: parent, onTap: { /* ... */  })
-                        } else if viewModel.isLoadingParent {
-                            LoadingParentView()
-                        }
-                        // else: show nothing
-                    }
-                }
-
-                // Main post content with visual distinction
-                VStack(alignment: .leading, spacing: 10) {
-                    // For boosts, only show content if originalPost exists and has content or media
-                    let displayPost = viewModel.post.originalPost ?? viewModel.post
-                    let hasContentOrMedia =
-                        !displayPost.content.isEmpty || !displayPost.attachments.isEmpty
-                    if case .boost = viewModel.kind, !hasContentOrMedia {
-                        // Only show banner and author info, skip content
-                        HStack(alignment: .center) {
-                            PostAuthorImageView(
-                                authorProfilePictureURL: displayPost.authorProfilePictureURL,
-                                platform: displayPost.platform,
-                                size: 44
-                            )
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(displayPost.authorName)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.primary)
-                                HStack(spacing: 4) {
-                                    Text("@\(displayPost.authorUsername)")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            Spacer()
-                            HStack(spacing: 2) {
-                                Text(formatRelativeTime(from: displayPost.createdAt))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                    } else {
-                        // Post header with author info
-                        HStack(alignment: .center) {
-                            PostAuthorImageView(
-                                authorProfilePictureURL: displayPost.authorProfilePictureURL,
-                                platform: displayPost.platform,
-                                size: 44
-                            )
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(displayPost.authorName)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.primary)
-                                HStack(spacing: 4) {
-                                    Text("@\(displayPost.authorUsername)")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.secondary)
-                                }
-                            }
-                            Spacer()
-                            HStack(spacing: 2) {
-                                Text(formatRelativeTime(from: displayPost.createdAt))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        // Post content
-                        Group {
-                            if displayPost.platform == .bluesky {
-                                displayPost.blueskyContentView()
-                                    .font(.system(size: 16))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.top, 2)
-                            } else {
-                                displayPost.contentView(lineLimit: nil, showLinkPreview: false)
-                                    .font(.system(size: 16))
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .padding(.top, 2)
-                            }
-                        }
-                        // --- One preview/quote card per post logic ---
-                        if let quoteOrPreview = displayPost.firstQuoteOrPreviewCardView {
-                            quoteOrPreview
-                                .padding(.top, 8)
-                        }
-                        // Media attachments if any
-                        if !displayPost.attachments.isEmpty {
-                            UnifiedMediaGridView(
-                                attachments: displayPost.attachments, maxHeight: 400
-                            )
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                        // Action bar (use viewModel for actions)
-                        ActionBar(
-                            isLiked: viewModel.isLiked,
-                            isReposted: viewModel.isReposted,
-                            likeCount: viewModel.likeCount,
-                            repostCount: viewModel.repostCount,
-                            replyCount: 0,
-                            onAction: handleAction
-                        )
-                    }
-                }
-                .padding(.top, viewModel.isParentExpanded ? 8 : 0)
+        VStack(alignment: .leading, spacing: 8) {
+            // Parent/reply context
+            if let replyTo = post.inReplyToUsername {
+                ExpandingReplyBanner(
+                    username: replyTo,
+                    network: post.platform,
+                    parent: post.parent,
+                    isExpanded: $shouldShowParentPost,
+                    onBannerTap: { bannerWasTapped = true }
+                )
+                .padding(.bottom, 8)
             }
+            if let boostedBy = post.boostedBy {
+                TimelineBanner(type: .repost(username: boostedBy))
+                    .padding(.bottom, 2)
+            }
+            // Author row
+            HStack(alignment: .center, spacing: 8) {
+                AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                    if let image = phase.image {
+                        image.resizable()
+                    } else {
+                        Circle().fill(Color.gray.opacity(0.3))
+                    }
+                }
+                .frame(width: 36, height: 36)
+                .clipShape(Circle())
+                PlatformDot(platform: post.platform, size: 10)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(post.authorName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Text("@\(post.authorUsername)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Text(formatRelativeTime(from: post.createdAt))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            // Post content
+            post.contentView(lineLimit: nil, showLinkPreview: true)
+                .font(.body)
+                .padding(.horizontal, 4)
+            // Media previews
+            if !post.attachments.isEmpty {
+                ForEach(post.attachments, id: \.url) { attachment in
+                    PostAttachmentView(attachment: attachment)
+                        .padding(.top, 4)
+                }
+            }
+            // Action bar (always visible, disables actions if account is nil)
+            HStack(spacing: 24) {
+                Button(action: { /* reply */  }) {
+                    Image(systemName: "bubble.left")
+                }.disabled(account == nil)
+                Button(action: { /* boost/repost */  }) {
+                    Image(systemName: "arrow.2.squarepath")
+                }.disabled(account == nil)
+                Button(action: { /* like */  }) {
+                    Image(systemName: "heart")
+                }.disabled(account == nil)
+                Button(action: { /* share */  }) {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                Spacer()
+                // Only show edit/delete for user's own posts
+                if let account = account, account.username == post.authorUsername {
+                    Button(action: { /* edit */  }) {
+                        Image(systemName: "pencil")
+                    }
+                    Button(action: { /* delete */  }) {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .padding(.top, 4)
+            Divider()
         }
+        .padding(12)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: Color.black.opacity(0.04), radius: 2, x: 0, y: 1)
+        .contentShape(Rectangle())
         .onTapGesture {
-            showDetailView = true
+            if !bannerWasTapped {
+                showDetailView = true
+            }
+            bannerWasTapped = false
         }
         .sheet(isPresented: $showDetailView, onDismiss: { shouldFocusReplyComposer = false }) {
             NavigationView {
                 PostDetailView(viewModel: viewModel, focusReplyComposer: $shouldFocusReplyComposer)
             }
-        }
-    }
-
-    // Reply banner at the top of reply posts
-    private var replyBannerView: some View {
-        Button(action: {
-            // Toggle parent post expansion with animation
-            withAnimation(.spring(response: animationDuration, dampingFraction: 0.8)) {
-                viewModel.isParentExpanded.toggle()
-            }
-
-            // If we're expanding and need to fetch the parent
-            if viewModel.isParentExpanded && viewModel.effectiveParentPost == nil {
-                if let replyToID = viewModel.post.inReplyToID {
-                    // No-op: parent hydration is now automatic and handled by the model/service
-                }
-            } else if viewModel.isParentExpanded && viewModel.effectiveParentPost?.content == "..."
-            {
-                if let replyToID = viewModel.post.inReplyToID {
-                    // No-op: parent hydration is now automatic and handled by the model/service
-                }
-            }
-        }) {
-            HStack {
-                Image(systemName: "arrow.turn.up.left")
-                    .font(.caption)
-                    .foregroundColor(
-                        viewModel.post.platform == .bluesky ? blueskyBlue : mastodonPurple)
-
-                let replyUsername: String =
-                    viewModel.effectiveParentPost?.authorUsername
-                    ?? viewModel.post.inReplyToUsername
-                    ?? "user"
-
-                (Text("Replying to ")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                    + Text("@\(replyUsername)")
-                    .font(.footnote)
-                    .foregroundColor(
-                        viewModel.post.platform == .bluesky ? blueskyBlue : mastodonPurple))
-                    .onAppear {
-                        print(
-                            "[PostCardView] replyUsername: \(replyUsername), parent.authorUsername: \(String(describing: viewModel.effectiveParentPost?.authorUsername))"
-                        )
-                    }
-
-                Spacer()
-
-                // Chevron indicator with rotation animation
-                Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .rotationEffect(.degrees(viewModel.isParentExpanded ? 90 : 0))
-                    .animation(.easeInOut(duration: 0.2), value: viewModel.isParentExpanded)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(Color.adaptiveElementBackground(for: colorScheme))
-            .cornerRadius(10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
-            )
-            .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
-            .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
-            .shadow(
-                color: colorScheme == .dark ? Color.elementShadow : Color.black.opacity(0.05),
-                radius: 1, y: 1)
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    // Helper function to return appropriate glow color based on color scheme
-    private func adaptiveGlowColor(opacity: Double) -> Color {
-        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
-    }
-
-    // Handle action button taps
-    private func handleAction(_ action: PostAction) {
-        switch action {
-        case .reply:
-            shouldFocusReplyComposer = true
-            showDetailView = true
-        case .repost:
-            Task { await viewModel.repost() }
-        case .like:
-            Task { await viewModel.like() }
-        case .share:
-            viewModel.share()
         }
     }
 }
@@ -632,10 +511,190 @@ struct RoundedCorner: Shape {
     }
 }
 
+// If the above import does not work, copy the PostAttachmentView definition here:
+private struct PostAttachmentView: View {
+    let attachment: Post.Attachment
+
+    var body: some View {
+        AsyncImage(url: URL(string: attachment.url)) { phase in
+            if let image = phase.image {
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .cornerRadius(14)
+                    .clipped()
+            } else if phase.error != nil {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .cornerRadius(14)
+                    .overlay(
+                        Image(systemName: "photo")
+                            .foregroundColor(.secondary)
+                    )
+            } else {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.1))
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .cornerRadius(14)
+                    .overlay(
+                        ProgressView()
+                    )
+            }
+        }
+    }
+}
+
+// MARK: - Timeline Banner
+struct TimelineBanner: View {
+    enum BannerType {
+        case reply(username: String, network: SocialPlatform, isExpanded: Bool, onTap: () -> Void)
+        case repost(username: String)
+    }
+
+    let type: BannerType
+
+    var body: some View {
+        switch type {
+        case .reply(let username, let network, let isExpanded, let onTap):
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.turn.up.left")
+                    .font(.caption)
+                    .foregroundColor(network.secondaryColor)
+                Text("Replying to @\(username)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: isExpanded ? 12 : 8, style: .continuous)
+                    .fill(Color(.systemGray6).opacity(0.7))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: isExpanded ? 12 : 8, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+            .accessibilityLabel("Replying to @\(username)")
+        case .repost(let username):
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.2.squarepath")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("@\(username) reposted")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(.systemGray6).opacity(0.7))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+            )
+        }
+    }
+}
+
+// Helper for network secondary color
+extension SocialPlatform {
+    var secondaryColor: Color {
+        switch self {
+        case .bluesky:
+            return Color(red: 0, green: 122 / 255, blue: 255 / 255)
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
+        }
+    }
+}
+
+// MARK: - Expanding Reply Banner
+struct ExpandingReplyBanner: View {
+    let username: String
+    let network: SocialPlatform
+    let parent: Post?
+    @Binding var isExpanded: Bool
+    var onBannerTap: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Banner row
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.turn.up.left")
+                    .font(.caption)
+                    .foregroundColor(network.secondaryColor)
+                Text("Replying to @\(username)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25)) {
+                    isExpanded.toggle()
+                }
+                onBannerTap?()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(.systemGray6).opacity(0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+            )
+            .zIndex(1)
+
+            if isExpanded, let parent = parent {
+                ParentPostPreview(post: parent)
+                    .background(Color(.systemGray6).opacity(0.95))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.top, -2)
+                    .padding(.horizontal, 2)
+            }
+        }
+        .background(Color(.systemGray6).opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .shadow(
+            color: Color.black.opacity(0.10), radius: isExpanded ? 6 : 2, x: 0,
+            y: isExpanded ? 4 : 1
+        )
+        .animation(
+            .spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25), value: isExpanded)
+    }
+}
+
 // MARK: - Preview
 #Preview("Standard Post") {
     PostCardView(
-        viewModel: PostViewModel(post: Post.samplePosts[0], serviceManager: SocialServiceManager())
+        viewModel: PostViewModel(post: Post.samplePosts[0], serviceManager: SocialServiceManager()),
+        post: Post.samplePosts[0],
+        account: SocialAccount(
+            id: "sample-id-1",
+            username: "sampleUser",
+            displayName: "Sample User",
+            serverURL: "https://bsky.social",
+            platform: .bluesky
+        )
     )
     .environmentObject(SocialServiceManager())
     .preferredColorScheme(.dark)
@@ -643,7 +702,15 @@ struct RoundedCorner: Shape {
 
 #Preview("Reply Post") {
     PostCardView(
-        viewModel: PostViewModel(post: Post.samplePosts[1], serviceManager: SocialServiceManager())
+        viewModel: PostViewModel(post: Post.samplePosts[1], serviceManager: SocialServiceManager()),
+        post: Post.samplePosts[1],
+        account: SocialAccount(
+            id: "sample-id-2",
+            username: "sampleUser",
+            displayName: "Sample User",
+            serverURL: "https://bsky.social",
+            platform: .bluesky
+        )
     )
     .environmentObject(SocialServiceManager())
     .preferredColorScheme(.dark)
@@ -651,7 +718,15 @@ struct RoundedCorner: Shape {
 
 #Preview("Boosted Post") {
     PostCardView(
-        viewModel: PostViewModel(post: Post.samplePosts[2], serviceManager: SocialServiceManager())
+        viewModel: PostViewModel(post: Post.samplePosts[2], serviceManager: SocialServiceManager()),
+        post: Post.samplePosts[2],
+        account: SocialAccount(
+            id: "sample-id-3",
+            username: "sampleUser",
+            displayName: "Sample User",
+            serverURL: "https://bsky.social",
+            platform: .bluesky
+        )
     )
     .environmentObject(SocialServiceManager())
     .preferredColorScheme(.dark)
