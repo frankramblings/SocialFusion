@@ -85,6 +85,7 @@ struct ParentPostPreview: View {
             .padding(.trailing, 8)
         }
         .padding(.vertical, 4)
+        .padding(.bottom, 8)
         .contentShape(Rectangle())
         .onTapGesture {
             if let onTap = onTap {

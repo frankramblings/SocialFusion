@@ -15,6 +15,12 @@ struct UnifiedTimelineView: View {
     @State private var posts: [Post] = []
     @Environment(\.colorScheme) private var colorScheme
     @State private var navigateToParentPost = false
+    @ObservedObject var postStore = PostStore.shared
+    @StateObject private var viewModel: TimelineViewModel
+
+    init(accounts: [SocialAccount]) {
+        _viewModel = StateObject(wrappedValue: TimelineViewModel(accounts: accounts))
+    }
 
     private var hasAccounts: Bool {
         return !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty
@@ -64,6 +70,10 @@ struct UnifiedTimelineView: View {
 
     private var timelineEntries: [TimelineEntry] {
         serviceManager.makeTimelineEntries(from: serviceManager.unifiedTimeline)
+    }
+
+    private var allAccounts: [SocialAccount] {
+        serviceManager.mastodonAccounts + serviceManager.blueskyAccounts
     }
 
     var body: some View {
@@ -133,6 +143,19 @@ struct UnifiedTimelineView: View {
                     }
                 }
                 .background(Color(.systemBackground))
+            }
+
+            if let error = postStore.error {
+                VStack {
+                    Text(error.message)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.red)
+                        .cornerRadius(8)
+                    Spacer()
+                }
+                .padding()
+                .transition(.move(edge: .top))
             }
         }
         .alert("Error", isPresented: $showingAuthError) {
@@ -256,19 +279,12 @@ struct UnifiedTimelineView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
             }
-            ForEach(timelineEntries) { entry in
+            ForEach(serviceManager.unifiedTimeline, id: \.id) { post in
+                let account = allAccounts.first(where: { $0.username == post.authorUsername })
                 PostCardView(
-                    viewModel: PostViewModel(
-                        post: entry.post,
-                        serviceManager: serviceManager,
-                        kind: {
-                            switch entry.kind {
-                            case .normal: return .normal
-                            case .boost(let boostedBy): return .boost(boostedBy: boostedBy)
-                            case .reply(let parentId): return .reply(parentId: parentId)
-                            }
-                        }()
-                    )
+                    viewModel: PostViewModel(post: post, serviceManager: serviceManager),
+                    post: post,
+                    account: account
                 )
             }
             if isLoadingMorePosts {
@@ -282,6 +298,7 @@ struct UnifiedTimelineView: View {
             }
             Color.clear.frame(height: 60)
         }
+        .padding(.horizontal, 12)
     }
 }
 
@@ -407,7 +424,8 @@ class PostParentCache {
     }
 
     func fetchRealPost(
-        id: String, username: String, platform: SocialPlatform, serviceManager: SocialServiceManager
+        id: String, username: String, platform: SocialPlatform,
+        serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
     ) {
         fetching.insert(id)
 
@@ -421,7 +439,10 @@ class PostParentCache {
                     if username.hasPrefix("did:plc:"),
                         let postId = username.split(separator: "/").last
                     {
-                        post = try await serviceManager.fetchBlueskyPostByID(String(postId))
+                        if let account = allAccounts.first(where: { $0.platform == .bluesky }) {
+                            post = try await serviceManager.fetchBlueskyPostByID(
+                                String(postId))
+                        }
                     }
                 }
 

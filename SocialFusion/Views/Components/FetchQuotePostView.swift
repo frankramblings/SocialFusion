@@ -52,8 +52,17 @@ struct FetchQuotePostView: View {
                 let postID = String(components[components.count - 1])
 
                 do {
-                    quotedPost = try await serviceManager.fetchBlueskyPostByID(postID)
-                    isLoading = false
+                    if let account = serviceManager.accounts.first(where: {
+                        $0.platform == .bluesky
+                    }) {
+                        quotedPost = try await serviceManager.fetchBlueskyPostByID(postID)
+                        isLoading = false
+                    } else {
+                        isLoading = false
+                        error = NSError(
+                            domain: "FetchQuotePostView", code: 2,
+                            userInfo: [NSLocalizedDescriptionKey: "No Bluesky account available"])
+                    }
                 } catch {
                     self.error = error
                     isLoading = false

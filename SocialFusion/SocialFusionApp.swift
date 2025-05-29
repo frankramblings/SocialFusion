@@ -22,7 +22,10 @@ struct SocialFusionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            // Gather all active accounts for the unified timeline
+            let allAccounts =
+                socialServiceManager.mastodonAccounts + socialServiceManager.blueskyAccounts
+            UnifiedTimelineView(accounts: allAccounts)
                 .environmentObject(socialServiceManager)
                 .onOpenURL { url in
                     // Handle OAuth callback URLs

@@ -11,6 +11,9 @@
 		2EE845AC73F6E96035D64073 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28473D186DFB59778DF996BE /* Post.swift */; };
 		32234CDDD38C105F8C980909 /* PostCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BEF197BD67D84413EBCE2F /* PostCardView.swift */; };
 		4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712CCA659FBD7CD190A2972D /* KeychainHelper.swift */; };
+		5031715E2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */; };
+		503171602DE6AEB700E1C528 /* PostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715F2DE6AEB700E1C528 /* PostStore.swift */; };
+		5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */; };
 		50CDC8182DD7CC5500144E13 /* Post+ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */; };
 		50CDC8352DD7CDDD00144E13 /* PlatformDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */; };
 		50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82F2DD7CDDD00144E13 /* MediaGridView.swift */; };
@@ -55,6 +58,9 @@
 		255ADE201981E507154D54E5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		28473D186DFB59778DF996BE /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
 		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionTimelineDebug.swift; sourceTree = "<group>"; };
+		5031715F2DE6AEB700E1C528 /* PostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostStore.swift; sourceTree = "<group>"; };
+		5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
 		50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Post+ContentView.swift"; sourceTree = "<group>"; };
 		50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionBar.swift; sourceTree = "<group>"; };
 		50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchQuotePostView.swift; sourceTree = "<group>"; };
@@ -83,7 +89,6 @@
 		89CB1916907991EF4A109883 /* SocialAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialAccount.swift; sourceTree = "<group>"; };
 		99C1C4E32A3FA8F9376B6552 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedTimelineView.swift; sourceTree = "<group>"; };
-		ABCDEF123456789ABCDEF123 /* AuthenticationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthenticationManager.swift; sourceTree = "<group>"; };
 		B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeView.swift; sourceTree = "<group>"; };
 		B838B741234EAE29B1817EBB /* BlueskyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyModels.swift; sourceTree = "<group>"; };
 		BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyService.swift; sourceTree = "<group>"; };
@@ -102,6 +107,14 @@
 				A2991A82CF7626115148BD35 /* Products */,
 			);
 			sourceTree = "<group>";
+		};
+		5031716D2DE6B02100E1C528 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = SOURCE_ROOT;
 		};
 		50CDC8342DD7CDDD00144E13 /* Components */ = {
 			isa = PBXGroup;
@@ -131,6 +144,7 @@
 				D200DF008D07D922EF2AAC59 /* Services */,
 				727B1B574815555A62D7B65C /* Utilities */,
 				761AB201F57C7300D7B363FD /* Views */,
+				5031716D2DE6B02100E1C528 /* ViewModels */,
 			);
 			path = SocialFusion;
 			sourceTree = "<group>";
@@ -138,6 +152,8 @@
 		727B1B574815555A62D7B65C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				5031715F2DE6AEB700E1C528 /* PostStore.swift */,
+				5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */,
 				712CCA659FBD7CD190A2972D /* KeychainHelper.swift */,
 				50E288702DDC1DF200E1B621 /* ErrorHandler.swift */,
 				50E288712DDC1DF200E1B621 /* HTMLFormatter.swift */,
@@ -181,7 +197,6 @@
 				BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */,
 				CA61806327EC6FFD9AE8BD96 /* MastodonService.swift */,
 				73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */,
-				ABCDEF123456789ABCDEF123 /* AuthenticationManager.swift */,
 				FEDCBA987654321FEDCBA987 /* OAuthManager.swift */,
 			);
 			path = Services;
@@ -277,17 +292,20 @@
 				50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */,
 				50CDC8372DD7CDDD00144E13 /* LinkPreview.swift in Sources */,
 				50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */,
+				503171602DE6AEB700E1C528 /* PostStore.swift in Sources */,
 				50CDC8392DD7CDDD00144E13 /* PostDetailView.swift in Sources */,
 				50CDC83A2DD7CDDD00144E13 /* ActionBar.swift in Sources */,
 				50CDC83B2DD7CDDD00144E13 /* ParentPostPreview.swift in Sources */,
 				50CDC83C2DD7CDDD00144E13 /* FullscreenMediaView.swift in Sources */,
 				50CDC83D2DD7CDDD00144E13 /* PostAuthorImageView.swift in Sources */,
 				5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */,
+				5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */,
 				FA9BFC76BC04492F9D12FD68 /* MastodonService.swift in Sources */,
 				2EE845AC73F6E96035D64073 /* Post.swift in Sources */,
 				32234CDDD38C105F8C980909 /* PostCardView.swift in Sources */,
 				86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */,
 				50E288D82DDED2DB00E1B621 /* TimelineEntry.swift in Sources */,
+				5031715E2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift in Sources */,
 				8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */,
 				50E2887A2DDC1DF200E1B621 /* HTMLString.swift in Sources */,
 				50E2887B2DDC1DF200E1B621 /* LinkDetection.swift in Sources */,

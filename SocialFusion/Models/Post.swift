@@ -145,6 +145,8 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
     let quotedPostUri: String?
     let quotedPostAuthorHandle: String?
 
+    public var cid: String?  // Bluesky only, optional for backward compatibility
+
     public struct Attachment: Identifiable, Codable {
         public var id: String { url }  // Use URL as unique identifier
         public let url: String
@@ -189,6 +191,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         case inReplyToUsername
         case quotedPostUri
         case quotedPostAuthorHandle
+        case cid
     }
 
     public required convenience init(from decoder: Decoder) throws {
@@ -219,6 +222,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         let quotedPostUri = try container.decodeIfPresent(String.self, forKey: .quotedPostUri)
         let quotedPostAuthorHandle = try container.decodeIfPresent(
             String.self, forKey: .quotedPostAuthorHandle)
+        let cid = try container.decodeIfPresent(String.self, forKey: .cid)
         self.init(
             id: id,
             content: content,
@@ -242,8 +246,10 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             inReplyToID: inReplyToID,
             inReplyToUsername: inReplyToUsername,
             quotedPostUri: quotedPostUri,
-            quotedPostAuthorHandle: quotedPostAuthorHandle
+            quotedPostAuthorHandle: quotedPostAuthorHandle,
+            cid: cid
         )
+        self.cid = cid
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -271,6 +277,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         try container.encodeIfPresent(inReplyToUsername, forKey: .inReplyToUsername)
         try container.encodeIfPresent(quotedPostUri, forKey: .quotedPostUri)
         try container.encodeIfPresent(quotedPostAuthorHandle, forKey: .quotedPostAuthorHandle)
+        try container.encodeIfPresent(cid, forKey: .cid)
     }
 
     public init(
@@ -296,7 +303,8 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         inReplyToID: String? = nil,
         inReplyToUsername: String? = nil,
         quotedPostUri: String? = nil,
-        quotedPostAuthorHandle: String? = nil
+        quotedPostAuthorHandle: String? = nil,
+        cid: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -321,6 +329,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         self.inReplyToUsername = inReplyToUsername
         self.quotedPostUri = quotedPostUri
         self.quotedPostAuthorHandle = quotedPostAuthorHandle
+        self.cid = cid
     }
 
     // Sample posts for previews and testing
@@ -483,7 +492,8 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             inReplyToID: self.inReplyToID,
             inReplyToUsername: self.inReplyToUsername,
             quotedPostUri: self.quotedPostUri,
-            quotedPostAuthorHandle: self.quotedPostAuthorHandle
+            quotedPostAuthorHandle: self.quotedPostAuthorHandle,
+            cid: self.cid
         )
     }
 
@@ -661,6 +671,7 @@ class PostViewModel: ObservableObject, Identifiable {
 
     @MainActor
     func like() async {
+        // Optimistic UI update: update isLiked and likeCount immediately
         let prevLiked = isLiked
         let prevCount = likeCount
         isLiked.toggle()
@@ -672,6 +683,7 @@ class PostViewModel: ObservableObject, Identifiable {
             // Patch: Refresh timeline to rebuild banners
             try? await serviceManager.refreshTimeline(force: true)
         } catch {
+            // Revert UI on error
             isLiked = prevLiked
             likeCount = prevCount
             self.error = AppError(
@@ -681,6 +693,7 @@ class PostViewModel: ObservableObject, Identifiable {
 
     @MainActor
     func repost() async {
+        // Optimistic UI update: update isReposted and repostCount immediately
         let prevReposted = isReposted
         let prevCount = repostCount
         isReposted.toggle()
@@ -692,6 +705,7 @@ class PostViewModel: ObservableObject, Identifiable {
             // Patch: Refresh timeline to rebuild banners
             try? await serviceManager.refreshTimeline(force: true)
         } catch {
+            // Revert UI on error
             isReposted = prevReposted
             repostCount = prevCount
             self.error = AppError(

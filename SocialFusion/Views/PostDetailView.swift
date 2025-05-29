@@ -360,6 +360,20 @@ struct PostDetailView: View {
                 ComposeView(replyingTo: post)
                     .environmentObject(serviceManager)
             }
+
+            // Add error banner if viewModel.error is set
+            if let error = serviceManager.error {
+                VStack {
+                    Text(error.message)
+                        .foregroundColor(.white)
+                        .padding(8)
+                        .background(Color.red)
+                        .cornerRadius(8)
+                    Spacer()
+                }
+                .padding()
+                .transition(.move(edge: .top))
+            }
         }
     }
 

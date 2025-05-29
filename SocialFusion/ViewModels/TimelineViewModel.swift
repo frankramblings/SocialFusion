@@ -724,7 +724,7 @@ public class TimelineViewModel: ObservableObject {
             } catch {
                 self.logger.error(
                     "Failed to like post: \(error.localizedDescription, privacy: .public)")
-                // Handle error appropriately
+                // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
             }
         }
     }
@@ -742,7 +742,7 @@ public class TimelineViewModel: ObservableObject {
                 await MainActor.run {
                     self.logger.error(
                         "Failed to repost: \(error.localizedDescription, privacy: .public)")
-                    // Handle error appropriately
+                    // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
                 }
             }
         }

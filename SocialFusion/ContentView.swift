@@ -23,7 +23,7 @@ struct ContentView: View {
             NavigationView {
                 ZStack {
                     // Main timeline
-                    UnifiedTimelineView()
+                    UnifiedTimelineView(accounts: timelineAccounts)
                         .navigationTitle(navigationTitle)
                         .navigationBarTitleDisplayMode(.inline)
                         .navigationBarItems(
@@ -310,6 +310,22 @@ struct ContentView: View {
         // Refresh timeline with new account selection
         Task {
             try? await serviceManager.refreshTimeline(force: true)
+        }
+    }
+
+    private var timelineAccounts: [SocialAccount] {
+        if let selectedId = selectedAccountId {
+            if let account = serviceManager.mastodonAccounts.first(where: { $0.id == selectedId }) {
+                return [account]
+            } else if let account = serviceManager.blueskyAccounts.first(where: {
+                $0.id == selectedId
+            }) {
+                return [account]
+            } else {
+                return []
+            }
+        } else {
+            return serviceManager.mastodonAccounts + serviceManager.blueskyAccounts
         }
     }
 }

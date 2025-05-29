@@ -398,8 +398,13 @@ final class SocialServiceManager: ObservableObject {
         }
 
         // Update unified timeline on main thread
-        await MainActor.run {
-            unifiedTimeline = sortedPosts
+        DispatchQueue.main.async {
+            self.unifiedTimeline = sortedPosts
+            self.isLoadingTimeline = false
+            // Wire up timeline debug singleton for Bluesky
+            if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
+                debug.setBlueskyPosts(sortedPosts.filter { $0.platform == .bluesky })
+            }
         }
 
         return sortedPosts
