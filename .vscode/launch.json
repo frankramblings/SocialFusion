@@ -8,7 +8,7 @@
             "preLaunchTask": "sweetpad: launch"
         },
         {
-            "type": "lldb",
+            "type": "swift",
             "request": "launch",
             "args": [],
             "cwd": "${workspaceFolder:SocialFusion}",
@@ -17,7 +17,7 @@
             "preLaunchTask": "swift: Build Debug SocialFusion"
         },
         {
-            "type": "lldb",
+            "type": "swift",
             "request": "launch",
             "args": [],
             "cwd": "${workspaceFolder:SocialFusion}",

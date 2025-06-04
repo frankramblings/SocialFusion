@@ -1,25 +1,55 @@
 import Foundation
 
-/// Represents a single, display-ready entry in the timeline (normal, boost, reply, etc.)
-struct TimelineEntry: Identifiable, Equatable {
-    enum Kind: Equatable {
-        case normal
-        case boost(boostedBy: String)
-        case reply(parentId: String?)
+/// Represents the type of content in a timeline entry
+public enum TimelineEntryKind {
+    case normal
+    case boost(boostedBy: String)
+    case reply(parentId: String)
+}
+
+/// A unified timeline entry that wraps a Post with additional metadata for timeline display
+public struct TimelineEntry: Identifiable, Hashable {
+    public let id: String
+    public let kind: TimelineEntryKind
+    public let post: Post
+    public let createdAt: Date
+
+    public init(id: String, kind: TimelineEntryKind, post: Post, createdAt: Date) {
+        self.id = id
+        self.kind = kind
+        self.post = post
+        self.createdAt = createdAt
     }
 
-    let id: String
-    let kind: Kind
-    let post: Post
-    let createdAt: Date
-    // Add more display info as needed (e.g., reply context, pinned, etc.)
-
-    // Convenience for boosts
-    var boostedBy: String? {
-        if case let .boost(boostedBy) = kind { return boostedBy } else { return nil }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
-    // Convenience for replies
-    var parentId: String? {
-        if case let .reply(parentId) = kind { return parentId } else { return nil }
+
+    public static func == (lhs: TimelineEntry, rhs: TimelineEntry) -> Bool {
+        lhs.id == rhs.id
+    }
+}
+
+/// Pagination information for tracking timeline pagination state
+public struct PaginationInfo {
+    public let hasNextPage: Bool
+    public let nextPageToken: String?
+
+    public init(hasNextPage: Bool, nextPageToken: String? = nil) {
+        self.hasNextPage = hasNextPage
+        self.nextPageToken = nextPageToken
+    }
+
+    public static let empty = PaginationInfo(hasNextPage: false, nextPageToken: nil)
+}
+
+/// Result of a timeline fetch with pagination information
+public struct TimelineResult {
+    public let posts: [Post]
+    public let pagination: PaginationInfo
+
+    public init(posts: [Post], pagination: PaginationInfo) {
+        self.posts = posts
+        self.pagination = pagination
     }
 }

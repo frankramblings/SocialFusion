@@ -85,6 +85,7 @@ struct RateLimitInfo {
 }
 
 /// Manages the social services and accounts
+@MainActor
 final class SocialServiceManager: ObservableObject {
     static let shared = SocialServiceManager()
 
@@ -103,6 +104,11 @@ final class SocialServiceManager: ObservableObject {
     @Published var unifiedTimeline: [Post] = []
     @Published var isLoadingTimeline: Bool = false
     @Published var timelineError: Error?
+
+    // Pagination state
+    @Published var isLoadingNextPage: Bool = false
+    @Published var hasNextPage: Bool = true
+    private var paginationTokens: [String: String] = [:]  // accountId -> nextPageToken
 
     // Services for each platform
     private let mastodonService = MastodonService()
@@ -282,19 +288,31 @@ final class SocialServiceManager: ObservableObject {
         // Based on the platform, use the appropriate service
         switch account.platform {
         case .mastodon:
-            return try await mastodonService.fetchHomeTimeline(for: account)
+            let result = try await mastodonService.fetchHomeTimeline(for: account)
+            // Store pagination token for this account
+            if let token = result.pagination.nextPageToken {
+                paginationTokens[account.id] = token
+            }
+            return result.posts
         case .bluesky:
-            return try await blueskyService.fetchTimeline(for: account)
+            let result = try await blueskyService.fetchTimeline(for: account)
+            // Store pagination token for this account
+            if let token = result.pagination.nextPageToken {
+                paginationTokens[account.id] = token
+            }
+            return result.posts
         }
     }
 
     /// Refresh timeline, with option to force refresh
     func refreshTimeline(force: Bool = false) async throws {
+        resetPagination()
         try await fetchTimeline()
     }
 
     /// Refresh timeline for specific accounts
     func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
+        resetPagination()
         var allPosts: [Post] = []
 
         // Fetch posts from each account and combine
@@ -460,6 +478,11 @@ final class SocialServiceManager: ObservableObject {
     /// Fetch trending posts from public sources
     @MainActor
     func fetchTrendingPosts() async {
+        // Don't fetch trending posts if there are no accounts - this should show the "Add Account" state
+        guard !accounts.isEmpty else {
+            return
+        }
+
         isLoadingTimeline = true
         defer { isLoadingTimeline = false }
 
@@ -472,6 +495,101 @@ final class SocialServiceManager: ObservableObject {
             self.unifiedTimeline = Post.samplePosts
             self.error = error
         }
+    }
+
+    /// Fetch the next page of posts for infinite scrolling
+    func fetchNextPage() async {
+        guard !isLoadingNextPage && hasNextPage else {
+            return
+        }
+
+        await MainActor.run {
+            isLoadingNextPage = true
+        }
+
+        do {
+            // Determine which accounts to fetch based on selection
+            var accountsToFetch: [SocialAccount] = []
+
+            if selectedAccountIds.contains("all") {
+                accountsToFetch = accounts
+            } else {
+                accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
+            }
+
+            guard !accountsToFetch.isEmpty else {
+                await MainActor.run {
+                    isLoadingNextPage = false
+                }
+                return
+            }
+
+            var allNewPosts: [Post] = []
+            var hasMorePages = false
+
+            // Fetch next page from each account
+            for account in accountsToFetch {
+                do {
+                    let result = try await fetchNextPageForAccount(account)
+                    allNewPosts.append(contentsOf: result.posts)
+                    if result.pagination.hasNextPage {
+                        hasMorePages = true
+                        // Store pagination token for this account
+                        if let token = result.pagination.nextPageToken {
+                            paginationTokens[account.id] = token
+                        }
+                    }
+                } catch {
+                    print("Error fetching next page for \(account.username): \(error)")
+                    // Continue with other accounts even if one fails
+                }
+            }
+
+            // Process and append new posts
+            let uniquePosts = allNewPosts.map { post -> Post in
+                if let original = post.originalPost {
+                    let boostId = "boost-\(post.authorUsername)-\(original.id)"
+                    if post.id == original.id {
+                        let patched = post.copy(with: boostId)
+                        patched.originalPost = original
+                        return patched
+                    }
+                }
+                return post
+            }
+
+            let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
+
+            await MainActor.run {
+                // Append new posts to existing timeline
+                self.unifiedTimeline.append(contentsOf: sortedNewPosts)
+                self.hasNextPage = hasMorePages
+                self.isLoadingNextPage = false
+            }
+        } catch {
+            await MainActor.run {
+                self.isLoadingNextPage = false
+                self.timelineError = error
+            }
+        }
+    }
+
+    /// Fetch next page for a specific account
+    private func fetchNextPageForAccount(_ account: SocialAccount) async throws -> TimelineResult {
+        let token = paginationTokens[account.id]
+
+        switch account.platform {
+        case .mastodon:
+            return try await mastodonService.fetchHomeTimeline(for: account, maxId: token)
+        case .bluesky:
+            return try await blueskyService.fetchHomeTimeline(for: account, cursor: token)
+        }
+    }
+
+    /// Reset pagination state for a fresh timeline fetch
+    func resetPagination() {
+        paginationTokens.removeAll()
+        hasNextPage = true
     }
 
     /// Fetch a specific post by ID from Bluesky

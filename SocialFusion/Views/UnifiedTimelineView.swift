@@ -10,7 +10,7 @@ struct UnifiedTimelineView: View {
     @State private var showingErrorAlert = false
     @State private var errorMessage: String? = nil
     @State private var isRefreshing = false
-    @State private var isLoadingMorePosts = false
+
     @State private var isLoading = false
     @State private var posts: [Post] = []
     @Environment(\.colorScheme) private var colorScheme
@@ -18,8 +18,39 @@ struct UnifiedTimelineView: View {
     @ObservedObject var postStore = PostStore.shared
     @StateObject private var viewModel: TimelineViewModel
 
+    // Scroll position tracking for double-tap functionality
+    @State private var savedScrollPosition: String? = nil
+    @State private var isAtTop = true
+
+    // Published properties to allow external scroll control
+    @State private var shouldScrollToTop = false
+    @State private var shouldScrollToSaved = false
+
     init(accounts: [SocialAccount]) {
         _viewModel = StateObject(wrappedValue: TimelineViewModel(accounts: accounts))
+    }
+
+    // Public methods to trigger scroll actions
+    @MainActor
+    func scrollToTop() {
+        shouldScrollToTop = true
+    }
+
+    @MainActor
+    func scrollToSavedPosition() {
+        shouldScrollToSaved = true
+    }
+
+    // Handle double-tap on Home tab
+    @MainActor
+    private func handleHomeTabDoubleTap() {
+        if isAtTop && savedScrollPosition != nil {
+            // If we're at the top and have a saved position, scroll back to it
+            scrollToSavedPosition()
+        } else {
+            // Otherwise, scroll to the top
+            scrollToTop()
+        }
     }
 
     private var hasAccounts: Bool {
@@ -85,25 +116,30 @@ struct UnifiedTimelineView: View {
                 ProgressView()
                     .scaleEffect(1.5)
             } else if serviceManager.unifiedTimeline.isEmpty {
-                // Completely empty state
-                EmptyTimelineView(hasAccounts: hasAccounts)
-                    .onAppear {
-                        if hasAccounts {
-                            Task {
-                                do {
-                                    try await serviceManager.refreshTimeline()
-                                } catch {
-                                    print(
-                                        "Error refreshing timeline: \(error.localizedDescription)")
-                                }
-                            }
-                        } else {
-                            // Load trending posts for testing if no accounts
-                            Task {
-                                await serviceManager.fetchTrendingPosts()
+                // Completely empty state with pull-to-refresh
+                ScrollView {
+                    EmptyTimelineView(hasAccounts: hasAccounts)
+                        .padding()
+                }
+                .background(Color(.systemBackground))
+                .refreshable {
+                    // Refresh timeline on pull
+                    await refreshTimelineAsync()
+                }
+                .onAppear {
+                    if hasAccounts {
+                        Task {
+                            do {
+                                try await serviceManager.refreshTimeline()
+                            } catch {
+                                print(
+                                    "Error refreshing timeline: \(error.localizedDescription)")
                             }
                         }
+                    } else {
+                        // No accounts - don't load anything, let the empty state show
                     }
+                }
             } else {
                 VStack(spacing: 0) {
                     // Header at the top with an elegant design
@@ -133,13 +169,44 @@ struct UnifiedTimelineView: View {
                     .padding(.vertical, 12)
 
                     // Post list
-                    ScrollView {
-                        postListView
-                            .padding(.top, 0)
-                    }
-                    .background(Color(.systemBackground))
-                    .refreshable {
-                        await refreshTimelineAsync()
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            postListView
+                                .padding(.top, 0)
+                        }
+                        .background(Color(.systemBackground))
+                        .refreshable {
+                            await refreshTimelineAsync()
+                        }
+                        .onAppear {
+                            // Reset pagination when view appears
+                            serviceManager.resetPagination()
+                        }
+                        .onChange(of: shouldScrollToTop) { newValue in
+                            if newValue {
+                                // Save current position before scrolling to top
+                                if !isAtTop && timelineEntries.count > 5 {
+                                    // Save the 5th post as our return position (reasonable scroll-back point)
+                                    savedScrollPosition = timelineEntries[4].id
+                                }
+
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    proxy.scrollTo("top", anchor: .top)
+                                }
+                                isAtTop = true
+                                shouldScrollToTop = false
+                            }
+                        }
+                        .onChange(of: shouldScrollToSaved) { newValue in
+                            if newValue, let savedId = savedScrollPosition {
+                                withAnimation(.easeInOut(duration: 0.5)) {
+                                    proxy.scrollTo(savedId, anchor: .top)
+                                }
+                                isAtTop = false
+                                shouldScrollToSaved = false
+                                savedScrollPosition = nil
+                            }
+                        }
                     }
                 }
                 .background(Color(.systemBackground))
@@ -200,10 +267,14 @@ struct UnifiedTimelineView: View {
                             print("Error loading timeline: \(error.localizedDescription)")
                         }
                     } else {
-                        // Use trending posts if there are no accounts
-                        await serviceManager.fetchTrendingPosts()
+                        // No accounts - don't load anything, let the empty state show
                     }
                 }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .homeTabDoubleTapped)) { _ in
+            DispatchQueue.main.async {
+                handleHomeTabDoubleTap()
             }
         }
     }
@@ -257,6 +328,11 @@ struct UnifiedTimelineView: View {
     @ViewBuilder
     private var postListView: some View {
         LazyVStack(spacing: 0) {
+            // Top anchor for scroll-to-top functionality
+            Color.clear
+                .frame(height: 1)
+                .id("top")
+
             // Display error alert if there's an authentication issue
             if showingAuthError {
                 HStack {
@@ -279,22 +355,32 @@ struct UnifiedTimelineView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
             }
-            ForEach(serviceManager.unifiedTimeline, id: \.id) { post in
-                let account = allAccounts.first(where: { $0.username == post.authorUsername })
-                PostCardView(
-                    viewModel: PostViewModel(post: post, serviceManager: serviceManager),
-                    post: post,
-                    account: account
-                )
-            }
-            if isLoadingMorePosts {
-                ProgressView("Loading more posts...")
-                    .padding()
+            ForEach(timelineEntries, id: \.id) { entry in
+                PostCardView(entry: entry)
+                    .id(entry.id)  // Important: ensure each post has an ID for scrollTo
                     .onAppear {
-                        Task {
-                            isLoadingMorePosts = false
+                        // Track scroll position - if this is one of the first few posts, we're near the top
+                        if let firstEntryIndex = timelineEntries.firstIndex(where: {
+                            $0.id == entry.id
+                        }),
+                            firstEntryIndex <= 2
+                        {
+                            isAtTop = true
+                        } else {
+                            isAtTop = false
+                        }
+
+                        // Check if this is one of the last few posts and trigger loading more
+                        if entry.id == timelineEntries.suffix(3).first?.id {
+                            Task {
+                                await serviceManager.fetchNextPage()
+                            }
                         }
                     }
+            }
+            if serviceManager.isLoadingNextPage {
+                ProgressView("Loading more posts...")
+                    .padding()
             }
             Color.clear.frame(height: 60)
         }
@@ -410,9 +496,9 @@ private func shortenUsername(_ username: String) -> String {
 }
 
 // Cache for parent posts to avoid duplicate fetches
-class PostParentCache {
+class PostParentCache: ObservableObject {
     static let shared = PostParentCache()
-    private var cache = [String: Post]()
+    @Published var cache = [String: Post]()
     private var fetching = Set<String>()
 
     func getCachedPost(id: String) -> Post? {
@@ -427,6 +513,10 @@ class PostParentCache {
         id: String, username: String, platform: SocialPlatform,
         serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
     ) {
+        guard !fetching.contains(id) else {
+            return
+        }
+
         fetching.insert(id)
 
         Task {
@@ -434,42 +524,31 @@ class PostParentCache {
                 var post: Post?
 
                 if platform == .mastodon {
-                    // Implementation for Mastodon parent post fetching
-                } else if platform == .bluesky {
-                    if username.hasPrefix("did:plc:"),
-                        let postId = username.split(separator: "/").last
-                    {
-                        if let account = allAccounts.first(where: { $0.platform == .bluesky }) {
-                            post = try await serviceManager.fetchBlueskyPostByID(
-                                String(postId))
-                        }
+                    // For Mastodon, use the existing service
+                    if let account = allAccounts.first(where: { $0.platform == .mastodon }) {
+                        post = try await serviceManager.fetchMastodonStatus(
+                            id: id, account: account)
                     }
+                } else if platform == .bluesky {
+                    // For Bluesky, the id should be the at:// URI of the parent post
+                    post = try await serviceManager.fetchBlueskyPostByID(id)
                 }
 
-                if let post = post {
-                    await MainActor.run {
-                        cache[id] = post
-                        fetching.remove(id)
-                        NotificationCenter.default.post(name: .parentPostUpdated, object: id)
+                // Use async update to prevent state conflicts during view updates
+                DispatchQueue.main.async {
+                    if let post = post {
+                        self.cache[id] = post
                     }
-                } else {
-                    await MainActor.run {
-                        fetching.remove(id)
-                    }
+                    self.fetching.remove(id)
                 }
             } catch {
-                print("Error fetching parent post: \(error)")
-                await MainActor.run {
-                    fetching.remove(id)
+                // Use async update to prevent state conflicts during view updates
+                DispatchQueue.main.async {
+                    self.fetching.remove(id)
                 }
             }
         }
     }
-}
-
-// Notification name for parent post updates
-extension Notification.Name {
-    static let parentPostUpdated = Notification.Name("parentPostUpdated")
 }
 
 // Parent post preview view

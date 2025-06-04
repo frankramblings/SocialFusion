@@ -664,33 +664,52 @@ public class MastodonService {
 
     // MARK: - Timeline
 
-    /// Fetch home timeline for a Mastodon account
-    public func fetchHomeTimeline(for account: SocialAccount, limit: Int = 20) async throws
-        -> [Post]
+    /// Fetch the home timeline from the Mastodon API
+    public func fetchHomeTimeline(for account: SocialAccount, limit: Int = 40, maxId: String? = nil)
+        async throws
+        -> TimelineResult
     {
         guard account.platform == .mastodon else {
             throw ServiceError.invalidAccount(reason: "Account is not a Mastodon account")
         }
 
-        guard let token = account.getAccessToken(), let serverURL = account.serverURL else {
-            throw ServiceError.unauthorized("No access token or server URL available")
+        guard let token = account.getAccessToken() else {
+            logger.error("No access token available for Mastodon account: \(account.username)")
+            throw ServiceError.unauthorized("No access token available")
         }
 
-        // Format server URL and create endpoint URL
-        let serverUrlString = serverURL.absoluteString
-        let formattedURL =
-            serverUrlString.contains("://") ? serverUrlString : "https://" + serverUrlString
+        // Ensure server has the scheme
+        let serverUrlString = account.serverURL?.absoluteString ?? ""
+        let serverUrl =
+            serverUrlString.contains("://")
+            ? serverUrlString : "https://\(serverUrlString)"
 
-        guard let url = URL(string: "\(formattedURL)/api/v1/timelines/home?limit=\(limit)") else {
+        // Create URL with pagination parameters
+        var urlString = "\(serverUrl)/api/v1/timelines/home?limit=\(limit)"
+        if let maxId = maxId {
+            urlString += "&max_id=\(maxId)"
+        }
+
+        guard let url = URL(string: urlString) else {
+            logger.error("Invalid Mastodon API URL: \(urlString)")
             throw ServiceError.invalidInput(reason: "Invalid server URL")
         }
 
-        // Create authenticated request
+        logger.info("Fetching Mastodon timeline from: \(urlString)")
+
+        // Create request
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         do {
+            // Check if token needs refresh
+            if account.isTokenExpired, let refreshToken = account.getRefreshToken() {
+                logger.info("Refreshing expired Mastodon token for: \(account.username)")
+                // Note: Token refresh requires client credentials which may not be available
+                // For now, we'll continue with the existing token
+            }
+
             // Make the API request
             let (data, response) = try await session.data(for: request)
 
@@ -713,7 +732,15 @@ public class MastodonService {
             let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
 
             // Convert to post models
-            return statuses.map { convertMastodonStatusToPost($0, account: account) }
+            let posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+
+            // Determine pagination info - Mastodon has more pages if we get the full limit
+            let hasNextPage = posts.count >= limit
+            let nextPageToken = posts.last?.id
+
+            let pagination = PaginationInfo(hasNextPage: hasNextPage, nextPageToken: nextPageToken)
+
+            return TimelineResult(posts: posts, pagination: pagination)
         } catch {
             print("Error fetching Mastodon timeline: \(error.localizedDescription)")
             throw ServiceError.timelineError(underlying: error)
@@ -1116,7 +1143,7 @@ public class MastodonService {
                 authorName: reblog.account.displayName,
                 authorUsername: reblog.account.acct,
                 authorProfilePictureURL: reblog.account.avatar,
-                createdAt: ISO8601DateFormatter().date(from: reblog.createdAt) ?? Date(),
+                createdAt: DateParser.parse(reblog.createdAt) ?? Date.distantPast,
                 platform: .mastodon,
                 originalURL: reblog.url ?? "",
                 attachments: reblog.mediaAttachments.compactMap { media in
@@ -1145,7 +1172,7 @@ public class MastodonService {
                 authorName: status.account.displayName,
                 authorUsername: status.account.acct,
                 authorProfilePictureURL: status.account.avatar,
-                createdAt: ISO8601DateFormatter().date(from: status.createdAt) ?? Date(),
+                createdAt: DateParser.parse(status.createdAt) ?? Date.distantPast,
                 platform: .mastodon,
                 originalURL: status.url ?? "",
                 attachments: [],
@@ -1640,15 +1667,17 @@ public class MastodonService {
             return
         }
 
-        // Find an account to use
-        guard let account = findValidAccount() else {
-            logger.error("No valid account found for fetching status")
-            completion(nil)
-            return
-        }
-
         // Use a higher priority task for better UI responsiveness
         Task(priority: .userInitiated) {
+            // Find an account to use
+            guard let account = await findValidAccount() else {
+                logger.error("No valid account found for fetching status")
+                DispatchQueue.main.async {
+                    completion(nil)
+                }
+                return
+            }
+
             do {
                 let post = try await fetchStatus(id: id, account: account)
                 // Copy the post to a local variable to avoid Sendable capture issues
@@ -1673,6 +1702,7 @@ public class MastodonService {
     }
 
     /// Find a valid account to use for API requests
+    @MainActor
     private func findValidAccount() -> SocialAccount? {
         // This method should look for a valid account in your account storage
         // For now, we'll use this placeholder

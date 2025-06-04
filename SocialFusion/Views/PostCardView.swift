@@ -213,8 +213,26 @@ struct PostCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let post: Post
     let account: SocialAccount?
+    let timelineKind: TimelineEntryKind?
     @State private var shouldShowParentPost = false
     @State private var bannerWasTapped = false
+
+    // Convenience initializer for direct Post usage (existing behavior)
+    init(viewModel: PostViewModel, post: Post, account: SocialAccount?) {
+        self.viewModel = viewModel
+        self.post = post
+        self.account = account
+        self.timelineKind = nil
+    }
+
+    // New initializer for TimelineEntry usage
+    init(entry: TimelineEntry) {
+        self.post = entry.post
+        self.timelineKind = entry.kind
+        self.account = nil  // Will be resolved from service manager
+        self.viewModel = PostViewModel(
+            post: entry.post, serviceManager: SocialServiceManager.shared)
+    }
 
     // Bluesky blue color
     private let blueskyBlue = Color(red: 0, green: 122 / 255, blue: 255 / 255)
@@ -262,25 +280,30 @@ struct PostCardView: View {
     }
 
     var body: some View {
+        let displayPost = post.originalPost ?? post
         VStack(alignment: .leading, spacing: 8) {
             // Parent/reply context
             if let replyTo = post.inReplyToUsername {
                 ExpandingReplyBanner(
                     username: replyTo,
                     network: post.platform,
-                    parent: post.parent,
+                    parentId: post.inReplyToID,
                     isExpanded: $shouldShowParentPost,
                     onBannerTap: { bannerWasTapped = true }
                 )
                 .padding(.bottom, 8)
             }
-            if let boostedBy = post.boostedBy {
-                TimelineBanner(type: .repost(username: boostedBy))
+            // Show boost banner based on timeline kind or post data
+            if case .boost(let boostedBy) = timelineKind {
+                TimelineBanner(type: .repost(username: boostedBy, network: post.platform))
+                    .padding(.bottom, 2)
+            } else if let boostedBy = post.boostedBy {
+                TimelineBanner(type: .repost(username: boostedBy, network: post.platform))
                     .padding(.bottom, 2)
             }
             // Author row
             HStack(alignment: .center, spacing: 8) {
-                AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                AsyncImage(url: URL(string: displayPost.authorProfilePictureURL)) { phase in
                     if let image = phase.image {
                         image.resizable()
                     } else {
@@ -289,27 +312,31 @@ struct PostCardView: View {
                 }
                 .frame(width: 36, height: 36)
                 .clipShape(Circle())
-                PlatformDot(platform: post.platform, size: 10)
+                PlatformDot(platform: displayPost.platform, size: 10)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(post.authorName)
+                    Text(displayPost.authorName)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    Text("@\(post.authorUsername)")
+                    Text("@\(displayPost.authorUsername)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
                 Spacer()
-                Text(formatRelativeTime(from: post.createdAt))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                // Show boost timestamp if this is a boost, else original
+                Text(
+                    formatRelativeTime(
+                        from: post.originalPost != nil ? post.createdAt : displayPost.createdAt)
+                )
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
             // Post content
-            post.contentView(lineLimit: nil, showLinkPreview: true)
+            displayPost.contentView(lineLimit: nil, showLinkPreview: true)
                 .font(.body)
                 .padding(.horizontal, 4)
             // Media previews
-            if !post.attachments.isEmpty {
-                ForEach(post.attachments, id: \.url) { attachment in
+            if !displayPost.attachments.isEmpty {
+                ForEach(displayPost.attachments, id: \.url) { attachment in
                     PostAttachmentView(attachment: attachment)
                         .padding(.top, 4)
                 }
@@ -330,7 +357,7 @@ struct PostCardView: View {
                 }
                 Spacer()
                 // Only show edit/delete for user's own posts
-                if let account = account, account.username == post.authorUsername {
+                if let account = account, account.username == displayPost.authorUsername {
                     Button(action: { /* edit */  }) {
                         Image(systemName: "pencil")
                     }
@@ -403,38 +430,15 @@ struct ParentPostContainer: View {
 
 /// Loading indicator for parent post
 struct LoadingParentView: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
-        HStack {
-            Spacer()
-            VStack(spacing: 8) {
-                ProgressView()
-                Text("Loading parent post...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding()
-            Spacer()
+        VStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            Text("Loading parent post...")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        .frame(height: 80)
-        .background(Color.adaptiveElementBackground(for: colorScheme))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
-        )
-        // Multiple shadows for the subtle glow effect - adapts to color scheme
-        .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
-        .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
-        .shadow(
-            color: colorScheme == .dark ? Color.elementShadow : Color.black.opacity(0.05),
-            radius: 1, y: 1)
-    }
-
-    // Helper function to return appropriate glow color based on color scheme
-    private func adaptiveGlowColor(opacity: Double) -> Color {
-        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)  // Slightly reduced opacity for light mode
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -550,20 +554,26 @@ private struct PostAttachmentView: View {
 struct TimelineBanner: View {
     enum BannerType {
         case reply(username: String, network: SocialPlatform, isExpanded: Bool, onTap: () -> Void)
-        case repost(username: String)
+        case repost(username: String, network: SocialPlatform)
     }
 
     let type: BannerType
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)
+    }
 
     var body: some View {
         switch type {
         case .reply(let username, let network, let isExpanded, let onTap):
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 Image(systemName: "arrow.turn.up.left")
                     .font(.caption)
                     .foregroundColor(network.secondaryColor)
                 Text("Replying to @\(username)")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
                 Spacer()
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -571,38 +581,45 @@ struct TimelineBanner: View {
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: isExpanded ? 12 : 8, style: .continuous)
-                    .fill(Color(.systemGray6).opacity(0.7))
-            )
+            .padding(.vertical, 8)
+            .background(Color.adaptiveElementBackground(for: colorScheme))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: isExpanded ? 12 : 8, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
+            )
+            .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+            .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
+            .shadow(
+                color: colorScheme == .dark
+                    ? Color.elementShadow : Color.black.opacity(0.05), radius: 1, y: 1
             )
             .contentShape(Rectangle())
             .onTapGesture(perform: onTap)
             .accessibilityLabel("Replying to @\(username)")
-        case .repost(let username):
-            HStack(spacing: 6) {
+        case .repost(let username, let network):
+            HStack(spacing: 4) {
                 Image(systemName: "arrow.2.squarepath")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(network.secondaryColor)
                 Text("@\(username) reposted")
-                    .font(.caption)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
                 Spacer()
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(.systemGray6).opacity(0.7))
-            )
+            .padding(.vertical, 8)
+            .background(Color.adaptiveElementBackground(for: colorScheme))
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
             )
+            .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+            .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
+            .shadow(
+                color: colorScheme == .dark
+                    ? Color.elementShadow : Color.black.opacity(0.05), radius: 1, y: 1)
         }
     }
 }
@@ -619,67 +636,187 @@ extension SocialPlatform {
     }
 }
 
-// MARK: - Expanding Reply Banner
+// MARK: - Expanding Reply Banner (Local Copy)
 struct ExpandingReplyBanner: View {
     let username: String
     let network: SocialPlatform
-    let parent: Post?
+    let parentId: String?
     @Binding var isExpanded: Bool
     var onBannerTap: (() -> Void)? = nil
+    @ObservedObject private var parentCache = PostParentCache.shared
+
+    // Track when we've attempted to fetch the parent
+    @State private var hasFetched = false
+
+    // Remove computed properties that cause AttributeGraph cycles
+    // Use state variables instead to avoid recalculation during view updates
+    @State private var cachedParent: Post? = nil
+    @State private var cachedDisplayUsername: String = ""
+    @State private var isLoading: Bool = false
+
+    private func updateCachedData() {
+        guard let parentId = parentId else {
+            cachedParent = nil
+            cachedDisplayUsername = username
+            isLoading = false
+            return
+        }
+
+        // Update cached parent
+        cachedParent = parentCache.cache[parentId]
+
+        // Update display username
+        if let parent = cachedParent {
+            if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
+                && parent.authorUsername != "unknown"
+            {
+                cachedDisplayUsername = parent.authorUsername
+            } else {
+                cachedDisplayUsername = username
+            }
+        } else {
+            cachedDisplayUsername = username
+        }
+
+        // Update loading state
+        isLoading = isExpanded && parentCache.isFetching(id: parentId)
+    }
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Helper function to return appropriate glow color based on color scheme
+    private func adaptiveGlowColor(opacity: Double) -> Color {
+        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)
+    }
 
     var body: some View {
+        // Unified container that "grows" to reveal content
         VStack(alignment: .leading, spacing: 0) {
-            // Banner row
-            HStack(spacing: 6) {
+            // Banner header - always visible
+            HStack(spacing: 4) {
                 Image(systemName: "arrow.turn.up.left")
                     .font(.caption)
                     .foregroundColor(network.secondaryColor)
-                Text("Replying to @\(username)")
-                    .font(.caption)
+
+                Text("Replying to @\(cachedDisplayUsername)")
+                    .font(.footnote)
                     .foregroundColor(.secondary)
+
+                // Show a subtle loading indicator if actively fetching
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 12, height: 12)
+                }
+
                 Spacer()
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+
+                Image(systemName: "chevron.down")
                     .font(.caption2)
                     .foregroundColor(.secondary)
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .animation(
+                        .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0),
+                        value: isExpanded)
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25)) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0)) {
                     isExpanded.toggle()
                 }
                 onBannerTap?()
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(.systemGray6).opacity(0.95))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-            )
-            .zIndex(1)
+            .padding(.vertical, 8)
 
-            if isExpanded, let parent = parent {
-                ParentPostPreview(post: parent)
-                    .background(Color(.systemGray6).opacity(0.95))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-                    )
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .padding(.top, -2)
-                    .padding(.horizontal, 2)
+            // Expanded content - controlled height animation without overlapping
+            Group {
+                if let parent = cachedParent {
+                    ParentPostPreview(post: parent)
+                        .padding(.horizontal, 10)
+                        .padding(.top, 8)
+                        .padding(.bottom, 10)
+                } else {
+                    // Always show loading state for seamless experience
+                    LoadingParentView()
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 12)
+                }
             }
+            .frame(height: isExpanded ? nil : 0)
+            .clipped()
+            .opacity(isExpanded ? 1 : 0)
+            .animation(
+                .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0),
+                value: isExpanded
+            )
         }
-        .background(Color(.systemGray6).opacity(0.95))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.adaptiveElementBackground(for: colorScheme))
+        .clipShape(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
+        )
+        .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
+        .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
         .shadow(
-            color: Color.black.opacity(0.10), radius: isExpanded ? 6 : 2, x: 0,
-            y: isExpanded ? 4 : 1
+            color: colorScheme == .dark
+                ? Color.elementShadow : Color.black.opacity(0.05), radius: 1, y: 1
         )
         .animation(
-            .spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25), value: isExpanded)
+            .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0),
+            value: isExpanded
+        )
+        .onChange(of: isExpanded) { newValue in
+            // Update cached data when expansion state changes
+            updateCachedData()
+            // Trigger parent hydration when expanded - defer to avoid state update during view update
+            if newValue, let parentId = parentId {
+                DispatchQueue.main.async {
+                    triggerParentFetch(parentId: parentId)
+                }
+            }
+        }
+        .onChange(of: parentCache.cache) { _ in
+            // Update cached data when cache changes
+            updateCachedData()
+        }
+        .onAppear {
+            // Initialize cached data and display username
+            cachedDisplayUsername = username
+            updateCachedData()
+            // Also try to fetch immediately if expanded - defer to avoid state update during view update
+            if isExpanded, let parentId = parentId {
+                DispatchQueue.main.async {
+                    triggerParentFetch(parentId: parentId)
+                }
+            }
+        }
+    }
+
+    private func triggerParentFetch(parentId: String) {
+        // Only fetch if we don't have a proper parent already and we're not already fetching
+        guard cachedParent == nil || cachedParent?.authorUsername == "unknown.bsky.social",
+            !parentCache.isFetching(id: parentId)
+        else {
+            // If we already have the parent, mark as fetched
+            if cachedParent != nil {
+                hasFetched = true
+            }
+            return
+        }
+
+        hasFetched = true
+        parentCache.fetchRealPost(
+            id: parentId,
+            username: username,
+            platform: network,
+            serviceManager: SocialServiceManager.shared,
+            allAccounts: SocialServiceManager.shared.mastodonAccounts
+                + SocialServiceManager.shared.blueskyAccounts
+        )
     }
 }
 

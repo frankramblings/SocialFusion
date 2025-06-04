@@ -36,6 +36,9 @@
 		50E288832DDC1DF200E1B621 /* RobotsTxtChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288752DDC1DF200E1B621 /* RobotsTxtChecker.swift */; };
 		50E288852DDEC59300E1B621 /* UnifiedMediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */; };
 		50E288D82DDED2DB00E1B621 /* TimelineEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */; };
+		50FAF00A2DF086EA0072F099 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FAF0092DF086EA0072F099 /* AppVersionManager.swift */; };
+		50FAF00C2DF087F20072F099 /* LaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FAF00B2DF087F20072F099 /* LaunchAnimationView.swift */; };
+		50FAF00E2DF08F060072F099 /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FAF00D2DF08F060072F099 /* DateParser.swift */; };
 		5B75ACFBB0193B6FAEB26D76 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EA9048F6309F63324484C491 /* Assets.xcassets */; };
 		5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */; };
 		5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */; };
@@ -83,6 +86,9 @@
 		50E288792DDC1DF200E1B621 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
 		50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineEntry.swift; sourceTree = "<group>"; };
+		50FAF0092DF086EA0072F099 /* AppVersionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionManager.swift; sourceTree = "<group>"; };
+		50FAF00B2DF087F20072F099 /* LaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAnimationView.swift; sourceTree = "<group>"; };
+		50FAF00D2DF08F060072F099 /* DateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateParser.swift; sourceTree = "<group>"; };
 		6B99202C32522904104EA1A6 /* SocialFusionApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionApp.swift; sourceTree = "<group>"; };
 		712CCA659FBD7CD190A2972D /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
 		73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialServiceManager.swift; sourceTree = "<group>"; };
@@ -121,6 +127,7 @@
 			children = (
 				50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */,
 				50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */,
+				50FAF00B2DF087F20072F099 /* LaunchAnimationView.swift */,
 				50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */,
 				50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */,
 				50CDC82E2DD7CDDD00144E13 /* LinkPreview.swift */,
@@ -152,6 +159,8 @@
 		727B1B574815555A62D7B65C /* Utilities */ = {
 			isa = PBXGroup;
 			children = (
+				50FAF0092DF086EA0072F099 /* AppVersionManager.swift */,
+				50FAF00D2DF08F060072F099 /* DateParser.swift */,
 				5031715F2DE6AEB700E1C528 /* PostStore.swift */,
 				5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */,
 				712CCA659FBD7CD190A2972D /* KeychainHelper.swift */,
@@ -281,6 +290,7 @@
 			files = (
 				C707093DC30F2A021B42DF23 /* AccountsView.swift in Sources */,
 				1F67A8C42BAE1F2B00C99A3C /* AddAccountView.swift in Sources */,
+				50FAF00A2DF086EA0072F099 /* AppVersionManager.swift in Sources */,
 				DE91F47C006A959509F64E0D /* BlueskyModels.swift in Sources */,
 				CD35F1063863DA1C608F3743 /* BlueskyService.swift in Sources */,
 				8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */,
@@ -318,7 +328,9 @@
 				50E288822DDC1DF200E1B621 /* KeychainManager.swift in Sources */,
 				50E288832DDC1DF200E1B621 /* RobotsTxtChecker.swift in Sources */,
 				F2B3CD86D065126B32D48F84 /* SocialFusionApp.swift in Sources */,
+				50FAF00C2DF087F20072F099 /* LaunchAnimationView.swift in Sources */,
 				EF81248BA79EBA60C432C031 /* SocialServiceManager.swift in Sources */,
+				50FAF00E2DF08F060072F099 /* DateParser.swift in Sources */,
 				5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

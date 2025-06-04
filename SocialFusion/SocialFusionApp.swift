@@ -9,6 +9,9 @@ struct SocialFusionApp: App {
     // Use StateObject for SocialServiceManager since we're creating it here
     @StateObject private var socialServiceManager = SocialServiceManager()
 
+    // Version manager for launch animation control
+    @StateObject private var appVersionManager = AppVersionManager()
+
     // Environment object for scene phase to detect when app is terminating
     @Environment(\.scenePhase) private var scenePhase
 
@@ -22,11 +25,9 @@ struct SocialFusionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // Gather all active accounts for the unified timeline
-            let allAccounts =
-                socialServiceManager.mastodonAccounts + socialServiceManager.blueskyAccounts
-            UnifiedTimelineView(accounts: allAccounts)
+            ContentView()
                 .environmentObject(socialServiceManager)
+                .environmentObject(appVersionManager)
                 .onOpenURL { url in
                     // Handle OAuth callback URLs
                     if url.scheme == "socialfusion" {

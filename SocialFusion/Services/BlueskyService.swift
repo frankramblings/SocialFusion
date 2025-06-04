@@ -349,14 +349,16 @@ class BlueskyService {
     // MARK: - Timeline
 
     /// Fetch the timeline for a Bluesky account
-    func fetchTimeline(for account: SocialAccount) async throws -> [Post] {
+    func fetchTimeline(for account: SocialAccount) async throws -> TimelineResult {
         // Call the actual API implementation instead of using sample data
         return try await fetchHomeTimeline(for: account)
     }
 
     /// Fetch home timeline for a Bluesky account
-    public func fetchHomeTimeline(for account: SocialAccount, limit: Int = 20) async throws
-        -> [Post]
+    public func fetchHomeTimeline(
+        for account: SocialAccount, limit: Int = 20, cursor: String? = nil
+    ) async throws
+        -> TimelineResult
     {
         guard account.platform == .bluesky else {
             throw ServiceError.invalidAccount(reason: "Account is not a Bluesky account")
@@ -391,9 +393,14 @@ class BlueskyService {
 
         // Add query parameters
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = [
-            URLQueryItem(name: "limit", value: "\(limit)")
-        ]
+        var queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+
+        // Add cursor for pagination if provided
+        if let cursor = cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+
+        components?.queryItems = queryItems
 
         if let finalURL = components?.url {
             request.url = finalURL
@@ -447,12 +454,12 @@ class BlueskyService {
 
             // Process the timeline data
             logger.info("Processing Bluesky timeline data...")
-            let posts = try processFeedData(data, account: account)
-            logger.info("Successfully processed \(posts.count) Bluesky posts")
+            let result = try processFeedDataWithPagination(data, account: account)
+            logger.info("Successfully processed \(result.posts.count) Bluesky posts")
             logger.info(
-                "[Bluesky] Timeline post IDs and CIDs: \(posts.map { "\($0.id):\($0.cid ?? "nil")" }.joined(separator: ", "))"
+                "[Bluesky] Timeline post IDs and CIDs: \(result.posts.map { "\($0.id):\($0.cid ?? "nil")" }.joined(separator: ", "))"
             )
-            return posts
+            return result
         } catch {
             logger.error("Error fetching Bluesky timeline: \(error.localizedDescription)")
             if let urlError = error as? URLError {
@@ -461,6 +468,68 @@ class BlueskyService {
                 )
             }
             throw ServiceError.timelineError(underlying: error)
+        }
+    }
+
+    /// Process feed data from timeline response with pagination
+    private func processFeedDataWithPagination(_ data: Data, account: SocialAccount) throws
+        -> TimelineResult
+    {
+        do {
+            // First try to decode as raw JSON to inspect the structure
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                logger.error("Failed to decode timeline response as JSON")
+                // Log the raw data for debugging
+                if let rawString = String(data: data, encoding: .utf8) {
+                    logger.debug("Raw data: \(rawString.prefix(200))...")
+                }
+                throw NetworkError.decodingError
+            }
+
+            // Log the JSON structure for debugging
+            logger.debug("Timeline JSON structure: \(json.keys)")
+
+            // Check for feed items in the response
+            guard let feed = json["feed"] as? [[String: Any]] else {
+                // Check if there's an error message
+                if let error = json["error"] as? String,
+                    let message = json["message"] as? String
+                {
+                    logger.error("API error: \(error) - \(message)")
+                    throw NetworkError.apiError(message)
+                }
+
+                // See if there might be a different structure in the response
+                let allKeys = json.keys.joined(separator: ", ")
+                logger.error("Missing feed items in timeline response. Available keys: \(allKeys)")
+
+                // If the response is empty but valid JSON, return empty array instead of error
+                if json.isEmpty {
+                    logger.warning("Empty JSON response, returning empty post array")
+                    return TimelineResult(posts: [], pagination: .empty)
+                }
+
+                throw NetworkError.decodingError
+            }
+
+            logger.info("Found \(feed.count) items in Bluesky feed")
+
+            // Process the feed items
+            let posts = try processTimelineResponse(feed, account: account)
+            logger.info("Successfully processed \(posts.count) Bluesky posts")
+
+            // Extract cursor for pagination
+            let cursor = json["cursor"] as? String
+            let hasNextPage = cursor != nil && !posts.isEmpty
+            let pagination = PaginationInfo(hasNextPage: hasNextPage, nextPageToken: cursor)
+
+            return TimelineResult(posts: posts, pagination: pagination)
+        } catch {
+            logger.error("Timeline processing error: \(error.localizedDescription)")
+            if let data = String(data: data, encoding: .utf8) {
+                logger.debug("Raw response data: \(data.prefix(500))...")
+            }
+            throw error
         }
     }
 
@@ -866,19 +935,31 @@ class BlueskyService {
                     if let reasonBy = reason["by"] as? [String: Any],
                         let reposterName = reasonBy["displayName"] as? String ?? reasonBy["handle"]
                             as? String,
-                        let reposterUsername = reasonBy["handle"] as? String
+                        let reposterUsername = reasonBy["handle"] as? String,
+                        let repostIndexedAt = reason["indexedAt"] as? String
                     {
                         // Set the boosted by field
                         boostedBy = reposterName
 
-                        // Create the original post
+                        // Create the original post with its original timestamp
+                        let createdAtDate = DateParser.parse(createdAt) ?? Date.distantPast
+                        let indexedAtDate = DateParser.parse(item["indexedAt"] as? String) ?? Date()
+                        let now = Date()
+                        let skewWindow: TimeInterval = 120  // 2 minutes
+                        let displayDate: Date
+                        if createdAtDate > now.addingTimeInterval(skewWindow) {
+                            displayDate = indexedAtDate
+                        } else {
+                            displayDate = createdAtDate
+                        }
+
                         originalPost = Post(
                             id: uri,
                             content: text,
                             authorName: authorName,
                             authorUsername: authorUsername,
                             authorProfilePictureURL: authorAvatarURL,
-                            createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
+                            createdAt: displayDate,
                             platform: .bluesky,
                             originalURL:
                                 "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
@@ -888,24 +969,24 @@ class BlueskyService {
                             likeCount: likeCount,
                             repostCount: repostCount,
                             platformSpecificId: uri,
-                            boostedBy: boostedBy,
+                            boostedBy: nil,  // Don't set boostedBy on the original post
                             parent: parentPost,
                             inReplyToID: inReplyToID,
                             inReplyToUsername: inReplyToUsername,
                             quotedPostUri: nil,
                             quotedPostAuthorHandle: nil,
-                            cid: nil  // <-- Explicitly nil
+                            cid: post["cid"] as? String
                         )
 
-                        // Create the repost as the main post
-                        let repostId = "repost-\(uri)"
+                        // Create the repost wrapper with repost timestamp for timeline positioning
+                        let repostId = "repost-\(reposterUsername)-\(uri)"
                         let repost = Post(
                             id: repostId,
                             content: "",  // Empty content for reposts
                             authorName: reposterName,
                             authorUsername: reposterUsername,
                             authorProfilePictureURL: reasonBy["avatar"] as? String ?? "",
-                            createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
+                            createdAt: displayDate,  // Use repost timestamp for timeline positioning
                             platform: .bluesky,
                             originalURL:
                                 "https://bsky.app/profile/\(reposterUsername)/post/\(uri.split(separator: "/").last ?? "")",
@@ -921,7 +1002,7 @@ class BlueskyService {
                             inReplyToUsername: nil,
                             quotedPostUri: nil,
                             quotedPostAuthorHandle: nil,
-                            cid: nil  // <-- Explicitly nil
+                            cid: nil  // <-- Explicitly nil for wrapper
                         )
 
                         posts.append(repost)
@@ -945,6 +1026,18 @@ class BlueskyService {
 
                 let cid = post["cid"] as? String
 
+                // Calculate displayDate for all posts
+                let createdAtDate = DateParser.parse(createdAt) ?? Date.distantPast
+                let indexedAtDate = DateParser.parse(item["indexedAt"] as? String) ?? Date()
+                let now = Date()
+                let skewWindow: TimeInterval = 120  // 2 minutes
+                let displayDate: Date
+                if createdAtDate > now.addingTimeInterval(skewWindow) {
+                    displayDate = indexedAtDate
+                } else {
+                    displayDate = createdAtDate
+                }
+
                 // Create regular post
                 let newPost = Post(
                     id: uri,
@@ -952,7 +1045,7 @@ class BlueskyService {
                     authorName: authorName,
                     authorUsername: authorUsername,
                     authorProfilePictureURL: authorAvatarURL,
-                    createdAt: ISO8601DateFormatter().date(from: createdAt) ?? Date(),
+                    createdAt: displayDate,
                     platform: .bluesky,
                     originalURL:
                         "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",

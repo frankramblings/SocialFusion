@@ -19,12 +19,13 @@ struct PostDetailView: View {
     }()
 
     var body: some View {
+        let displayPost = viewModel.post.originalPost ?? viewModel.post
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 // Author info
                 HStack(alignment: .center) {
                     // Avatar
-                    AsyncImage(url: URL(string: viewModel.post.authorProfilePictureURL)) { phase in
+                    AsyncImage(url: URL(string: displayPost.authorProfilePictureURL)) { phase in
                         if let image = phase.image {
                             image.resizable()
                         } else if phase.error != nil {
@@ -37,10 +38,10 @@ struct PostDetailView: View {
                     .clipShape(Circle())
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(viewModel.post.authorName)
+                        Text(displayPost.authorName)
                             .font(.headline)
 
-                        Text("@\(viewModel.post.authorUsername)")
+                        Text("@\(displayPost.authorUsername)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -48,17 +49,17 @@ struct PostDetailView: View {
                     Spacer()
 
                     // Platform indicator
-                    PlatformDot(platform: viewModel.post.platform)
+                    PlatformDot(platform: displayPost.platform)
                 }
 
                 // Post content
-                if !viewModel.post.content.isEmpty {
-                    viewModel.post.contentView()
+                if !displayPost.content.isEmpty {
+                    displayPost.contentView()
                 }
 
                 // Media attachments
-                if !viewModel.post.attachments.isEmpty {
-                    MediaGridView(attachments: viewModel.post.attachments)
+                if !displayPost.attachments.isEmpty {
+                    MediaGridView(attachments: displayPost.attachments)
                         .frame(maxWidth: .infinity)
                         .aspectRatio(contentMode: .fit)
                         .cornerRadius(8)
@@ -67,9 +68,13 @@ struct PostDetailView: View {
                 // Post metadata
                 VStack(alignment: .leading, spacing: 8) {
                     // Timestamp
-                    Text(dateFormatter.string(from: viewModel.post.createdAt))
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                    Text(
+                        dateFormatter.string(
+                            from: viewModel.post.originalPost != nil
+                                ? viewModel.post.createdAt : displayPost.createdAt)
+                    )
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
 
                     // Stats
                     HStack(spacing: 12) {
@@ -105,7 +110,7 @@ struct PostDetailView: View {
                     Divider()
 
                     VStack(alignment: .leading) {
-                        Text("Reply to \(viewModel.post.authorName)")
+                        Text("Reply to \(displayPost.authorName)")
                             .font(.headline)
                             .padding(.bottom, 8)
 

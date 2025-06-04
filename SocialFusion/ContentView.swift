@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject var appVersionManager: AppVersionManager
     @State private var selectedTab = 0
 
     // Account selection state
@@ -17,232 +18,260 @@ struct ContentView: View {
 
     @Environment(\.colorScheme) var colorScheme
 
+    // Double-tap state for scroll functionality
+    @State private var lastHomeTapTime: Date = Date()
+    @State private var isAtTopOfFeed = true
+    @State private var tabBarDelegate: TabBarDelegate?
+
     var body: some View {
-        TabView(selection: $selectedTab) {
-            // Home Tab - Timeline implementation
-            NavigationView {
-                ZStack {
-                    // Main timeline
-                    UnifiedTimelineView(accounts: timelineAccounts)
-                        .navigationTitle(navigationTitle)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .navigationBarItems(
-                            leading: HStack {
-                                // Account selector - show current account icon or unified icon
-                                Button(action: {
-                                    // Show account dropdown menu
-                                    showAccountDropdown = true
-                                    // Get the position for the dropdown
-                                    let windowScene =
-                                        UIApplication.shared.connectedScenes.first as? UIWindowScene
-                                    let window = windowScene?.windows.first
-                                    if let frame = window?.frame {
-                                        dropdownPosition = CGPoint(x: 30, y: 60)  // Position near the account button
+        ZStack {
+            TabView(selection: $selectedTab) {
+                // Home Tab - Timeline implementation
+                NavigationView {
+                    ZStack {
+                        // Main timeline
+                        UnifiedTimelineView(accounts: timelineAccounts)
+                            .navigationTitle(navigationTitle)
+                            .navigationBarTitleDisplayMode(.inline)
+                            .navigationBarItems(
+                                leading: HStack {
+                                    // Account selector - show current account icon or unified icon
+                                    Button(action: {
+                                        // Show account dropdown menu
+                                        showAccountDropdown = true
+                                        // Get the position for the dropdown
+                                        let windowScene =
+                                            UIApplication.shared.connectedScenes.first
+                                            as? UIWindowScene
+                                        let window = windowScene?.windows.first
+                                        if let frame = window?.frame {
+                                            dropdownPosition = CGPoint(x: 30, y: 60)  // Position near the account button
+                                        }
+                                    }) {
+                                        HStack(spacing: 6) {
+                                            // Show current account image or unified icon
+                                            getCurrentAccountImage()
+                                                .frame(width: 30, height: 30)
+                                                .clipShape(Circle())
+
+                                            // Dropdown indicator
+                                            Image(systemName: "chevron.down")
+                                                .font(.system(size: 13, weight: .medium))
+                                                .foregroundColor(.primary)
+                                        }
                                     }
+                                },
+                                trailing: Button(action: {
+                                    showComposeView = true
                                 }) {
-                                    HStack(spacing: 6) {
-                                        // Show current account image or unified icon
-                                        getCurrentAccountImage()
-                                            .frame(width: 30, height: 30)
-                                            .clipShape(Circle())
-
-                                        // Dropdown indicator
-                                        Image(systemName: "chevron.down")
-                                            .font(.system(size: 13, weight: .medium))
-                                            .foregroundColor(.primary)
-                                    }
+                                    Image(systemName: "square.and.pencil")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.primary)
                                 }
-                            },
-                            trailing: Button(action: {
-                                showComposeView = true
-                            }) {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(.primary)
-                            }
-                        )
+                            )
 
-                    // Account dropdown overlay (conditionally displayed)
-                    if showAccountDropdown {
-                        AccountDropdownView(
-                            selectedAccountId: $selectedAccountId,
-                            previousAccountId: $previousAccountId,
-                            isVisible: $showAccountDropdown,
-                            position: dropdownPosition
-                        )
-                        .environmentObject(serviceManager)
-                    }
-                }
-                .sheet(isPresented: $showComposeView) {
-                    ComposeView()
-                        .environmentObject(serviceManager)
-                }
-            }
-            .tabItem {
-                Label("Home", systemImage: "house")
-            }
-            .tag(0)
-
-            // Notifications Tab - with a modern design
-            NavigationView {
-                ZStack {
-                    Color(UIColor.systemBackground)
-                        .ignoresSafeArea()
-
-                    VStack(spacing: 20) {
-                        Image(systemName: "bell.fill")
-                            .font(.system(size: 50))
-                            .foregroundColor(.gray.opacity(0.3))
-
-                        Text("Notifications")
-                            .font(.title3)
-                            .fontWeight(.medium)
-
-                        Text("Notifications will appear here")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    }
-                }
-                .navigationTitle("Notifications")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .tabItem {
-                Label("Notifications", systemImage: "bell")
-            }
-            .tag(1)
-
-            // Search Tab - with a modern design
-            NavigationView {
-                ZStack {
-                    Color(UIColor.systemBackground)
-                        .ignoresSafeArea()
-
-                    VStack(spacing: 20) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 50))
-                            .foregroundColor(.gray.opacity(0.3))
-
-                        Text("Search")
-                            .font(.title3)
-                            .fontWeight(.medium)
-
-                        Text("Search for people, posts, and hashtags")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                    }
-                }
-                .navigationTitle("Search")
-                .navigationBarTitleDisplayMode(.inline)
-            }
-            .tabItem {
-                Label("Search", systemImage: "magnifyingglass")
-            }
-            .tag(2)
-
-            // Profile Tab - with a modern design
-            NavigationView {
-                ZStack {
-                    Color(UIColor.systemBackground)
-                        .ignoresSafeArea()
-
-                    if let account = getCurrentAccount() {
-                        ScrollView {
-                            VStack(spacing: 0) {
-                                // Profile header
-                                VStack(spacing: 16) {
-                                    // Profile image
-                                    ProfileImageView(account: account)
-                                        .frame(width: 80, height: 80)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                        )
-                                        .padding(.top, 20)
-
-                                    // Account name and username
-                                    VStack(spacing: 4) {
-                                        Text(account.displayName ?? account.username)
-                                            .font(.title2)
-                                            .fontWeight(.bold)
-
-                                        Text("@\(account.username)")
-                                            .font(.subheadline)
-                                            .foregroundColor(.secondary)
-                                    }
-
-                                    // Platform badge
-                                    HStack {
-                                        PlatformBadge(platform: account.platform)
-                                    }
-                                    .padding(.bottom, 10)
-                                }
-                                .frame(maxWidth: .infinity)
-                                .background(
-                                    colorScheme == .dark
-                                        ? Color(UIColor.secondarySystemBackground) : Color.white)
-
-                                // Profile content placeholder
-                                VStack(spacing: 20) {
-                                    Text("Profile content will appear here")
-                                        .font(.headline)
-                                        .padding(.top, 40)
-                                        .foregroundColor(.secondary)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            }
+                        // Account dropdown overlay (conditionally displayed)
+                        if showAccountDropdown {
+                            AccountDropdownView(
+                                selectedAccountId: $selectedAccountId,
+                                previousAccountId: $previousAccountId,
+                                isVisible: $showAccountDropdown,
+                                position: dropdownPosition
+                            )
+                            .environmentObject(serviceManager)
                         }
-                    } else {
+                    }
+                    .sheet(isPresented: $showComposeView) {
+                        ComposeView()
+                            .environmentObject(serviceManager)
+                    }
+                }
+                .tabItem {
+                    Label("Home", systemImage: "house")
+                }
+                .tag(0)
+
+                // Notifications Tab - with a modern design
+                NavigationView {
+                    ZStack {
+                        Color(UIColor.systemBackground)
+                            .ignoresSafeArea()
+
                         VStack(spacing: 20) {
-                            Image(systemName: "person.crop.circle")
+                            Image(systemName: "bell.fill")
                                 .font(.system(size: 50))
                                 .foregroundColor(.gray.opacity(0.3))
 
-                            Text("No Account Selected")
+                            Text("Notifications")
                                 .font(.title3)
                                 .fontWeight(.medium)
 
-                            Text("Select an account to view profile")
+                            Text("Notifications will appear here")
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 40)
+                        }
+                    }
+                    .navigationTitle("Notifications")
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+                .tabItem {
+                    Label("Notifications", systemImage: "bell")
+                }
+                .tag(1)
 
-                            Button(action: {
-                                // Show account picker
-                                showAccountPicker = true
-                            }) {
-                                Text("Select Account")
-                                    .font(.headline)
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 12)
-                                    .background(Color.blue)
-                                    .cornerRadius(25)
+                // Search Tab - with a modern design
+                NavigationView {
+                    ZStack {
+                        Color(UIColor.systemBackground)
+                            .ignoresSafeArea()
+
+                        VStack(spacing: 20) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 50))
+                                .foregroundColor(.gray.opacity(0.3))
+
+                            Text("Search")
+                                .font(.title3)
+                                .fontWeight(.medium)
+
+                            Text("Search for people, posts, and hashtags")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
+                    }
+                    .navigationTitle("Search")
+                    .navigationBarTitleDisplayMode(.inline)
+                }
+                .tabItem {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .tag(2)
+
+                // Profile Tab - with a modern design
+                NavigationView {
+                    ZStack {
+                        Color(UIColor.systemBackground)
+                            .ignoresSafeArea()
+
+                        if let account = getCurrentAccount() {
+                            ScrollView {
+                                VStack(spacing: 0) {
+                                    // Profile header
+                                    VStack(spacing: 16) {
+                                        // Profile image
+                                        ProfileImageView(account: account)
+                                            .frame(width: 80, height: 80)
+                                            .overlay(
+                                                Circle()
+                                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                                            )
+                                            .padding(.top, 20)
+
+                                        // Account name and username
+                                        VStack(spacing: 4) {
+                                            Text(account.displayName ?? account.username)
+                                                .font(.title2)
+                                                .fontWeight(.bold)
+
+                                            Text("@\(account.username)")
+                                                .font(.subheadline)
+                                                .foregroundColor(.secondary)
+                                        }
+
+                                        // Platform badge
+                                        HStack {
+                                            PlatformBadge(platform: account.platform)
+                                        }
+                                        .padding(.bottom, 10)
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .background(
+                                        colorScheme == .dark
+                                            ? Color(UIColor.secondarySystemBackground) : Color.white
+                                    )
+
+                                    // Profile content placeholder
+                                    VStack(spacing: 20) {
+                                        Text("Profile content will appear here")
+                                            .font(.headline)
+                                            .padding(.top, 40)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
                             }
-                            .padding(.top, 10)
-                            .sheet(isPresented: $showAccountPicker) {
-                                AccountPickerSheet(
-                                    selectedAccountId: $selectedAccountId,
-                                    previousAccountId: $previousAccountId,
-                                    isPresented: $showAccountPicker
-                                )
+                        } else {
+                            VStack(spacing: 20) {
+                                Image(systemName: "person.crop.circle")
+                                    .font(.system(size: 50))
+                                    .foregroundColor(.gray.opacity(0.3))
+
+                                Text("No Account Selected")
+                                    .font(.title3)
+                                    .fontWeight(.medium)
+
+                                Text("Select an account to view profile")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 40)
+
+                                Button(action: {
+                                    // Show account picker
+                                    showAccountPicker = true
+                                }) {
+                                    Text("Select Account")
+                                        .font(.headline)
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 12)
+                                        .background(Color.blue)
+                                        .cornerRadius(25)
+                                }
+                                .padding(.top, 10)
+                                .sheet(isPresented: $showAccountPicker) {
+                                    AccountPickerSheet(
+                                        selectedAccountId: $selectedAccountId,
+                                        previousAccountId: $previousAccountId,
+                                        isPresented: $showAccountPicker
+                                    )
+                                }
                             }
                         }
                     }
+                    .navigationTitle("Profile")
+                    .navigationBarTitleDisplayMode(.inline)
                 }
-                .navigationTitle("Profile")
-                .navigationBarTitleDisplayMode(.inline)
+                .tabItem {
+                    Label("Profile", systemImage: "person")
+                }
+                .tag(3)
             }
-            .tabItem {
-                Label("Profile", systemImage: "person")
+            .accentColor(Color("PrimaryColor"))
+            .onAppear {
+                setupTabBarDelegate()
             }
-            .tag(3)
+
+            // Launch Animation Overlay
+            // Temporarily commented out launch animation to fix build
+            // if appVersionManager.shouldShowLaunchAnimation {
+            //     LaunchAnimationView()
+            //         .transition(.opacity)
+            //         .zIndex(1)
+            //         .onAppear {
+            //             // Hide animation after it completes (0.6s animation + small delay)
+            //             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            //                 withAnimation(.easeOut(duration: 0.3)) {
+            //                     appVersionManager.markLaunchAnimationCompleted()
+            //                 }
+            //             }
+            //         }
+            // }
         }
-        .accentColor(Color("PrimaryColor"))
     }
 
     // Helper function to get the current account
@@ -289,6 +318,53 @@ struct ContentView: View {
             // Update previous account to be the one we just left
             previousAccountId = currentId
         }
+    }
+
+    // Setup tab bar delegate to detect double-taps
+    private func setupTabBarDelegate() {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let window = windowScene.windows.first,
+            let tabBarController = findTabBarController(in: window.rootViewController)
+        else {
+            return
+        }
+
+        // Create and store a strong reference to the delegate
+        let delegate = TabBarDelegate { [self] in
+            handleHomeTap()
+        }
+        tabBarDelegate = delegate
+        tabBarController.delegate = delegate
+    }
+
+    // Handle Home tab double-tap
+    private func handleHomeTap() {
+        guard selectedTab == 0 else { return }  // Only handle when on Home tab
+
+        let now = Date()
+        let timeSinceLastTap = now.timeIntervalSince(lastHomeTapTime)
+
+        if timeSinceLastTap < 0.3 {  // Double-tap detected within 300ms
+            // Trigger scroll action
+            NotificationCenter.default.post(name: .homeTabDoubleTapped, object: nil)
+        }
+
+        lastHomeTapTime = now
+    }
+
+    // Helper to find UITabBarController
+    private func findTabBarController(in viewController: UIViewController?) -> UITabBarController? {
+        if let tabBarController = viewController as? UITabBarController {
+            return tabBarController
+        }
+
+        for child in viewController?.children ?? [] {
+            if let found = findTabBarController(in: child) {
+                return found
+            }
+        }
+
+        return nil
     }
 
     // Helper function to switch accounts and track previous selection
@@ -813,4 +889,30 @@ struct PlatformBadge: View {
         }
         .frame(width: 20, height: 20)
     }
+}
+
+// MARK: - Tab Bar Delegate for Double-Tap Detection
+class TabBarDelegate: NSObject, UITabBarControllerDelegate {
+    private let onHomeTap: () -> Void
+
+    init(onHomeTap: @escaping () -> Void) {
+        self.onHomeTap = onHomeTap
+    }
+
+    func tabBarController(
+        _ tabBarController: UITabBarController, shouldSelect viewController: UIViewController
+    ) -> Bool {
+        // If the Home tab (index 0) is selected while already on Home tab, trigger our handler
+        if tabBarController.selectedIndex == 0
+            && viewController == tabBarController.viewControllers?[0]
+        {
+            onHomeTap()
+        }
+        return true
+    }
+}
+
+// MARK: - Notification Extension
+extension Notification.Name {
+    static let homeTabDoubleTapped = Notification.Name("homeTabDoubleTapped")
 }
