@@ -8,3 +8,23 @@ DerivedData/
 .netrc
 build/
 temp/IceCubesApp/
+
+# Build artifacts
+.build/
+build/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# Temporary backup directories
+temp_backup_*/
+backup/
+temp/
+
+# Large binary files
+*.mdb
+*.lock
+*.pcm
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
