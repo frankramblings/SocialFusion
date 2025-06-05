@@ -704,7 +704,7 @@ public class MastodonService {
 
         do {
             // Check if token needs refresh
-            if account.isTokenExpired, let refreshToken = account.getRefreshToken() {
+            if account.isTokenExpired, account.getRefreshToken() != nil {
                 logger.info("Refreshing expired Mastodon token for: \(account.username)")
                 // Note: Token refresh requires client credentials which may not be available
                 // For now, we'll continue with the existing token
@@ -1134,6 +1134,19 @@ public class MastodonService {
     private func convertMastodonStatusToPost(
         _ status: MastodonStatus, account: SocialAccount? = nil
     ) -> Post {
+        // Move the replyToUsername logic to the top of the function
+        var replyToUsername: String? = nil
+        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
+            // Improved reply username extraction logic
+            if let mention = status.mentions.first(where: { $0.id == replyToAccountId }) {
+                replyToUsername = mention.username
+            } else if let firstMention = status.mentions.first {
+                replyToUsername = firstMention.username
+            } else if !status.mentions.isEmpty {
+                replyToUsername = status.mentions.first?.username
+            }
+        }
+
         // Check if this is a reblog/boost
         if let reblog = status.reblog {
             // Create the original post (reblogged content)
@@ -1166,7 +1179,7 @@ public class MastodonService {
             )
 
             // Create the boost/reblog wrapper post
-            return Post(
+            let boostPost = Post(
                 id: status.id,
                 content: "",  // Reblog doesn't have its own content
                 authorName: status.account.displayName,
@@ -1186,13 +1199,54 @@ public class MastodonService {
                 boostedBy: status.account.displayName.isEmpty
                     ? status.account.acct : status.account.displayName
             )
+
+            return Post(
+                id: status.id,
+                content: status.content,
+                authorName: status.account.displayName,
+                authorUsername: status.account.acct,
+                authorProfilePictureURL: status.account.avatar,
+                createdAt: DateParser.parse(status.createdAt) ?? Date.distantPast,
+                platform: .mastodon,
+                originalURL: status.url ?? "",
+                attachments: status.mediaAttachments.compactMap { media -> Post.Attachment? in
+                    guard media.type == "image", let url = URL(string: media.url),
+                        !media.url.isEmpty
+                    else {
+                        print(
+                            "[Mastodon] Skipping non-image or invalid attachment: \(media.url) type: \(media.type)"
+                        )
+                        return nil
+                    }
+                    let alt = media.description ?? "Image"
+                    print("[Mastodon] Parsed image attachment: \(url) alt: \(alt)")
+                    return Post.Attachment(
+                        url: media.url,
+                        type: .image,
+                        altText: alt
+                    )
+                },
+                mentions: status.mentions.compactMap { mention -> String in
+                    return mention.username
+                },
+                tags: status.tags.compactMap { tag -> String in
+                    return tag.name
+                },
+                isReposted: status.reblogged ?? false,
+                isLiked: status.favourited ?? false,
+                likeCount: status.favouritesCount,
+                repostCount: status.reblogsCount,
+                parent: boostPost,
+                inReplyToID: status.inReplyToId,
+                inReplyToUsername: replyToUsername
+            )
         }
 
         // Regular non-boosted post
         let attachments = status.mediaAttachments.compactMap { media -> Post.Attachment? in
             guard media.type == "image", let url = URL(string: media.url), !media.url.isEmpty else {
                 print(
-                    "[Mastodon] Skipping non-image or invalid attachment: \(media.url ?? "nil") type: \(media.type)"
+                    "[Mastodon] Skipping non-image or invalid attachment: \(media.url) type: \(media.type)"
                 )
                 return nil
             }
@@ -1228,35 +1282,9 @@ public class MastodonService {
         }
 
         // Try to find the username being replied to from mentions
-        var replyToUsername: String? = nil
         var parentPost: Post? = nil
 
         if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
-            // Improved reply username extraction logic
-
-            // First try to find the username from mentions that match the account ID
-            if let mention = status.mentions.first(where: { $0.id == replyToAccountId }) {
-                replyToUsername = mention.username
-                logger.info(
-                    "Found username from mention: \(mention.username) for reply to account ID: \(replyToAccountId)"
-                )
-            }
-            // If not found in direct mention match, try the first mention as a fallback
-            else if let firstMention = status.mentions.first {
-                replyToUsername = firstMention.username
-                logger.info(
-                    "Using first mention as fallback: \(firstMention.username) (reply account ID: \(replyToAccountId))"
-                )
-            }
-            // If we have any mentions at all that don't match the replyToAccountId
-            else if !status.mentions.isEmpty {
-                // Just use the first mention as a best guess (Mastodon traditionally mentions the person you're replying to first)
-                replyToUsername = status.mentions.first?.username
-                logger.info(
-                    "Using best-guess mention: \(replyToUsername ?? "nil") for reply to account ID: \(replyToAccountId)"
-                )
-            }
-
             // Create a minimal parent post with the info we have to display immediately
             // This gives us a parent post without needing an additional API call
             // The full content will be loaded on demand when expanded
@@ -1276,7 +1304,7 @@ public class MastodonService {
                 "Created parent post placeholder with username: \(replyToUsername ?? "nil")")
         }
 
-        return Post(
+        let post = Post(
             id: status.id,
             content: status.content,
             authorName: status.account.displayName,
@@ -1296,6 +1324,8 @@ public class MastodonService {
             inReplyToID: status.inReplyToId,
             inReplyToUsername: replyToUsername
         )
+
+        return post
     }
 
     /// Maps Mastodon media types to our app's MediaType
