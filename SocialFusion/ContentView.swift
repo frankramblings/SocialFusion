@@ -257,20 +257,16 @@ struct ContentView: View {
             }
 
             // Launch Animation Overlay
-            // Temporarily commented out launch animation to fix build
-            // if appVersionManager.shouldShowLaunchAnimation {
-            //     LaunchAnimationView()
-            //         .transition(.opacity)
-            //         .zIndex(1)
-            //         .onAppear {
-            //             // Hide animation after it completes (0.6s animation + small delay)
-            //             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
-            //                 withAnimation(.easeOut(duration: 0.3)) {
-            //                     appVersionManager.markLaunchAnimationCompleted()
-            //                 }
-            //             }
-            //         }
-            // }
+            if appVersionManager.shouldShowLaunchAnimation {
+                LaunchAnimationView {
+                    // Hide animation after it completes
+                    withAnimation(.easeOut(duration: 0.3)) {
+                        appVersionManager.markLaunchAnimationCompleted()
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(1)
+            }
         }
     }
 

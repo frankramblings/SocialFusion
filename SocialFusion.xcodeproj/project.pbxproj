@@ -11,6 +11,7 @@
 		2EE845AC73F6E96035D64073 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28473D186DFB59778DF996BE /* Post.swift */; };
 		32234CDDD38C105F8C980909 /* PostCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12BEF197BD67D84413EBCE2F /* PostCardView.swift */; };
 		4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712CCA659FBD7CD190A2972D /* KeychainHelper.swift */; };
+		5011EBC72DF0E79900F74F53 /* ExpandingReplyBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */; };
 		5031715E2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */; };
 		503171602DE6AEB700E1C528 /* PostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715F2DE6AEB700E1C528 /* PostStore.swift */; };
 		5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */; };
@@ -61,6 +62,7 @@
 		255ADE201981E507154D54E5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		28473D186DFB59778DF996BE /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
 		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandingReplyBanner.swift; sourceTree = "<group>"; };
 		5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionTimelineDebug.swift; sourceTree = "<group>"; };
 		5031715F2DE6AEB700E1C528 /* PostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostStore.swift; sourceTree = "<group>"; };
 		5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
@@ -125,6 +127,7 @@
 		50CDC8342DD7CDDD00144E13 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */,
 				50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */,
 				50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */,
 				50FAF00B2DF087F20072F099 /* LaunchAnimationView.swift */,
@@ -250,7 +253,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1630;
+				LastUpgradeCheck = 1640;
 			};
 			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -301,6 +304,7 @@
 				50E288852DDEC59300E1B621 /* UnifiedMediaGridView.swift in Sources */,
 				50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */,
 				50CDC8372DD7CDDD00144E13 /* LinkPreview.swift in Sources */,
+				5011EBC72DF0E79900F74F53 /* ExpandingReplyBanner.swift in Sources */,
 				50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */,
 				503171602DE6AEB700E1C528 /* PostStore.swift in Sources */,
 				50CDC8392DD7CDDD00144E13 /* PostDetailView.swift in Sources */,
@@ -361,6 +365,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
@@ -419,6 +424,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";

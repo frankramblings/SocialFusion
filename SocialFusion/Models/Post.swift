@@ -122,7 +122,16 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
     public let tags: [String]
 
     // New properties for boosted/reposted content
-    public var originalPost: Post?
+    public var originalPost: Post? {
+        didSet {
+            if Post.detectCycle(start: self, next: originalPost) {
+                print(
+                    "[Post] Cycle detected in originalPost chain for post id: \(id). Breaking cycle."
+                )
+                originalPost = nil
+            }
+        }
+    }
     public var isReposted: Bool = false
     public var isLiked: Bool = false
     public var likeCount: Int = 0
@@ -130,9 +139,19 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
 
     // Properties for reply and boost functionality
     @Published public var boostedBy: String?
-    @Published public var parent: Post?
+    @Published public var parent: Post? {
+        didSet {
+            if Post.detectCycle(start: self, next: parent) {
+                print("[Post] Cycle detected in parent chain for post id: \(id). Breaking cycle.")
+                parent = nil
+            }
+        }
+    }
     public var inReplyToID: String?
     public var inReplyToUsername: String?
+
+    // Quoted post support
+    public var quotedPost: Post? = nil
 
     // Computed properties for convenience
     public var authorHandle: String {
@@ -146,6 +165,14 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
     let quotedPostAuthorHandle: String?
 
     public var cid: String?  // Bluesky only, optional for backward compatibility
+
+    // Computed property for a stable unique identifier
+    public var stableId: String {
+        if isReposted, let original = originalPost {
+            return "\(platform.rawValue)-repost-\(authorUsername)-\(original.platformSpecificId)"
+        }
+        return "\(platform.rawValue)-\(platformSpecificId)"
+    }
 
     public struct Attachment: Identifiable, Codable {
         public var id: String { url }  // Use URL as unique identifier
@@ -162,7 +189,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
     }
 
     public static func == (lhs: Post, rhs: Post) -> Bool {
-        return lhs.id == rhs.id
+        return lhs.stableId == rhs.stableId
     }
 
     // MARK: - Codable
@@ -192,6 +219,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         case quotedPostUri
         case quotedPostAuthorHandle
         case cid
+        case quotedPost
     }
 
     public required convenience init(from decoder: Decoder) throws {
@@ -223,6 +251,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         let quotedPostAuthorHandle = try container.decodeIfPresent(
             String.self, forKey: .quotedPostAuthorHandle)
         let cid = try container.decodeIfPresent(String.self, forKey: .cid)
+        let quotedPost = try container.decodeIfPresent(Post.self, forKey: .quotedPost)
         self.init(
             id: id,
             content: content,
@@ -247,9 +276,11 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             inReplyToUsername: inReplyToUsername,
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
+            quotedPost: quotedPost,
             cid: cid
         )
         self.cid = cid
+        self.quotedPost = quotedPost
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -278,6 +309,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         try container.encodeIfPresent(quotedPostUri, forKey: .quotedPostUri)
         try container.encodeIfPresent(quotedPostAuthorHandle, forKey: .quotedPostAuthorHandle)
         try container.encodeIfPresent(cid, forKey: .cid)
+        try container.encodeIfPresent(quotedPost, forKey: .quotedPost)
     }
 
     public init(
@@ -304,6 +336,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         inReplyToUsername: String? = nil,
         quotedPostUri: String? = nil,
         quotedPostAuthorHandle: String? = nil,
+        quotedPost: Post? = nil,
         cid: String? = nil
     ) {
         self.id = id
@@ -317,19 +350,35 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         self.attachments = attachments
         self.mentions = mentions
         self.tags = tags
-        self.originalPost = originalPost
         self.isReposted = isReposted
         self.isLiked = isLiked
         self.likeCount = likeCount
         self.repostCount = repostCount
-        self.platformSpecificId = platformSpecificId
+        self.platformSpecificId = platformSpecificId.isEmpty ? id : platformSpecificId
         self.boostedBy = boostedBy
-        self.parent = parent
         self.inReplyToID = inReplyToID
         self.inReplyToUsername = inReplyToUsername
         self.quotedPostUri = quotedPostUri
         self.quotedPostAuthorHandle = quotedPostAuthorHandle
+        self.quotedPost = quotedPost
         self.cid = cid
+        // Defensive: prevent self-reference on construction
+        if let parent = parent, parent.id == id {
+            print(
+                "[Post] Attempted to construct post with itself as parent (id: \(id)). Setting parent to nil."
+            )
+            self.parent = nil
+        } else {
+            self.parent = parent
+        }
+        if let originalPost = originalPost, originalPost.id == id {
+            print(
+                "[Post] Attempted to construct post with itself as originalPost (id: \(id)). Setting originalPost to nil."
+            )
+            self.originalPost = nil
+        } else {
+            self.originalPost = originalPost
+        }
     }
 
     // Sample posts for previews and testing
@@ -493,6 +542,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             inReplyToUsername: self.inReplyToUsername,
             quotedPostUri: self.quotedPostUri,
             quotedPostAuthorHandle: self.quotedPostAuthorHandle,
+            quotedPost: self.quotedPost,
             cid: self.cid
         )
     }
@@ -614,6 +664,30 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         }
         return textView
     }
+
+    public var isPlaceholder: Bool {
+        return authorUsername == "unknown.bsky.social" || authorUsername == "unknown"
+    }
+
+    /// Helper to detect cycles in parent/originalPost chains
+    public static func detectCycle(start: Post, next: Post?) -> Bool {
+        var visited = Set<String>()
+        var current = next
+        while let node = current {
+            if node.id == start.id { return true }
+            if visited.contains(node.id) { return false }  // already checked
+            visited.insert(node.id)
+            // Check both parent and originalPost chains
+            if let parent = node.parent, parent.id != node.id {
+                current = parent
+            } else if let orig = node.originalPost, orig.id != node.id {
+                current = orig
+            } else {
+                break
+            }
+        }
+        return false
+    }
 }
 
 class PostViewModel: ObservableObject, Identifiable {
@@ -662,7 +736,9 @@ class PostViewModel: ObservableObject, Identifiable {
         post.$parent
             .receive(on: DispatchQueue.main)
             .sink { [weak self] parent in
-                self?.effectiveParentPost = parent
+                DispatchQueue.main.async {
+                    self?.effectiveParentPost = parent
+                }
             }
             .store(in: &cancellables)
         // Set initial value

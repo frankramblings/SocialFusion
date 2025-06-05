@@ -42,6 +42,7 @@ public enum TimelineState {
 }
 
 /// A ViewModel for managing timeline data and state
+@MainActor
 public class TimelineViewModel: ObservableObject {
     // MARK: - Published Properties
 

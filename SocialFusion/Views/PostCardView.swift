@@ -1,5 +1,8 @@
 import Foundation
 import LinkPresentation  // For link previews
+import SocialFusion.ViewModels.PostViewModel
+import SocialFusion.Views.Components.QuotePostView
+import SocialFusion.Views.Components.UnifiedMediaGridView
 // Forward imports
 import SwiftUI
 
@@ -154,10 +157,6 @@ enum PostAction {
 // Using Color extensions from Color+Theme.swift
 @available(iOS 16.0, *)
 extension Color {
-    static var cardBackground: Color {
-        Color("CardBackground")
-    }
-
     static var subtleBorder: Color {
         Color.gray.opacity(0.2)
     }
@@ -209,13 +208,13 @@ struct PostCardView: View {
     @ObservedObject var viewModel: PostViewModel
     @State private var showDetailView = false
     @State private var shouldFocusReplyComposer = false
-    @EnvironmentObject var serviceManager: SocialServiceManager
+    @State private var bannerWasTapped = false
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    @EnvironmentObject private var account: SocialAccount?
     @Environment(\.colorScheme) private var colorScheme
     let post: Post
-    let account: SocialAccount?
     let timelineKind: TimelineEntryKind?
     @State private var shouldShowParentPost = false
-    @State private var bannerWasTapped = false
 
     // Convenience initializer for direct Post usage (existing behavior)
     init(viewModel: PostViewModel, post: Post, account: SocialAccount?) {
@@ -280,68 +279,56 @@ struct PostCardView: View {
     }
 
     var body: some View {
-        let displayPost = post.originalPost ?? post
+        let displayPost = viewModel.post.originalPost ?? viewModel.post
         VStack(alignment: .leading, spacing: 8) {
-            // Parent/reply context
-            if let replyTo = post.inReplyToUsername {
-                ExpandingReplyBanner(
-                    username: replyTo,
-                    network: post.platform,
-                    parentId: post.inReplyToID,
-                    isExpanded: $shouldShowParentPost,
-                    onBannerTap: { bannerWasTapped = true }
-                )
-                .padding(.bottom, 8)
-            }
-            // Show boost banner based on timeline kind or post data
-            if case .boost(let boostedBy) = timelineKind {
-                TimelineBanner(type: .repost(username: boostedBy, network: post.platform))
-                    .padding(.bottom, 2)
-            } else if let boostedBy = post.boostedBy {
-                TimelineBanner(type: .repost(username: boostedBy, network: post.platform))
-                    .padding(.bottom, 2)
-            }
-            // Author row
-            HStack(alignment: .center, spacing: 8) {
+            // Author info
+            HStack(alignment: .center) {
+                // Avatar
                 AsyncImage(url: URL(string: displayPost.authorProfilePictureURL)) { phase in
                     if let image = phase.image {
                         image.resizable()
+                    } else if phase.error != nil {
+                        Color.gray.opacity(0.3)
                     } else {
-                        Circle().fill(Color.gray.opacity(0.3))
+                        Color.gray.opacity(0.1)
                     }
                 }
-                .frame(width: 36, height: 36)
+                .frame(width: 56, height: 56)
                 .clipShape(Circle())
-                PlatformDot(platform: displayPost.platform, size: 10)
-                VStack(alignment: .leading, spacing: 0) {
+
+                VStack(alignment: .leading, spacing: 4) {
                     Text(displayPost.authorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.headline)
+
                     Text("@\(displayPost.authorUsername)")
-                        .font(.caption)
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
+
                 Spacer()
-                // Show boost timestamp if this is a boost, else original
-                Text(
-                    formatRelativeTime(
-                        from: post.originalPost != nil ? post.createdAt : displayPost.createdAt)
-                )
-                .font(.caption)
-                .foregroundColor(.secondary)
+
+                // Platform indicator
+                PlatformDot(platform: displayPost.platform)
             }
+
             // Post content
-            displayPost.contentView(lineLimit: nil, showLinkPreview: true)
+            Text(displayPost.content)
                 .font(.body)
-                .padding(.horizontal, 4)
-            // Media previews
-            if !displayPost.attachments.isEmpty {
-                ForEach(displayPost.attachments, id: \.url) { attachment in
-                    PostAttachmentView(attachment: attachment)
-                        .padding(.top, 4)
-                }
+                .padding(.vertical, 4)
+
+            // Render quoted post if available
+            if let quotedPostViewModel = viewModel.quotedPostViewModel {
+                QuotePostView(viewModel: quotedPostViewModel)
+                    .padding(.vertical, 4)
             }
-            // Action bar (always visible, disables actions if account is nil)
+
+            // Media attachments
+            if !displayPost.attachments.isEmpty {
+                UnifiedMediaGridView(attachments: displayPost.attachments)
+                    .padding(.vertical, 4)
+            }
+
+            // Action buttons
             HStack(spacing: 24) {
                 Button(action: { /* reply */  }) {
                     Image(systemName: "bubble.left")
@@ -386,6 +373,12 @@ struct PostCardView: View {
             NavigationView {
                 PostDetailView(viewModel: viewModel, focusReplyComposer: $shouldFocusReplyComposer)
             }
+        }
+        .onAppear {
+            print("[PostCardView] onAppear for postId=\(viewModel.post.id)")
+        }
+        .onDisappear {
+            print("[PostCardView] onDisappear for postId=\(post.id)")
         }
     }
 }
@@ -633,190 +626,6 @@ extension SocialPlatform {
         case .mastodon:
             return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
         }
-    }
-}
-
-// MARK: - Expanding Reply Banner (Local Copy)
-struct ExpandingReplyBanner: View {
-    let username: String
-    let network: SocialPlatform
-    let parentId: String?
-    @Binding var isExpanded: Bool
-    var onBannerTap: (() -> Void)? = nil
-    @ObservedObject private var parentCache = PostParentCache.shared
-
-    // Track when we've attempted to fetch the parent
-    @State private var hasFetched = false
-
-    // Remove computed properties that cause AttributeGraph cycles
-    // Use state variables instead to avoid recalculation during view updates
-    @State private var cachedParent: Post? = nil
-    @State private var cachedDisplayUsername: String = ""
-    @State private var isLoading: Bool = false
-
-    private func updateCachedData() {
-        guard let parentId = parentId else {
-            cachedParent = nil
-            cachedDisplayUsername = username
-            isLoading = false
-            return
-        }
-
-        // Update cached parent
-        cachedParent = parentCache.cache[parentId]
-
-        // Update display username
-        if let parent = cachedParent {
-            if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
-                && parent.authorUsername != "unknown"
-            {
-                cachedDisplayUsername = parent.authorUsername
-            } else {
-                cachedDisplayUsername = username
-            }
-        } else {
-            cachedDisplayUsername = username
-        }
-
-        // Update loading state
-        isLoading = isExpanded && parentCache.isFetching(id: parentId)
-    }
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    // Helper function to return appropriate glow color based on color scheme
-    private func adaptiveGlowColor(opacity: Double) -> Color {
-        colorScheme == .dark ? Color.white.opacity(opacity) : Color.black.opacity(opacity * 0.7)
-    }
-
-    var body: some View {
-        // Unified container that "grows" to reveal content
-        VStack(alignment: .leading, spacing: 0) {
-            // Banner header - always visible
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.turn.up.left")
-                    .font(.caption)
-                    .foregroundColor(network.secondaryColor)
-
-                Text("Replying to @\(cachedDisplayUsername)")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-
-                // Show a subtle loading indicator if actively fetching
-                if isLoading {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 12, height: 12)
-                }
-
-                Spacer()
-
-                Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    .animation(
-                        .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0),
-                        value: isExpanded)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0)) {
-                    isExpanded.toggle()
-                }
-                onBannerTap?()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-
-            // Expanded content - controlled height animation without overlapping
-            Group {
-                if let parent = cachedParent {
-                    ParentPostPreview(post: parent)
-                        .padding(.horizontal, 10)
-                        .padding(.top, 8)
-                        .padding(.bottom, 10)
-                } else {
-                    // Always show loading state for seamless experience
-                    LoadingParentView()
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 12)
-                }
-            }
-            .frame(height: isExpanded ? nil : 0)
-            .clipped()
-            .opacity(isExpanded ? 1 : 0)
-            .animation(
-                .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0),
-                value: isExpanded
-            )
-        }
-        .background(Color.adaptiveElementBackground(for: colorScheme))
-        .clipShape(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.adaptiveElementBorder(for: colorScheme), lineWidth: 0.5)
-        )
-        .shadow(color: adaptiveGlowColor(opacity: 0.03), radius: 0.5, x: 0, y: 0)
-        .shadow(color: adaptiveGlowColor(opacity: 0.02), radius: 1, x: 0, y: 0)
-        .shadow(
-            color: colorScheme == .dark
-                ? Color.elementShadow : Color.black.opacity(0.05), radius: 1, y: 1
-        )
-        .animation(
-            .spring(response: 0.35, dampingFraction: 0.75, blendDuration: 0),
-            value: isExpanded
-        )
-        .onChange(of: isExpanded) { newValue in
-            // Update cached data when expansion state changes
-            updateCachedData()
-            // Trigger parent hydration when expanded - defer to avoid state update during view update
-            if newValue, let parentId = parentId {
-                DispatchQueue.main.async {
-                    triggerParentFetch(parentId: parentId)
-                }
-            }
-        }
-        .onChange(of: parentCache.cache) { _ in
-            // Update cached data when cache changes
-            updateCachedData()
-        }
-        .onAppear {
-            // Initialize cached data and display username
-            cachedDisplayUsername = username
-            updateCachedData()
-            // Also try to fetch immediately if expanded - defer to avoid state update during view update
-            if isExpanded, let parentId = parentId {
-                DispatchQueue.main.async {
-                    triggerParentFetch(parentId: parentId)
-                }
-            }
-        }
-    }
-
-    private func triggerParentFetch(parentId: String) {
-        // Only fetch if we don't have a proper parent already and we're not already fetching
-        guard cachedParent == nil || cachedParent?.authorUsername == "unknown.bsky.social",
-            !parentCache.isFetching(id: parentId)
-        else {
-            // If we already have the parent, mark as fetched
-            if cachedParent != nil {
-                hasFetched = true
-            }
-            return
-        }
-
-        hasFetched = true
-        parentCache.fetchRealPost(
-            id: parentId,
-            username: username,
-            platform: network,
-            serviceManager: SocialServiceManager.shared,
-            allAccounts: SocialServiceManager.shared.mastodonAccounts
-                + SocialServiceManager.shared.blueskyAccounts
-        )
     }
 }
 

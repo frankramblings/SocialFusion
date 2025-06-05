@@ -176,6 +176,14 @@ public class PostViewModel: ObservableObject {
             }
             .store(in: &cancellables)
     }
+
+    // MARK: - Computed Properties
+
+    /// Exposes the quoted post for the view layer
+    public var quotedPostViewModel: PostViewModel? {
+        guard let quotedPost = post.quotedPost else { return nil }
+        return PostViewModel(post: quotedPost, serviceManager: serviceManager)
+    }
 }
 
 // MARK: - Errors

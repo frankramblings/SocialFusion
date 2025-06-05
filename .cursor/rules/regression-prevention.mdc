@@ -1,0 +1,117 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Regression Prevention Protocol
+// Description: Enforces strict regression prevention and feature preservation across all changes
+// Version: 1.0.0
+
+export default {
+  name: "regression-prevention",
+  description: "Enforces strict regression prevention and feature preservation across all changes",
+
+  // On session start, inject regression prevention protocol
+  onSessionStart: async ({ workspace, logger }) => {
+    const regressionProtocol = `
+# Regression Prevention Protocol
+
+## Core Principles
+- NO REGRESSIONS: Every change must maintain or improve existing functionality
+- NO UI BREAKAGE: All UI elements must maintain their intended behavior and appearance
+- NO FEATURE LOSS: All existing features must continue to work as expected
+- NO RULE DRIFT: All development rules and protocols must be strictly followed
+
+## Pre-Change Requirements
+1. Document Current State
+   - Capture screenshots of affected UI elements
+   - Document current behavior and functionality
+   - List all features that could be impacted
+   - Note any existing edge cases or special behaviors
+
+2. Impact Analysis
+   - Identify all components that could be affected
+   - Map dependencies and data flow
+   - List potential regression points
+   - Document test cases that must pass
+
+## During Changes
+1. Feature Preservation
+   - Maintain all existing functionality
+   - Preserve UI layout and behavior
+   - Keep all features working as before
+   - Document any intentional changes
+
+2. UI Integrity
+   - Maintain visual consistency
+   - Preserve accessibility features
+   - Keep animations smooth
+   - Ensure proper layout on all devices
+
+3. Data Flow Protection
+   - Maintain data integrity
+   - Preserve error handling
+   - Keep state management consistent
+   - Protect against data loss
+
+## Post-Change Verification
+1. Regression Testing
+   - Test all affected features
+   - Verify UI appearance and behavior
+   - Check all edge cases
+   - Validate data flow
+
+2. Feature Validation
+   - Confirm all features still work
+   - Verify no functionality is lost
+   - Test all user interactions
+   - Check performance metrics
+
+3. UI Verification
+   - Compare before/after screenshots
+   - Test on all supported devices
+   - Verify accessibility
+   - Check animations and transitions
+
+## Anti-Patterns to Avoid
+❌ Making changes without documenting current state
+❌ Assuming changes won't affect other features
+❌ Skipping regression testing
+❌ Ignoring edge cases
+❌ Breaking existing functionality
+❌ Compromising UI consistency
+❌ Losing features during refactoring
+❌ Drifting from established rules
+
+## Project-Specific Requirements
+- Maintain backward compatibility with iOS 16+
+- Ensure forward compatibility with iOS 17+
+- Preserve all social network integrations
+- Keep timeline functionality intact
+- Maintain cross-posting capabilities
+- Preserve timeline pinning features
+
+## Verification Checklist
+✅ All existing features work as before
+✅ UI remains consistent and functional
+✅ No performance regressions
+✅ All edge cases handled
+✅ Accessibility maintained
+✅ Data integrity preserved
+✅ Error handling intact
+✅ Animations smooth
+✅ Layout correct on all devices
+✅ No unintended side effects`;
+
+    logger.info("[Regression Prevention Protocol]\n" + regressionProtocol);
+    return true;
+  },
+
+  // On file save, remind about regression prevention if changes were made
+  onFileSave: async ({ file, workspace, logger }) => {
+    if (file.path.endsWith('.swift')) {
+      logger.info("⚠️ Remember to prevent regressions for changes to: " + file.path);
+    }
+    return true;
+  }
+};

@@ -62,11 +62,10 @@ public class TokenManager {
         }
 
         // Prepare the server URL
-        let serverURL = account.serverURL
-
-        guard let url = URL(string: "\(serverURL)/oauth/token") else {
+        guard let baseURL = account.serverURL else {
             throw TokenError.invalidServerURL
         }
+        let url = baseURL.appendingPathComponent("oauth/token")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"

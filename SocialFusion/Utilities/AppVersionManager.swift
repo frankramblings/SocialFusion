@@ -19,7 +19,9 @@ public final class AppVersionManager: ObservableObject {
             let currentBuild = getCurrentBuildNumber()
         else {
             // If we can't get version info, don't show animation
-            shouldShowLaunchAnimation = false
+            DispatchQueue.main.async {
+                self.shouldShowLaunchAnimation = false
+            }
             return
         }
 
@@ -34,7 +36,9 @@ public final class AppVersionManager: ObservableObject {
         let isVersionUpdate = lastVersion != currentVersion
         let isBuildUpdate = lastBuild != currentBuild
 
-        shouldShowLaunchAnimation = isFirstLaunch || isVersionUpdate || isBuildUpdate
+        DispatchQueue.main.async {
+            self.shouldShowLaunchAnimation = isFirstLaunch || isVersionUpdate || isBuildUpdate
+        }
 
         // Update stored version/build
         userDefaults.set(currentVersion, forKey: lastVersionKey)
@@ -57,12 +61,16 @@ public final class AppVersionManager: ObservableObject {
 
     /// Call this after launch animation completes
     public func markLaunchAnimationCompleted() {
-        shouldShowLaunchAnimation = false
+        DispatchQueue.main.async {
+            self.shouldShowLaunchAnimation = false
+        }
     }
 
     /// Force show launch animation (for testing purposes)
     public func forceShowLaunchAnimation() {
-        shouldShowLaunchAnimation = true
+        DispatchQueue.main.async {
+            self.shouldShowLaunchAnimation = true
+        }
     }
 
     /// Reset version tracking (for testing purposes)

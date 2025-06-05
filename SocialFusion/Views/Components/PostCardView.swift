@@ -38,10 +38,7 @@ struct PostCardView: View {
 
             // Media section
             if !post.attachments.isEmpty {
-                PostMediaView(
-                    attachments: post.attachments,
-                    onMediaTap: onMediaTap
-                )
+                UnifiedMediaGridView(attachments: post.attachments)
             }
 
             // Action bar

@@ -59,7 +59,7 @@ struct PostDetailView: View {
 
                 // Media attachments
                 if !displayPost.attachments.isEmpty {
-                    MediaGridView(attachments: displayPost.attachments)
+                    UnifiedMediaGridView(attachments: displayPost.attachments)
                         .frame(maxWidth: .infinity)
                         .aspectRatio(contentMode: .fit)
                         .cornerRadius(8)

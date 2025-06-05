@@ -496,6 +496,7 @@ private func shortenUsername(_ username: String) -> String {
 }
 
 // Cache for parent posts to avoid duplicate fetches
+@MainActor
 class PostParentCache: ObservableObject {
     static let shared = PostParentCache()
     @Published var cache = [String: Post]()

@@ -7,45 +7,25 @@ struct ExpandingReplyBanner: View {
     @Binding var isExpanded: Bool
     var onBannerTap: (() -> Void)? = nil
     @ObservedObject private var parentCache = PostParentCache.shared
+    @State private var parent: Post? = nil
 
-    // Track when we've attempted to fetch the parent
-    @State private var hasFetched = false
-
-    private var parent: Post? {
-        guard let parentId = parentId else { return nil }
-        let cachedParent = parentCache.cache[parentId]
-        if let cachedParent = cachedParent {
-            print(
-                "[DEBUG] ExpandingReplyBanner found cached parent for \(parentId): authorUsername='\(cachedParent.authorUsername)', isPlaceholder=\(cachedParent.isPlaceholder)"
-            )
-        }
-        return cachedParent
-    }
-
-    // Use the actual parent username if available, otherwise fall back to the provided username
     private var displayUsername: String {
         if let parent = parent {
-            // Use cached parent username if it's valid and not a placeholder
             if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
                 && parent.authorUsername != "unknown" && !parent.isPlaceholder
             {
-                print(
-                    "[DEBUG] ExpandingReplyBanner using cached parent username: \(parent.authorUsername)"
-                )
                 return parent.authorUsername
             }
         }
-
-        print(
-            "[DEBUG] ExpandingReplyBanner using fallback username: \(username), parent exists: \(parent != nil), parent username: '\(parent?.authorUsername ?? "nil")', isExpanded: \(isExpanded), hasFetched: \(hasFetched)"
-        )
         return username
     }
 
     private var shouldShowLoadingState: Bool {
         guard let parentId = parentId else { return false }
-        return isExpanded && parentCache.isFetching(parentId)
+        return isExpanded && parentCache.isFetching(id: parentId)
     }
+
+    @State private var fetchAttempted = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -59,7 +39,6 @@ struct ExpandingReplyBanner: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                // Show a subtle loading indicator if actively fetching
                 if shouldShowLoadingState {
                     ProgressView()
                         .scaleEffect(0.6)
@@ -73,14 +52,7 @@ struct ExpandingReplyBanner: View {
             }
             .contentShape(Rectangle())
             .onTapGesture {
-                print(
-                    "[DEBUG] ExpandingReplyBanner tapped for postID: \(parentId ?? "nil"), username: \(displayUsername), parent present: \(parent != nil), isExpanded: \(isExpanded)"
-                )
-                if let parent = parent {
-                    print("[DEBUG] Parent postID: \(parent.id), author: \(parent.authorUsername)")
-                }
-
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25)) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
                     isExpanded.toggle()
                 }
                 onBannerTap?()
@@ -98,11 +70,6 @@ struct ExpandingReplyBanner: View {
             // Parent post preview
             if isExpanded {
                 if let parent = parent {
-                    #if DEBUG
-                        print(
-                            "[DEBUG] ExpandingReplyBanner: parent.id=\(parent.id), isPlaceholder=\(parent.isPlaceholder)"
-                        )
-                    #endif
                     if parent.isPlaceholder {
                         VStack(spacing: 8) {
                             Image(systemName: "arrow.triangle.2.circlepath")
@@ -114,6 +81,13 @@ struct ExpandingReplyBanner: View {
                         }
                         .padding(.vertical, 12)
                         .frame(maxWidth: .infinity)
+                        .background(Color(.systemGray6).opacity(0.7))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                        )
+                        .padding(.top, 8)
                     } else {
                         ParentPostPreview(post: parent)
                             .padding(.horizontal, 8)
@@ -129,8 +103,13 @@ struct ExpandingReplyBanner: View {
                 } else if shouldShowLoadingState {
                     LoadingParentView()
                         .padding(.top, 8)
-                } else if hasFetched {
-                    // Show error state if we've tried fetching but have no parent
+                        .background(Color(.systemGray6).opacity(0.7))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                        )
+                } else if fetchAttempted {
                     VStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundColor(.orange)
@@ -141,36 +120,75 @@ struct ExpandingReplyBanner: View {
                     }
                     .padding(.vertical, 12)
                     .frame(maxWidth: .infinity)
-                } else {
-                    LoadingParentView()
-                        .padding(.top, 8)
+                    .background(Color(.systemGray6).opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                    )
+                    .padding(.top, 8)
                 }
             }
         }
-        .onChange(of: isExpanded) { newValue in
-            // Trigger parent hydration when expanded
-            if newValue, let parentId = parentId {
+        .onAppear {
+            print(
+                "[ExpandingReplyBanner] onAppear for parentId=\(String(describing: parentId)), isExpanded=\(isExpanded)"
+            )
+        }
+        .onDisappear {
+            print("[ExpandingReplyBanner] onDisappear for parentId=\(String(describing: parentId))")
+        }
+        .onReceive(parentCache.$cache) { cache in
+            guard let parentId = parentId else { return }
+            let newParent = cache[parentId]
+            if parent !== newParent {
+                print(
+                    "[ExpandingReplyBanner] updateParent for parentId=\(parentId): \(String(describing: newParent))"
+                )
+                parent = newParent
+            }
+        }
+        .task(id: parentId) {
+            guard let parentId = parentId else { return }
+            print("[ExpandingReplyBanner] .task for parentId=\(parentId), isExpanded=\(isExpanded)")
+            if isExpanded {
                 triggerParentFetch(parentId: parentId)
             }
         }
-        .onAppear {
-            // Also try to fetch immediately if expanded
-            if isExpanded, let parentId = parentId {
+        .onChange(of: isExpanded) { newValue in
+            print(
+                "[ExpandingReplyBanner] .onChange isExpanded=\(newValue) parentId=\(String(describing: parentId))"
+            )
+            if newValue, let parentId = parentId {
                 triggerParentFetch(parentId: parentId)
             }
         }
     }
 
     private func triggerParentFetch(parentId: String) {
-        print("[DEBUG] ExpandingReplyBanner triggering parent fetch for: \(parentId)")
-
-        // Only fetch if we don't have a proper parent already and we're not already fetching
-        if (parent == nil || parent?.isPlaceholder == true
-            || parent?.authorUsername == "unknown.bsky.social")
-            && !parentCache.isFetching(parentId)
-        {
-
-            hasFetched = true
+        print("[ExpandingReplyBanner] triggerParentFetch called for parentId=\(parentId)")
+        guard let parent = parent else {
+            if !parentCache.isFetching(id: parentId) {
+                print("[ExpandingReplyBanner] Actually triggering fetch for parentId=\(parentId)")
+                fetchAttempted = true
+                parentCache.fetchRealPost(
+                    id: parentId,
+                    username: username,
+                    platform: network,
+                    serviceManager: SocialServiceManager.shared,
+                    allAccounts: SocialServiceManager.shared.mastodonAccounts
+                        + SocialServiceManager.shared.blueskyAccounts
+                )
+            } else {
+                print("[ExpandingReplyBanner] Already fetching parentId=\(parentId)")
+            }
+            return
+        }
+        if parent.isPlaceholder, !parentCache.isFetching(id: parentId) {
+            print(
+                "[ExpandingReplyBanner] Parent is placeholder, triggering fetch for parentId=\(parentId)"
+            )
+            fetchAttempted = true
             parentCache.fetchRealPost(
                 id: parentId,
                 username: username,
@@ -179,9 +197,10 @@ struct ExpandingReplyBanner: View {
                 allAccounts: SocialServiceManager.shared.mastodonAccounts
                     + SocialServiceManager.shared.blueskyAccounts
             )
-        } else if parent != nil {
-            // If we already have the parent, mark as fetched
-            hasFetched = true
+        } else {
+            print(
+                "[ExpandingReplyBanner] Parent is not placeholder or already fetching for parentId=\(parentId)"
+            )
         }
     }
 }

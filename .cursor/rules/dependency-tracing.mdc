@@ -1,0 +1,78 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Dependency Tracing Protocol
+// Description: Enforces systematic dependency tracing and coordinated changes across the codebase
+// Version: 1.0.0
+
+export default {
+  name: "dependency-tracing",
+  description: "Enforces systematic dependency tracing and coordinated changes across the codebase",
+
+  // On session start, inject dependency tracing protocol
+  onSessionStart: async ({ workspace, logger }) => {
+    const dependencyProtocol = `
+# Dependency Tracing Protocol
+
+## 1. Core Protocol Requirements
+- Must trace dependencies across files before making changes
+- Search for all references to functions/properties/types being modified
+- Update dependent files synchronously - never leave breaking changes
+- Use grep/search to find ALL usages across the entire codebase
+- Make coordinated changes to avoid "breaking changes that need manual hunting"
+- Verify imports and dependencies are updated consistently
+
+## 2. Specific Tracing Steps
+- Before modifying function signatures: search for all call sites
+- Before renaming properties: find all references across files
+- Before changing data structures: locate all dependent code
+- Before removing methods: ensure no orphaned references remain
+- When updating logic in file XYZ: verify dependent files ABC123 use it properly
+
+## 3. Multi-File Refactoring Requirements
+- Never leave breaking references - fix all call sites immediately
+- Update imports and dependencies in the same edit session
+- Search entire codebase for affected symbols before claiming completion
+- Test the complete dependency chain after refactoring
+
+## 4. Anti-Patterns to Avoid
+- Making assumptions about what code 'should' be running
+- Fixing one location without checking for others
+- Ignoring comments that reveal actual behavior
+- Surface-level fixes without understanding root cause
+- Circular reasoning ('I fixed it' when symptoms persist)
+- Saying "this should work" without building and testing the app
+- Assuming code changes are successful without verification
+- Skipping the simulator testing phase
+- Refactoring without tracing dependencies across files
+- Leaving breaking changes that require manual hunting
+- Making isolated changes without updating dependent files
+
+## 5. Testing Requirements
+- ✅ Always use iPhone 16 Pro simulator unless explicitly instructed otherwise
+- Never skip testing phase after making code changes
+- Capture and analyze any error logs
+- Test the exact scenario that was originally broken
+- Provide evidence of successful fix
+
+## 6. Project-Specific Considerations
+- Maintain backward compatibility with iOS 16+
+- Ensure forward compatibility with iOS 17+
+- Avoid editing project.pbxproj file (create backup if necessary)
+- Don't make assumptions about code structure or folder organization
+- Focus on effective, maintainable solutions free from unintended side effects`;
+
+    logger.info("[Dependency Tracing Protocol]\n" + dependencyProtocol);
+    return true;
+  },
+
+  // On file save, remind about dependency tracing if changes were made
+  onFileSave: async ({ file, workspace, logger }) => {
+    if (file.path.endsWith('.swift')) {
+      logger.info("⚠️ Remember to trace dependencies for changes made to: " + file.path);
+    }
+    return true;
+  }
+};

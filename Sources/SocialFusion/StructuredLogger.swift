@@ -1,3 +1,4 @@
+import Foundation
 import Logging
 
 /// A structured logging system for the SocialFusion application.

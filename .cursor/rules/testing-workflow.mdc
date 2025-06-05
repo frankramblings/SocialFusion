@@ -1,0 +1,94 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+// Cursor Rule: Testing Workflow
+// Description: Enforces comprehensive testing workflow for all code changes
+// Version: 1.0.0
+
+export default {
+  name: "testing-workflow",
+  description: "Enforces comprehensive testing workflow for all code changes",
+
+  // On session start, inject testing workflow context
+  onSessionStart: async ({ workspace, logger }) => {
+    const testingWorkflow = `
+# Complete Testing Workflow
+
+## Phase 1: Investigation
+- Issue Identification: User reports specific UI content or functionality problem
+- Comprehensive Search: Search entire codebase for exact UI text/strings that appear in the problem
+- Source Mapping: Identify ALL locations where this content could originate (models, services, view models, etc.)
+- Data Flow Tracing: Trace data flow from each potential source to UI display
+- Active Path Verification: Determine which codepath is actually executing
+
+## Phase 2: Implementation
+- Targeted Fixes: Propose and implement fixes for the active codepath
+- Code Changes: Use edit tools to implement the changes in relevant files
+
+## Phase 3: Mandatory Verification (The Critical Testing Loop)
+NEVER claim success without completing this entire sequence:
+
+### Build Phase
+1. Apply
+2. Run
+
+### Installation Phase
+1. Apply
+2. Run
+
+### Testing Phase
+1. Apply
+2. Run
+
+### Verification Requirements
+- Monitor app logs during execution to catch runtime issues
+- Test exact reported scenario that was originally broken
+- Verify the specific issue is fixed by reproducing the original problem
+- Capture evidence of successful fix (screenshots, log outputs, etc.)
+- Only report success after successful testing with concrete evidence
+
+## Key Testing Principles
+
+### Anti-Patterns We Avoid
+❌ Making assumptions about what code 'should' be running
+❌ Saying "this should work" without building and testing
+❌ Assuming code changes are successful without verification
+❌ Surface-level fixes without understanding root cause
+❌ Skipping the simulator testing phase
+❌ Circular reasoning ('I fixed it' when symptoms persist)
+
+### Testing Standards
+✅ Always use iPhone 16 Pro simulator unless explicitly instructed otherwise
+✅ Never skip testing phase after making code changes
+✅ Capture and analyze any error logs that appear during testing
+✅ Test the exact user-reported scenario that was originally broken
+✅ Provide evidence of successful fix with concrete proof
+
+## Project-Specific Context
+- Target Platform: iOS 16+ with forward compatibility to iOS 17+
+- Key Components: SocialServiceManager.swift, UnifiedTimelineView.swift, PostCardView.swift
+- Architecture: SwiftUI + Swift Package Manager + XcodeGen
+- Functionality: Unified Mastodon and Bluesky social feeds
+
+This testing loop ensures that every fix is:
+- Thoroughly investigated to understand root cause
+- Properly implemented with targeted changes
+- Rigorously verified through actual app testing in simulator
+- Proven successful with concrete evidence before claiming completion
+
+The emphasis is on never assuming success - every change must be validated through the complete build-install-test cycle.`;
+
+    logger.info("[Testing Workflow]\n" + testingWorkflow);
+    return true;
+  },
+
+  // On file save, remind about testing workflow if changes were made
+  onFileSave: async ({ file, workspace, logger }) => {
+    if (file.path.endsWith('.swift')) {
+      logger.info("⚠️ Remember to follow the complete testing workflow for any changes made to: " + file.path);
+    }
+    return true;
+  }
+};

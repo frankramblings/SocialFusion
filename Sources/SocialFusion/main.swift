@@ -1,7 +1,6 @@
 import Foundation
 
 /// The entry point of the SocialFusion application.
-@main
 struct SocialFusion {
     static func main() {
         do {
@@ -34,3 +33,6 @@ struct SocialFusion {
             ])
     }
 }
+
+// Top-level code
+SocialFusion.main()

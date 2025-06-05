@@ -1013,6 +1013,7 @@ class BlueskyService {
                 // Extract quote post info if present
                 var quotedPostUri: String? = nil
                 var quotedPostAuthorHandle: String? = nil
+                var quotedPost: Post? = nil
                 if let embed = post["embed"] as? [String: Any],
                     let record = embed["record"] as? [String: Any],
                     let quotedRecord = record["record"] as? [String: Any],
@@ -1022,6 +1023,40 @@ class BlueskyService {
                 {
                     quotedPostUri = quotedUri
                     quotedPostAuthorHandle = quotedHandle
+                    // Hydrate quotedPost if the full quoted post is embedded
+                    if let quotedText = quotedRecord["text"] as? String,
+                        let quotedCreatedAt = quotedRecord["createdAt"] as? String,
+                        let quotedAuthorName = quotedAuthor["displayName"] as? String
+                            ?? quotedHandle as String?,
+                        let quotedAuthorAvatar = quotedAuthor["avatar"] as? String
+                    {
+                        let quotedCreatedAtDate =
+                            DateParser.parse(quotedCreatedAt) ?? Date.distantPast
+                        quotedPost = Post(
+                            id: quotedUri,
+                            content: quotedText,
+                            authorName: quotedAuthorName,
+                            authorUsername: quotedHandle,
+                            authorProfilePictureURL: quotedAuthorAvatar,
+                            createdAt: quotedCreatedAtDate,
+                            platform: .bluesky,
+                            originalURL:
+                                "https://bsky.app/profile/\(quotedHandle)/post/\(quotedUri.split(separator: "/").last ?? "")",
+                            attachments: [],
+                            mentions: [],
+                            tags: [],
+                            likeCount: 0,
+                            repostCount: 0,
+                            platformSpecificId: quotedUri,
+                            boostedBy: nil,
+                            parent: nil,
+                            inReplyToID: nil,
+                            inReplyToUsername: nil,
+                            quotedPostUri: nil,
+                            quotedPostAuthorHandle: nil,
+                            cid: quotedRecord["cid"] as? String
+                        )
+                    }
                 }
 
                 let cid = post["cid"] as? String
@@ -1063,6 +1098,7 @@ class BlueskyService {
                     quotedPostAuthorHandle: quotedPostAuthorHandle,
                     cid: cid
                 )
+                newPost.quotedPost = quotedPost
                 logger.info(
                     "[Bluesky] Parsed post: id=\(uri), cid=\(cid ?? "nil"), content=\(text.prefix(40))"
                 )

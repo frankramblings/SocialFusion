@@ -8,7 +8,7 @@ struct TimelineCard<Content: View>: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.cardBackground)
+                    .fill(Color.customCardBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)

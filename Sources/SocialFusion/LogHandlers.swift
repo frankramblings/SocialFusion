@@ -3,7 +3,7 @@ import Logging
 /// A log handler that stores logs in memory for testing and debugging purposes.
 public final class InMemoryLogHandler: LogHandler {
     /// The log entries stored by this handler.
-    public private(set) var entries: [LogEntry] = []
+    public private(set) let entries: [LogEntry] = []
 
     /// A log entry containing the message and metadata.
     public struct LogEntry {

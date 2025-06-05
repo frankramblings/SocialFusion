@@ -14,12 +14,17 @@ final class PostStore: ObservableObject {
 
     // Insert or update a post
     func upsert(_ post: Post) {
-        posts[post.id] = post
+        posts[post.stableId] = post
     }
 
     // Insert or update multiple posts
     func upsert(_ newPosts: [Post]) {
         for post in newPosts { upsert(post) }
+    }
+
+    // Get a post by its stable ID
+    func getPost(byStableId stableId: String) -> Post? {
+        return posts[stableId]
     }
 
     // Optimistic like

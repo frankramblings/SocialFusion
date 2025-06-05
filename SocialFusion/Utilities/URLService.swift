@@ -11,7 +11,7 @@ class URLService {
     /// - Returns: A validated URL or nil if the URL is invalid and can't be fixed
     func validateURL(_ urlString: String) -> URL? {
         // First, try to create URL as-is
-        guard var url = URL(string: urlString) else {
+        guard let url = URL(string: urlString) else {
             // If initial creation fails, try percent encoding the string
             let encodedString = urlString.addingPercentEncoding(
                 withAllowedCharacters: .urlQueryAllowed)

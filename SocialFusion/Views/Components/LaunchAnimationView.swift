@@ -1,71 +1,124 @@
 import SwiftUI
 
-/// A lightweight launch-screen animation that echoes the SocialFusion app icon.
-/// Place this view as the very first screen after the static LaunchScreen storyboard.
-/// – Two circles begin slightly apart (±52 pt) and ease inward to ±4 pt.
-/// – A cyan bloom sitting in the overlap fades from 0 → 1 opacity over the same 0.6 s.
-/// The total animation is subtle enough to feel native but long enough to be perceived.
-
 struct LaunchAnimationView: View {
-    // Animation trigger
-    @State private var fuse = false
+    var onFinished: () -> Void = {}
+
+    // MARK: – State
+    @State private var fused = false
+    @State private var bloomScale: CGFloat = 0.3
+    @State private var bloomOpacity: Double = 0
+    @State private var textSpacing: CGFloat = 80
 
     // MARK: – Geometry
-    private let circleSize: CGFloat = 160
-    private let startOffset: CGFloat = 52  // how far apart circles start
-    private let endOffset: CGFloat = 4  // final offset so they still read as two bodies
+    private let circleSize: CGFloat = 180
+    private let startGap: CGFloat = 80
+    private var halfWidth: CGFloat { circleSize / 2 }
 
-    // MARK: – Colours (match the icon spec)
-    private let mastodonPurple = Color(red: 0.54, green: 0.39, blue: 1.00)  // #8A63FF
-    private let blueskyBlue = Color(red: 0.00, green: 0.59, blue: 1.00)  // #0096FF
-    private let lensCyan = Color(red: 0.12, green: 0.91, blue: 1.00)  // #1EE7FF
+    // MARK: – Colours
+    private let purple = Color(red: 0.54, green: 0.39, blue: 1.00)   // #8A63FF
+    private let blue   = Color(red: 0.00, green: 0.59, blue: 1.00)   // #0096FF
+    private let lensCyan = Color(red: 0.11, green: 0.91, blue: 1.00) // #1EE7FF
+    private let lensOutlineWidth: CGFloat = 2
+
+    // MARK: – Timing
+    private let anim = Animation.easeOut(duration: 0.6)
 
     var body: some View {
         ZStack {
-            // -- Background -----
-            Color("LaunchBackground")  // Use a colour in Assets (e.g. #0A0C24 in dark / #D9F0FF in light)
+            Color("LaunchBackground")
                 .ignoresSafeArea()
 
-            // -- Circles -----
-            Circle()
-                .fill(mastodonPurple)
-                .frame(width: circleSize, height: circleSize)
-                .offset(x: fuse ? -endOffset : -startOffset)
+            VStack(spacing: 24) {
+                // Two circles + fusion lens
+                ZStack {
+                    Circle()
+                        .fill(purple.opacity(0.85))
+                        .frame(width: circleSize, height: circleSize)
+                        .overlay(
+                            Circle()
+                                .stroke(purple, lineWidth: 1)
+                                .opacity(0.9)
+                        )
+                        .offset(x: fused ? -halfWidth / 2 : -(halfWidth + startGap))
 
-            Circle()
-                .fill(blueskyBlue)
-                .frame(width: circleSize, height: circleSize)
-                .offset(x: fuse ? endOffset : startOffset)
+                    Circle()
+                        .fill(blue.opacity(0.85))
+                        .frame(width: circleSize, height: circleSize)
+                        .overlay(
+                            Circle()
+                                .stroke(blue, lineWidth: 1)
+                                .opacity(0.9)
+                        )
+                        .offset(x: fused ?  halfWidth / 2 :  (halfWidth + startGap))
 
-            // -- Lens bloom -----
-            Circle()
-                .fill(lensCyan)
-                .frame(width: circleSize * 0.62)
-                .opacity(fuse ? 1 : 0)
-                .blur(radius: fuse ? 18 : 2)
-                .animation(.easeOut(duration: 0.6), value: fuse)
-        }
-        .onAppear {
-            // Delay a single frame so the view draws its initial state first
-            DispatchQueue.main.async {
-                withAnimation(.easeOut(duration: 0.6)) {
-                    fuse = true
+                    // Lens: solid core, radial glow, and outline
+                    ZStack {
+                        Circle()
+                            .fill(lensCyan.opacity(0.6))
+
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    gradient: Gradient(colors: [Color.white.opacity(0.8), lensCyan.opacity(0.0)]),
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: circleSize * 0.35
+                                )
+                            )
+                            .blendMode(.plusLighter)
+
+                        Circle()
+                            .stroke(lensCyan.opacity(0.9), lineWidth: lensOutlineWidth)
+                    }
+                    .frame(width: circleSize * 0.7)
+                    .opacity(bloomOpacity)
+                    .blur(radius: fused ? 12 : 2)
+                    .scaleEffect(bloomScale)
                 }
+
+                // Animated app name
+                HStack(spacing: textSpacing) {
+                    Text("Social")
+                    Text("Fusion")
+                }
+                .font(.system(size: 36, weight: .bold, design: .default))
+                .opacity(fused ? 1 : 0)
             }
         }
+        .onAppear {
+            withAnimation(anim) {
+                fused = true            // circles and text converge over 0.6 s
+                textSpacing = 0
+            }
+            // Wait until the circles are ~50 % overlapped, then trigger the reaction
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                withAnimation(.easeOut(duration: 0.12)) {
+                    bloomScale = 1.4
+                    bloomOpacity = 1
+                }
+                // settle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    withAnimation(.easeIn(duration: 0.28)) {
+                        bloomScale = 1.0
+                        bloomOpacity = 0.85
+                    }
+                }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                onFinished()
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 
-// MARK: – Preview -------------------------------------------------------------
 #if DEBUG
-    struct LaunchAnimationView_Previews: PreviewProvider {
-        static var previews: some View {
-            LaunchAnimationView()
-                .previewDisplayName("Launch animation – dark")
-                .environment(\.colorScheme, .dark)
-            LaunchAnimationView()
-                .previewDisplayName("Launch animation – light")
-                .environment(\.colorScheme, .light)
-        }
+struct LaunchAnimationView_Previews: PreviewProvider {
+    static var previews: some View {
+        LaunchAnimationView()
+            .environment(\.colorScheme, .light)
+        LaunchAnimationView()
+            .environment(\.colorScheme, .dark)
     }
+}
 #endif
