@@ -172,12 +172,8 @@ struct PostCardView: View {
 
             // Action bar (using the working ActionBar)
             if let viewModel = viewModel {
-                ActionBar(
-                    isLiked: viewModel.isLiked,
-                    isReposted: viewModel.isReposted,
-                    likeCount: viewModel.likeCount,
-                    repostCount: viewModel.repostCount,
-                    replyCount: 0,  // PostViewModel doesn't track reply count for timeline
+                ObservableActionBar(
+                    viewModel: viewModel,
                     onAction: { action in
                         switch action {
                         case .reply:

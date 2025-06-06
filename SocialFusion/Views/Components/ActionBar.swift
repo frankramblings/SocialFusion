@@ -2,12 +2,12 @@ import SwiftUI
 
 /// ActionBar component for social media post interactions
 struct ActionBar: View {
-    var isLiked: Bool = false
-    var isReposted: Bool = false
-    var likeCount: Int = 0
-    var repostCount: Int = 0
-    var replyCount: Int = 0
-    var onAction: (PostAction) -> Void
+    let isLiked: Bool
+    let isReposted: Bool
+    let likeCount: Int
+    let repostCount: Int
+    let replyCount: Int
+    let onAction: (PostAction) -> Void
 
     // Consistent spacing between action buttons
     private let buttonSpacing: CGFloat = 32
@@ -113,6 +113,33 @@ extension ActionBar {
         self.replyCount = 0  // Post doesn't include replyCount yet
         self.onAction = onAction
     }
+
+    // Convenience initializer for ActionBar that takes a PostViewModel
+    init(viewModel: PostViewModel, onAction: @escaping (PostAction) -> Void) {
+        self.isLiked = viewModel.isLiked
+        self.isReposted = viewModel.isReposted
+        self.likeCount = viewModel.likeCount
+        self.repostCount = viewModel.repostCount
+        self.replyCount = 0
+        self.onAction = onAction
+    }
+}
+
+/// ActionBarViewModel for observing PostViewModel state changes
+struct ObservableActionBar: View {
+    @ObservedObject var viewModel: PostViewModel
+    let onAction: (PostAction) -> Void
+
+    var body: some View {
+        ActionBar(
+            isLiked: viewModel.isLiked,
+            isReposted: viewModel.isReposted,
+            likeCount: viewModel.likeCount,
+            repostCount: viewModel.repostCount,
+            replyCount: 0,
+            onAction: onAction
+        )
+    }
 }
 
 #Preview("Normal State") {
@@ -143,6 +170,11 @@ extension ActionBar {
 
 #Preview("No Counts") {
     ActionBar(
+        isLiked: false,
+        isReposted: false,
+        likeCount: 0,
+        repostCount: 0,
+        replyCount: 0,
         onAction: { _ in }
     )
     .padding()

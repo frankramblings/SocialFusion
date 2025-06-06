@@ -816,6 +816,22 @@ final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Unlike a post (Mastodon or Bluesky)
+    func unlikePost(_ post: Post) async throws -> Post {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.unlikePost(post, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            return try await blueskyService.unlikePost(post, account: account)
+        }
+    }
+
     /// Repost a post (Mastodon or Bluesky)
     func repostPost(_ post: Post) async throws -> Post {
         switch post.platform {
@@ -829,6 +845,22 @@ final class SocialServiceManager: ObservableObject {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
             return try await blueskyService.repostPost(post, account: account)
+        }
+    }
+
+    /// Unrepost a post (Mastodon or Bluesky)
+    func unrepostPost(_ post: Post) async throws -> Post {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.unrepostPost(post, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            return try await blueskyService.unrepostPost(post, account: account)
         }
     }
 

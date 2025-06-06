@@ -1368,6 +1368,16 @@ class BlueskyService {
         return updatedPost
     }
 
+    /// Unlike a post on Bluesky (placeholder implementation)
+    func unlikePost(_ post: Post, account: SocialAccount) async throws -> Post {
+        // TODO: Implement proper unlike by deleting the like record
+        // For now, just toggle the local state
+        let updatedPost = post
+        updatedPost.isLiked = false
+        updatedPost.likeCount = max(0, updatedPost.likeCount - 1)
+        return updatedPost
+    }
+
     /// Repost a post on Bluesky
     func repostPost(_ post: Post, account: SocialAccount) async throws -> Post {
         guard let accessToken = account.getAccessToken() else {
@@ -1436,6 +1446,16 @@ class BlueskyService {
         let updatedPost = post
         updatedPost.isReposted = true
         updatedPost.repostCount += 1
+        return updatedPost
+    }
+
+    /// Unrepost a post on Bluesky (placeholder implementation)
+    func unrepostPost(_ post: Post, account: SocialAccount) async throws -> Post {
+        // TODO: Implement proper unrepost by deleting the repost record
+        // For now, just toggle the local state
+        let updatedPost = post
+        updatedPost.isReposted = false
+        updatedPost.repostCount = max(0, updatedPost.repostCount - 1)
         return updatedPost
     }
 

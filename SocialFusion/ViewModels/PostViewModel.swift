@@ -76,31 +76,6 @@ public class PostViewModel: ObservableObject {
         }
     }
 
-    /// Unlike the post
-    public func unlike() {
-        guard !isLoading else { return }
-
-        isLoading = true
-        error = nil
-
-        Task {
-            do {
-                let updatedPost = try await serviceManager.unlikePost(post)
-                await MainActor.run {
-                    self.post = updatedPost
-                    self.isLiked = false
-                    self.likeCount -= 1
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.error = error
-                    self.isLoading = false
-                }
-            }
-        }
-    }
-
     /// Toggle repost/unrepost the post
     public func repost() {
         guard !isLoading else { return }
@@ -120,31 +95,6 @@ public class PostViewModel: ObservableObject {
                     self.post = updatedPost
                     self.isReposted = updatedPost.isReposted
                     self.repostCount = updatedPost.repostCount
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.error = error
-                    self.isLoading = false
-                }
-            }
-        }
-    }
-
-    /// Unrepost the post
-    public func unrepost() {
-        guard !isLoading else { return }
-
-        isLoading = true
-        error = nil
-
-        Task {
-            do {
-                let updatedPost = try await serviceManager.unrepostPost(post)
-                await MainActor.run {
-                    self.post = updatedPost
-                    self.isReposted = false
-                    self.repostCount -= 1
                     self.isLoading = false
                 }
             } catch {

@@ -1060,6 +1060,41 @@ public class MastodonService {
         return convertMastodonStatusToPost(status, account: account)
     }
 
+    /// Unlike a post
+    func unlikePost(_ post: Post, account: SocialAccount) async throws -> Post {
+        let serverUrl = formatServerURL(
+            account.serverURL?.absoluteString ?? "")
+
+        // Extract status ID from the post's originalURL if available
+        var statusId = post.id
+        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
+            statusId = lastPathComponent
+        }
+
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unfavourite") else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
+        }
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to unlike post"])
+        }
+
+        let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+        return convertMastodonStatusToPost(status, account: account)
+    }
+
     /// Repost (reblog) a post on Mastodon
     func repostPost(_ post: Post, account: SocialAccount) async throws -> Post {
         let serverUrl = formatServerURL(
@@ -1089,6 +1124,41 @@ public class MastodonService {
             throw NSError(
                 domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to repost"])
+        }
+
+        let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+        return convertMastodonStatusToPost(status, account: account)
+    }
+
+    /// Unrepost (unreblog) a post on Mastodon
+    func unrepostPost(_ post: Post, account: SocialAccount) async throws -> Post {
+        let serverUrl = formatServerURL(
+            account.serverURL?.absoluteString ?? "")
+
+        // Extract status ID from the post's originalURL if available
+        var statusId = post.id
+        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
+            statusId = lastPathComponent
+        }
+
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unreblog") else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
+        }
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to unrepost"])
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
