@@ -3,7 +3,6 @@ import UIKit
 
 struct AccountsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
-    @State private var selectedAccountIds: Set<String> = ["all"]  // Default to "all" selected
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
     @State private var showDebugInfo = false
@@ -39,7 +38,7 @@ struct AccountsView: View {
 
                             Spacer()
 
-                            if selectedAccountIds.contains("all") {
+                            if serviceManager.selectedAccountIds.contains("all") {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
                             }
@@ -53,7 +52,9 @@ struct AccountsView: View {
                     Section(header: Text("Debug Info")) {
                         Text("Mastodon Accounts: \(serviceManager.mastodonAccounts.count)")
                         Text("Bluesky Accounts: \(serviceManager.blueskyAccounts.count)")
-                        Text("Selected IDs: \(selectedAccountIds.joined(separator: ", "))")
+                        Text(
+                            "Selected IDs: \(serviceManager.selectedAccountIds.joined(separator: ", "))"
+                        )
 
                         Button("Toggle Debug") {
                             showDebugInfo.toggle()
@@ -216,19 +217,19 @@ struct AccountsView: View {
                         Task {
                             await serviceManager.removeAccount(account)
                             // Remove account from selected IDs if it was selected
-                            selectedAccountIds.remove(account.id)
+                            serviceManager.selectedAccountIds.remove(account.id)
 
                             // If no accounts remain, select "all"
                             if serviceManager.mastodonAccounts.isEmpty
                                 && serviceManager.blueskyAccounts.isEmpty
                             {
-                                selectedAccountIds = ["all"]
-                            } else if selectedAccountIds.isEmpty {
-                                selectedAccountIds.insert("all")
+                                serviceManager.selectedAccountIds = ["all"]
+                            } else if serviceManager.selectedAccountIds.isEmpty {
+                                serviceManager.selectedAccountIds.insert("all")
                             }
 
                             // Update service manager's selection
-                            serviceManager.selectedAccountIds = selectedAccountIds
+                            serviceManager.selectedAccountIds = serviceManager.selectedAccountIds
                         }
                     }
                 }
@@ -238,8 +239,10 @@ struct AccountsView: View {
                 )
             }
             .onAppear {
-                // Auto-refresh account lists when view appears
-                refreshAccountSelections()
+                // Small delay to prevent rapid successive calls
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    refreshAccountSelections()
+                }
                 print(
                     "AccountsView appeared. Mastodon accounts: \(serviceManager.mastodonAccounts.count), Bluesky accounts: \(serviceManager.blueskyAccounts.count)"
                 )
@@ -284,7 +287,7 @@ struct AccountsView: View {
                 Button(action: {
                     toggleSelection(id: account.id)
                 }) {
-                    if selectedAccountIds.contains(account.id) {
+                    if serviceManager.selectedAccountIds.contains(account.id) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.blue)
                             .font(.system(size: 24))
@@ -338,50 +341,51 @@ struct AccountsView: View {
 
     // Toggle selection for an account
     private func toggleSelection(id: String) {
+        // Add haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.impactOccurred()
+
         if id == "all" {
             // If "all" is selected, clear other selections
-            if selectedAccountIds.contains("all") {
-                selectedAccountIds.remove("all")
+            if serviceManager.selectedAccountIds.contains("all") {
+                serviceManager.selectedAccountIds.remove("all")
             } else {
-                selectedAccountIds = ["all"]
+                serviceManager.selectedAccountIds = ["all"]
             }
         } else {
             // If a specific account is selected, remove "all"
-            if selectedAccountIds.contains(id) {
-                selectedAccountIds.remove(id)
+            if serviceManager.selectedAccountIds.contains(id) {
+                serviceManager.selectedAccountIds.remove(id)
             } else {
-                selectedAccountIds.insert(id)
-                selectedAccountIds.remove("all")
+                serviceManager.selectedAccountIds.insert(id)
+                serviceManager.selectedAccountIds.remove("all")
             }
 
             // If no accounts are selected, select "all"
-            if selectedAccountIds.isEmpty {
-                selectedAccountIds.insert("all")
+            if serviceManager.selectedAccountIds.isEmpty {
+                serviceManager.selectedAccountIds.insert("all")
             }
         }
 
-        // Sync with service manager
-        serviceManager.selectedAccountIds = selectedAccountIds
+        print("Account selection changed to: \(serviceManager.selectedAccountIds)")
 
-        print("Account selection changed to: \(selectedAccountIds)")
-
-        // Refresh timeline based on selection
-        Task {
-            try? await serviceManager.refreshTimeline()
+        // Refresh timeline based on selection - use non-blocking task to prevent freezing
+        Task { @MainActor in
+            do {
+                try await serviceManager.refreshTimeline()
+            } catch {
+                print("Error refreshing timeline: \(error.localizedDescription)")
+            }
         }
     }
 
     // Initialize or refresh account selections
     private func refreshAccountSelections() {
-        // If we're opening the view, sync with service manager first
-        selectedAccountIds = serviceManager.selectedAccountIds
-
         // If we have accounts but nothing is selected, select "all"
         if (!serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty)
-            && selectedAccountIds.isEmpty
+            && serviceManager.selectedAccountIds.isEmpty
         {
-            selectedAccountIds = ["all"]
-            serviceManager.selectedAccountIds = selectedAccountIds
+            serviceManager.selectedAccountIds = ["all"]
         }
     }
 

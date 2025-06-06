@@ -238,11 +238,13 @@ struct UnifiedTimelineView: View {
             Text(errorMessage ?? "An unknown error occurred.")
         }
         .onChange(of: hasAccounts) { newValue in
-            // Debounce account changes to prevent multiple updates per frame
-            refreshDebounceTimer?.invalidate()
-            refreshDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) {
-                _ in
-                if newValue {
+            // When accounts status changes, refresh the appropriate content
+            // Only trigger if we have accounts and no timeline data
+            if newValue && serviceManager.unifiedTimeline.isEmpty {
+                // Debounce this to prevent rapid successive calls
+                refreshDebounceTimer?.invalidate()
+                refreshDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) {
+                    _ in
                     Task {
                         print("Account status changed to hasAccounts: \(newValue)")
                         await refreshTimelineAsync()
@@ -250,14 +252,16 @@ struct UnifiedTimelineView: View {
                 }
             }
         }
-        .onChange(of: serviceManager.selectedAccountIds) { _ in
-            // Debounce selected account changes to prevent multiple updates per frame
-            refreshDebounceTimer?.invalidate()
-            refreshDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) {
-                _ in
-                if hasAccounts {
+        .onChange(of: serviceManager.selectedAccountIds) { newIds in
+            // When selected accounts change, refresh the timeline
+            // Only trigger if we have accounts and this is a meaningful change
+            if hasAccounts && !newIds.isEmpty && !isRefreshing {
+                print("📱 UnifiedTimelineView: Selected accounts changed, refreshing timeline")
+                // Debounce to prevent rapid successive calls during account selection
+                refreshDebounceTimer?.invalidate()
+                refreshDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) {
+                    _ in
                     Task {
-                        print("Selected accounts changed, refreshing timeline")
                         await refreshTimelineAsync(force: true)
                     }
                 }
@@ -268,33 +272,34 @@ struct UnifiedTimelineView: View {
             handleServiceError(newError)
         }
         .onAppear {
-            // Load actual timeline data instead of sample posts when view appears
-            print(
-                "📱 UnifiedTimelineView: onAppear - hasAccounts: \(hasAccounts), timeline count: \(serviceManager.unifiedTimeline.count)"
-            )
-            if serviceManager.unifiedTimeline.isEmpty {
+            // Prevent infinite onAppear loops by only running when necessary
+            let currentTimelineCount = serviceManager.unifiedTimeline.count
+
+            // Only print once to reduce console spam
+            if !isLoading {
+                print(
+                    "📱 UnifiedTimelineView: onAppear - hasAccounts: \(hasAccounts), timeline count: \(currentTimelineCount)"
+                )
+            }
+
+            // Only load timeline if we have accounts, no posts, and aren't already loading
+            if hasAccounts && currentTimelineCount == 0 && !serviceManager.isLoadingTimeline
+                && !isLoading
+            {
+                print("📱 UnifiedTimelineView: Initial timeline load")
+                isLoading = true
                 Task {
-                    if hasAccounts {
+                    do {
+                        try await serviceManager.refreshTimeline(force: false)
+                    } catch {
                         print(
-                            "📱 UnifiedTimelineView: Timeline is empty and we have accounts, refreshing..."
+                            "❌ UnifiedTimelineView: Error loading timeline: \(error.localizedDescription)"
                         )
-                        // Use refreshTimeline to fetch real posts from API
-                        do {
-                            try await serviceManager.refreshTimeline(force: true)
-                        } catch {
-                            print(
-                                "❌ UnifiedTimelineView: Error loading timeline: \(error.localizedDescription)"
-                            )
-                        }
-                    } else {
-                        print("📱 UnifiedTimelineView: No accounts - showing empty state")
-                        // No accounts - don't load anything, let the empty state show
+                    }
+                    await MainActor.run {
+                        isLoading = false
                     }
                 }
-            } else {
-                print(
-                    "📱 UnifiedTimelineView: Timeline already has \(serviceManager.unifiedTimeline.count) posts"
-                )
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .homeTabDoubleTapped)) { _ in
@@ -527,12 +532,16 @@ private func shortenUsername(_ username: String) -> String {
     return username
 }
 
+// Parent post preview view
+// Using shared ParentPostPreview component from PostCardView.swift
+
 // Cache for parent posts to avoid duplicate fetches
 @MainActor
 class PostParentCache: ObservableObject {
     static let shared = PostParentCache()
     @Published var cache = [String: Post]()
     private var fetching = Set<String>()
+    private var preloadQueue = Set<String>()
 
     func getCachedPost(id: String) -> Post? {
         return cache[id]
@@ -540,6 +549,10 @@ class PostParentCache: ObservableObject {
 
     func isFetching(id: String) -> Bool {
         return fetching.contains(id)
+    }
+
+    func isPreloading(id: String) -> Bool {
+        return preloadQueue.contains(id)
     }
 
     func fetchRealPost(
@@ -552,37 +565,82 @@ class PostParentCache: ObservableObject {
 
         fetching.insert(id)
 
-        Task {
-            do {
-                var post: Post?
-
-                if platform == .mastodon {
-                    // For Mastodon, use the existing service
-                    if let account = allAccounts.first(where: { $0.platform == .mastodon }) {
-                        post = try await serviceManager.fetchMastodonStatus(
-                            id: id, account: account)
-                    }
-                } else if platform == .bluesky {
-                    // For Bluesky, the id should be the at:// URI of the parent post
-                    post = try await serviceManager.fetchBlueskyPostByID(id)
-                }
-
-                // Use async update to prevent state conflicts during view updates
-                DispatchQueue.main.async {
-                    if let post = post {
-                        self.cache[id] = post
-                    }
-                    self.fetching.remove(id)
-                }
-            } catch {
-                // Use async update to prevent state conflicts during view updates
-                DispatchQueue.main.async {
+        Task(priority: .userInitiated) {
+            defer {
+                Task { @MainActor in
                     self.fetching.remove(id)
                 }
             }
+
+            do {
+                let post = try await self.fetchParentPost(
+                    id: id, platform: platform,
+                    serviceManager: serviceManager, allAccounts: allAccounts
+                )
+
+                await MainActor.run {
+                    if let post = post {
+                        self.cache[id] = post
+                    }
+                }
+            } catch {
+                print("❌ PostParentCache: Failed to fetch parent post \(id): \(error)")
+            }
+        }
+    }
+
+    /// Preload parent post in background for smooth animations
+    func preloadParentPost(
+        id: String, username: String, platform: SocialPlatform,
+        serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
+    ) {
+        // Skip if already cached, fetching, or in preload queue
+        guard !cache.keys.contains(id) && !fetching.contains(id) && !preloadQueue.contains(id)
+        else {
+            return
+        }
+
+        preloadQueue.insert(id)
+
+        Task(priority: .background) {
+            defer {
+                Task { @MainActor in
+                    self.preloadQueue.remove(id)
+                }
+            }
+
+            do {
+                let post = try await self.fetchParentPost(
+                    id: id, platform: platform,
+                    serviceManager: serviceManager, allAccounts: allAccounts
+                )
+
+                await MainActor.run {
+                    if let post = post {
+                        self.cache[id] = post
+                        print("📱 PostParentCache: Preloaded parent post: \(id)")
+                    }
+                }
+            } catch {
+                print("❌ PostParentCache: Failed to preload parent post \(id): \(error)")
+            }
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    private func fetchParentPost(
+        id: String, platform: SocialPlatform,
+        serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
+    ) async throws -> Post? {
+        switch platform {
+        case .mastodon:
+            if let account = allAccounts.first(where: { $0.platform == .mastodon }) {
+                return try await serviceManager.fetchMastodonStatus(id: id, account: account)
+            }
+            return nil
+        case .bluesky:
+            return try await serviceManager.fetchBlueskyPostByID(id)
         }
     }
 }
-
-// Parent post preview view
-// Using shared ParentPostPreview component from PostCardView.swift
