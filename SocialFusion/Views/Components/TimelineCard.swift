@@ -8,11 +8,11 @@ struct TimelineCard<Content: View>: View {
             .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.customCardBackground)
+                    .fill(Color(.systemBackground))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.subtleBorder, lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
             .padding(.horizontal, 12)

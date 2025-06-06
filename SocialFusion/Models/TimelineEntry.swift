@@ -15,7 +15,7 @@ public struct TimelineEntry: Identifiable, Hashable {
     public let createdAt: Date
 
     public init(id: String, kind: TimelineEntryKind, post: Post, createdAt: Date) {
-        self.id = post.stableId  // Use the post's stable ID
+        self.id = id  // Use the provided ID for uniqueness
         self.kind = kind
         self.post = post
         self.createdAt = createdAt

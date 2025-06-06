@@ -25,6 +25,7 @@ struct UnifiedTimelineView: View {
     // Published properties to allow external scroll control
     @State private var shouldScrollToTop = false
     @State private var shouldScrollToSaved = false
+    @State private var refreshDebounceTimer: Timer? = nil
 
     init(accounts: [SocialAccount]) {
         _viewModel = StateObject(wrappedValue: TimelineViewModel(accounts: accounts))
@@ -72,7 +73,9 @@ struct UnifiedTimelineView: View {
     }
 
     private var displayTitle: String {
-        if serviceManager.selectedAccountIds.contains("all") {
+        if !hasAccounts {
+            return "Home"
+        } else if serviceManager.selectedAccountIds.contains("all") {
             return "All Accounts"
         } else if serviceManager.selectedAccountIds.count == 1,
             let id = serviceManager.selectedAccountIds.first,
@@ -141,6 +144,7 @@ struct UnifiedTimelineView: View {
                     }
                 }
             } else {
+                // Show the timeline when we have posts
                 VStack(spacing: 0) {
                     // Header at the top with an elegant design
                     HStack {
@@ -234,20 +238,28 @@ struct UnifiedTimelineView: View {
             Text(errorMessage ?? "An unknown error occurred.")
         }
         .onChange(of: hasAccounts) { newValue in
-            // When accounts status changes, refresh the appropriate content
-            if newValue {
-                Task {
-                    print("Account status changed to hasAccounts: \(newValue)")
-                    await refreshTimelineAsync()
+            // Debounce account changes to prevent multiple updates per frame
+            refreshDebounceTimer?.invalidate()
+            refreshDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) {
+                _ in
+                if newValue {
+                    Task {
+                        print("Account status changed to hasAccounts: \(newValue)")
+                        await refreshTimelineAsync()
+                    }
                 }
             }
         }
         .onChange(of: serviceManager.selectedAccountIds) { _ in
-            // When selected accounts change, refresh the timeline
-            if hasAccounts {
-                Task {
-                    print("Selected accounts changed, refreshing timeline")
-                    await refreshTimelineAsync(force: true)
+            // Debounce selected account changes to prevent multiple updates per frame
+            refreshDebounceTimer?.invalidate()
+            refreshDebounceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: false) {
+                _ in
+                if hasAccounts {
+                    Task {
+                        print("Selected accounts changed, refreshing timeline")
+                        await refreshTimelineAsync(force: true)
+                    }
                 }
             }
         }
@@ -257,19 +269,32 @@ struct UnifiedTimelineView: View {
         }
         .onAppear {
             // Load actual timeline data instead of sample posts when view appears
+            print(
+                "📱 UnifiedTimelineView: onAppear - hasAccounts: \(hasAccounts), timeline count: \(serviceManager.unifiedTimeline.count)"
+            )
             if serviceManager.unifiedTimeline.isEmpty {
                 Task {
                     if hasAccounts {
+                        print(
+                            "📱 UnifiedTimelineView: Timeline is empty and we have accounts, refreshing..."
+                        )
                         // Use refreshTimeline to fetch real posts from API
                         do {
                             try await serviceManager.refreshTimeline(force: true)
                         } catch {
-                            print("Error loading timeline: \(error.localizedDescription)")
+                            print(
+                                "❌ UnifiedTimelineView: Error loading timeline: \(error.localizedDescription)"
+                            )
                         }
                     } else {
+                        print("📱 UnifiedTimelineView: No accounts - showing empty state")
                         // No accounts - don't load anything, let the empty state show
                     }
                 }
+            } else {
+                print(
+                    "📱 UnifiedTimelineView: Timeline already has \(serviceManager.unifiedTimeline.count) posts"
+                )
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .homeTabDoubleTapped)) { _ in
@@ -356,27 +381,35 @@ struct UnifiedTimelineView: View {
                 .padding(.top, 8)
             }
             ForEach(timelineEntries, id: \.id) { entry in
-                PostCardView(entry: entry)
-                    .id(entry.id)  // Important: ensure each post has an ID for scrollTo
-                    .onAppear {
-                        // Track scroll position - if this is one of the first few posts, we're near the top
-                        if let firstEntryIndex = timelineEntries.firstIndex(where: {
-                            $0.id == entry.id
-                        }),
-                            firstEntryIndex <= 2
-                        {
-                            isAtTop = true
-                        } else {
-                            isAtTop = false
-                        }
+                VStack(spacing: 0) {
+                    PostCardView(entry: entry)
 
-                        // Check if this is one of the last few posts and trigger loading more
-                        if entry.id == timelineEntries.suffix(3).first?.id {
-                            Task {
-                                await serviceManager.fetchNextPage()
-                            }
+                    // Subtle divider between posts
+                    if entry.id != timelineEntries.last?.id {
+                        Divider()
+                            .padding(.horizontal, 16)
+                    }
+                }
+                .id(entry.id)  // Important: ensure each post has an ID for scrollTo
+                .onAppear {
+                    // Track scroll position - if this is one of the first few posts, we're near the top
+                    if let firstEntryIndex = timelineEntries.firstIndex(where: {
+                        $0.id == entry.id
+                    }),
+                        firstEntryIndex <= 2
+                    {
+                        isAtTop = true
+                    } else {
+                        isAtTop = false
+                    }
+
+                    // Check if this is one of the last few posts and trigger loading more
+                    if entry.id == timelineEntries.suffix(3).first?.id {
+                        Task {
+                            await serviceManager.fetchNextPage()
                         }
                     }
+                }
             }
             if serviceManager.isLoadingNextPage {
                 ProgressView("Loading more posts...")
@@ -384,7 +417,6 @@ struct UnifiedTimelineView: View {
             }
             Color.clear.frame(height: 60)
         }
-        .padding(.horizontal, 12)
     }
 }
 

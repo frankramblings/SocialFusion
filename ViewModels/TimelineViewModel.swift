@@ -78,12 +78,14 @@ public class TimelineViewModel: ObservableObject {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             guard let self = self else { return }
+
             await MainActor.run {
                 self.isRefreshing = true
                 if case .idle = self.state {
                     self.state = .loading
                 }
             }
+
             do {
                 let posts = try await self.socialServiceManager.refreshTimeline(accounts: [account])
                 await MainActor.run {
@@ -93,148 +95,8 @@ public class TimelineViewModel: ObservableObject {
                         self.state = .empty
                     } else {
                         self.state = .loaded(posts)
-                        for post in posts {
-                            if let parentID = post.inReplyToID {
-                                switch post.platform {
-                                case .mastodon:
-                                    Task(priority: .userInitiated) {
-                                        let mastodonAccount = self.accounts.first(where: {
-                                            $0.platform == .mastodon
-                                        })
-                                        if let mastodonAccount = mastodonAccount {
-                                            do {
-                                                if let parent = try? await self.socialServiceManager
-                                                    .fetchMastodonStatus(
-                                                        id: parentID, account: mastodonAccount)
-                                                {
-                                                    let username = parent.authorUsername
-                                                    await MainActor.run {
-                                                        if case .loaded(var currentPosts) = self
-                                                            .state
-                                                        {
-                                                            if let idx = currentPosts.firstIndex(
-                                                                where: { $0.id == post.id })
-                                                            {
-                                                                if currentPosts[idx]
-                                                                    .inReplyToUsername == nil
-                                                                    || currentPosts[idx]
-                                                                        .inReplyToUsername?.isEmpty
-                                                                        == true
-                                                                {
-                                                                    self.logger.info(
-                                                                        "Setting reply username to: \(username)"
-                                                                    )
-                                                                    currentPosts[idx]
-                                                                        .inReplyToUsername =
-                                                                        username
-                                                                }
-                                                                self.logger.info(
-                                                                    "Successfully pre-loaded Mastodon parent post for: \(post.id)"
-                                                                )
-                                                                currentPosts[idx].parent = parent
-                                                                self.state = .loaded(currentPosts)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                case .bluesky:
-                                    Task {
-                                        let blueskyAccount = self.accounts.first(where: {
-                                            $0.platform == .bluesky
-                                        })
-                                        if let blueskyAccount = blueskyAccount {
-                                            if let parent = try? await self.socialServiceManager
-                                                .fetchBlueskyPostByID(parentID)
-                                            {
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            if currentPosts[idx].inReplyToUsername
-                                                                == nil
-                                                                || currentPosts[idx]
-                                                                    .inReplyToUsername?.isEmpty
-                                                                    == true
-                                                            {
-                                                                let username = parent.authorUsername
-                                                                self.logger.info(
-                                                                    "Setting reply username to: \(username)"
-                                                                )
-                                                                currentPosts[idx]
-                                                                    .inReplyToUsername = username
-                                                            }
-                                                            currentPosts[idx].parent = parent
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        // Pre-load original posts for boosts/reposts
-                        for post in posts {
-                            let isBoost = post.originalPost != nil || post.isReposted == true
-                            let originalPostMissing = post.originalPost == nil
-                            if isBoost, let originalURI = post.originalPost?.id, originalPostMissing
-                            {
-                                switch post.platform {
-                                case .mastodon:
-                                    Task(priority: .userInitiated) {
-                                        let mastodonAccount = self.accounts.first(where: {
-                                            $0.platform == .mastodon
-                                        })
-                                        if let mastodonAccount = mastodonAccount {
-                                            if let original = try? await self.socialServiceManager
-                                                .fetchMastodonStatus(
-                                                    id: originalURI, account: mastodonAccount)
-                                            {
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            currentPosts[idx].originalPost =
-                                                                original
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                case .bluesky:
-                                    Task {
-                                        let blueskyAccount = self.accounts.first(where: {
-                                            $0.platform == .bluesky
-                                        })
-                                        if let blueskyAccount = blueskyAccount {
-                                            if let original = try? await self.socialServiceManager
-                                                .fetchBlueskyPostByID(originalURI)
-                                            {
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            currentPosts[idx].originalPost =
-                                                                original
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        // Queue background hydration without immediate state updates
+                        self.hydratePostRelationshipsInBackground(posts: posts)
                     }
                     self.logger.info("Timeline refreshed for \(account.username, privacy: .public)")
                 }
@@ -249,6 +111,12 @@ public class TimelineViewModel: ObservableObject {
 
     /// Refresh the unified timeline for multiple accounts
     public func refreshUnifiedTimeline() {
+        // Prevent multiple simultaneous refreshes
+        guard refreshTask == nil || refreshTask?.isCancelled == true else {
+            logger.info("Timeline refresh already in progress, skipping")
+            return
+        }
+
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             guard let self = self else { return }
@@ -268,143 +136,8 @@ public class TimelineViewModel: ObservableObject {
                         self.state = .empty
                     } else {
                         self.state = .loaded(posts)
-                        for post in posts {
-                            if let parentID = post.inReplyToID {
-                                switch post.platform {
-                                case .mastodon:
-                                    Task(priority: .userInitiated) {
-                                        let mastodonAccount = self.accounts.first(where: {
-                                            $0.platform == .mastodon
-                                        })
-                                        if let mastodonAccount = mastodonAccount {
-                                            if let parent = try? await self.socialServiceManager
-                                                .fetchMastodonStatus(
-                                                    id: parentID, account: mastodonAccount)
-                                            {
-                                                let username = parent.authorUsername
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            if currentPosts[idx].inReplyToUsername
-                                                                == nil
-                                                                || currentPosts[idx]
-                                                                    .inReplyToUsername?.isEmpty
-                                                                    == true
-                                                            {
-                                                                self.logger.info(
-                                                                    "Setting reply username to: \(username)"
-                                                                )
-                                                                currentPosts[idx]
-                                                                    .inReplyToUsername = username
-                                                            }
-                                                            self.logger.info(
-                                                                "Successfully pre-loaded Mastodon parent post for: \(post.id)"
-                                                            )
-                                                            currentPosts[idx].parent = parent
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                case .bluesky:
-                                    Task {
-                                        let blueskyAccount = self.accounts.first(where: {
-                                            $0.platform == .bluesky
-                                        })
-                                        if let blueskyAccount = blueskyAccount {
-                                            if let parent = try? await self.socialServiceManager
-                                                .fetchBlueskyPostByID(parentID)
-                                            {
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            if currentPosts[idx].inReplyToUsername
-                                                                == nil
-                                                                || currentPosts[idx]
-                                                                    .inReplyToUsername?.isEmpty
-                                                                    == true
-                                                            {
-                                                                let username = parent.authorUsername
-                                                                self.logger.info(
-                                                                    "Setting reply username to: \(username)"
-                                                                )
-                                                                currentPosts[idx]
-                                                                    .inReplyToUsername = username
-                                                            }
-                                                            currentPosts[idx].parent = parent
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        // Pre-load original posts for boosts/reposts
-                        for post in posts {
-                            let isBoost = post.originalPost != nil || post.isReposted == true
-                            let originalPostMissing = post.originalPost == nil
-                            if isBoost, let originalURI = post.originalPost?.id, originalPostMissing
-                            {
-                                switch post.platform {
-                                case .mastodon:
-                                    Task(priority: .userInitiated) {
-                                        let mastodonAccount = self.accounts.first(where: {
-                                            $0.platform == .mastodon
-                                        })
-                                        if let mastodonAccount = mastodonAccount {
-                                            if let original = try? await self.socialServiceManager
-                                                .fetchMastodonStatus(
-                                                    id: originalURI, account: mastodonAccount)
-                                            {
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            currentPosts[idx].originalPost =
-                                                                original
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                case .bluesky:
-                                    Task {
-                                        let blueskyAccount = self.accounts.first(where: {
-                                            $0.platform == .bluesky
-                                        })
-                                        if let blueskyAccount = blueskyAccount {
-                                            if let original = try? await self.socialServiceManager
-                                                .fetchBlueskyPostByID(originalURI)
-                                            {
-                                                await MainActor.run {
-                                                    if case .loaded(var currentPosts) = self.state {
-                                                        if let idx = currentPosts.firstIndex(
-                                                            where: { $0.id == post.id })
-                                                        {
-                                                            currentPosts[idx].originalPost =
-                                                                original
-                                                            self.state = .loaded(currentPosts)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        // Queue background hydration without immediate state updates
+                        self.hydratePostRelationshipsInBackground(posts: posts)
                     }
                     self.logger.info(
                         "Unified timeline refreshed for \(self.accounts.count) accounts")
@@ -546,6 +279,160 @@ public class TimelineViewModel: ObservableObject {
             await MainActor.run {
                 PostStore.shared.error = SocialFusionError(
                     message: "Failed to fetch timeline: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // MARK: - Private Background Hydration
+
+    /// Hydrate post relationships in background without causing state mutation cycles
+    private func hydratePostRelationshipsInBackground(posts: [Post]) {
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+
+            // Collect all parent posts that need hydration
+            var parentsToFetch: [(postId: String, parentId: String, platform: SocialPlatform)] = []
+            var originalsToFetch: [(postId: String, originalId: String, platform: SocialPlatform)] =
+                []
+
+            for post in posts {
+                // Collect missing parent posts
+                if let parentID = post.inReplyToID, post.parent == nil {
+                    parentsToFetch.append(
+                        (postId: post.id, parentId: parentID, platform: post.platform))
+                }
+
+                // Collect missing original posts for reposts
+                if post.isReposted, let originalId = post.originalPost?.id, post.originalPost == nil
+                {
+                    originalsToFetch.append(
+                        (postId: post.id, originalId: originalId, platform: post.platform))
+                }
+            }
+
+            // Batch fetch parent posts
+            await self.batchFetchParentPosts(parentsToFetch)
+
+            // Batch fetch original posts
+            await self.batchFetchOriginalPosts(originalsToFetch)
+        }
+    }
+
+    private func batchFetchParentPosts(
+        _ fetchRequests: [(postId: String, parentId: String, platform: SocialPlatform)]
+    ) async {
+        guard !fetchRequests.isEmpty else { return }
+
+        var hydratedPosts: [String: Post] = [:]
+
+        // Fetch all parent posts concurrently
+        await withTaskGroup(of: (String, Post?).self) { group in
+            for request in fetchRequests {
+                group.addTask { [weak self] in
+                    guard let self = self else { return (request.postId, nil) }
+
+                    do {
+                        let parent: Post?
+                        switch request.platform {
+                        case .mastodon:
+                            if let account = self.accounts.first(where: { $0.platform == .mastodon }
+                            ) {
+                                parent = try await self.socialServiceManager.fetchMastodonStatus(
+                                    id: request.parentId, account: account)
+                            } else {
+                                parent = nil
+                            }
+                        case .bluesky:
+                            parent = try await self.socialServiceManager.fetchBlueskyPostByID(
+                                request.parentId)
+                        }
+                        return (request.postId, parent)
+                    } catch {
+                        self.logger.warning(
+                            "Failed to fetch parent post \(request.parentId): \(error)")
+                        return (request.postId, nil)
+                    }
+                }
+            }
+
+            for await (postId, parent) in group {
+                if let parent = parent {
+                    hydratedPosts[postId] = parent
+                }
+            }
+        }
+
+        // Apply all updates in a single state change
+        await MainActor.run {
+            if case .loaded(var currentPosts) = self.state, !hydratedPosts.isEmpty {
+                for i in 0..<currentPosts.count {
+                    if let parent = hydratedPosts[currentPosts[i].id] {
+                        currentPosts[i].parent = parent
+                        if currentPosts[i].inReplyToUsername?.isEmpty != false {
+                            currentPosts[i].inReplyToUsername = parent.authorUsername
+                        }
+                    }
+                }
+                self.state = .loaded(currentPosts)
+                self.logger.info("Batch updated \(hydratedPosts.count) parent posts")
+            }
+        }
+    }
+
+    private func batchFetchOriginalPosts(
+        _ fetchRequests: [(postId: String, originalId: String, platform: SocialPlatform)]
+    ) async {
+        guard !fetchRequests.isEmpty else { return }
+
+        var hydratedPosts: [String: Post] = [:]
+
+        // Fetch all original posts concurrently
+        await withTaskGroup(of: (String, Post?).self) { group in
+            for request in fetchRequests {
+                group.addTask { [weak self] in
+                    guard let self = self else { return (request.postId, nil) }
+
+                    do {
+                        let original: Post?
+                        switch request.platform {
+                        case .mastodon:
+                            if let account = self.accounts.first(where: { $0.platform == .mastodon }
+                            ) {
+                                original = try await self.socialServiceManager.fetchMastodonStatus(
+                                    id: request.originalId, account: account)
+                            } else {
+                                original = nil
+                            }
+                        case .bluesky:
+                            original = try await self.socialServiceManager.fetchBlueskyPostByID(
+                                request.originalId)
+                        }
+                        return (request.postId, original)
+                    } catch {
+                        self.logger.warning(
+                            "Failed to fetch original post \(request.originalId): \(error)")
+                        return (request.postId, nil)
+                    }
+                }
+            }
+
+            for await (postId, original) in group {
+                if let original = original {
+                    hydratedPosts[postId] = original
+                }
+            }
+        }
+
+        // Apply all updates in a single state change
+        await MainActor.run {
+            if case .loaded(var currentPosts) = self.state, !hydratedPosts.isEmpty {
+                for i in 0..<currentPosts.count {
+                    if let original = hydratedPosts[currentPosts[i].id] {
+                        currentPosts[i].originalPost = original
+                    }
+                }
+                self.state = .loaded(currentPosts)
+                self.logger.info("Batch updated \(hydratedPosts.count) original posts")
             }
         }
     }

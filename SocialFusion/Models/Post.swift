@@ -4,6 +4,14 @@ import SwiftUI
 // MARK: - AttributedTextOverlay for per-segment tap support
 import UIKit
 
+// MARK: - Post Actions
+public enum PostAction {
+    case reply
+    case repost
+    case like
+    case share
+}
+
 // MARK: - Post visibility level
 public enum PostVisibilityType: String, Codable {
     case public_

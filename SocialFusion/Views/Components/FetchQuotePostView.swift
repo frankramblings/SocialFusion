@@ -1,5 +1,88 @@
 import SwiftUI
 
+/// A compact view of a quoted post - styled like ParentPostPreview
+public struct QuotedPostView: View {
+    public let post: Post
+    @Environment(\.colorScheme) private var colorScheme
+
+    // Maximum characters before content is trimmed
+    private let maxCharacters = 300
+
+    public init(post: Post) {
+        self.post = post
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Author row
+            HStack {
+                // Author avatar with platform indicator
+                ZStack(alignment: .bottomTrailing) {
+                    // Avatar
+                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                        if let image = phase.image {
+                            image.resizable()
+                        } else {
+                            Circle().fill(Color.gray.opacity(0.3))
+                        }
+                    }
+                    .frame(width: 36, height: 36)
+                    .clipShape(Circle())
+
+                    // Platform indicator
+                    PlatformDot(platform: post.platform, size: 10)
+                        .offset(x: 2, y: 2)
+                }
+
+                // Author info
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(post.authorName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+
+                    Text("@\(post.authorUsername)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                // Time ago
+                RelativeTimeView(date: post.createdAt)
+            }
+
+            // Post content
+            let lineLimit = post.content.count > maxCharacters ? 4 : nil
+            post.contentView(lineLimit: lineLimit, showLinkPreview: false)
+                .font(.callout)
+                .padding(.horizontal, 4)
+
+            // If post has media, show first attachment
+            if !post.attachments.isEmpty {
+                PostAttachmentView(attachment: post.attachments[0])
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 10)
+        .background(colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.03))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(
+                    colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.08),
+                    lineWidth: 0.5)
+        )
+        .shadow(
+            color: colorScheme == .dark ? Color.white.opacity(0.03) : Color.black.opacity(0.02),
+            radius: 0.5, x: 0, y: 0
+        )
+        .shadow(
+            color: colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05),
+            radius: 1, y: 1)
+    }
+}
+
 /// Fetches and displays a quoted post from a URL
 struct FetchQuotePostView: View {
     let url: URL
@@ -105,85 +188,6 @@ struct FetchQuotePostView: View {
                     userInfo: [NSLocalizedDescriptionKey: "Invalid post URL"])
             }
         }
-    }
-}
-
-/// A compact view of a quoted post - styled like ParentPostPreview
-private struct QuotedPostView: View {
-    let post: Post
-    @Environment(\.colorScheme) private var colorScheme
-
-    // Maximum characters before content is trimmed
-    private let maxCharacters = 300
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Author row
-            HStack {
-                // Author avatar with platform indicator
-                ZStack(alignment: .bottomTrailing) {
-                    // Avatar
-                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                        if let image = phase.image {
-                            image.resizable()
-                        } else {
-                            Circle().fill(Color.gray.opacity(0.3))
-                        }
-                    }
-                    .frame(width: 36, height: 36)
-                    .clipShape(Circle())
-
-                    // Platform indicator
-                    PlatformDot(platform: post.platform, size: 10)
-                        .offset(x: 2, y: 2)
-                }
-
-                // Author info
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(post.authorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Text("@\(post.authorUsername)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                // Time ago
-                RelativeTimeView(date: post.createdAt)
-            }
-
-            // Post content
-            let lineLimit = post.content.count > maxCharacters ? 4 : nil
-            post.contentView(lineLimit: lineLimit, showLinkPreview: false)
-                .font(.callout)
-                .padding(.horizontal, 4)
-
-            // If post has media, show first attachment
-            if !post.attachments.isEmpty {
-                PostAttachmentView(attachment: post.attachments[0])
-                    .padding(.top, 4)
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 10)
-        .background(colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(
-                    colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.08),
-                    lineWidth: 0.5)
-        )
-        .shadow(
-            color: colorScheme == .dark ? Color.white.opacity(0.03) : Color.black.opacity(0.02),
-            radius: 0.5, x: 0, y: 0
-        )
-        .shadow(
-            color: colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05),
-            radius: 1, y: 1)
     }
 }
 

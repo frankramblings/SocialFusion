@@ -43,27 +43,19 @@ public enum TimelineState {
 
 /// A ViewModel for managing timeline data and state
 @MainActor
-public class TimelineViewModel: ObservableObject {
-    // MARK: - Published Properties
+public final class TimelineViewModel: ObservableObject {
+    @Published public private(set) var state: TimelineState = .idle
+    @Published public private(set) var posts: [Post] = []
+    @Published public private(set) var isLoading = false
+    @Published public private(set) var error: Error?
+    @Published public private(set) var isRateLimited = false
+    @Published public private(set) var retryAfter: TimeInterval = 0
 
-    @Published public var state: TimelineState = .idle
-    @Published public var isRefreshing: Bool = false
-    @Published public var lastRefreshDate: Date?
-
-    // MARK: - Private Properties
-
-    private let logger = Logger(subsystem: "com.socialfusion", category: "TimelineViewModel")
-    private let socialServiceManager = SocialServiceManager.shared
-    private var refreshTask: Task<Void, Never>?
-    private var rateLimitTimer: Timer?
-    private var rateLimitSecondsRemaining: TimeInterval = 0
-
-    // Cancellables for Combine subscriptions
+    private let socialServiceManager: SocialServiceManager
     private var cancellables = Set<AnyCancellable>()
 
-    // MARK: - Initialization
-
-    public init() {
+    public init(socialServiceManager: SocialServiceManager = .shared) {
+        self.socialServiceManager = socialServiceManager
         setupObservers()
     }
 
@@ -80,7 +72,7 @@ public class TimelineViewModel: ObservableObject {
 
             // Show loading state
             await MainActor.run {
-                self.isRefreshing = true
+                self.isLoading = true
                 if case .idle = self.state {
                     self.state = .loading
                 }
@@ -92,8 +84,8 @@ public class TimelineViewModel: ObservableObject {
 
                 // Update UI on main thread
                 await MainActor.run {
-                    self.lastRefreshDate = Date()
-                    self.isRefreshing = false
+                    self.posts = posts
+                    self.isLoading = false
 
                     if posts.isEmpty {
                         self.state = .empty
@@ -379,7 +371,7 @@ public class TimelineViewModel: ObservableObject {
             } catch {
                 // Update UI on main thread
                 await MainActor.run {
-                    self.isRefreshing = false
+                    self.isLoading = false
                     self.state = .error(error)
                 }
             }
@@ -397,7 +389,7 @@ public class TimelineViewModel: ObservableObject {
 
             // Show loading state
             await MainActor.run {
-                self.isRefreshing = true
+                self.isLoading = true
                 if case .idle = self.state {
                     self.state = .loading
                 }
@@ -409,8 +401,8 @@ public class TimelineViewModel: ObservableObject {
 
                 // Update UI on main thread
                 await MainActor.run {
-                    self.lastRefreshDate = Date()
-                    self.isRefreshing = false
+                    self.posts = posts
+                    self.isLoading = false
 
                     if posts.isEmpty {
                         self.state = .empty
@@ -708,7 +700,7 @@ public class TimelineViewModel: ObservableObject {
             } catch {
                 // Update UI on main thread
                 await MainActor.run {
-                    self.isRefreshing = false
+                    self.isLoading = false
                     self.state = .error(error)
                 }
             }
@@ -757,8 +749,8 @@ public class TimelineViewModel: ObservableObject {
             refreshTask = nil
 
             // Update state
-            if isRefreshing {
-                isRefreshing = false
+            if self.isLoading {
+                self.isLoading = false
             }
         }
     }
@@ -807,7 +799,7 @@ public class TimelineViewModel: ObservableObject {
         rateLimitTimer?.invalidate()
 
         // Set initial remaining time
-        rateLimitSecondsRemaining = seconds
+        retryAfter = seconds
 
         // Create and schedule a timer to count down
         rateLimitTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
@@ -817,10 +809,10 @@ public class TimelineViewModel: ObservableObject {
                 return
             }
 
-            self.rateLimitSecondsRemaining -= 1
+            self.retryAfter -= 1
 
             // When countdown reaches zero, reset state and timer
-            if self.rateLimitSecondsRemaining <= 0 {
+            if self.retryAfter <= 0 {
                 timer.invalidate()
                 self.rateLimitTimer = nil
 

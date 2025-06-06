@@ -5,9 +5,18 @@ struct PlatformDot: View {
     let platform: SocialPlatform
     var size: CGFloat = 8
 
+    private var platformColor: Color {
+        switch platform {
+        case .bluesky:
+            return .blue
+        case .mastodon:
+            return .purple
+        }
+    }
+
     var body: some View {
         Circle()
-            .fill(platform.color)
+            .fill(platformColor)
             .frame(width: size, height: size)
             .overlay(
                 Circle()

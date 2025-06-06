@@ -7,7 +7,7 @@ struct PostAuthorView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Avatar
+            // Avatar with platform indicator as colored border
             PostAvatar(
                 imageURL: post.authorProfilePictureURL,
                 platform: post.platform,
@@ -17,14 +17,10 @@ struct PostAuthorView: View {
 
             // Author info
             VStack(alignment: .leading, spacing: 2) {
-                // Name and platform badge
-                HStack(spacing: 8) {
-                    Text(post.authorName)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-
-                    PostPlatformBadge(platform: post.platform)
-                }
+                // Just the name, no platform badge
+                Text(post.authorName)
+                    .font(.headline)
+                    .foregroundColor(.primary)
 
                 // Username
                 Text("@\(post.authorUsername)")
@@ -33,7 +29,18 @@ struct PostAuthorView: View {
             }
 
             Spacer()
+
+            // Timestamp on the right
+            Text(timeAgoString)
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
+    }
+
+    private var timeAgoString: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: post.createdAt, relativeTo: Date())
     }
 }
 

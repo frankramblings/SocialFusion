@@ -94,7 +94,7 @@ final class SocialServiceManager: ObservableObject {
     @Published var error: Error?
 
     // Selected account IDs (Set to store unique IDs)
-    @Published var selectedAccountIds: Set<String> = ["all"]
+    @Published var selectedAccountIds: Set<String> = []
 
     // Filtered account lists
     @Published var mastodonAccounts: [SocialAccount] = []
@@ -125,8 +125,15 @@ final class SocialServiceManager: ObservableObject {
 
     // Make initializer public so it can be used in SocialFusionApp
     public init() {
-        // Load saved accounts
+        // Load saved accounts first
         loadAccounts()
+
+        // Initialize selectedAccountIds based on whether accounts exist
+        if !accounts.isEmpty {
+            selectedAccountIds = ["all"]  // Default to "all" if accounts exist
+        } else {
+            selectedAccountIds = []  // Empty if no accounts exist
+        }
 
         // Register for app termination notification to save accounts
         NotificationCenter.default.addObserver(
@@ -210,6 +217,11 @@ final class SocialServiceManager: ObservableObject {
 
         // Update platform-specific lists
         updateAccountLists()
+
+        // If this is the first account, set selectedAccountIds to "all"
+        if accounts.count == 1 {
+            selectedAccountIds = ["all"]
+        }
     }
 
     /// Add a Mastodon account
@@ -312,19 +324,43 @@ final class SocialServiceManager: ObservableObject {
 
     /// Refresh timeline for specific accounts
     func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
+        print("📊 SocialServiceManager: Starting refreshTimeline for \(accounts.count) accounts")
         resetPagination()
         var allPosts: [Post] = []
+        var postIds = Set<String>()  // For deduplication by stableId
 
         // Fetch posts from each account and combine
         for account in accounts {
             do {
+                print(
+                    "📊 SocialServiceManager: Fetching posts for \(account.username) (\(account.platform))"
+                )
                 let posts = try await fetchPostsForAccount(account)
-                allPosts.append(contentsOf: posts)
+                print(
+                    "📊 SocialServiceManager: Retrieved \(posts.count) posts from \(account.username)"
+                )
+
+                // Deduplicate posts by stableId before adding
+                let newPosts = posts.filter { post in
+                    let shouldInclude = !postIds.contains(post.stableId)
+                    if shouldInclude {
+                        postIds.insert(post.stableId)
+                    }
+                    return shouldInclude
+                }
+                print(
+                    "📊 SocialServiceManager: After deduplication: \(newPosts.count) unique posts from \(account.username)"
+                )
+                allPosts.append(contentsOf: newPosts)
             } catch {
-                print("Error fetching posts for \(account.username): \(error)")
+                print(
+                    "❌ SocialServiceManager: Error fetching posts for \(account.username): \(error)"
+                )
                 // Continue with other accounts even if one fails
             }
         }
+
+        print("📊 SocialServiceManager: Total collected posts before processing: \(allPosts.count)")
 
         // Patch: Ensure all posts have unique IDs, especially for boosts/reposts
         let uniquePosts = allPosts.map { post -> Post in
@@ -434,7 +470,6 @@ final class SocialServiceManager: ObservableObject {
         guard !isLoadingTimeline else {
             return
         }
-
         // Update loading state on main thread
         await MainActor.run {
             isLoadingTimeline = true
@@ -445,15 +480,23 @@ final class SocialServiceManager: ObservableObject {
             // Determine which accounts to fetch based on selection
             var accountsToFetch: [SocialAccount] = []
 
+            print("🔧 SocialServiceManager: Total accounts available: \(accounts.count)")
+            print("🔧 SocialServiceManager: Selected account IDs: \(selectedAccountIds)")
+
             if selectedAccountIds.contains("all") {
                 // Fetch from all accounts
                 accountsToFetch = accounts
+                print("🔧 SocialServiceManager: Fetching from all \(accounts.count) accounts")
             } else {
                 // Fetch only from selected accounts
                 accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
+                print(
+                    "🔧 SocialServiceManager: Fetching from \(accountsToFetch.count) selected accounts"
+                )
             }
 
             guard !accountsToFetch.isEmpty else {
+                print("🔧 SocialServiceManager: No accounts to fetch from!")
                 await MainActor.run {
                     isLoadingTimeline = false
                 }
@@ -561,8 +604,18 @@ final class SocialServiceManager: ObservableObject {
             let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
 
             await MainActor.run {
+                // Deduplicate new posts against existing timeline before appending
+                let existingIds = Set(self.unifiedTimeline.map { $0.stableId })
+                let deduplicatedNewPosts = sortedNewPosts.filter {
+                    !existingIds.contains($0.stableId)
+                }
+
+                print(
+                    "📊 SocialServiceManager: Deduplicating \(sortedNewPosts.count) new posts -> \(deduplicatedNewPosts.count) unique posts"
+                )
+
                 // Append new posts to existing timeline
-                self.unifiedTimeline.append(contentsOf: sortedNewPosts)
+                self.unifiedTimeline.append(contentsOf: deduplicatedNewPosts)
                 self.hasNextPage = hasMorePages
                 self.isLoadingNextPage = false
             }
@@ -699,11 +752,11 @@ final class SocialServiceManager: ObservableObject {
         var entries: [TimelineEntry] = []
         for post in posts {
             if let original = post.originalPost {
-                // This is a boost/repost
+                // This is a boost/repost - pass the wrapper post so PostCardView can access boostedBy
                 let entry = TimelineEntry(
                     id: "boost-\(post.authorUsername)-\(original.id)",
                     kind: .boost(boostedBy: post.authorUsername),
-                    post: original,
+                    post: post,  // Pass the wrapper post, not the original
                     createdAt: post.createdAt
                 )
                 entries.append(entry)
@@ -778,4 +831,5 @@ final class SocialServiceManager: ObservableObject {
             return try await blueskyService.repostPost(post, account: account)
         }
     }
+
 }

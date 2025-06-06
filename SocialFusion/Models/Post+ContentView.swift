@@ -127,28 +127,33 @@ extension Post {
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
 
-            // --- Single Quote Card Logic ---
+            // --- Quote Post Logic (Priority Order) ---
             if showLinkPreview {
-                // 1. Check for official quote (Bluesky)
-                if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
-                    // Show official quote card
+                // 1. First check if we have a fully hydrated quoted post
+                if let quotedPost = quotedPost {
+                    QuotedPostView(post: quotedPost)
+                        .padding(.top, 4)
+                }
+                // 2. If no hydrated quote but have quote metadata, fetch it
+                else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
                     FetchQuotePostView(url: quotedPostURL)
                         .padding(.top, 4)
-                } else {
-                    // 2. Otherwise, find the first valid post link
+                }
+                // 3. Otherwise, check for post links in content and fetch the first one
+                else {
                     let htmlString = HTMLString(raw: content)
                     let allLinks = extractAllLinks(from: htmlString.plainText)
                     let postLinks = allLinks.filter {
                         isSocialMediaPostURL($0) && !isHashtagOrMentionURL($0)
                     }
-                    let firstPostLink = postLinks.first
-                    if let firstPostLink = firstPostLink {
+                    if let firstPostLink = postLinks.first {
                         FetchQuotePostView(url: firstPostLink)
                             .padding(.top, 4)
                     }
-                    // 3. Render all other links as regular links (with previews if appropriate)
+
+                    // 4. Render all other links as regular link previews
                     let previewLinks = allLinks.filter { url in
-                        !isHashtagOrMentionURL(url) && url != firstPostLink
+                        !isHashtagOrMentionURL(url) && !postLinks.contains(url)
                     }
                     ForEach(previewLinks, id: \.absoluteString) { url in
                         LinkPreview(url: url)

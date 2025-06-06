@@ -14,6 +14,7 @@ public class PostViewModel: ObservableObject {
     @Published public var replyCount: Int
     @Published public var isLoading: Bool = false
     @Published public var error: Error?
+    @Published public var quotedPostViewModel: PostViewModel?
 
     // MARK: - Private Properties
 
@@ -32,6 +33,12 @@ public class PostViewModel: ObservableObject {
         self.likeCount = post.likeCount
         self.repostCount = post.repostCount
         self.replyCount = post.replyCount
+
+        // Initialize quoted post view model if needed
+        if let quotedPost = post.quotedPost {
+            self.quotedPostViewModel = PostViewModel(
+                post: quotedPost, serviceManager: serviceManager)
+        }
 
         // Set up observers for post changes
         setupObservers()
@@ -173,17 +180,20 @@ public class PostViewModel: ObservableObject {
                 self?.likeCount = updatedPost.likeCount
                 self?.repostCount = updatedPost.repostCount
                 self?.replyCount = updatedPost.replyCount
+
+                // Update quoted post view model if needed
+                if let quotedPost = updatedPost.quotedPost {
+                    self?.quotedPostViewModel = PostViewModel(
+                        post: quotedPost,
+                        serviceManager: self?.serviceManager ?? SocialServiceManager.shared)
+                } else {
+                    self?.quotedPostViewModel = nil
+                }
             }
             .store(in: &cancellables)
     }
 
     // MARK: - Computed Properties
-
-    /// Exposes the quoted post for the view layer
-    public var quotedPostViewModel: PostViewModel? {
-        guard let quotedPost = post.quotedPost else { return nil }
-        return PostViewModel(post: quotedPost, serviceManager: serviceManager)
-    }
 }
 
 // MARK: - Errors

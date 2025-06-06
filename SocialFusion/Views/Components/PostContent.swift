@@ -15,7 +15,9 @@ struct PostContent: View {
     }
 
     private var attributedContent: AttributedString {
-        var attributedString = AttributedString(content)
+        // Strip HTML tags from content first
+        let cleanedContent = stripHTMLTags(from: content)
+        var attributedString = AttributedString(cleanedContent)
 
         // Apply hashtag styling
         for hashtag in hashtags {
@@ -34,6 +36,11 @@ struct PostContent: View {
         }
 
         return attributedString
+    }
+
+    private func stripHTMLTags(from html: String) -> String {
+        return html.replacingOccurrences(
+            of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
     }
 }
 

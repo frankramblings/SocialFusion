@@ -119,7 +119,8 @@ private struct MultiImageGridView: View {
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(width: gridSize, height: gridSize)
+                                .frame(height: gridSize)
+                                .frame(maxWidth: .infinity)
                                 .background(.ultraThinMaterial)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .overlay(
@@ -134,13 +135,15 @@ private struct MultiImageGridView: View {
                                 }
                         } else if phase.error != nil {
                             Color.gray
-                                .frame(width: gridSize, height: gridSize)
+                                .frame(height: gridSize)
+                                .frame(maxWidth: .infinity)
                                 .background(.ultraThinMaterial)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .overlay(Image(systemName: "exclamationmark.triangle").font(.title))
                         } else {
                             ProgressView()
-                                .frame(width: gridSize, height: gridSize)
+                                .frame(height: gridSize)
+                                .frame(maxWidth: .infinity)
                         }
                     }
                     if let alt = att.altText, !alt.isEmpty {
@@ -151,7 +154,8 @@ private struct MultiImageGridView: View {
             if extraCount > 0 {
                 ZStack {
                     Color.black.opacity(0.5)
-                        .frame(width: gridSize, height: gridSize)
+                        .frame(height: gridSize)
+                        .frame(maxWidth: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     Text("+\(extraCount)")
                         .font(.title)
