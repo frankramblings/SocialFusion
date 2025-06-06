@@ -4,6 +4,8 @@ import Foundation
 class URLService {
     static let shared = URLService()
 
+    private let linkDetectionQueue = DispatchQueue(label: "urlservice.linkdetection", qos: .utility)
+
     private init() {}
 
     /// Validates and fixes common URL issues
@@ -66,6 +68,127 @@ class URLService {
         return fixedURL
     }
 
+    /// Extract links from a text string with improved filtering
+    func extractLinks(from text: String) -> [URL] {
+        return linkDetectionQueue.sync {
+            // Remove hashtags to avoid false positives
+            let processedText = removeHashtags(from: text)
+
+            let detector = try? NSDataDetector(
+                types: NSTextCheckingResult.CheckingType.link.rawValue)
+            let matches =
+                detector?.matches(
+                    in: processedText,
+                    options: [],
+                    range: NSRange(location: 0, length: processedText.utf16.count)
+                ) ?? []
+
+            return matches.compactMap { match in
+                guard let url = match.url else { return nil }
+
+                // Validate and filter the URL
+                let validatedURL = validateURL(url)
+
+                // Only allow HTTP/HTTPS
+                guard validatedURL.scheme == "http" || validatedURL.scheme == "https" else {
+                    return nil
+                }
+
+                // Skip hashtags and mentions
+                if isHashtagOrMentionURL(validatedURL) {
+                    return nil
+                }
+
+                return validatedURL
+            }
+        }
+    }
+
+    /// Remove hashtags from text to improve link detection
+    private func removeHashtags(from text: String) -> String {
+        let hashtagRegex = try? NSRegularExpression(pattern: "#\\w+", options: [])
+        guard let regex = hashtagRegex else { return text }
+
+        return regex.stringByReplacingMatches(
+            in: text,
+            options: [],
+            range: NSRange(location: 0, length: text.utf16.count),
+            withTemplate: ""
+        )
+    }
+
+    /// Check if a URL is likely a hashtag or mention
+    func isHashtagOrMentionURL(_ url: URL) -> Bool {
+        // Check for custom socialfusion scheme
+        if url.scheme == "socialfusion" {
+            return url.host == "tag" || url.host == "user"
+        }
+
+        let urlString = url.absoluteString.lowercased()
+        let path = url.path.lowercased()
+
+        // Check for URLs that start with hashtag or mention symbols
+        if urlString.hasPrefix("#") || urlString.hasPrefix("@") {
+            return true
+        }
+
+        // Check for profile/user URLs
+        if path.hasPrefix("/@") || path.hasPrefix("/users/") || path.hasPrefix("/profile/") {
+            return true
+        }
+
+        // Check for hashtag URLs
+        if url.pathComponents.contains("tags") || url.pathComponents.contains("tag")
+            || path.contains("/hashtag/")
+        {
+            return true
+        }
+
+        // Check for common hashtag-like domains
+        if let host = url.host?.lowercased() {
+            let commonHashtagWords = [
+                "workingclass", "laborhistory", "genocide", "dictatorship",
+                "humanrights", "freespeech", "uprising", "actuallyautistic",
+                "germany", "gaza", "mastodon",
+            ]
+            for word in commonHashtagWords {
+                if host == word || host.hasPrefix(word + ".") {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /// Check if a URL points to a social media post
+    func isSocialMediaPostURL(_ url: URL) -> Bool {
+        return isBlueskyPostURL(url) || isMastodonPostURL(url)
+    }
+
+    /// Check if a URL is valid and safe to make a request to
+    func isValidURLForRequest(_ url: URL) -> Bool {
+        // Basic validation - ensure URL has a valid scheme and host
+        guard let scheme = url.scheme?.lowercased(),
+            let host = url.host?.lowercased()
+        else {
+            return false
+        }
+
+        // Only allow HTTP/HTTPS
+        guard ["http", "https"].contains(scheme) else {
+            return false
+        }
+
+        // Block obvious malicious or problematic domains
+        let blockedDomains = ["localhost", "127.0.0.1", "0.0.0.0"]
+        if blockedDomains.contains(host) {
+            return false
+        }
+
+        return true
+    }
+
     /// Determines if a URL needs App Transport Security exceptions
     /// - Parameter url: The URL to check
     /// - Returns: True if the URL uses HTTP and might need ATS exceptions
@@ -100,7 +223,7 @@ class URLService {
     /// - Parameter url: The URL to check
     /// - Returns: True if the URL is a Bluesky post URL
     func isBlueskyPostURL(_ url: URL) -> Bool {
-        guard let host = url.host else { return false }
+        guard let host = url.host?.lowercased() else { return false }
 
         // Match bsky.app and bsky.social URLs
         let isBlueskyDomain = host.contains("bsky.app") || host.contains("bsky.social")
@@ -109,6 +232,11 @@ class URLService {
         let path = url.path
         let isPostURL = path.contains("/profile/") && path.contains("/post/")
 
+        // Don't treat profile-only URLs as post URLs
+        if path.contains("/profile/") && !path.contains("/post/") {
+            return false
+        }
+
         return isBlueskyDomain && isPostURL
     }
 
@@ -116,7 +244,7 @@ class URLService {
     /// - Parameter url: The URL to check
     /// - Returns: True if the URL is a Mastodon post URL
     func isMastodonPostURL(_ url: URL) -> Bool {
-        guard let host = url.host else { return false }
+        guard let host = url.host?.lowercased() else { return false }
 
         // Check for common Mastodon instances or pattern
         let isMastodonInstance =
@@ -126,9 +254,21 @@ class URLService {
 
         // Check if it matches Mastodon post URL pattern: /@username/postID
         let path = url.path
-        let isPostURL = path.contains("/@") && path.split(separator: "/").count >= 3
+        let components = path.split(separator: "/")
 
-        return isMastodonInstance && isPostURL
+        // Don't treat profile-only URLs as post URLs
+        if path.contains("/@") && components.count < 3 {
+            return false
+        }
+
+        // Check if last component is numeric (status ID)
+        if components.count >= 3 {
+            let lastComponent = components.last!
+            let isNumericID = lastComponent.allSatisfy { $0.isNumber }
+            return isMastodonInstance && isNumericID
+        }
+
+        return false
     }
 
     /// Extracts the Bluesky post ID from a URL
