@@ -1,5 +1,11 @@
 import SwiftUI
 
+// State manager for post expansion to avoid view reuse issues
+@MainActor
+class PostExpansionState: ObservableObject {
+    @Published var isExpanded = false
+}
+
 /// A view that displays a post card with all its components
 struct PostCardView: View {
     let post: Post
@@ -19,31 +25,136 @@ struct PostCardView: View {
     let onCopyLink: () -> Void
     let onReport: () -> Void
 
+    // Optional boost information
+    let boostedBy: String?
+
+    // State for expanding reply banner - keyed to post ID to prevent view reuse issues
+    @StateObject private var expansionState = PostExpansionState()
+    @State private var bannerWasTapped = false
+
+    // Platform color helper
+    private var platformColor: Color {
+        switch post.platform {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
+    // Determine which post to display: use original for boosts, otherwise self.post
+    private var displayPost: Post {
+        // For boosts, use the original post for display content
+        if let boostedBy = boostedBy, let original = post.originalPost {
+            return original
+        }
+        return post
+    }
+
+    // Convenience initializer for TimelineEntry
+    init(entry: TimelineEntry) {
+        self.post = entry.post
+        self.replyCount = 0
+        self.repostCount = entry.post.repostCount
+        self.likeCount = entry.post.likeCount
+        self.isReplying = false
+        self.isReposted = entry.post.isReposted
+        self.isLiked = entry.post.isLiked
+        self.onAuthorTap = {}
+        self.onReply = {}
+        self.onRepost = {}
+        self.onLike = {}
+        self.onShare = {}
+        self.onMediaTap = { _ in }
+        self.onOpenInBrowser = {}
+        self.onCopyLink = {}
+        self.onReport = {}
+
+        // Extract boost information from TimelineEntry
+        if case .boost(let boostedBy) = entry.kind {
+            self.boostedBy = boostedBy
+        } else {
+            self.boostedBy = nil
+        }
+    }
+
+    // Original initializer for backward compatibility
+    init(
+        post: Post,
+        replyCount: Int,
+        repostCount: Int,
+        likeCount: Int,
+        isReplying: Bool,
+        isReposted: Bool,
+        isLiked: Bool,
+        onAuthorTap: @escaping () -> Void,
+        onReply: @escaping () -> Void,
+        onRepost: @escaping () -> Void,
+        onLike: @escaping () -> Void,
+        onShare: @escaping () -> Void,
+        onMediaTap: @escaping (Post.Attachment) -> Void,
+        onOpenInBrowser: @escaping () -> Void,
+        onCopyLink: @escaping () -> Void,
+        onReport: @escaping () -> Void
+    ) {
+        self.post = post
+        self.replyCount = replyCount
+        self.repostCount = repostCount
+        self.likeCount = likeCount
+        self.isReplying = isReplying
+        self.isReposted = isReposted
+        self.isLiked = isLiked
+        self.onAuthorTap = onAuthorTap
+        self.onReply = onReply
+        self.onRepost = onRepost
+        self.onLike = onLike
+        self.onShare = onShare
+        self.onMediaTap = onMediaTap
+        self.onOpenInBrowser = onOpenInBrowser
+        self.onCopyLink = onCopyLink
+        self.onReport = onReport
+        self.boostedBy = nil
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            // Boost banner if this post was boosted/reposted
+            if let boostedBy = boostedBy {
+                BoostBanner(handle: boostedBy, platform: post.platform)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+            }
+
+            // Expanding reply banner if this post is a reply
+            if let inReplyToUsername = displayPost.inReplyToUsername {
+                ExpandingReplyBanner(
+                    username: inReplyToUsername,
+                    network: displayPost.platform,
+                    parentId: displayPost.inReplyToID,
+                    isExpanded: $expansionState.isExpanded,
+                    onBannerTap: { bannerWasTapped = true }
+                )
+                .padding(.bottom, 4)
+            }
+
             // Author section
             PostAuthorView(
-                post: post,
+                post: displayPost,
                 onAuthorTap: onAuthorTap
             )
 
-            // Content section
-            PostContent(
-                content: post.content,
-                hashtags: post.hashtags,
-                mentions: post.mentions,
-                onHashtagTap: { _ in },
-                onMentionTap: { _ in }
-            )
+            // Content section with link previews
+            displayPost.contentView(lineLimit: nil, showLinkPreview: true, font: .body)
+                .padding(.horizontal)
 
             // Media section
-            if !post.attachments.isEmpty {
-                UnifiedMediaGridView(attachments: post.attachments)
+            if !displayPost.attachments.isEmpty {
+                UnifiedMediaGridView(attachments: displayPost.attachments)
             }
 
             // Action bar
             PostActionBar(
-                post: post,
+                post: displayPost,
                 replyCount: replyCount,
                 repostCount: repostCount,
                 likeCount: likeCount,
@@ -58,7 +169,7 @@ struct PostCardView: View {
 
             // Menu
             PostMenu(
-                post: post,
+                post: displayPost,
                 onOpenInBrowser: onOpenInBrowser,
                 onCopyLink: onCopyLink,
                 onShare: onShare,
@@ -67,8 +178,22 @@ struct PostCardView: View {
         }
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(radius: 2)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Only handle tap if banner wasn't tapped
+            if !bannerWasTapped {
+                // Handle card tap (could show detail view)
+            }
+            bannerWasTapped = false
+        }
+        .onAppear {
+            if boostedBy != nil {
+                print("[PostCardView] Post has boost banner: \(boostedBy!)")
+            }
+            if displayPost.inReplyToUsername != nil {
+                print("[PostCardView] Post has reply banner: \(displayPost.inReplyToUsername!)")
+            }
+        }
     }
 }
 
@@ -76,62 +201,15 @@ struct PostCardView: View {
 struct PostCardView_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 16) {
-            // Bluesky post with media
+            // Simple test - basic post
             PostCardView(
-                post: Post(
-                    id: "1",
-                    content: "This is a test post with #hashtags and @mentions",
-                    authorName: "John Doe",
-                    authorUsername: "johndoe",
-                    authorProfilePictureURL: "https://example.com/avatar.jpg",
-                    createdAt: Date(),
-                    platform: .bluesky,
-                    originalURL: "",
-                    attachments: [
-                        Post.Attachment(
-                            type: .image,
-                            url: "https://example.com/image.jpg",
-                            previewURL: "https://example.com/preview.jpg",
-                            altText: "Test image"
-                        )
-                    ]
-                ),
+                post: Post.samplePosts[0],
                 replyCount: 42,
                 repostCount: 123,
                 likeCount: 456,
                 isReplying: false,
                 isReposted: true,
                 isLiked: true,
-                onAuthorTap: {},
-                onReply: {},
-                onRepost: {},
-                onLike: {},
-                onShare: {},
-                onMediaTap: { _ in },
-                onOpenInBrowser: {},
-                onCopyLink: {},
-                onReport: {}
-            )
-
-            // Mastodon post without media
-            PostCardView(
-                post: Post(
-                    id: "2",
-                    content: "This is a test post without media",
-                    authorName: "Jane Smith",
-                    authorUsername: "janesmith",
-                    authorProfilePictureURL: "https://example.com/avatar.jpg",
-                    createdAt: Date(),
-                    platform: .mastodon,
-                    originalURL: "",
-                    attachments: []
-                ),
-                replyCount: 0,
-                repostCount: 0,
-                likeCount: 0,
-                isReplying: false,
-                isReposted: false,
-                isLiked: false,
                 onAuthorTap: {},
                 onReply: {},
                 onRepost: {},

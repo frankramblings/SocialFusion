@@ -27,47 +27,53 @@ struct ExpandingReplyBanner: View {
 
     @State private var fetchAttempted = false
 
+    private var platformColor: Color {
+        switch network {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Banner row
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.turn.up.left")
-                    .font(.caption)
-                    .foregroundColor(network.secondaryColor)
-
-                Text("Replying to @\(displayUsername)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                if shouldShowLoadingState {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 12, height: 12)
-                }
-
-                Spacer()
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8, blendDuration: 0.2)) {
+            // Banner row as a button for reliable tap handling
+            Button(action: {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25)) {
                     isExpanded.toggle()
                 }
                 onBannerTap?()
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(.systemGray6).opacity(0.95))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-            )
-            .zIndex(1)
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.turn.up.left")
+                        .font(.caption)
+                        .foregroundColor(platformColor)
 
-            // Parent post preview
+                    Text("Replying to @\(displayUsername)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if shouldShowLoadingState {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 12, height: 12)
+                    }
+
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            // Parent post preview - seamlessly connected to banner
             if isExpanded {
                 if let parent = parent {
                     if parent.isPlaceholder {
@@ -80,35 +86,27 @@ struct ExpandingReplyBanner: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 12)
+                        .padding(.horizontal, 10)
                         .frame(maxWidth: .infinity)
-                        .background(Color(.systemGray6).opacity(0.7))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-                        )
-                        .padding(.top, 8)
+                        .transition(.opacity)
                     } else {
                         ParentPostPreview(post: parent)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 10)
-                            .background(Color(.systemGray6).opacity(0.7))
-                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-                            )
-                            .padding(.top, 8)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .transition(.opacity)
                     }
                 } else if shouldShowLoadingState {
-                    LoadingParentView()
-                        .padding(.top, 8)
-                        .background(Color(.systemGray6).opacity(0.7))
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-                        )
+                    VStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Loading parent post...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity)
+                    .transition(.opacity)
                 } else if fetchAttempted {
                     VStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle")
@@ -119,17 +117,22 @@ struct ExpandingReplyBanner: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(.vertical, 12)
+                    .padding(.horizontal, 10)
                     .frame(maxWidth: .infinity)
-                    .background(Color(.systemGray6).opacity(0.7))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
-                    )
-                    .padding(.top, 8)
+                    .transition(.opacity)
                 }
             }
         }
+        // Single unified container styling with subtle stroke and background matching post card
+        .background(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .animation(
+            .spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25), value: isExpanded
+        )
         .onAppear {
             print(
                 "[ExpandingReplyBanner] onAppear for parentId=\(String(describing: parentId)), isExpanded=\(isExpanded)"

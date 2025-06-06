@@ -1200,46 +1200,7 @@ public class MastodonService {
                     ? status.account.acct : status.account.displayName
             )
 
-            return Post(
-                id: status.id,
-                content: status.content,
-                authorName: status.account.displayName,
-                authorUsername: status.account.acct,
-                authorProfilePictureURL: status.account.avatar,
-                createdAt: DateParser.parse(status.createdAt) ?? Date.distantPast,
-                platform: .mastodon,
-                originalURL: status.url ?? "",
-                attachments: status.mediaAttachments.compactMap { media -> Post.Attachment? in
-                    guard media.type == "image", let url = URL(string: media.url),
-                        !media.url.isEmpty
-                    else {
-                        print(
-                            "[Mastodon] Skipping non-image or invalid attachment: \(media.url) type: \(media.type)"
-                        )
-                        return nil
-                    }
-                    let alt = media.description ?? "Image"
-                    print("[Mastodon] Parsed image attachment: \(url) alt: \(alt)")
-                    return Post.Attachment(
-                        url: media.url,
-                        type: .image,
-                        altText: alt
-                    )
-                },
-                mentions: status.mentions.compactMap { mention -> String in
-                    return mention.username
-                },
-                tags: status.tags.compactMap { tag -> String in
-                    return tag.name
-                },
-                isReposted: status.reblogged ?? false,
-                isLiked: status.favourited ?? false,
-                likeCount: status.favouritesCount,
-                repostCount: status.reblogsCount,
-                parent: boostPost,
-                inReplyToID: status.inReplyToId,
-                inReplyToUsername: replyToUsername
-            )
+            return boostPost
         }
 
         // Regular non-boosted post
@@ -1284,7 +1245,9 @@ public class MastodonService {
         // Try to find the username being replied to from mentions
         var parentPost: Post? = nil
 
-        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
+        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId,
+            replyToId != status.id
+        {  // Prevent self-referencing
             // Create a minimal parent post with the info we have to display immediately
             // This gives us a parent post without needing an additional API call
             // The full content will be loaded on demand when expanded

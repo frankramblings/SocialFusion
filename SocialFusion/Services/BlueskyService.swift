@@ -867,6 +867,10 @@ class BlueskyService {
                 // Process media attachments - handle different API embed formats
                 var attachments: [Post.Attachment] = []
                 if let embed = post["embed"] as? [String: Any] {
+                    logger.info(
+                        "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
+                    )
+
                     // First try the images array format
                     if let images = embed["images"] as? [[String: Any]] {
                         for image in images {
@@ -879,7 +883,7 @@ class BlueskyService {
                             }
                         }
                     }
-                    // Then try the other common formats
+                    // Then try the other common formats for images
                     else if let media = embed["media"] as? [String: Any],
                         let mediaType = media["$type"] as? String,
                         mediaType.contains("image"),
@@ -887,16 +891,15 @@ class BlueskyService {
                         let url = imgUrl["url"] as? String, !url.isEmpty, URL(string: url) != nil
                     {
                         let alt = media["alt"] as? String ?? "Image"
-                        print("[Bluesky] Parsed image attachment: \(url) alt: \(alt)")
+                        logger.debug("[Bluesky] Parsed image attachment: \(url) alt: \(alt)")
                         attachments.append(
                             Post.Attachment(
                                 url: url,
                                 type: .image,
                                 altText: alt
                             ))
-                    } else {
-                        print("[Bluesky] Skipping invalid or non-image embed")
                     }
+                    // Note: Quote posts are handled separately below, don't skip non-image embeds
                 }
 
                 // Extract mentions and hashtags
@@ -931,6 +934,7 @@ class BlueskyService {
                     let reasonType = reason["$type"] as? String,
                     reasonType == "app.bsky.feed.defs#reasonRepost"
                 {
+                    logger.info("[Bluesky] Detected repost with reason: \(reason)")
                     // This is a repost - process the original post
                     if let reasonBy = reason["by"] as? [String: Any],
                         let reposterName = reasonBy["displayName"] as? String ?? reasonBy["handle"]
@@ -1014,48 +1018,116 @@ class BlueskyService {
                 var quotedPostUri: String? = nil
                 var quotedPostAuthorHandle: String? = nil
                 var quotedPost: Post? = nil
-                if let embed = post["embed"] as? [String: Any],
-                    let record = embed["record"] as? [String: Any],
-                    let quotedRecord = record["record"] as? [String: Any],
-                    let quotedUri = quotedRecord["uri"] as? String,
-                    let quotedAuthor = quotedRecord["author"] as? [String: Any],
-                    let quotedHandle = quotedAuthor["handle"] as? String
-                {
-                    quotedPostUri = quotedUri
-                    quotedPostAuthorHandle = quotedHandle
-                    // Hydrate quotedPost if the full quoted post is embedded
-                    if let quotedText = quotedRecord["text"] as? String,
-                        let quotedCreatedAt = quotedRecord["createdAt"] as? String,
-                        let quotedAuthorName = quotedAuthor["displayName"] as? String
-                            ?? quotedHandle as String?,
-                        let quotedAuthorAvatar = quotedAuthor["avatar"] as? String
+
+                if let embed = post["embed"] as? [String: Any] {
+                    logger.info(
+                        "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
+                    )
+
+                    // Handle direct record embed (quote post)
+                    if let record = embed["record"] as? [String: Any],
+                        let quotedRecord = record["record"] as? [String: Any],
+                        let quotedUri = quotedRecord["uri"] as? String,
+                        let quotedAuthor = quotedRecord["author"] as? [String: Any],
+                        let quotedHandle = quotedAuthor["handle"] as? String
                     {
-                        let quotedCreatedAtDate =
-                            DateParser.parse(quotedCreatedAt) ?? Date.distantPast
-                        quotedPost = Post(
-                            id: quotedUri,
-                            content: quotedText,
-                            authorName: quotedAuthorName,
-                            authorUsername: quotedHandle,
-                            authorProfilePictureURL: quotedAuthorAvatar,
-                            createdAt: quotedCreatedAtDate,
-                            platform: .bluesky,
-                            originalURL:
-                                "https://bsky.app/profile/\(quotedHandle)/post/\(quotedUri.split(separator: "/").last ?? "")",
-                            attachments: [],
-                            mentions: [],
-                            tags: [],
-                            likeCount: 0,
-                            repostCount: 0,
-                            platformSpecificId: quotedUri,
-                            boostedBy: nil,
-                            parent: nil,
-                            inReplyToID: nil,
-                            inReplyToUsername: nil,
-                            quotedPostUri: nil,
-                            quotedPostAuthorHandle: nil,
-                            cid: quotedRecord["cid"] as? String
-                        )
+                        quotedPostUri = quotedUri
+                        quotedPostAuthorHandle = quotedHandle
+                        logger.info("[Bluesky] Found quote post embed: \(quotedUri)")
+
+                        // Hydrate quotedPost if the full quoted post is embedded
+                        if let quotedText = quotedRecord["text"] as? String,
+                            let quotedCreatedAt = quotedRecord["createdAt"] as? String
+                        {
+                            let quotedAuthorName =
+                                (quotedAuthor["displayName"] as? String) ?? quotedHandle
+                            let quotedAuthorAvatar = quotedAuthor["avatar"] as? String ?? ""
+                            let quotedCreatedAtDate =
+                                DateParser.parse(quotedCreatedAt) ?? Date.distantPast
+
+                            quotedPost = Post(
+                                id: quotedUri,
+                                content: quotedText,
+                                authorName: quotedAuthorName,
+                                authorUsername: quotedHandle,
+                                authorProfilePictureURL: quotedAuthorAvatar,
+                                createdAt: quotedCreatedAtDate,
+                                platform: .bluesky,
+                                originalURL:
+                                    "https://bsky.app/profile/\(quotedHandle)/post/\(quotedUri.split(separator: "/").last ?? "")",
+                                attachments: [],  // TODO: Parse quoted post attachments if needed
+                                mentions: [],
+                                tags: [],
+                                likeCount: 0,
+                                repostCount: 0,
+                                platformSpecificId: quotedUri,
+                                boostedBy: nil,
+                                parent: nil,
+                                inReplyToID: nil,
+                                inReplyToUsername: nil,
+                                quotedPostUri: nil,
+                                quotedPostAuthorHandle: nil,
+                                cid: quotedRecord["cid"] as? String
+                            )
+                            logger.info(
+                                "[Bluesky] Successfully hydrated quote post: \(quotedText.prefix(40))"
+                            )
+                        } else {
+                            logger.info(
+                                "[Bluesky] Quote post found but not fully hydrated, will fetch separately"
+                            )
+                        }
+                    }
+                    // Handle recordWithMedia embed (quote post with media)
+                    else if let recordWithMedia = embed["recordWithMedia"] as? [String: Any],
+                        let record = recordWithMedia["record"] as? [String: Any],
+                        let quotedRecord = record["record"] as? [String: Any],
+                        let quotedUri = quotedRecord["uri"] as? String,
+                        let quotedAuthor = quotedRecord["author"] as? [String: Any],
+                        let quotedHandle = quotedAuthor["handle"] as? String
+                    {
+                        quotedPostUri = quotedUri
+                        quotedPostAuthorHandle = quotedHandle
+                        logger.info("[Bluesky] Found quote post with media embed: \(quotedUri)")
+
+                        // Handle similar to above but also process media
+                        if let quotedText = quotedRecord["text"] as? String,
+                            let quotedCreatedAt = quotedRecord["createdAt"] as? String
+                        {
+                            let quotedAuthorName =
+                                (quotedAuthor["displayName"] as? String) ?? quotedHandle
+                            let quotedAuthorAvatar = quotedAuthor["avatar"] as? String ?? ""
+                            let quotedCreatedAtDate =
+                                DateParser.parse(quotedCreatedAt) ?? Date.distantPast
+
+                            quotedPost = Post(
+                                id: quotedUri,
+                                content: quotedText,
+                                authorName: quotedAuthorName,
+                                authorUsername: quotedHandle,
+                                authorProfilePictureURL: quotedAuthorAvatar,
+                                createdAt: quotedCreatedAtDate,
+                                platform: .bluesky,
+                                originalURL:
+                                    "https://bsky.app/profile/\(quotedHandle)/post/\(quotedUri.split(separator: "/").last ?? "")",
+                                attachments: [],  // TODO: Parse quoted post attachments if needed
+                                mentions: [],
+                                tags: [],
+                                likeCount: 0,
+                                repostCount: 0,
+                                platformSpecificId: quotedUri,
+                                boostedBy: nil,
+                                parent: nil,
+                                inReplyToID: nil,
+                                inReplyToUsername: nil,
+                                quotedPostUri: nil,
+                                quotedPostAuthorHandle: nil,
+                                cid: quotedRecord["cid"] as? String
+                            )
+                            logger.info(
+                                "[Bluesky] Successfully hydrated quote post with media: \(quotedText.prefix(40))"
+                            )
+                        }
                     }
                 }
 
@@ -1102,6 +1174,25 @@ class BlueskyService {
                 logger.info(
                     "[Bluesky] Parsed post: id=\(uri), cid=\(cid ?? "nil"), content=\(text.prefix(40))"
                 )
+
+                // Debug logging for potentially problematic posts
+                if text.isEmpty && originalPost == nil {
+                    logger.warning(
+                        "[Bluesky] Found post with empty content and no originalPost: id=\(uri), author=\(authorUsername)"
+                    )
+                    logger.warning(
+                        "[Bluesky] - Post structure: cid=\(cid ?? "nil"), hasEmbed=\(post["embed"] != nil), quotedPostUri=\(quotedPostUri ?? "nil")"
+                    )
+                    if let reason = item["reason"] as? [String: Any] {
+                        logger.warning("[Bluesky] - Has reason: \(reason)")
+                    } else {
+                        logger.warning("[Bluesky] - No reason found")
+                    }
+                    if let embed = post["embed"] as? [String: Any] {
+                        logger.warning("[Bluesky] - Embed structure: \(embed)")
+                    }
+                }
+
                 posts.append(newPost)
             } catch {
                 logger.error("Error processing timeline item: \(error.localizedDescription)")
