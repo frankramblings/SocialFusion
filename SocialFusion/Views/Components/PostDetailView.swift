@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// A view that displays the details of a post
-struct PostDetailView: View {
+struct PostDetailModalView: View {
     @ObservedObject var viewModel: PostViewModel
     @Binding var focusReplyComposer: Bool
     @EnvironmentObject var serviceManager: SocialServiceManager
@@ -153,6 +153,7 @@ struct PostDetailView: View {
             }
             .padding()
         }
+        .background(Color(.systemBackground))
         .handleAppErrors(error: $viewModel.error)
     }
 
@@ -183,9 +184,9 @@ struct PostDetailView: View {
     }
 }
 
-struct PostDetailView_Previews: PreviewProvider {
+struct PostDetailModalView_Previews: PreviewProvider {
     static var previews: some View {
-        PostDetailView(
+        PostDetailModalView(
             viewModel: PostViewModel(
                 post: Post.samplePosts[0], serviceManager: SocialServiceManager()),
             focusReplyComposer: .constant(false)

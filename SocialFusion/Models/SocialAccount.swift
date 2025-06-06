@@ -352,12 +352,26 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         if let profileImageURLString = try container.decodeIfPresent(
             String.self, forKey: .profileImageURL)
         {
-            profileImageURL = URL(string: profileImageURLString)
-            print(
-                "Decoded profile image URL for \(username): \(String(describing: profileImageURL))")
+            if profileImageURLString.isEmpty {
+                profileImageURL = nil
+                print("Empty profile image URL string for \(username)")
+            } else {
+                profileImageURL = URL(string: profileImageURLString)
+                if profileImageURL != nil {
+                    print(
+                        "✅ Successfully decoded profile image URL for \(username): \(profileImageURLString)"
+                    )
+                } else {
+                    print(
+                        "❌ Invalid profile image URL format for \(username): '\(profileImageURLString)'"
+                    )
+                }
+            }
         } else {
             profileImageURL = nil
-            print("No profile image URL found for \(username)")
+            print(
+                "⚠️ No profile image URL field found in stored data for \(username) - this account may need to be re-added to fetch the current profile image"
+            )
         }
 
         // Initialize token properties to nil; we'll load them from keychain separately

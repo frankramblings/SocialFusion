@@ -24,6 +24,7 @@ struct PostCardView: View {
     let onOpenInBrowser: () -> Void
     let onCopyLink: () -> Void
     let onReport: () -> Void
+    let onPostTap: () -> Void
 
     // Optional boost information
     let boostedBy: String?
@@ -52,7 +53,14 @@ struct PostCardView: View {
     }
 
     // Convenience initializer for TimelineEntry
-    init(entry: TimelineEntry) {
+    init(
+        entry: TimelineEntry,
+        onPostTap: @escaping () -> Void = {},
+        onReply: @escaping () -> Void = {},
+        onRepost: @escaping () -> Void = {},
+        onLike: @escaping () -> Void = {},
+        onShare: @escaping () -> Void = {}
+    ) {
         self.post = entry.post
         self.replyCount = 0
         self.repostCount = entry.post.repostCount
@@ -61,14 +69,15 @@ struct PostCardView: View {
         self.isReposted = entry.post.isReposted
         self.isLiked = entry.post.isLiked
         self.onAuthorTap = {}
-        self.onReply = {}
-        self.onRepost = {}
-        self.onLike = {}
-        self.onShare = {}
+        self.onReply = onReply
+        self.onRepost = onRepost
+        self.onLike = onLike
+        self.onShare = onShare
         self.onMediaTap = { _ in }
         self.onOpenInBrowser = {}
         self.onCopyLink = {}
         self.onReport = {}
+        self.onPostTap = onPostTap
 
         // Extract boost information from TimelineEntry
         if case .boost(let boostedBy) = entry.kind {
@@ -95,7 +104,8 @@ struct PostCardView: View {
         onMediaTap: @escaping (Post.Attachment) -> Void,
         onOpenInBrowser: @escaping () -> Void,
         onCopyLink: @escaping () -> Void,
-        onReport: @escaping () -> Void
+        onReport: @escaping () -> Void,
+        onPostTap: @escaping () -> Void
     ) {
         self.post = post
         self.replyCount = replyCount
@@ -113,6 +123,7 @@ struct PostCardView: View {
         self.onOpenInBrowser = onOpenInBrowser
         self.onCopyLink = onCopyLink
         self.onReport = onReport
+        self.onPostTap = onPostTap
         self.boostedBy = nil
     }
 
@@ -152,19 +163,21 @@ struct PostCardView: View {
                 UnifiedMediaGridView(attachments: displayPost.attachments)
             }
 
-            // Action bar
-            PostActionBar(
+            // Action bar (using the working ActionBar)
+            ActionBar(
                 post: displayPost,
-                replyCount: replyCount,
-                repostCount: repostCount,
-                likeCount: likeCount,
-                isReplying: isReplying,
-                isReposted: isReposted,
-                isLiked: isLiked,
-                onReply: onReply,
-                onRepost: onRepost,
-                onLike: onLike,
-                onShare: onShare
+                onAction: { action in
+                    switch action {
+                    case .reply:
+                        onReply()
+                    case .repost:
+                        onRepost()
+                    case .like:
+                        onLike()
+                    case .share:
+                        onShare()
+                    }
+                }
             )
 
             // Menu
@@ -182,7 +195,7 @@ struct PostCardView: View {
         .onTapGesture {
             // Only handle tap if banner wasn't tapped
             if !bannerWasTapped {
-                // Handle card tap (could show detail view)
+                onPostTap()
             }
             bannerWasTapped = false
         }
@@ -218,7 +231,8 @@ struct PostCardView_Previews: PreviewProvider {
                 onMediaTap: { _ in },
                 onOpenInBrowser: {},
                 onCopyLink: {},
-                onReport: {}
+                onReport: {},
+                onPostTap: {}
             )
         }
         .padding()

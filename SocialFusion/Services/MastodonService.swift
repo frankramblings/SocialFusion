@@ -455,8 +455,16 @@ public class MastodonService {
         verifiedAccount.accessToken = accessToken
 
         // Post notification about the profile image update if we have an avatar URL
-        if let avatarURL = URL(string: mastodonAccount.avatar) {
-            print("Found Mastodon avatar URL: \(avatarURL)")
+        print(
+            "Raw avatar field from Mastodon API for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
+        )
+
+        if mastodonAccount.avatar.isEmpty {
+            print("⚠️ Empty avatar field returned from Mastodon API for \(mastodonAccount.username)")
+        } else if let avatarURL = URL(string: mastodonAccount.avatar) {
+            print(
+                "✅ Successfully parsed Mastodon avatar URL for \(mastodonAccount.username): \(avatarURL)"
+            )
 
             // Ensure UI updates happen on the main thread
             // Store a copy of the required values to avoid Sendable issues
@@ -464,7 +472,8 @@ public class MastodonService {
             DispatchQueue.main.async {
                 // Use a captured local copy of verifiedAccount to avoid Sendable warning
                 verifiedAccount.profileImageURL = avatarURL
-                print("Updated Mastodon account with new profile image URL")
+                print(
+                    "✅ Updated Mastodon account \(mastodonAccount.username) with profile image URL")
 
                 // Post notification about the profile image update
                 NotificationCenter.default.post(
@@ -473,6 +482,10 @@ public class MastodonService {
                     userInfo: ["accountId": accountId, "profileImageURL": avatarURL]
                 )
             }
+        } else {
+            print(
+                "❌ Failed to create valid URL from avatar field for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
+            )
         }
 
         return mastodonAccount
@@ -1424,15 +1437,27 @@ public class MastodonService {
             let (data, _) = try await URLSession.shared.data(for: request)
             let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
 
-            if let avatarURL = URL(string: mastodonAccount.avatar) {
-                print("Found Mastodon avatar URL: \(avatarURL)")
+            print(
+                "Raw avatar field from Mastodon API for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
+            )
+
+            if mastodonAccount.avatar.isEmpty {
+                print(
+                    "⚠️ Empty avatar field returned from Mastodon API for \(mastodonAccount.username)"
+                )
+            } else if let avatarURL = URL(string: mastodonAccount.avatar) {
+                print(
+                    "✅ Successfully parsed Mastodon avatar URL for \(mastodonAccount.username): \(avatarURL)"
+                )
 
                 // Ensure UI updates happen on the main thread
                 // Make local copies of values to avoid Sendable issues
                 let accountId = account.id
                 DispatchQueue.main.async { [avatarURL] in
                     account.profileImageURL = avatarURL
-                    print("Updated Mastodon account with new profile image URL")
+                    print(
+                        "✅ Updated Mastodon account \(mastodonAccount.username) with profile image URL"
+                    )
 
                     // Post notification about the profile image update
                     NotificationCenter.default.post(
@@ -1441,6 +1466,10 @@ public class MastodonService {
                         userInfo: ["accountId": accountId, "profileImageURL": avatarURL]
                     )
                 }
+            } else {
+                print(
+                    "❌ Failed to create valid URL from avatar field for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
+                )
             }
         } catch {
             print("Error fetching Mastodon profile: \(error)")

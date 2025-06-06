@@ -21,8 +21,7 @@ struct PostDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
-            ScrollView {
+        ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Main post
                     VStack(alignment: .leading, spacing: 16) {
@@ -323,17 +322,6 @@ struct PostDetailView: View {
                 .padding(.bottom, 20)
             }
             .navigationBarTitle("Post", displayMode: .inline)
-            .navigationBarItems(
-                leading: Button(action: {
-                    presentationMode.wrappedValue.dismiss()
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.left")
-                        Text("Back")
-                    }
-                    .foregroundColor(.primary)
-                }
-            )
             .onAppear {
                 detectLinks()
                 loadReplies()

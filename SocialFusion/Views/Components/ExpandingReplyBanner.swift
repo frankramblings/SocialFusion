@@ -8,6 +8,7 @@ struct ExpandingReplyBanner: View {
     var onBannerTap: (() -> Void)? = nil
     @ObservedObject private var parentCache = PostParentCache.shared
     @State private var parent: Post? = nil
+    @State private var fetchAttempted = false
 
     private var displayUsername: String {
         if let parent = parent {
@@ -22,10 +23,9 @@ struct ExpandingReplyBanner: View {
 
     private var shouldShowLoadingState: Bool {
         guard let parentId = parentId else { return false }
-        return isExpanded && parentCache.isFetching(id: parentId)
+        return isExpanded
+            && (parentCache.isFetching(id: parentId) || (parent?.isPlaceholder == true))
     }
-
-    @State private var fetchAttempted = false
 
     private var platformColor: Color {
         switch network {
@@ -38,11 +38,21 @@ struct ExpandingReplyBanner: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Banner row as a button for reliable tap handling
+            // Banner row with improved tap handling
             Button(action: {
-                withAnimation(.spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25)) {
+                // Provide haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                     isExpanded.toggle()
                 }
+
+                // Start fetching when expanded
+                if isExpanded, let parentId = parentId {
+                    triggerParentFetch(parentId: parentId)
+                }
+
                 onBannerTap?()
             }) {
                 HStack(spacing: 6) {
@@ -65,6 +75,7 @@ struct ExpandingReplyBanner: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -73,15 +84,28 @@ struct ExpandingReplyBanner: View {
             }
             .buttonStyle(PlainButtonStyle())
 
-            // Parent post preview - seamlessly connected to banner
+            // Parent post preview with skeleton loading state
             if isExpanded {
-                if let parent = parent {
-                    if parent.isPlaceholder {
+                Group {
+                    if let parent = parent, !parent.isPlaceholder {
+                        // Real parent post content
+                        ParentPostPreview(post: parent)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    } else if shouldShowLoadingState {
+                        // Skeleton loading state to prevent layout shifts
+                        ParentPostSkeleton()
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .transition(.opacity)
+                    } else if fetchAttempted && parent == nil {
+                        // Error state
                         VStack(spacing: 8) {
-                            Image(systemName: "arrow.triangle.2.circlepath")
-                                .foregroundColor(.secondary)
+                            Image(systemName: "exclamationmark.triangle")
+                                .foregroundColor(.orange)
                                 .font(.title2)
-                            Text("Loading parent post...")
+                            Text("Unable to load parent post")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -89,108 +113,56 @@ struct ExpandingReplyBanner: View {
                         .padding(.horizontal, 10)
                         .frame(maxWidth: .infinity)
                         .transition(.opacity)
-                    } else {
-                        ParentPostPreview(post: parent)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .transition(.opacity)
                     }
-                } else if shouldShowLoadingState {
-                    VStack(spacing: 8) {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                        Text("Loading parent post...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity)
-                    .transition(.opacity)
-                } else if fetchAttempted {
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.orange)
-                            .font(.title2)
-                        Text("Unable to load parent post")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: .infinity)
-                    .transition(.opacity)
                 }
+                .clipped()  // Prevent content overflow during animation
             }
         }
-        // Single unified container styling with subtle stroke and background matching post card
         .background(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
-        .animation(
-            .spring(response: 0.5, dampingFraction: 0.85, blendDuration: 0.25), value: isExpanded
-        )
-        .onAppear {
-            print(
-                "[ExpandingReplyBanner] onAppear for parentId=\(String(describing: parentId)), isExpanded=\(isExpanded)"
-            )
-        }
-        .onDisappear {
-            print("[ExpandingReplyBanner] onDisappear for parentId=\(String(describing: parentId))")
-        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isExpanded)
         .onReceive(parentCache.$cache) { cache in
             guard let parentId = parentId else { return }
             let newParent = cache[parentId]
             if parent !== newParent {
-                print(
-                    "[ExpandingReplyBanner] updateParent for parentId=\(parentId): \(String(describing: newParent))"
-                )
-                parent = newParent
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    parent = newParent
+                }
             }
         }
-        .task(id: parentId) {
-            guard let parentId = parentId else { return }
-            print("[ExpandingReplyBanner] .task for parentId=\(parentId), isExpanded=\(isExpanded)")
-            if isExpanded {
-                triggerParentFetch(parentId: parentId)
-            }
-        }
-        .onChange(of: isExpanded) { newValue in
-            print(
-                "[ExpandingReplyBanner] .onChange isExpanded=\(newValue) parentId=\(String(describing: parentId))"
-            )
-            if newValue, let parentId = parentId {
-                triggerParentFetch(parentId: parentId)
+        .onAppear {
+            // Set initial parent from cache
+            if let parentId = parentId {
+                parent = parentCache.getCachedPost(id: parentId)
+
+                // Preload in background for smoother experience
+                if !parentCache.isFetching(id: parentId) && parent == nil {
+                    triggerBackgroundPreload(parentId: parentId)
+                }
             }
         }
     }
 
+    private func triggerBackgroundPreload(parentId: String) {
+        // Use the enhanced preload method from PostParentCache
+        parentCache.preloadParentPost(
+            id: parentId,
+            username: username,
+            platform: network,
+            serviceManager: SocialServiceManager.shared,
+            allAccounts: SocialServiceManager.shared.mastodonAccounts
+                + SocialServiceManager.shared.blueskyAccounts
+        )
+    }
+
     private func triggerParentFetch(parentId: String) {
-        print("[ExpandingReplyBanner] triggerParentFetch called for parentId=\(parentId)")
-        guard let parent = parent else {
-            if !parentCache.isFetching(id: parentId) {
-                print("[ExpandingReplyBanner] Actually triggering fetch for parentId=\(parentId)")
-                fetchAttempted = true
-                parentCache.fetchRealPost(
-                    id: parentId,
-                    username: username,
-                    platform: network,
-                    serviceManager: SocialServiceManager.shared,
-                    allAccounts: SocialServiceManager.shared.mastodonAccounts
-                        + SocialServiceManager.shared.blueskyAccounts
-                )
-            } else {
-                print("[ExpandingReplyBanner] Already fetching parentId=\(parentId)")
-            }
-            return
-        }
-        if parent.isPlaceholder, !parentCache.isFetching(id: parentId) {
-            print(
-                "[ExpandingReplyBanner] Parent is placeholder, triggering fetch for parentId=\(parentId)"
-            )
+        guard parent == nil || parent?.isPlaceholder == true else { return }
+
+        if !parentCache.isFetching(id: parentId) {
             fetchAttempted = true
             parentCache.fetchRealPost(
                 id: parentId,
@@ -200,10 +172,58 @@ struct ExpandingReplyBanner: View {
                 allAccounts: SocialServiceManager.shared.mastodonAccounts
                     + SocialServiceManager.shared.blueskyAccounts
             )
-        } else {
-            print(
-                "[ExpandingReplyBanner] Parent is not placeholder or already fetching for parentId=\(parentId)"
-            )
+        }
+    }
+}
+
+// Skeleton loading state to prevent layout shifts
+struct ParentPostSkeleton: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                // Avatar skeleton
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    // Username skeleton
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 80, height: 12)
+
+                    // Handle skeleton
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 60, height: 10)
+                }
+
+                Spacer()
+
+                // Time skeleton
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 40, height: 10)
+            }
+
+            // Content skeleton
+            VStack(alignment: .leading, spacing: 4) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(height: 12)
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 180, height: 12)
+            }
+            .padding(.leading, 4)
+        }
+        .opacity(isAnimating ? 0.6 : 1.0)
+        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isAnimating)
+        .onAppear {
+            isAnimating = true
         }
     }
 }

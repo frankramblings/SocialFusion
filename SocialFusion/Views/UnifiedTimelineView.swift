@@ -2,6 +2,19 @@ import Combine
 import SwiftUI
 import UIKit
 
+// PostDetailView import resolution
+
+// MARK: - PostItem for sheet presentation
+struct PostItem: Identifiable {
+    let id: String
+    let post: Post
+
+    init(post: Post) {
+        self.id = post.id
+        self.post = post
+    }
+}
+
 // MARK: - UnifiedTimelineView
 struct UnifiedTimelineView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
@@ -26,6 +39,8 @@ struct UnifiedTimelineView: View {
     @State private var shouldScrollToTop = false
     @State private var shouldScrollToSaved = false
     @State private var refreshDebounceTimer: Timer? = nil
+    @State private var selectedPost: Post? = nil
+    @State private var replyingToPost: Post? = nil
 
     init(accounts: [SocialAccount]) {
         _viewModel = StateObject(wrappedValue: TimelineViewModel(accounts: accounts))
@@ -307,6 +322,54 @@ struct UnifiedTimelineView: View {
                 handleHomeTabDoubleTap()
             }
         }
+        .sheet(
+            item: Binding<PostItem?>(
+                get: { selectedPost.map(PostItem.init) },
+                set: { _ in selectedPost = nil }
+            )
+        ) { postItem in
+            NavigationView {
+                PostDetailModalView(
+                    viewModel: PostViewModel(post: postItem.post, serviceManager: serviceManager),
+                    focusReplyComposer: .constant(false)
+                )
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitle("")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Done") {
+                            selectedPost = nil
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
+        .sheet(
+            item: Binding<PostItem?>(
+                get: { replyingToPost.map(PostItem.init) },
+                set: { _ in replyingToPost = nil }
+            )
+        ) { postItem in
+            NavigationView {
+                PostDetailModalView(
+                    viewModel: PostViewModel(post: postItem.post, serviceManager: serviceManager),
+                    focusReplyComposer: .constant(true)
+                )
+                .navigationBarTitleDisplayMode(.inline)
+                .navigationBarTitle("Reply")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            replyingToPost = nil
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     private func refreshTimeline() {
@@ -387,7 +450,36 @@ struct UnifiedTimelineView: View {
             }
             ForEach(timelineEntries, id: \.id) { entry in
                 VStack(spacing: 0) {
-                    PostCardView(entry: entry)
+                    PostCardView(
+                        entry: entry,
+                        onPostTap: {
+                            selectedPost = entry.post
+                        },
+                        onReply: {
+                            replyingToPost = entry.post
+                        },
+                        onRepost: {
+                            let viewModel = PostViewModel(
+                                post: entry.post, serviceManager: serviceManager)
+                            Task {
+                                await viewModel.repost()
+                            }
+                        },
+                        onLike: {
+                            let viewModel = PostViewModel(
+                                post: entry.post, serviceManager: serviceManager)
+                            Task {
+                                await viewModel.like()
+                            }
+                        },
+                        onShare: {
+                            let viewModel = PostViewModel(
+                                post: entry.post, serviceManager: serviceManager)
+                            Task {
+                                await viewModel.share()
+                            }
+                        }
+                    )
 
                     // Subtle divider between posts
                     if entry.id != timelineEntries.last?.id {
