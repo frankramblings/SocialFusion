@@ -46,7 +46,7 @@ public class PostViewModel: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Like the post
+    /// Toggle like/unlike the post
     public func like() {
         guard !isLoading else { return }
 
@@ -55,11 +55,16 @@ public class PostViewModel: ObservableObject {
 
         Task {
             do {
-                let updatedPost = try await serviceManager.likePost(post)
+                let updatedPost: Post
+                if isLiked {
+                    updatedPost = try await serviceManager.unlikePost(post)
+                } else {
+                    updatedPost = try await serviceManager.likePost(post)
+                }
                 await MainActor.run {
                     self.post = updatedPost
-                    self.isLiked = true
-                    self.likeCount += 1
+                    self.isLiked = updatedPost.isLiked
+                    self.likeCount = updatedPost.likeCount
                     self.isLoading = false
                 }
             } catch {
@@ -96,7 +101,7 @@ public class PostViewModel: ObservableObject {
         }
     }
 
-    /// Repost the post
+    /// Toggle repost/unrepost the post
     public func repost() {
         guard !isLoading else { return }
 
@@ -105,11 +110,16 @@ public class PostViewModel: ObservableObject {
 
         Task {
             do {
-                let updatedPost = try await serviceManager.repostPost(post)
+                let updatedPost: Post
+                if isReposted {
+                    updatedPost = try await serviceManager.unrepostPost(post)
+                } else {
+                    updatedPost = try await serviceManager.repostPost(post)
+                }
                 await MainActor.run {
                     self.post = updatedPost
-                    self.isReposted = true
-                    self.repostCount += 1
+                    self.isReposted = updatedPost.isReposted
+                    self.repostCount = updatedPost.repostCount
                     self.isLoading = false
                 }
             } catch {
@@ -166,6 +176,42 @@ public class PostViewModel: ObservableObject {
                 self.isLoading = false
             }
             throw error
+        }
+    }
+
+    /// Share the post
+    public func share() {
+        // Create the share sheet with the post URL
+        guard let url = URL(string: post.originalURL) else { return }
+
+        DispatchQueue.main.async {
+            let activityViewController = UIActivityViewController(
+                activityItems: [url],
+                applicationActivities: nil
+            )
+
+            // Present the share sheet
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                let window = windowScene.windows.first,
+                let rootViewController = window.rootViewController
+            {
+
+                // Find the topmost view controller
+                var topViewController = rootViewController
+                while let presentedVC = topViewController.presentedViewController {
+                    topViewController = presentedVC
+                }
+
+                // Configure for iPad
+                if let popover = activityViewController.popoverPresentationController {
+                    popover.sourceView = window
+                    popover.sourceRect = CGRect(
+                        x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                    popover.permittedArrowDirections = []
+                }
+
+                topViewController.present(activityViewController, animated: true)
+            }
         }
     }
 

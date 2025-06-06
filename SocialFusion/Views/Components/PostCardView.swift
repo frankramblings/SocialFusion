@@ -29,6 +29,9 @@ struct PostCardView: View {
     // Optional boost information
     let boostedBy: String?
 
+    // Optional PostViewModel for state updates
+    let viewModel: PostViewModel?
+
     // State for expanding reply banner - keyed to post ID to prevent view reuse issues
     @StateObject private var expansionState = PostExpansionState()
     @State private var bannerWasTapped = false
@@ -55,6 +58,7 @@ struct PostCardView: View {
     // Convenience initializer for TimelineEntry
     init(
         entry: TimelineEntry,
+        viewModel: PostViewModel? = nil,
         onPostTap: @escaping () -> Void = {},
         onReply: @escaping () -> Void = {},
         onRepost: @escaping () -> Void = {},
@@ -78,6 +82,7 @@ struct PostCardView: View {
         self.onCopyLink = {}
         self.onReport = {}
         self.onPostTap = onPostTap
+        self.viewModel = viewModel
 
         // Extract boost information from TimelineEntry
         if case .boost(let boostedBy) = entry.kind {
@@ -105,7 +110,8 @@ struct PostCardView: View {
         onOpenInBrowser: @escaping () -> Void,
         onCopyLink: @escaping () -> Void,
         onReport: @escaping () -> Void,
-        onPostTap: @escaping () -> Void
+        onPostTap: @escaping () -> Void,
+        viewModel: PostViewModel? = nil
     ) {
         self.post = post
         self.replyCount = replyCount
@@ -124,6 +130,7 @@ struct PostCardView: View {
         self.onCopyLink = onCopyLink
         self.onReport = onReport
         self.onPostTap = onPostTap
+        self.viewModel = viewModel
         self.boostedBy = nil
     }
 
@@ -164,21 +171,43 @@ struct PostCardView: View {
             }
 
             // Action bar (using the working ActionBar)
-            ActionBar(
-                post: displayPost,
-                onAction: { action in
-                    switch action {
-                    case .reply:
-                        onReply()
-                    case .repost:
-                        onRepost()
-                    case .like:
-                        onLike()
-                    case .share:
-                        onShare()
+            if let viewModel = viewModel {
+                ActionBar(
+                    isLiked: viewModel.isLiked,
+                    isReposted: viewModel.isReposted,
+                    likeCount: viewModel.likeCount,
+                    repostCount: viewModel.repostCount,
+                    replyCount: 0,  // PostViewModel doesn't track reply count for timeline
+                    onAction: { action in
+                        switch action {
+                        case .reply:
+                            onReply()
+                        case .repost:
+                            onRepost()
+                        case .like:
+                            onLike()
+                        case .share:
+                            onShare()
+                        }
                     }
-                }
-            )
+                )
+            } else {
+                ActionBar(
+                    post: displayPost,
+                    onAction: { action in
+                        switch action {
+                        case .reply:
+                            onReply()
+                        case .repost:
+                            onRepost()
+                        case .like:
+                            onLike()
+                        case .share:
+                            onShare()
+                        }
+                    }
+                )
+            }
 
             // Menu
             PostMenu(

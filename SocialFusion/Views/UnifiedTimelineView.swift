@@ -41,6 +41,7 @@ struct UnifiedTimelineView: View {
     @State private var refreshDebounceTimer: Timer? = nil
     @State private var selectedPost: Post? = nil
     @State private var replyingToPost: Post? = nil
+    @State private var postViewModels: [String: PostViewModel] = [:]
 
     init(accounts: [SocialAccount]) {
         _viewModel = StateObject(wrappedValue: TimelineViewModel(accounts: accounts))
@@ -372,6 +373,20 @@ struct UnifiedTimelineView: View {
         }
     }
 
+    private func getPostViewModel(for entry: TimelineEntry) -> PostViewModel {
+        let postId = entry.post.id
+        if let existingViewModel = postViewModels[postId] {
+            // Update the existing view model with the latest post data
+            existingViewModel.post = entry.post
+            return existingViewModel
+        } else {
+            // Create a new view model
+            let viewModel = PostViewModel(post: entry.post, serviceManager: serviceManager)
+            postViewModels[postId] = viewModel
+            return viewModel
+        }
+    }
+
     private func refreshTimeline() {
         guard !isRefreshing else { return }
 
@@ -450,8 +465,10 @@ struct UnifiedTimelineView: View {
             }
             ForEach(timelineEntries, id: \.id) { entry in
                 VStack(spacing: 0) {
+                    let viewModel = getPostViewModel(for: entry)
                     PostCardView(
                         entry: entry,
+                        viewModel: viewModel,
                         onPostTap: {
                             selectedPost = entry.post
                         },
@@ -459,25 +476,17 @@ struct UnifiedTimelineView: View {
                             replyingToPost = entry.post
                         },
                         onRepost: {
-                            let viewModel = PostViewModel(
-                                post: entry.post, serviceManager: serviceManager)
                             Task {
                                 await viewModel.repost()
                             }
                         },
                         onLike: {
-                            let viewModel = PostViewModel(
-                                post: entry.post, serviceManager: serviceManager)
                             Task {
                                 await viewModel.like()
                             }
                         },
                         onShare: {
-                            let viewModel = PostViewModel(
-                                post: entry.post, serviceManager: serviceManager)
-                            Task {
-                                await viewModel.share()
-                            }
+                            viewModel.share()
                         }
                     )
 
