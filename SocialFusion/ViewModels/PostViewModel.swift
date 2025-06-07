@@ -50,6 +50,10 @@ public class PostViewModel: ObservableObject {
     public func like() {
         guard !isLoading else { return }
 
+        print(
+            "[PostViewModel] 🔄 Like button tapped for post \(post.id), current isLiked: \(isLiked), platform: \(post.platform)"
+        )
+
         isLoading = true
         error = nil
 
@@ -57,11 +61,16 @@ public class PostViewModel: ObservableObject {
             do {
                 let updatedPost: Post
                 if isLiked {
+                    print("[PostViewModel] 👎 Attempting to UNLIKE post \(post.id)")
                     updatedPost = try await serviceManager.unlikePost(post)
                 } else {
+                    print("[PostViewModel] 👍 Attempting to LIKE post \(post.id)")
                     updatedPost = try await serviceManager.likePost(post)
                 }
                 await MainActor.run {
+                    print(
+                        "[PostViewModel] ✅ Like/unlike completed for post \(post.id), new isLiked: \(updatedPost.isLiked), new likeCount: \(updatedPost.likeCount)"
+                    )
                     self.post = updatedPost
                     self.isLiked = updatedPost.isLiked
                     self.likeCount = updatedPost.likeCount
@@ -69,6 +78,7 @@ public class PostViewModel: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    print("[PostViewModel] ❌ Like/unlike failed for post \(post.id): \(error)")
                     self.error = error
                     self.isLoading = false
                 }
@@ -80,6 +90,10 @@ public class PostViewModel: ObservableObject {
     public func repost() {
         guard !isLoading else { return }
 
+        print(
+            "[PostViewModel] 🔄 Repost button tapped for post \(post.id), current isReposted: \(isReposted), platform: \(post.platform)"
+        )
+
         isLoading = true
         error = nil
 
@@ -87,11 +101,16 @@ public class PostViewModel: ObservableObject {
             do {
                 let updatedPost: Post
                 if isReposted {
+                    print("[PostViewModel] 🔄 Attempting to UNREPOST post \(post.id)")
                     updatedPost = try await serviceManager.unrepostPost(post)
                 } else {
+                    print("[PostViewModel] 🔄 Attempting to REPOST post \(post.id)")
                     updatedPost = try await serviceManager.repostPost(post)
                 }
                 await MainActor.run {
+                    print(
+                        "[PostViewModel] ✅ Repost/unrepost completed for post \(post.id), new isReposted: \(updatedPost.isReposted), new repostCount: \(updatedPost.repostCount)"
+                    )
                     self.post = updatedPost
                     self.isReposted = updatedPost.isReposted
                     self.repostCount = updatedPost.repostCount
@@ -99,6 +118,7 @@ public class PostViewModel: ObservableObject {
                 }
             } catch {
                 await MainActor.run {
+                    print("[PostViewModel] ❌ Repost/unrepost failed for post \(post.id): \(error)")
                     self.error = error
                     self.isLoading = false
                 }
