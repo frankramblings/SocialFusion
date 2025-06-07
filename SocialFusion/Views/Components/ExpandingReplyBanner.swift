@@ -44,7 +44,7 @@ struct ExpandingReplyBanner: View {
                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                 impactFeedback.impactOccurred()
 
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     isExpanded.toggle()
                 }
 
@@ -75,7 +75,7 @@ struct ExpandingReplyBanner: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isExpanded)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -92,7 +92,11 @@ struct ExpandingReplyBanner: View {
                         ParentPostPreview(post: parent)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 8)
-                            .transition(.opacity.combined(with: .move(edge: .top)))
+                            .transition(
+                                .asymmetric(
+                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
+                                    removal: .opacity
+                                ))
                     } else if shouldShowLoadingState {
                         // Skeleton loading state to prevent layout shifts
                         ParentPostSkeleton()
@@ -115,7 +119,7 @@ struct ExpandingReplyBanner: View {
                         .transition(.opacity)
                     }
                 }
-                .clipped()  // Prevent content overflow during animation
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .background(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
@@ -124,24 +128,30 @@ struct ExpandingReplyBanner: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isExpanded)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
         .onReceive(parentCache.$cache) { cache in
             guard let parentId = parentId else { return }
             let newParent = cache[parentId]
             if parent !== newParent {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    parent = newParent
+                // Defer the state update to the next runloop cycle to prevent AttributeGraph cycles
+                DispatchQueue.main.async {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        parent = newParent
+                    }
                 }
             }
         }
         .onAppear {
-            // Set initial parent from cache
-            if let parentId = parentId {
-                parent = parentCache.getCachedPost(id: parentId)
+            // Defer initial setup to prevent state modification during view rendering
+            DispatchQueue.main.async {
+                // Set initial parent from cache
+                if let parentId = parentId {
+                    parent = parentCache.getCachedPost(id: parentId)
 
-                // Preload in background for smoother experience
-                if !parentCache.isFetching(id: parentId) && parent == nil {
-                    triggerBackgroundPreload(parentId: parentId)
+                    // Preload in background for smoother experience
+                    if !parentCache.isFetching(id: parentId) && parent == nil {
+                        triggerBackgroundPreload(parentId: parentId)
+                    }
                 }
             }
         }

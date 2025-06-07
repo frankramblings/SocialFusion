@@ -26,16 +26,37 @@ struct PostDetailModalView: View {
                 HStack(alignment: .center) {
                     // Avatar
                     AsyncImage(url: URL(string: displayPost.authorProfilePictureURL)) { phase in
-                        if let image = phase.image {
-                            image.resizable()
-                        } else if phase.error != nil {
-                            Color.gray.opacity(0.3)
-                        } else {
-                            Color.gray.opacity(0.1)
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        case .failure(_):
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 24))
+                                )
+                        case .empty:
+                            Circle()
+                                .fill(Color.gray.opacity(0.1))
+                                .overlay(
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                )
+                        @unknown default:
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
                         }
                     }
                     .frame(width: 56, height: 56)
                     .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color(.systemBackground), lineWidth: 2)
+                    )
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(displayPost.authorName)

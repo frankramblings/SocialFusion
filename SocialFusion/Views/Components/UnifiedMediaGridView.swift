@@ -11,14 +11,6 @@ struct UnifiedMediaGridView: View {
     @StateObject private var selection = MediaSelectionModel()
 
     var body: some View {
-        // DEBUG: Print attachments info
-        let _ = {
-            print("UnifiedMediaGridView: attachments.count = \(attachments.count)")
-            for att in attachments {
-                print("  - url: \(att.url), type: \(att.type), alt: \(att.altText ?? "nil")")
-            }
-            return 0
-        }()
         Group {
             switch attachments.count {
             case 0:
@@ -76,7 +68,6 @@ private struct SingleImageView: View {
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity)
                         .onTapGesture {
-                            print("Tapped attachment: \(attachment.url)")
                             onTap()
                         }
                 } else if phase.error != nil {
@@ -130,7 +121,6 @@ private struct MultiImageGridView: View {
                                 .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1)
                                 .clipped()
                                 .onTapGesture {
-                                    print("Tapped attachment: \(att.url)")
                                     onTap(att)
                                 }
                         } else if phase.error != nil {

@@ -40,21 +40,45 @@ struct ParentPostPreview: View {
             HStack {
                 // Author avatar with platform indicator
                 ZStack(alignment: .bottomTrailing) {
-                    // Author avatar
+                    // Author avatar with proper frame constraints
                     AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                        if let image = phase.image {
-                            image.resizable()
-                        } else {
-                            Circle().fill(Color.gray.opacity(0.3))
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        case .failure(_):
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 16))
+                                )
+                        case .empty:
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    ProgressView()
+                                        .scaleEffect(0.7)
+                                )
+                        @unknown default:
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
                         }
                     }
                     .frame(width: 36, height: 36)
                     .clipShape(Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(Color(.systemBackground), lineWidth: 1)
+                    )
 
                     // Platform indicator
                     PlatformDot(platform: post.platform, size: 10)
                         .offset(x: 2, y: 2)
                 }
+                .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
 
                 // Author info
                 VStack(alignment: .leading, spacing: 0) {
@@ -86,6 +110,8 @@ struct ParentPostPreview: View {
         }
         .padding(.vertical, 4)
         .padding(.bottom, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
         .onTapGesture {
             if let onTap = onTap {

@@ -13,15 +13,37 @@ struct PostAuthorImageView: View {
         ZStack(alignment: .bottomTrailing) {
             // Author avatar
             AsyncImage(url: URL(string: authorProfilePictureURL)) { phase in
-                if let image = phase.image {
-                    image.resizable()
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
                         .aspectRatio(contentMode: .fill)
-                } else {
-                    Circle().fill(Color.gray.opacity(0.3))
+                case .failure(_):
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.white)
+                                .font(.system(size: size * 0.4))
+                        )
+                case .empty:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        )
+                @unknown default:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
                 }
             }
             .frame(width: size, height: size)
             .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color(.systemBackground), lineWidth: 1)
+            )
 
             // Platform indicator - small circle in bottom right
             if platform == .bluesky {
