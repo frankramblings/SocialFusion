@@ -60,6 +60,12 @@ struct ContentView: View {
                                                 .foregroundColor(.primary)
                                         }
                                     }
+                                    // Debug: Triple tap to show launch animation
+                                    .onTapGesture(count: 3) {
+                                        #if DEBUG
+                                            appVersionManager.forceShowLaunchAnimation()
+                                        #endif
+                                    }
                                 },
                                 trailing: Button(action: {
                                     showComposeView = true
@@ -259,12 +265,12 @@ struct ContentView: View {
             // Launch Animation Overlay
             if appVersionManager.shouldShowLaunchAnimation {
                 LaunchAnimationView {
-                    // Hide animation after it completes
-                    withAnimation(.easeOut(duration: 0.3)) {
+                    // Animation completed, hide with smooth transition
+                    withAnimation(.easeOut(duration: 0.5)) {
                         appVersionManager.markLaunchAnimationCompleted()
                     }
                 }
-                .transition(.opacity)
+                .transition(.opacity.animation(.easeInOut(duration: 0.5)))
                 .zIndex(1)
             }
         }
