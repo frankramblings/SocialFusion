@@ -118,12 +118,6 @@ struct ParentPostPreview: View {
                 onTap()
             }
         }
-        .onAppear {
-            print("[ParentPostPreview] onAppear for postId=\(post.id)")
-        }
-        .onDisappear {
-            print("[ParentPostPreview] onDisappear for postId=\(post.id)")
-        }
     }
 }
 

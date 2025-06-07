@@ -10,6 +10,9 @@ struct ComposeView: View {
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
+    
+    // Add SocialServiceManager for actual posting
+    @ObservedObject private var socialServiceManager = SocialServiceManager.shared
 
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 
@@ -39,7 +42,64 @@ struct ComposeView: View {
     }
 
     private var canPost: Bool {
-        !postText.isEmpty && !isOverLimit && !selectedPlatforms.isEmpty && !isPosting
+        !postText.isEmpty && !isOverLimit && !selectedPlatforms.isEmpty && !isPosting && hasAccountsForSelectedPlatforms
+    }
+    
+    // Check if we have accounts for the selected platforms
+    private var hasAccountsForSelectedPlatforms: Bool {
+        for platform in selectedPlatforms {
+            switch platform {
+            case .mastodon:
+                if socialServiceManager.mastodonAccounts.isEmpty {
+                    return false
+                }
+            case .bluesky:
+                if socialServiceManager.blueskyAccounts.isEmpty {
+                    return false
+                }
+            }
+        }
+        return true
+    }
+    
+    // Helper for button text
+    private var buttonText: String {
+        if !hasAccountsForSelectedPlatforms {
+            return "No Accounts"
+        } else if isPosting {
+            return "Posting..."
+        } else {
+            return "Post"
+        }
+    }
+    
+    // Helper for button color
+    private var buttonColor: Color {
+        if !hasAccountsForSelectedPlatforms {
+            return Color.orange
+        } else if canPost {
+            return Color.blue
+        } else {
+            return Color.gray.opacity(0.5)
+        }
+    }
+    
+    // Helper to get missing platforms
+    private var missingAccountPlatforms: [SocialPlatform] {
+        var missing: [SocialPlatform] = []
+        for platform in selectedPlatforms {
+            switch platform {
+            case .mastodon:
+                if socialServiceManager.mastodonAccounts.isEmpty {
+                    missing.append(.mastodon)
+                }
+            case .bluesky:
+                if socialServiceManager.blueskyAccounts.isEmpty {
+                    missing.append(.bluesky)
+                }
+            }
+        }
+        return missing
     }
 
     init() {
@@ -184,12 +244,12 @@ struct ComposeView: View {
                     Button(action: {
                         postContent()
                     }) {
-                        Text("Post")
+                        Text(buttonText)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(canPost ? Color.blue : Color.gray.opacity(0.5))
+                            .background(buttonColor)
                             .cornerRadius(20)
                             .shadow(
                                 color: canPost ? Color.blue.opacity(0.3) : Color.clear, radius: 2,
@@ -256,22 +316,78 @@ struct ComposeView: View {
     }
 
     private func postContent() {
-        guard canPost else { return }
+        guard canPost else { 
+            // Handle the case where user tries to post without proper accounts
+            if !hasAccountsForSelectedPlatforms {
+                let missing = missingAccountPlatforms.map { $0.rawValue }.joined(separator: " and ")
+                alertTitle = "Missing Accounts"
+                alertMessage = "Please add \(missing) account(s) to post to the selected platforms."
+                showAlert = true
+            }
+            return 
+        }
 
         isPosting = true
 
-        // This would be replaced with actual API calls to Mastodon and Bluesky
-        // For now, we'll just simulate posting with a delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            // Simulate successful post
-            isPosting = false
-            alertTitle = "Success"
-            alertMessage = "Your post has been shared to \(selectedPlatformsString)."
-            showAlert = true
+        // Convert UIImages to Data for API calls
+        let mediaData: [Data] = selectedImages.compactMap { image in
+            return image.jpegData(compressionQuality: 0.8)
+        }
+        
+        // Convert visibility index to string
+        let visibilityString: String
+        switch selectedVisibility {
+        case 0:
+            visibilityString = "public"
+        case 1:
+            visibilityString = "unlisted"
+        case 2:
+            visibilityString = "private"
+        default:
+            visibilityString = "public"
+        }
 
-            // Reset the compose view
-            postText = ""
-            selectedImages = []
+        Task {
+            do {
+                // Call the actual posting API
+                let createdPosts = try await socialServiceManager.createPost(
+                    content: postText,
+                    platforms: selectedPlatforms,
+                    mediaAttachments: mediaData,
+                    visibility: visibilityString
+                )
+                
+                await MainActor.run {
+                    isPosting = false
+                    alertTitle = "Success!"
+                    
+                    if createdPosts.count == selectedPlatforms.count {
+                        let platformNames = createdPosts.map { $0.platform.rawValue }.joined(separator: " and ")
+                        alertMessage = "Your post has been successfully shared to \(platformNames)."
+                    } else {
+                        let successfulPlatforms = createdPosts.map { $0.platform.rawValue }.joined(separator: " and ")
+                        alertMessage = "Your post was shared to \(successfulPlatforms). Some platforms may have failed."
+                    }
+                    showAlert = true
+
+                    // Reset the compose view
+                    postText = ""
+                    selectedImages = []
+                    
+                    // Reset platform selection to default
+                    selectedPlatforms = [.mastodon, .bluesky]
+                }
+                
+            } catch {
+                await MainActor.run {
+                    isPosting = false
+                    alertTitle = "Error"
+                    alertMessage = "Failed to post: \(error.localizedDescription)"
+                    showAlert = true
+                }
+                
+                print("Posting error: \(error)")
+            }
         }
     }
 

@@ -379,106 +379,21 @@ final class SocialServiceManager: ObservableObject {
         }
         let sortedPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
 
-        // Hydrate parent posts for replies
+        // DISABLED: All hydration to prevent AttributeGraph cycles
+        // Parent post hydration is now handled separately by individual views
         for post in sortedPosts {
             if let parent = post.parent, parent.content == "..." {
-                // DISABLED: Direct post modification causes AttributeGraph cycles
-                // The TimelineViewModel now handles hydration safely using immutable updates
                 print(
                     "[Hydration] Skipping auto-hydration for post id=\(post.id) to prevent AttributeGraph cycles"
                 )
-
-                /* DISABLED HYDRATION CODE - moved to TimelineViewModel
-                // Schedule hydration for Mastodon or Bluesky
-                Task {
-                    print(
-                        "[Hydration] Triggering parent fetch for post id=\(post.id), parent id=\(parent.id), platform=\(post.platform)"
-                    )
-                    if post.platform == .mastodon, let parentId = post.inReplyToID,
-                        let account = mastodonAccounts.first
-                    {
-                        if let cached = mastodonPostCache[parentId]?.post {
-                            print(
-                                "[Hydration] Using cached Mastodon parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
-                            )
-                            // Update @Published properties on MainActor to prevent AttributeGraph cycles
-                            await MainActor.run {
-                                post.parent = cached
-                                post.inReplyToUsername = cached.authorUsername
-                            }
-                        } else {
-                            do {
-                                let realParentOpt = try await self.fetchMastodonStatus(
-                                    id: parentId, account: account)
-                                if let realParent = realParentOpt {
-                                    print(
-                                        "[Hydration] Fetched Mastodon parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
-                                    )
-                                    mastodonPostCache[parentId] = (realParent, Date())
-                                    // Update @Published properties on MainActor to prevent AttributeGraph cycles
-                                    await MainActor.run {
-                                        post.parent = realParent
-                                        post.inReplyToUsername = realParent.authorUsername
-                                    }
-                                } else {
-                                    print(
-                                        "[Hydration] Fetched Mastodon parent for id=\(parentId): result was nil"
-                                    )
-                                }
-                            } catch {
-                                print(
-                                    "[Hydration] Failed to fetch Mastodon parent for id=\(parentId): \(error)"
-                                )
-                            }
-                        }
-                    } else if post.platform == .bluesky, let parentId = post.inReplyToID {
-                        if let cached = blueskyPostCache[parentId] {
-                            print(
-                                "[Hydration] Using cached Bluesky parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
-                            )
-                            // Update @Published properties on MainActor to prevent AttributeGraph cycles
-                            await MainActor.run {
-                                post.parent = cached
-                                post.inReplyToUsername = cached.authorUsername
-                            }
-                        } else {
-                            do {
-                                let realParentOpt = try await self.fetchBlueskyPostByID(parentId)
-                                if let realParent = realParentOpt {
-                                    print(
-                                        "[Hydration] Fetched Bluesky parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
-                                    )
-                                    blueskyPostCache[parentId] = realParent
-                                    // Update @Published properties on MainActor to prevent AttributeGraph cycles
-                                    await MainActor.run {
-                                        post.parent = realParent
-                                        post.inReplyToUsername = realParent.authorUsername
-                                    }
-                                } else {
-                                    print(
-                                        "[Hydration] Fetched Bluesky parent for id=\(parentId): result was nil"
-                                    )
-                                }
-                            } catch {
-                                print(
-                                    "[Hydration] Failed to fetch Bluesky parent for id=\(parentId): \(error)"
-                                )
-                            }
-                        }
-                    }
-                }
-                */
             }
         }
 
-        // Update unified timeline on main thread
-        DispatchQueue.main.async {
-            self.unifiedTimeline = sortedPosts
-            self.isLoadingTimeline = false
-            // Wire up timeline debug singleton for Bluesky
-            if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
-                debug.setBlueskyPosts(sortedPosts.filter { $0.platform == .bluesky })
-            }
+        // Update unified timeline on main thread with proper deferral
+        // Use Task to defer the update and prevent "Publishing changes from within view updates"
+        Task { @MainActor in
+            // Double-check we're on MainActor
+            await self.safelyUpdateTimeline(sortedPosts)
         }
 
         return sortedPosts
@@ -490,10 +405,10 @@ final class SocialServiceManager: ObservableObject {
         guard !isLoadingTimeline else {
             return
         }
-        // Update loading state on main thread
-        await MainActor.run {
-            isLoadingTimeline = true
-            timelineError = nil
+
+        // Update loading state on main thread with proper deferral
+        Task { @MainActor in
+            await self.safelyUpdateLoadingState(true)
         }
 
         do {
@@ -517,22 +432,21 @@ final class SocialServiceManager: ObservableObject {
 
             guard !accountsToFetch.isEmpty else {
                 print("🔧 SocialServiceManager: No accounts to fetch from!")
-                await MainActor.run {
-                    isLoadingTimeline = false
+                // Update state on main thread with proper deferral
+                Task { @MainActor in
+                    await self.safelyUpdateLoadingState(false)
                 }
                 return
             }
 
-            // Use our other method to fetch and process the posts
-            let _ = try await refreshTimeline(accounts: accountsToFetch)
+            // Fetch posts from selected accounts
+            _ = try await refreshTimeline(accounts: accountsToFetch)
 
-            await MainActor.run {
-                isLoadingTimeline = false
-            }
         } catch {
-            await MainActor.run {
-                timelineError = error
-                isLoadingTimeline = false
+            print("❌ SocialServiceManager: Error in fetchTimeline: \(error)")
+            // Update error state on main thread with proper deferral
+            Task { @MainActor in
+                await self.safelyUpdateLoadingState(false, error: error)
             }
             throw error
         }
@@ -881,6 +795,185 @@ final class SocialServiceManager: ObservableObject {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
             return try await blueskyService.unrepostPost(post, account: account)
+        }
+    }
+
+    // MARK: - Post Creation
+
+    /// Create a new post on selected platforms
+    /// - Parameters:
+    ///   - content: The text content of the post
+    ///   - platforms: Set of platforms to post to
+    ///   - mediaAttachments: Optional media attachments as Data arrays
+    ///   - visibility: Post visibility (public, unlisted, followers_only)
+    /// - Returns: Array of created posts (one per platform)
+    func createPost(
+        content: String,
+        platforms: Set<SocialPlatform>,
+        mediaAttachments: [Data] = [],
+        visibility: String = "public"
+    ) async throws -> [Post] {
+        guard !platforms.isEmpty else {
+            throw ServiceError.noPlatformsSelected
+        }
+
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ServiceError.invalidContent(reason: "Post content cannot be empty")
+        }
+
+        var createdPosts: [Post] = []
+        var errors: [Error] = []
+
+        // Post to each selected platform
+        for platform in platforms {
+            do {
+                let post = try await createPost(
+                    content: content,
+                    platform: platform,
+                    mediaAttachments: mediaAttachments,
+                    visibility: visibility
+                )
+                createdPosts.append(post)
+            } catch {
+                errors.append(error)
+                print("Failed to post to \(platform): \(error.localizedDescription)")
+            }
+        }
+
+        // If no posts were created successfully, throw the first error
+        if createdPosts.isEmpty && !errors.isEmpty {
+            throw ServiceError.postFailed(
+                reason: "Failed to post to any platform: \(errors.first!.localizedDescription)")
+        }
+
+        // If some posts failed but at least one succeeded, log warnings but don't throw
+        if !errors.isEmpty {
+            print(
+                "Warning: Posted successfully to \(createdPosts.count) platforms, but \(errors.count) failed"
+            )
+        }
+
+        return createdPosts
+    }
+
+    /// Create a post on a specific platform
+    private func createPost(
+        content: String,
+        platform: SocialPlatform,
+        mediaAttachments: [Data] = [],
+        visibility: String = "public"
+    ) async throws -> Post {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.createPost(
+                content: content,
+                mediaAttachments: mediaAttachments,
+                visibility: visibility,
+                account: account
+            )
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            // For now, Bluesky doesn't support media attachments in our implementation
+            // We'll implement a basic text post
+            return try await createBlueskyPost(content: content, account: account)
+        }
+    }
+
+    /// Create a Bluesky post (temporary implementation until BlueskyService.createPost is added)
+    private func createBlueskyPost(content: String, account: SocialAccount) async throws -> Post {
+        guard let accessToken = account.getAccessToken() else {
+            throw ServiceError.unauthorized("No access token available for Bluesky account")
+        }
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "repo": account.id,
+            "collection": "app.bsky.feed.post",
+            "record": [
+                "text": content,
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+                "$type": "app.bsky.feed.post",
+            ],
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.networkError(
+                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw ServiceError.postFailed(
+                reason: "Bluesky API error (\(httpResponse.statusCode)): \(errorMessage)")
+        }
+
+        // Parse the response to get the created post URI
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw ServiceError.postFailed(reason: "Invalid response from Bluesky API")
+        }
+
+        // Create a Post object from the successful creation
+        // Note: This is a minimal implementation - in a real app you'd fetch the full post data
+        return Post(
+            id: uri,
+            content: content,
+            authorName: account.displayName ?? account.username,
+            authorUsername: account.username,
+            authorProfilePictureURL: account.profileImageURL?.absoluteString ?? "",
+            createdAt: Date(),
+            platform: .bluesky,
+            originalURL: "",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            platformSpecificId: uri
+        )
+    }
+
+    @MainActor
+    private func safelyUpdateTimeline(_ posts: [Post]) {
+        // Ensure we're on MainActor and update safely
+        self.unifiedTimeline = posts
+        self.isLoadingTimeline = false
+
+        // Wire up timeline debug singleton for Bluesky
+        if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
+            debug.setBlueskyPosts(posts.filter { $0.platform == .bluesky })
+        }
+    }
+
+    @MainActor
+    private func safelyUpdateLoadingState(_ isLoading: Bool, error: Error? = nil) {
+        self.isLoadingTimeline = isLoading
+        if let error = error {
+            self.timelineError = error
+        } else if !isLoading {
+            self.timelineError = nil
         }
     }
 

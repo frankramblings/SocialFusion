@@ -224,17 +224,6 @@ struct PostCardView: View {
             }
             bannerWasTapped = false
         }
-        .onAppear {
-            // Defer debug logging to prevent any potential state modification during view rendering
-            DispatchQueue.main.async {
-                if boostedBy != nil {
-                    print("[PostCardView] Post has boost banner: \(boostedBy!)")
-                }
-                if displayPost.inReplyToUsername != nil {
-                    print("[PostCardView] Post has reply banner: \(displayPost.inReplyToUsername!)")
-                }
-            }
-        }
     }
 }
 
