@@ -1,9 +1,14 @@
 # SocialFusion
 
+> **⚠️ ALPHA SOFTWARE** 
+> 
+> SocialFusion is currently in early alpha development. Expect bugs, incomplete features, and frequent changes. Not recommended for production use.
+
 <div align="center">
   <img src="https://img.shields.io/badge/iOS-16.0+-blue.svg" alt="iOS Version">
   <img src="https://img.shields.io/badge/Swift-6.0-orange.svg" alt="Swift Version">
   <img src="https://img.shields.io/badge/Xcode-14.0+-blue.svg" alt="Xcode Version">
+  <img src="https://img.shields.io/badge/Status-Alpha-red.svg" alt="Development Status">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </div>
 
@@ -211,26 +216,56 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Bluesky](https://bsky.app) for the AT Protocol implementation
 - The iOS development community for excellent resources and tools
 
+## 🧪 Alpha Testing
+
+### Known Issues
+- Occasional timeline loading failures
+- Some edge cases in reply threading
+- Media loading performance needs optimization
+- Limited error messaging for network failures
+
+### Testing Checklist
+- [ ] Basic timeline loading and scrolling
+- [ ] Account authentication (Mastodon & Bluesky)
+- [ ] Post interactions (like, repost, reply)
+- [ ] Media viewing and link previews
+- [ ] Reply banner expansion and threading
+
+### Reporting Issues
+Please include:
+- Device model and iOS version
+- Steps to reproduce the bug
+- Expected vs actual behavior
+- Screenshots if relevant
+- Console logs if available
+
 ## 📞 Support
 
 - **Issues**: Please use GitHub Issues for bug reports and feature requests
 - **Discussions**: Use GitHub Discussions for questions and community support
 - **Security**: Report security issues privately via email
 
-## 🔮 Roadmap
+## 🔮 Alpha Roadmap
 
-### Upcoming Features
+### Priority Alpha Goals
+- **Stability improvements** - Fix remaining crashes and edge cases
+- **Core feature completion** - Reliable posting, liking, reposting
+- **Performance optimization** - Smooth scrolling and loading
+- **Basic accessibility** - VoiceOver support and contrast improvements
+- **Error handling** - Better user feedback for failures
+
+### Future Beta Goals
+- Advanced filtering and search capabilities
+- Offline reading and sync
 - Additional social platform integrations
-- Advanced filtering and search
-- Offline reading capabilities
 - Custom timeline organization
-- Enhanced accessibility features
+- Enhanced media support
 
-### Platform Expansion
+### Post-Beta Considerations
 - macOS companion app
-- watchOS notifications
+- watchOS notifications and widgets
 - Siri Shortcuts integration
-- Widget support
+- Advanced customization options
 
 ---
 
