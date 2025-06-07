@@ -1410,6 +1410,9 @@ public class MastodonService {
                 createdAt: createdDate.addingTimeInterval(-60),  // Estimate 1 minute earlier
                 platform: .mastodon,
                 originalURL: "",
+                parent: nil,
+                inReplyToID: nil,
+                inReplyToUsername: replyToUsername,  // Set the reply username in parent post too
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil
             )

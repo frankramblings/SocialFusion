@@ -831,20 +831,35 @@ class BlueskyService {
                             )
                         }
                     } else if let parentUri = parent["uri"] as? String {
-                        // Fallback: try to extract handle from the URI
-                        let handle =
-                            parentUri.split(separator: "/").dropFirst(1).first.map(String.init)
-                            ?? "user"
+                        // Fallback: try to extract handle from the URI - extract the actual DID/handle from URI pattern
+                        // AT Protocol URI format: at://did:plc:xxx/app.bsky.feed.post/xxx
+                        let uriComponents = parentUri.split(separator: "/")
+                        let didString = uriComponents.count > 1 ? String(uriComponents[1]) : "user"
+
+                        // For better display, try to use a readable handle if we can determine one
+                        // If it's a DID, use a fallback display format
+                        let displayHandle: String
+                        if didString.hasPrefix("did:plc:") {
+                            // For DID strings, show a truncated version
+                            let shortDid = String(didString.suffix(8))  // Last 8 characters
+                            displayHandle = "user-\(shortDid)"
+                            inReplyToUsername = displayHandle
+                        } else {
+                            // It's already a handle
+                            displayHandle = didString
+                            inReplyToUsername = didString
+                        }
+
                         parentPost = Post(
                             id: parentUri,
                             content: "...",
-                            authorName: handle,
-                            authorUsername: handle,
+                            authorName: displayHandle,
+                            authorUsername: displayHandle,
                             authorProfilePictureURL: "",
                             createdAt: Date(),
                             platform: .bluesky,
                             originalURL:
-                                "https://bsky.app/profile/\(handle)/post/\(parentUri.split(separator: "/").last ?? "")",
+                                "https://bsky.app/profile/\(displayHandle)/post/\(parentUri.split(separator: "/").last ?? "")",
                             attachments: [],
                             mentions: [],
                             tags: [],
@@ -865,7 +880,7 @@ class BlueskyService {
                             blueskyRepostRecordURI: nil
                         )
                         logger.info(
-                            "[Bluesky] Created fallback parent post with authorUsername: \(handle) for parent id: \(parentUri) (placeholder, cid: nil)"
+                            "[Bluesky] Created fallback parent post with authorUsername: \(displayHandle) for parent id: \(parentUri) (placeholder, cid: nil)"
                         )
                     }
                 }
