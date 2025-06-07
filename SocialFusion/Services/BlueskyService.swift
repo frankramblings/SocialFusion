@@ -788,7 +788,9 @@ class BlueskyService {
                                 inReplyToUsername: nil,
                                 quotedPostUri: nil,
                                 quotedPostAuthorHandle: nil,
-                                cid: nil  // <-- Explicitly nil
+                                cid: nil,  // <-- Explicitly nil
+                                blueskyLikeRecordURI: nil,  // Placeholder posts don't have interaction records
+                                blueskyRepostRecordURI: nil
                             )
                             logger.info(
                                 "[Bluesky] Created parent post with authorUsername: \(parentHandle) for parent id: \(parentUri) (placeholder, cid: nil)"
@@ -820,7 +822,9 @@ class BlueskyService {
                                 inReplyToUsername: nil,
                                 quotedPostUri: nil,
                                 quotedPostAuthorHandle: nil,
-                                cid: nil  // <-- Explicitly nil
+                                cid: nil,  // <-- Explicitly nil
+                                blueskyLikeRecordURI: nil,  // Placeholder posts don't have interaction records
+                                blueskyRepostRecordURI: nil
                             )
                             logger.info(
                                 "[Bluesky] Created minimal parent post with authorUsername: \(parentHandle) for parent id: \(parentUri) (placeholder, cid: nil)"
@@ -856,7 +860,9 @@ class BlueskyService {
                             inReplyToUsername: nil,
                             quotedPostUri: nil,
                             quotedPostAuthorHandle: nil,
-                            cid: nil  // <-- Explicitly nil
+                            cid: nil,  // <-- Explicitly nil
+                            blueskyLikeRecordURI: nil,  // Placeholder posts don't have interaction records
+                            blueskyRepostRecordURI: nil
                         )
                         logger.info(
                             "[Bluesky] Created fallback parent post with authorUsername: \(handle) for parent id: \(parentUri) (placeholder, cid: nil)"
@@ -979,7 +985,9 @@ class BlueskyService {
                             inReplyToUsername: inReplyToUsername,
                             quotedPostUri: nil,
                             quotedPostAuthorHandle: nil,
-                            cid: post["cid"] as? String
+                            cid: post["cid"] as? String,
+                            blueskyLikeRecordURI: nil,  // Original posts in reposts don't have user interaction records
+                            blueskyRepostRecordURI: nil
                         )
 
                         // Create the repost wrapper with repost timestamp for timeline positioning
@@ -1006,7 +1014,9 @@ class BlueskyService {
                             inReplyToUsername: nil,
                             quotedPostUri: nil,
                             quotedPostAuthorHandle: nil,
-                            cid: nil  // <-- Explicitly nil for wrapper
+                            cid: nil,  // <-- Explicitly nil for wrapper
+                            blueskyLikeRecordURI: nil,  // No like record for wrapper posts
+                            blueskyRepostRecordURI: nil  // No repost record for wrapper posts
                         )
 
                         posts.append(repost)
@@ -1067,7 +1077,9 @@ class BlueskyService {
                                 inReplyToUsername: nil,
                                 quotedPostUri: nil,
                                 quotedPostAuthorHandle: nil,
-                                cid: quotedRecord["cid"] as? String
+                                cid: quotedRecord["cid"] as? String,
+                                blueskyLikeRecordURI: nil,  // Quoted posts don't have user interaction records
+                                blueskyRepostRecordURI: nil
                             )
                             logger.info(
                                 "[Bluesky] Successfully hydrated quote post: \(quotedText.prefix(40))"
@@ -1122,7 +1134,9 @@ class BlueskyService {
                                 inReplyToUsername: nil,
                                 quotedPostUri: nil,
                                 quotedPostAuthorHandle: nil,
-                                cid: quotedRecord["cid"] as? String
+                                cid: quotedRecord["cid"] as? String,
+                                blueskyLikeRecordURI: nil,  // Quoted posts don't have user interaction records
+                                blueskyRepostRecordURI: nil
                             )
                             logger.info(
                                 "[Bluesky] Successfully hydrated quote post with media: \(quotedText.prefix(40))"
@@ -1168,7 +1182,9 @@ class BlueskyService {
                     inReplyToUsername: inReplyToUsername,
                     quotedPostUri: quotedPostUri,
                     quotedPostAuthorHandle: quotedPostAuthorHandle,
-                    cid: cid
+                    cid: cid,
+                    blueskyLikeRecordURI: nil,  // Will be set when user likes the post
+                    blueskyRepostRecordURI: nil  // Will be set when user reposts the post
                 )
                 newPost.quotedPost = quotedPost
                 logger.info(
@@ -1242,7 +1258,9 @@ class BlueskyService {
             inReplyToUsername: nil,
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
-            cid: cid
+            cid: cid,
+            blueskyLikeRecordURI: post.viewer?.likeUri,  // Use existing like URI if available
+            blueskyRepostRecordURI: post.viewer?.repostUri  // Use existing repost URI if available
         )
     }
 
@@ -1362,19 +1380,190 @@ class BlueskyService {
                 domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to like post"])
         }
-        let updatedPost = post
-        updatedPost.isLiked = true
-        updatedPost.likeCount += 1
+
+        // Parse the response to get the like record URI
+        var likeRecordURI: String? = nil
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        {
+            likeRecordURI = uri
+            logger.info("[Bluesky] Stored like record URI: \(uri)")
+        } else {
+            logger.warning("[Bluesky] Could not parse like record URI from response")
+        }
+
+        // Create a copy to avoid mutating the original Post object and causing AttributeGraph cycles
+        let updatedPost = Post(
+            id: post.id,
+            content: post.content,
+            authorName: post.authorName,
+            authorUsername: post.authorUsername,
+            authorProfilePictureURL: post.authorProfilePictureURL,
+            createdAt: post.createdAt,
+            platform: post.platform,
+            originalURL: post.originalURL,
+            attachments: post.attachments,
+            mentions: post.mentions,
+            tags: post.tags,
+            originalPost: post.originalPost,
+            isReposted: post.isReposted,
+            isLiked: true,  // Updated
+            likeCount: post.likeCount + 1,  // Updated
+            repostCount: post.repostCount,
+            platformSpecificId: post.platformSpecificId,
+            boostedBy: post.boostedBy,
+            parent: post.parent,
+            inReplyToID: post.inReplyToID,
+            inReplyToUsername: post.inReplyToUsername,
+            quotedPostUri: post.quotedPostUri,
+            quotedPostAuthorHandle: post.quotedPostAuthorHandle,
+            cid: post.cid,
+            blueskyLikeRecordURI: likeRecordURI,  // Store the like record URI
+            blueskyRepostRecordURI: post.blueskyRepostRecordURI  // Preserve existing repost record URI
+        )
         return updatedPost
     }
 
-    /// Unlike a post on Bluesky (placeholder implementation)
+    /// Unlike a post on Bluesky
     func unlikePost(_ post: Post, account: SocialAccount) async throws -> Post {
-        // TODO: Implement proper unlike by deleting the like record
-        // For now, just toggle the local state
-        let updatedPost = post
-        updatedPost.isLiked = false
-        updatedPost.likeCount = max(0, updatedPost.likeCount - 1)
+        logger.info(
+            "[Bluesky] Attempting to unlike post: id=\(post.id), cid=\(post.cid ?? "nil"), platformSpecificId=\(post.platformSpecificId)"
+        )
+
+        guard let likeRecordURI = post.blueskyLikeRecordURI else {
+            logger.warning(
+                "[Bluesky] No like record URI found for post \(post.id) - cannot unlike. This may be a legacy post or one liked before the record URI tracking was implemented."
+            )
+            // Still update local state optimistically for better UX
+            let updatedPost = Post(
+                id: post.id,
+                content: post.content,
+                authorName: post.authorName,
+                authorUsername: post.authorUsername,
+                authorProfilePictureURL: post.authorProfilePictureURL,
+                createdAt: post.createdAt,
+                platform: post.platform,
+                originalURL: post.originalURL,
+                attachments: post.attachments,
+                mentions: post.mentions,
+                tags: post.tags,
+                originalPost: post.originalPost,
+                isReposted: post.isReposted,
+                isLiked: false,  // Updated
+                likeCount: max(0, post.likeCount - 1),  // Updated
+                repostCount: post.repostCount,
+                platformSpecificId: post.platformSpecificId,
+                boostedBy: post.boostedBy,
+                parent: post.parent,
+                inReplyToID: post.inReplyToID,
+                inReplyToUsername: post.inReplyToUsername,
+                quotedPostUri: post.quotedPostUri,
+                quotedPostAuthorHandle: post.quotedPostAuthorHandle,
+                cid: post.cid,
+                blueskyLikeRecordURI: nil,  // Clear the like record URI
+                blueskyRepostRecordURI: post.blueskyRepostRecordURI
+            )
+            return updatedPost
+        }
+
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "BlueskyService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+
+        // Check if token needs refresh
+        if account.isTokenExpired, account.refreshToken != nil {
+            let (newAccessToken, newRefreshToken) = try await refreshSession(for: account)
+            account.saveAccessToken(newAccessToken)
+            account.saveRefreshToken(newRefreshToken)
+        }
+
+        // Extract the rkey from the like record URI
+        let rkey = String(likeRecordURI.split(separator: "/").last ?? "")
+        guard !rkey.isEmpty else {
+            logger.error("[Bluesky] Could not extract rkey from like record URI: \(likeRecordURI)")
+            throw NSError(
+                domain: "BlueskyService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid like record URI format"])
+        }
+
+        // Safely unwrap and sanitize serverURL
+        let rawServerURL = account.serverURL?.absoluteString ?? "bsky.social"
+        let sanitizedServerURL = rawServerURL.replacingOccurrences(of: "https://", with: "")
+        let urlString = "https://\(sanitizedServerURL)/xrpc/com.atproto.repo.deleteRecord"
+
+        guard let url = URL(string: urlString) else {
+            logger.error("Malformed Bluesky unlikePost URL: \(urlString)")
+            throw NSError(
+                domain: "BlueskyService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Malformed Bluesky unlikePost URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let parameters: [String: Any] = [
+            "repo": account.id,
+            "collection": "app.bsky.feed.like",
+            "rkey": rkey,
+        ]
+
+        logger.info("[Bluesky] unlikePost parameters: \(parameters)")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse {
+            logger.info("[Bluesky] unlikePost response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    logger.error("[Bluesky] unlikePost error response: \(responseBody)")
+                }
+            }
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to unlike post"])
+        }
+
+        logger.info("[Bluesky] Successfully unliked post with record URI: \(likeRecordURI)")
+
+        // Create a copy to avoid mutating the original Post object and causing AttributeGraph cycles
+        let updatedPost = Post(
+            id: post.id,
+            content: post.content,
+            authorName: post.authorName,
+            authorUsername: post.authorUsername,
+            authorProfilePictureURL: post.authorProfilePictureURL,
+            createdAt: post.createdAt,
+            platform: post.platform,
+            originalURL: post.originalURL,
+            attachments: post.attachments,
+            mentions: post.mentions,
+            tags: post.tags,
+            originalPost: post.originalPost,
+            isReposted: post.isReposted,
+            isLiked: false,  // Updated
+            likeCount: max(0, post.likeCount - 1),  // Updated
+            repostCount: post.repostCount,
+            platformSpecificId: post.platformSpecificId,
+            boostedBy: post.boostedBy,
+            parent: post.parent,
+            inReplyToID: post.inReplyToID,
+            inReplyToUsername: post.inReplyToUsername,
+            quotedPostUri: post.quotedPostUri,
+            quotedPostAuthorHandle: post.quotedPostAuthorHandle,
+            cid: post.cid,
+            blueskyLikeRecordURI: nil,  // Clear the like record URI
+            blueskyRepostRecordURI: post.blueskyRepostRecordURI  // Preserve existing repost record URI
+        )
         return updatedPost
     }
 
@@ -1402,12 +1591,19 @@ class BlueskyService {
                 userInfo: [NSLocalizedDescriptionKey: "Malformed Bluesky repostPost URL"])
         }
         logger.info("[Bluesky] repostPost URL: \(urlString)")
-        guard let cid = post.cid, !cid.isEmpty else {
-            logger.error("[Bluesky] Cannot repost: missing CID for post \(post.platformSpecificId)")
+
+        // For boost posts, we need to repost the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+        let targetCid = targetPost.cid
+        let targetUri = targetPost.platformSpecificId
+
+        guard let cid = targetCid, !cid.isEmpty else {
+            logger.error("[Bluesky] Cannot repost: missing CID for post \(targetUri)")
             throw NSError(
                 domain: "BlueskyService", code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Cannot repost: missing CID for post"])
         }
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -1418,7 +1614,7 @@ class BlueskyService {
             "record": [
                 "$type": "app.bsky.feed.repost",
                 "subject": [
-                    "uri": post.platformSpecificId,
+                    "uri": targetUri,
                     "cid": cid,
                 ],
                 "createdAt": ISO8601DateFormatter().string(from: Date()),
@@ -1443,19 +1639,193 @@ class BlueskyService {
                 domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to repost"])
         }
-        let updatedPost = post
-        updatedPost.isReposted = true
-        updatedPost.repostCount += 1
+
+        // Parse the response to get the repost record URI
+        var repostRecordURI: String? = nil
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        {
+            repostRecordURI = uri
+            logger.info("[Bluesky] Stored repost record URI: \(uri)")
+        } else {
+            logger.warning("[Bluesky] Could not parse repost record URI from response")
+        }
+
+        // Create a copy to avoid mutating the original Post object and causing AttributeGraph cycles
+        let updatedPost = Post(
+            id: post.id,
+            content: post.content,
+            authorName: post.authorName,
+            authorUsername: post.authorUsername,
+            authorProfilePictureURL: post.authorProfilePictureURL,
+            createdAt: post.createdAt,
+            platform: post.platform,
+            originalURL: post.originalURL,
+            attachments: post.attachments,
+            mentions: post.mentions,
+            tags: post.tags,
+            originalPost: post.originalPost,
+            isReposted: true,  // Updated
+            isLiked: post.isLiked,
+            likeCount: post.likeCount,
+            repostCount: post.repostCount + 1,  // Updated
+            platformSpecificId: post.platformSpecificId,
+            boostedBy: post.boostedBy,
+            parent: post.parent,
+            inReplyToID: post.inReplyToID,
+            inReplyToUsername: post.inReplyToUsername,
+            quotedPostUri: post.quotedPostUri,
+            quotedPostAuthorHandle: post.quotedPostAuthorHandle,
+            cid: post.cid,
+            blueskyLikeRecordURI: post.blueskyLikeRecordURI,  // Preserve existing like record URI
+            blueskyRepostRecordURI: repostRecordURI  // Store the repost record URI
+        )
         return updatedPost
     }
 
-    /// Unrepost a post on Bluesky (placeholder implementation)
+    /// Unrepost a post on Bluesky
     func unrepostPost(_ post: Post, account: SocialAccount) async throws -> Post {
-        // TODO: Implement proper unrepost by deleting the repost record
-        // For now, just toggle the local state
-        let updatedPost = post
-        updatedPost.isReposted = false
-        updatedPost.repostCount = max(0, updatedPost.repostCount - 1)
+        // For boost posts, we need to unrepost the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+        let targetUri = targetPost.platformSpecificId
+
+        logger.info("[Bluesky] Attempting to unrepost post: id=\(post.id), targetUri=\(targetUri)")
+
+        guard let repostRecordURI = post.blueskyRepostRecordURI else {
+            logger.warning(
+                "[Bluesky] No repost record URI found for post \(post.id) - cannot unrepost. This may be a legacy post or one reposted before the record URI tracking was implemented."
+            )
+            // Still update local state optimistically for better UX
+            let updatedPost = Post(
+                id: post.id,
+                content: post.content,
+                authorName: post.authorName,
+                authorUsername: post.authorUsername,
+                authorProfilePictureURL: post.authorProfilePictureURL,
+                createdAt: post.createdAt,
+                platform: post.platform,
+                originalURL: post.originalURL,
+                attachments: post.attachments,
+                mentions: post.mentions,
+                tags: post.tags,
+                originalPost: post.originalPost,
+                isReposted: false,  // Updated
+                isLiked: post.isLiked,
+                likeCount: post.likeCount,
+                repostCount: max(0, post.repostCount - 1),  // Updated
+                platformSpecificId: post.platformSpecificId,
+                boostedBy: post.boostedBy,
+                parent: post.parent,
+                inReplyToID: post.inReplyToID,
+                inReplyToUsername: post.inReplyToUsername,
+                quotedPostUri: post.quotedPostUri,
+                quotedPostAuthorHandle: post.quotedPostAuthorHandle,
+                cid: post.cid,
+                blueskyLikeRecordURI: post.blueskyLikeRecordURI,
+                blueskyRepostRecordURI: nil  // Clear the repost record URI
+            )
+            return updatedPost
+        }
+
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "BlueskyService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+
+        // Check if token needs refresh
+        if account.isTokenExpired, account.refreshToken != nil {
+            let (newAccessToken, newRefreshToken) = try await refreshSession(for: account)
+            account.saveAccessToken(newAccessToken)
+            account.saveRefreshToken(newRefreshToken)
+        }
+
+        // Extract the rkey from the repost record URI
+        let rkey = String(repostRecordURI.split(separator: "/").last ?? "")
+        guard !rkey.isEmpty else {
+            logger.error(
+                "[Bluesky] Could not extract rkey from repost record URI: \(repostRecordURI)")
+            throw NSError(
+                domain: "BlueskyService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid repost record URI format"])
+        }
+
+        // Safely unwrap and sanitize serverURL
+        let rawServerURL = account.serverURL?.absoluteString ?? "bsky.social"
+        let sanitizedServerURL = rawServerURL.replacingOccurrences(of: "https://", with: "")
+        let urlString = "https://\(sanitizedServerURL)/xrpc/com.atproto.repo.deleteRecord"
+
+        guard let url = URL(string: urlString) else {
+            logger.error("Malformed Bluesky unrepostPost URL: \(urlString)")
+            throw NSError(
+                domain: "BlueskyService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Malformed Bluesky unrepostPost URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let parameters: [String: Any] = [
+            "repo": account.id,
+            "collection": "app.bsky.feed.repost",
+            "rkey": rkey,
+        ]
+
+        logger.info("[Bluesky] unrepostPost parameters: \(parameters)")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse {
+            logger.info("[Bluesky] unrepostPost response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    logger.error("[Bluesky] unrepostPost error response: \(responseBody)")
+                }
+            }
+        }
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "BlueskyService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to unrepost"])
+        }
+
+        logger.info("[Bluesky] Successfully unreposted post with record URI: \(repostRecordURI)")
+
+        // Create a copy to avoid mutating the original Post object and causing AttributeGraph cycles
+        let updatedPost = Post(
+            id: post.id,
+            content: post.content,
+            authorName: post.authorName,
+            authorUsername: post.authorUsername,
+            authorProfilePictureURL: post.authorProfilePictureURL,
+            createdAt: post.createdAt,
+            platform: post.platform,
+            originalURL: post.originalURL,
+            attachments: post.attachments,
+            mentions: post.mentions,
+            tags: post.tags,
+            originalPost: post.originalPost,
+            isReposted: false,  // Updated
+            isLiked: post.isLiked,
+            likeCount: post.likeCount,
+            repostCount: max(0, post.repostCount - 1),  // Updated
+            platformSpecificId: post.platformSpecificId,
+            boostedBy: post.boostedBy,
+            parent: post.parent,
+            inReplyToID: post.inReplyToID,
+            inReplyToUsername: post.inReplyToUsername,
+            quotedPostUri: post.quotedPostUri,
+            quotedPostAuthorHandle: post.quotedPostAuthorHandle,
+            cid: post.cid,
+            blueskyLikeRecordURI: post.blueskyLikeRecordURI,  // Preserve existing like record URI
+            blueskyRepostRecordURI: nil  // Clear the repost record URI
+        )
         return updatedPost
     }
 

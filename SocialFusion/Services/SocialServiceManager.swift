@@ -382,6 +382,13 @@ final class SocialServiceManager: ObservableObject {
         // Hydrate parent posts for replies
         for post in sortedPosts {
             if let parent = post.parent, parent.content == "..." {
+                // DISABLED: Direct post modification causes AttributeGraph cycles
+                // The TimelineViewModel now handles hydration safely using immutable updates
+                print(
+                    "[Hydration] Skipping auto-hydration for post id=\(post.id) to prevent AttributeGraph cycles"
+                )
+
+                /* DISABLED HYDRATION CODE - moved to TimelineViewModel
                 // Schedule hydration for Mastodon or Bluesky
                 Task {
                     print(
@@ -394,8 +401,11 @@ final class SocialServiceManager: ObservableObject {
                             print(
                                 "[Hydration] Using cached Mastodon parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
                             )
-                            post.parent = cached
-                            post.inReplyToUsername = cached.authorUsername
+                            // Update @Published properties on MainActor to prevent AttributeGraph cycles
+                            await MainActor.run {
+                                post.parent = cached
+                                post.inReplyToUsername = cached.authorUsername
+                            }
                         } else {
                             do {
                                 let realParentOpt = try await self.fetchMastodonStatus(
@@ -405,8 +415,11 @@ final class SocialServiceManager: ObservableObject {
                                         "[Hydration] Fetched Mastodon parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
                                     )
                                     mastodonPostCache[parentId] = (realParent, Date())
-                                    post.parent = realParent
-                                    post.inReplyToUsername = realParent.authorUsername
+                                    // Update @Published properties on MainActor to prevent AttributeGraph cycles
+                                    await MainActor.run {
+                                        post.parent = realParent
+                                        post.inReplyToUsername = realParent.authorUsername
+                                    }
                                 } else {
                                     print(
                                         "[Hydration] Fetched Mastodon parent for id=\(parentId): result was nil"
@@ -423,8 +436,11 @@ final class SocialServiceManager: ObservableObject {
                             print(
                                 "[Hydration] Using cached Bluesky parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
                             )
-                            post.parent = cached
-                            post.inReplyToUsername = cached.authorUsername
+                            // Update @Published properties on MainActor to prevent AttributeGraph cycles
+                            await MainActor.run {
+                                post.parent = cached
+                                post.inReplyToUsername = cached.authorUsername
+                            }
                         } else {
                             do {
                                 let realParentOpt = try await self.fetchBlueskyPostByID(parentId)
@@ -433,8 +449,11 @@ final class SocialServiceManager: ObservableObject {
                                         "[Hydration] Fetched Bluesky parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
                                     )
                                     blueskyPostCache[parentId] = realParent
-                                    post.parent = realParent
-                                    post.inReplyToUsername = realParent.authorUsername
+                                    // Update @Published properties on MainActor to prevent AttributeGraph cycles
+                                    await MainActor.run {
+                                        post.parent = realParent
+                                        post.inReplyToUsername = realParent.authorUsername
+                                    }
                                 } else {
                                     print(
                                         "[Hydration] Fetched Bluesky parent for id=\(parentId): result was nil"
@@ -448,6 +467,7 @@ final class SocialServiceManager: ObservableObject {
                         }
                     }
                 }
+                */
             }
         }
 

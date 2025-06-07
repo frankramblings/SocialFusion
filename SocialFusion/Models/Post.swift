@@ -174,6 +174,10 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
 
     public var cid: String?  // Bluesky only, optional for backward compatibility
 
+    // Bluesky AT Protocol record URIs for unlike/unrepost functionality
+    public var blueskyLikeRecordURI: String?  // URI of the like record created by this user
+    public var blueskyRepostRecordURI: String?  // URI of the repost record created by this user
+
     // Computed property for a stable unique identifier
     public var stableId: String {
         if isReposted, let original = originalPost {
@@ -228,6 +232,8 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         case quotedPostAuthorHandle
         case cid
         case quotedPost
+        case blueskyLikeRecordURI
+        case blueskyRepostRecordURI
     }
 
     public required convenience init(from decoder: Decoder) throws {
@@ -260,6 +266,10 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             String.self, forKey: .quotedPostAuthorHandle)
         let cid = try container.decodeIfPresent(String.self, forKey: .cid)
         let quotedPost = try container.decodeIfPresent(Post.self, forKey: .quotedPost)
+        let blueskyLikeRecordURI = try container.decodeIfPresent(
+            String.self, forKey: .blueskyLikeRecordURI)
+        let blueskyRepostRecordURI = try container.decodeIfPresent(
+            String.self, forKey: .blueskyRepostRecordURI)
         self.init(
             id: id,
             content: content,
@@ -285,7 +295,9 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
             quotedPost: quotedPost,
-            cid: cid
+            cid: cid,
+            blueskyLikeRecordURI: blueskyLikeRecordURI,
+            blueskyRepostRecordURI: blueskyRepostRecordURI
         )
         self.cid = cid
         self.quotedPost = quotedPost
@@ -318,6 +330,8 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         try container.encodeIfPresent(quotedPostAuthorHandle, forKey: .quotedPostAuthorHandle)
         try container.encodeIfPresent(cid, forKey: .cid)
         try container.encodeIfPresent(quotedPost, forKey: .quotedPost)
+        try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
+        try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
     }
 
     public init(
@@ -345,7 +359,9 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         quotedPostUri: String? = nil,
         quotedPostAuthorHandle: String? = nil,
         quotedPost: Post? = nil,
-        cid: String? = nil
+        cid: String? = nil,
+        blueskyLikeRecordURI: String? = nil,
+        blueskyRepostRecordURI: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -370,6 +386,8 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         self.quotedPostAuthorHandle = quotedPostAuthorHandle
         self.quotedPost = quotedPost
         self.cid = cid
+        self.blueskyLikeRecordURI = blueskyLikeRecordURI
+        self.blueskyRepostRecordURI = blueskyRepostRecordURI
         // Defensive: prevent self-reference on construction
         if let parent = parent, parent.id == id {
             print(
@@ -740,17 +758,10 @@ class PostViewModel: ObservableObject, Identifiable {
         } else {
             self.kind = .normal
         }
-        // Observe parent changes
-        post.$parent
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] parent in
-                DispatchQueue.main.async {
-                    self?.effectiveParentPost = parent
-                }
-            }
-            .store(in: &cancellables)
-        // Set initial value
+        // Set initial value directly to avoid AttributeGraph cycles
         self.effectiveParentPost = post.parent
+        // Removed parent observer that was causing AttributeGraph cycles
+        // by creating feedback loops between @Published properties
     }
 
     @MainActor
@@ -764,8 +775,8 @@ class PostViewModel: ObservableObject, Identifiable {
             _ = try await serviceManager.likePost(post)
             post.isLiked = isLiked
             post.likeCount = likeCount
-            // Patch: Refresh timeline to rebuild banners
-            try? await serviceManager.refreshTimeline(force: true)
+            // Remove problematic timeline refresh that causes AttributeGraph cycles
+            // The UI state is already updated optimistically above
         } catch {
             // Revert UI on error
             isLiked = prevLiked
@@ -786,8 +797,8 @@ class PostViewModel: ObservableObject, Identifiable {
             _ = try await serviceManager.repostPost(post)
             post.isReposted = isReposted
             post.repostCount = repostCount
-            // Patch: Refresh timeline to rebuild banners
-            try? await serviceManager.refreshTimeline(force: true)
+            // Remove problematic timeline refresh that causes AttributeGraph cycles
+            // The UI state is already updated optimistically above
         } catch {
             // Revert UI on error
             isReposted = prevReposted

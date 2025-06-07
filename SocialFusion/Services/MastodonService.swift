@@ -1030,22 +1030,50 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to like the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
+        print(
+            "[Mastodon] Attempting to like post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
+        )
+        print("[Mastodon] Using statusId: \(statusId)")
+
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/favourite") else {
+            print(
+                "[Mastodon] Failed to create URL: \(serverUrl)/api/v1/statuses/\(statusId)/favourite"
+            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
         }
 
+        print("[Mastodon] Like URL: \(url.absoluteString)")
+
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
+
+        if let httpResponse = response as? HTTPURLResponse {
+            print("[Mastodon] Like response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("[Mastodon] Like error response: \(responseBody)")
+                }
+            }
+        }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
@@ -1100,13 +1128,30 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to repost the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
+        print(
+            "[Mastodon] Attempting to repost post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
+        )
+        print("[Mastodon] Using statusId: \(statusId)")
+
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/reblog") else {
+            print(
+                "[Mastodon] Failed to create reblog URL: \(serverUrl)/api/v1/statuses/\(statusId)/reblog"
+            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1116,6 +1161,15 @@ public class MastodonService {
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
+
+        if let httpResponse = response as? HTTPURLResponse {
+            print("[Mastodon] Repost response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("[Mastodon] Repost error response: \(responseBody)")
+                }
+            }
+        }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
@@ -1135,10 +1189,19 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to unrepost the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unreblog") else {
@@ -1258,7 +1321,9 @@ public class MastodonService {
                 isLiked: reblog.favourited ?? false,
                 likeCount: reblog.favouritesCount,
                 repostCount: reblog.reblogsCount,
-                platformSpecificId: reblog.id
+                platformSpecificId: reblog.id,
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil
             )
 
             // Create the boost/reblog wrapper post
@@ -1280,7 +1345,9 @@ public class MastodonService {
                 likeCount: status.favouritesCount,
                 repostCount: status.reblogsCount,
                 boostedBy: status.account.displayName.isEmpty
-                    ? status.account.acct : status.account.displayName
+                    ? status.account.acct : status.account.displayName,
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil
             )
 
             return boostPost
@@ -1342,7 +1409,9 @@ public class MastodonService {
                 authorProfilePictureURL: "",  // We don't have the avatar URL yet
                 createdAt: createdDate.addingTimeInterval(-60),  // Estimate 1 minute earlier
                 platform: .mastodon,
-                originalURL: ""
+                originalURL: "",
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil
             )
 
             // Log what we're using for the parent post
@@ -1368,7 +1437,9 @@ public class MastodonService {
             repostCount: status.reblogsCount,
             parent: parentPost,
             inReplyToID: status.inReplyToId,
-            inReplyToUsername: replyToUsername
+            inReplyToUsername: replyToUsername,
+            blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+            blueskyRepostRecordURI: nil
         )
 
         return post

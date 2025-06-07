@@ -40,8 +40,8 @@ public class PostViewModel: ObservableObject {
                 post: quotedPost, serviceManager: serviceManager)
         }
 
-        // Set up observers for post changes
-        setupObservers()
+        // Removed setupObservers() to prevent AttributeGraph cycles
+        // State updates are now handled directly in the action methods
     }
 
     // MARK: - Public Methods
@@ -167,27 +167,9 @@ public class PostViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
-    private func setupObservers() {
-        // Observe post changes
-        $post
-            .sink { [weak self] updatedPost in
-                self?.isLiked = updatedPost.isLiked
-                self?.isReposted = updatedPost.isReposted
-                self?.likeCount = updatedPost.likeCount
-                self?.repostCount = updatedPost.repostCount
-                self?.replyCount = updatedPost.replyCount
-
-                // Update quoted post view model if needed
-                if let quotedPost = updatedPost.quotedPost {
-                    self?.quotedPostViewModel = PostViewModel(
-                        post: quotedPost,
-                        serviceManager: self?.serviceManager ?? SocialServiceManager.shared)
-                } else {
-                    self?.quotedPostViewModel = nil
-                }
-            }
-            .store(in: &cancellables)
-    }
+    // Removed setupObservers method to prevent AttributeGraph cycles
+    // The observer was creating feedback loops by modifying @Published properties
+    // in response to other @Published property changes
 
     // MARK: - Computed Properties
 }

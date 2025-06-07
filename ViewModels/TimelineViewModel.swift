@@ -364,16 +364,20 @@ public class TimelineViewModel: ObservableObject {
 
         // Apply all updates in a single state change
         await MainActor.run {
-            if case .loaded(var currentPosts) = self.state, !hydratedPosts.isEmpty {
-                for i in 0..<currentPosts.count {
-                    if let parent = hydratedPosts[currentPosts[i].id] {
-                        currentPosts[i].parent = parent
-                        if currentPosts[i].inReplyToUsername?.isEmpty != false {
-                            currentPosts[i].inReplyToUsername = parent.authorUsername
+            if case .loaded(let currentPosts) = self.state, !hydratedPosts.isEmpty {
+                // Use immutable update pattern to prevent AttributeGraph cycles
+                let updatedPosts = currentPosts.map { existingPost in
+                    if let parent = hydratedPosts[existingPost.id] {
+                        var newPost = existingPost
+                        newPost.parent = parent
+                        if newPost.inReplyToUsername?.isEmpty != false {
+                            newPost.inReplyToUsername = parent.authorUsername
                         }
+                        return newPost
                     }
+                    return existingPost
                 }
-                self.state = .loaded(currentPosts)
+                self.state = .loaded(updatedPosts)
                 self.logger.info("Batch updated \(hydratedPosts.count) parent posts")
             }
         }
@@ -425,13 +429,17 @@ public class TimelineViewModel: ObservableObject {
 
         // Apply all updates in a single state change
         await MainActor.run {
-            if case .loaded(var currentPosts) = self.state, !hydratedPosts.isEmpty {
-                for i in 0..<currentPosts.count {
-                    if let original = hydratedPosts[currentPosts[i].id] {
-                        currentPosts[i].originalPost = original
+            if case .loaded(let currentPosts) = self.state, !hydratedPosts.isEmpty {
+                // Use immutable update pattern to prevent AttributeGraph cycles
+                let updatedPosts = currentPosts.map { existingPost in
+                    if let original = hydratedPosts[existingPost.id] {
+                        var newPost = existingPost
+                        newPost.originalPost = original
+                        return newPost
                     }
+                    return existingPost
                 }
-                self.state = .loaded(currentPosts)
+                self.state = .loaded(updatedPosts)
                 self.logger.info("Batch updated \(hydratedPosts.count) original posts")
             }
         }
