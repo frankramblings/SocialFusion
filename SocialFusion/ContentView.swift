@@ -260,6 +260,36 @@ struct ContentView: View {
             .accentColor(Color("PrimaryColor"))
             .onAppear {
                 setupTabBarDelegate()
+
+                // Ensure proper account selection initialization
+                print(
+                    "🔧 ContentView: ServiceManager selectedAccountIds: \(serviceManager.selectedAccountIds)"
+                )
+                print("🔧 ContentView: ContentView selectedAccountId: \(selectedAccountId ?? "nil")")
+
+                if serviceManager.selectedAccountIds.contains("all") && selectedAccountId != nil {
+                    // ServiceManager says "all" but ContentView has a specific account - fix this
+                    selectedAccountId = nil
+                    print("🔧 ContentView: Synced account selection to 'all'")
+                } else if !serviceManager.selectedAccountIds.contains("all")
+                    && selectedAccountId == nil
+                {
+                    // ServiceManager has specific accounts but ContentView says "all" - pick the first account
+                    if let firstSelected = serviceManager.selectedAccountIds.first {
+                        selectedAccountId = firstSelected
+                        print(
+                            "🔧 ContentView: Synced account selection to specific account: \(firstSelected)"
+                        )
+                    }
+                } else {
+                    print("🔧 ContentView: Account selections are already in sync")
+                }
+
+                // Force refresh timeline to ensure content appears
+                Task {
+                    print("🔧 ContentView: Triggering initial timeline refresh on appear")
+                    try? await serviceManager.refreshTimeline(force: false)
+                }
             }
 
             // Launch Animation Overlay
@@ -387,7 +417,7 @@ struct ContentView: View {
 
         // Refresh timeline with new account selection
         Task {
-            try? await serviceManager.refreshTimeline(force: true)
+            try? await serviceManager.refreshTimeline(force: false)
         }
     }
 
@@ -456,7 +486,7 @@ struct AccountDropdownView: View {
 
                         // Refresh the timeline
                         Task {
-                            try? await serviceManager.refreshTimeline(force: true)
+                            try? await serviceManager.refreshTimeline(force: false)
                         }
                     }) {
                         HStack {
@@ -551,6 +581,22 @@ struct AccountDropdownView: View {
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
+        }
+        .onReceive(
+            NotificationCenter.default.publisher(
+                for: Notification.Name("shouldRepresentAddAccount"))
+        ) { notification in
+            // Only handle non-autofill recovery notifications
+            if let userInfo = notification.userInfo,
+                let source = userInfo["source"] as? String,
+                source == "autofillRecovery"
+            {
+                // This is an autofill recovery - don't handle it here
+                return
+            }
+
+            print("🔐 [AccountDropdownView] Received notification to re-present AddAccountView")
+            showAddAccountView = true
         }
     }
 
@@ -747,6 +793,22 @@ struct AccountPickerSheet: View {
                 AddAccountView()
                     .environmentObject(serviceManager)
             }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: Notification.Name("shouldRepresentAddAccount"))
+            ) { notification in
+                // Only handle non-autofill recovery notifications
+                if let userInfo = notification.userInfo,
+                    let source = userInfo["source"] as? String,
+                    source == "autofillRecovery"
+                {
+                    // This is an autofill recovery - don't handle it here
+                    return
+                }
+
+                print("🔐 [AccountPickerSheet] Received notification to re-present AddAccountView")
+                showAddAccountView = true
+            }
         }
     }
 
@@ -813,17 +875,9 @@ struct UnifiedAccountsIcon: View {
     let mastodonAccounts: [SocialAccount]
     let blueskyAccounts: [SocialAccount]
 
-    // Used to force refresh when accounts change
-    @State private var refreshTrigger = UUID().uuidString
-
-    // Track when accounts change and update the view
+    // Compute accounts without causing side effects
     private var allAccounts: [SocialAccount] {
-        let accounts = mastodonAccounts + blueskyAccounts
-        // Force view to refresh when accounts change
-        DispatchQueue.main.async {
-            refreshTrigger = UUID().uuidString
-        }
-        return accounts
+        mastodonAccounts + blueskyAccounts
     }
 
     var body: some View {
@@ -848,23 +902,20 @@ struct UnifiedAccountsIcon: View {
                         .offset(x: 6, y: 6)
                 }
             }
-            .onChange(of: refreshTrigger) { _ in
-                // This will trigger a redraw when the refreshTrigger changes
-            }
         }
     }
 }
 
-/// Platform badge to show on account avatars
+/// Platform badge to show on account avatars (temporary duplicate to fix build)
 struct PlatformBadge: View {
     let platform: SocialPlatform
 
-    private func getLogoName(for platform: SocialPlatform) -> String {
+    private func getLogoSystemName(for platform: SocialPlatform) -> String {
         switch platform {
         case .mastodon:
-            return "MastodonLogo"
+            return "message.fill"
         case .bluesky:
-            return "BlueskyLogo"
+            return "cloud.fill"
         }
     }
 
@@ -881,11 +932,8 @@ struct PlatformBadge: View {
         ZStack {
             // Remove the white circle background
             // Just show the platform logo with a slight shadow for visibility
-            Image(getLogoName(for: platform))
-                .resizable()
-                .renderingMode(.template)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
+            Image(systemName: getLogoSystemName(for: platform))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(getPlatformColor())
                 .shadow(color: Color.black.opacity(0.4), radius: 1.5, x: 0, y: 0)
         }

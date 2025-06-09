@@ -328,6 +328,52 @@ public class MastodonService {
         return try JSONDecoder().decode(MastodonToken.self, from: data)
     }
 
+    /// Minimal token refresh method that works without client credentials
+    /// Some Mastodon instances allow refresh without client credentials
+    private func refreshMastodonTokenMinimal(
+        server: String,
+        refreshToken: String
+    ) async throws -> MastodonToken {
+        // Ensure server has the scheme
+        let serverUrl = formatServerURL(server)
+
+        guard let url = URL(string: "\(serverUrl)/oauth/token") else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Minimal parameters - some instances support this
+        let parameters: [String: Any] = [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+            "scope": "read write follow push",
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to refresh token - may need re-authentication"
+                ])
+        }
+
+        return try JSONDecoder().decode(MastodonToken.self, from: data)
+    }
+
     /// Simplified method to refresh access token for an account
     /// Returns only the new access token and handles all the internal details
     public func refreshAccessToken(for account: SocialAccount) async throws -> String {
@@ -336,20 +382,37 @@ public class MastodonService {
         }
 
         guard let refreshToken = account.refreshToken else {
+            logger.warning(
+                "No refresh token available for account \(account.username). Cannot refresh - user needs to re-authenticate."
+            )
             throw TokenError.noRefreshToken
         }
 
         do {
-            // For now we'll pass empty credentials as we're transitioning away from KeychainManager
-            let clientId = "placeholder-client-id"  // This will be replaced with proper implementation
-            let clientSecret = "placeholder-client-secret"  // This will be replaced with proper implementation
+            // Get client credentials for this account
+            let (clientId, clientSecret) = account.getClientCredentials()
 
-            let token = try await refreshMastodonToken(
-                server: serverURL.absoluteString,
-                clientId: clientId,
-                clientSecret: clientSecret,
-                refreshToken: refreshToken
-            )
+            let token: MastodonToken
+
+            if let clientId = clientId, let clientSecret = clientSecret {
+                // Use full refresh with client credentials
+                logger.info(
+                    "Refreshing Mastodon token with client credentials for \(account.username)")
+                token = try await refreshMastodonToken(
+                    server: serverURL.absoluteString,
+                    clientId: clientId,
+                    clientSecret: clientSecret,
+                    refreshToken: refreshToken
+                )
+            } else {
+                // Fall back to minimal refresh without client credentials
+                logger.warning(
+                    "No client credentials found for \(account.username), trying minimal refresh")
+                token = try await refreshMastodonTokenMinimal(
+                    server: serverURL.absoluteString,
+                    refreshToken: refreshToken
+                )
+            }
 
             account.saveAccessToken(token.accessToken)
             if let newRefreshToken = token.refreshToken {
@@ -430,65 +493,35 @@ public class MastodonService {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            // Try to decode error response for better error messages
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
                 throw errorResponse
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to verify credentials"])
-        }
 
-        let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
-
-        // Create and return a new SocialAccount with the verified information
-        let verifiedAccount = SocialAccount(
-            id: mastodonAccount.id,
-            username: mastodonAccount.username,
-            displayName: mastodonAccount.displayName,
-            serverURL: serverUrl,
-            platform: .mastodon,
-            profileImageURL: URL(string: mastodonAccount.avatar),
-            platformSpecificId: mastodonAccount.id
-        )
-
-        // Make sure to explicitly set the access token on the verified account
-        verifiedAccount.accessToken = accessToken
-
-        // Post notification about the profile image update if we have an avatar URL
-        print(
-            "Raw avatar field from Mastodon API for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
-        )
-
-        if mastodonAccount.avatar.isEmpty {
-            print("⚠️ Empty avatar field returned from Mastodon API for \(mastodonAccount.username)")
-        } else if let avatarURL = URL(string: mastodonAccount.avatar) {
-            print(
-                "✅ Successfully parsed Mastodon avatar URL for \(mastodonAccount.username): \(avatarURL)"
-            )
-
-            // Ensure UI updates happen on the main thread
-            // Store a copy of the required values to avoid Sendable issues
-            let accountId = verifiedAccount.id
-            DispatchQueue.main.async {
-                // Use a captured local copy of verifiedAccount to avoid Sendable warning
-                verifiedAccount.profileImageURL = avatarURL
-                print(
-                    "✅ Updated Mastodon account \(mastodonAccount.username) with profile image URL")
-
-                // Post notification about the profile image update
-                NotificationCenter.default.post(
-                    name: .profileImageUpdated,
-                    object: nil,
-                    userInfo: ["accountId": accountId, "profileImageURL": avatarURL]
-                )
+            // Provide more specific error messages based on status code
+            let errorMessage: String
+            switch statusCode {
+            case 401:
+                errorMessage = "Invalid access token. Please check your credentials."
+            case 403:
+                errorMessage = "Access forbidden. Your token may not have the required permissions."
+            case 404:
+                errorMessage = "Server not found. Please check the server URL."
+            case 422:
+                errorMessage = "Invalid request format. Please check your server URL."
+            default:
+                errorMessage = "Failed to verify credentials (HTTP \(statusCode))"
             }
-        } else {
-            print(
-                "❌ Failed to create valid URL from avatar field for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
-            )
+
+            throw NSError(
+                domain: "MastodonService",
+                code: statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage])
         }
 
-        return mastodonAccount
+        return try JSONDecoder().decode(MastodonAccount.self, from: data)
     }
 
     /// Verify credentials using a SocialAccount (automatically handles token refreshing)
@@ -1321,6 +1354,7 @@ public class MastodonService {
                 isLiked: reblog.favourited ?? false,
                 likeCount: reblog.favouritesCount,
                 repostCount: reblog.reblogsCount,
+                replyCount: reblog.repliesCount,  // Add reply count
                 platformSpecificId: reblog.id,
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil
@@ -1344,6 +1378,7 @@ public class MastodonService {
                 isLiked: status.favourited ?? false,
                 likeCount: status.favouritesCount,
                 repostCount: status.reblogsCount,
+                replyCount: status.repliesCount,  // Add reply count
                 boostedBy: status.account.displayName.isEmpty
                     ? status.account.acct : status.account.displayName,
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
@@ -1438,11 +1473,17 @@ public class MastodonService {
             isLiked: status.favourited ?? false,
             likeCount: status.favouritesCount,
             repostCount: status.reblogsCount,
+            replyCount: status.repliesCount,  // Add reply count
             parent: parentPost,
             inReplyToID: status.inReplyToId,
             inReplyToUsername: replyToUsername,
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
             blueskyRepostRecordURI: nil
+        )
+
+        // DEBUG: Print interaction counts for debugging
+        print(
+            "📊 [MastodonService] Post \(status.id.prefix(10)) - likes: \(status.favouritesCount), reposts: \(status.reblogsCount), replies: \(status.repliesCount)"
         )
 
         return post

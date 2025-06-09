@@ -42,10 +42,15 @@ public enum TimelineState {
 }
 
 /// A ViewModel for managing timeline data and state
-public class TimelineViewModel: ObservableObject {
+public final class TimelineViewModel: ObservableObject {
     // MARK: - Published Properties
 
-    @Published public var state: TimelineState = .idle
+    @Published public private(set) var state: TimelineState = .idle
+    @Published public private(set) var posts: [Post] = []
+    @Published public private(set) var isLoading = false
+    @Published public private(set) var error: Error?
+    @Published public private(set) var isRateLimited = false
+    @Published public private(set) var retryAfter: TimeInterval = 0
     @Published public var isRefreshing: Bool = false
     @Published public var lastRefreshDate: Date?
     @Published var postIDs: [String] = []
@@ -56,18 +61,22 @@ public class TimelineViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private let logger = Logger(subsystem: "com.socialfusion", category: "TimelineViewModel")
-    private let socialServiceManager = SocialServiceManager.shared
+    private let socialServiceManager: SocialServiceManager
+    private var cancellables = Set<AnyCancellable>()
+    private let serialQueue = DispatchQueue(label: "TimelineViewModel.serial", qos: .userInitiated)
     private var refreshTask: Task<Void, Never>?
     private var rateLimitTimer: Timer?
     private var rateLimitSecondsRemaining: TimeInterval = 0
 
-    // Cancellables for Combine subscriptions
-    private var cancellables = Set<AnyCancellable>()
+    // Global refresh lock - shared with SocialServiceManager to prevent ALL refresh spam
+    private static var globalRefreshLock = false
+    private static var globalRefreshLockTime: Date = Date.distantPast
 
     // MARK: - Initialization
 
     public init(accounts: [SocialAccount]) {
         self.accounts = accounts
+        self.socialServiceManager = SocialServiceManager.shared
         setupObservers()
     }
 
@@ -75,9 +84,32 @@ public class TimelineViewModel: ObservableObject {
 
     /// Refresh the timeline for a specific account
     public func refreshTimeline(for account: SocialAccount) {
+        let now = Date()
+
+        // GLOBAL LOCK: Block refresh attempts if one is already in progress
+        if Self.globalRefreshLock {
+            // Check if lock is stale (older than 10 seconds)
+            if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
+                Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Stale refresh lock reset")
+            } else {
+                // Lock is active - BLOCK this attempt completely
+                return
+            }
+        }
+
+        // Set global lock immediately to block other attempts
+        Self.globalRefreshLock = true
+        Self.globalRefreshLockTime = now
+
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self = self else {
+                Self.globalRefreshLock = false
+                return
+            }
+
+            defer { Self.globalRefreshLock = false }
 
             await MainActor.run {
                 self.isRefreshing = true
@@ -111,40 +143,65 @@ public class TimelineViewModel: ObservableObject {
 
     /// Refresh the unified timeline for multiple accounts
     public func refreshUnifiedTimeline() {
-        // Prevent multiple simultaneous refreshes
-        guard refreshTask == nil || refreshTask?.isCancelled == true else {
-            logger.info("Timeline refresh already in progress, skipping")
-            return
+        let now = Date()
+
+        // GLOBAL LOCK: Block refresh attempts if one is already in progress
+        if Self.globalRefreshLock {
+            // Check if lock is stale (older than 10 seconds)
+            if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
+                Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Stale unified refresh lock reset")
+            } else {
+                // Lock is active - BLOCK this attempt completely
+                return
+            }
         }
 
+        // Set global lock immediately to block other attempts
+        Self.globalRefreshLock = true
+        Self.globalRefreshLockTime = now
+
+        // Cancel any existing refresh task
         refreshTask?.cancel()
+
+        // Start the new refresh task
         refreshTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self = self else {
+                Self.globalRefreshLock = false
+                return
+            }
+
+            defer { Self.globalRefreshLock = false }
+
+            // Show loading state
             await MainActor.run {
-                self.isRefreshing = true
+                self.isLoading = true
                 if case .idle = self.state {
                     self.state = .loading
                 }
             }
+
             do {
-                let posts = try await self.socialServiceManager.refreshTimeline(
-                    accounts: self.accounts)
+                // Fetch unified timeline from service manager using self.accounts
+                let posts = try await socialServiceManager.refreshTimeline(accounts: self.accounts)
+
+                // Update UI on main thread
                 await MainActor.run {
-                    self.lastRefreshDate = Date()
-                    self.isRefreshing = false
+                    self.posts = posts
+                    self.isLoading = false
+
                     if posts.isEmpty {
                         self.state = .empty
                     } else {
                         self.state = .loaded(posts)
-                        // Queue background hydration without immediate state updates
-                        self.hydratePostRelationshipsInBackground(posts: posts)
                     }
+
                     self.logger.info(
                         "Unified timeline refreshed for \(self.accounts.count) accounts")
                 }
             } catch {
                 await MainActor.run {
-                    self.isRefreshing = false
+                    self.isLoading = false
                     self.state = .error(error)
                 }
             }
@@ -205,6 +262,7 @@ public class TimelineViewModel: ObservableObject {
         // Listen for account changes or other relevant notifications
         NotificationCenter.default.publisher(for: .accountProfileImageUpdated)
             .receive(on: RunLoop.main)  // Ensure on main thread
+            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)  // Debounce rapid updates
             .sink { [weak self] _ in
                 // Refresh posts if needed when account profile images update
                 if case .loaded(let posts) = self?.state, !posts.isEmpty {

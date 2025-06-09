@@ -198,6 +198,5 @@ public struct QuotePostView: View {
         mentions: [],
         tags: []
     )
-    let serviceManager = SocialServiceManager()
     return QuotePostView(post: samplePost)
 }

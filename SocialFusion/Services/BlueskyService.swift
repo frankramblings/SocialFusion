@@ -178,9 +178,16 @@ class BlueskyService {
             throw NetworkError.requestFailed(error)
         }
 
+        print("🔍 [BlueskyAuth] Making authentication request to: \(url.absoluteString)")
+        print("🔍 [BlueskyAuth] Using username: \(username)")
+
         do {
             // 4. Send request using session data method
-            let (data, _) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request)
+
+            print(
+                "🔍 [BlueskyAuth] Response status: \((response as? HTTPURLResponse)?.statusCode ?? 0)"
+            )
 
             // 5. Parse the response
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -194,24 +201,66 @@ class BlueskyService {
                     let errorMsg = errorJson["error"] as? String,
                     let message = errorJson["message"] as? String
                 {
+                    print("❌ [BlueskyAuth] API error: \(errorMsg): \(message)")
+
+                    // Provide more helpful error messages
+                    let userMessage: String
+                    if errorMsg.contains("InvalidCredentials")
+                        || errorMsg.contains("AuthenticationRequired")
+                    {
+                        userMessage =
+                            "Invalid username or app password. Please check your credentials."
+                    } else if errorMsg.contains("RateLimitExceeded") {
+                        userMessage = "Too many login attempts. Please try again later."
+                    } else {
+                        userMessage = "\(errorMsg): \(message)"
+                    }
+
                     throw NSError(
                         domain: "BlueskyAPI",
                         code: 401,
-                        userInfo: [NSLocalizedDescriptionKey: "\(errorMsg): \(message)"]
+                        userInfo: [NSLocalizedDescriptionKey: userMessage]
                     )
                 }
 
+                // Print raw response for debugging
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("❌ [BlueskyAuth] Raw response: \(responseString)")
+                }
+
+                print("❌ [BlueskyAuth] Failed to decode authentication response")
                 throw NetworkError.decodingError
             }
 
-            // 6. Create and return account with proper parameters
+            print("✅ [BlueskyAuth] Successfully authenticated user: \(handle)")
+
+            // 6. Create and return account with stable ID
+            // Use handle + server as stable ID instead of DID which can change
+            let serverString = server?.absoluteString ?? "bsky.social"
+            let serverHostname: String
+            if let url = URL(string: serverString), let host = url.host {
+                serverHostname = host
+            } else {
+                // Extract hostname from string manually if URL parsing fails
+                let cleanedServer = serverString.replacingOccurrences(of: "https://", with: "")
+                    .replacingOccurrences(of: "http://", with: "")
+                serverHostname = cleanedServer.components(separatedBy: "/").first ?? "bsky.social"
+            }
+            let stableId = "bluesky-\(handle)-\(serverHostname)"
+
+            print("🔄 [BlueskyAuth] Generated stable account ID: \(stableId)")
+            print("🔄 [BlueskyAuth] DID will be stored as platformSpecificId: \(did)")
+
             let account = SocialAccount(
-                id: did,
+                id: stableId,
                 username: handle,
                 displayName: handle,
                 serverURL: server?.absoluteString ?? "bsky.social",
                 platform: .bluesky
             )
+
+            // Store the DID in platformSpecificId for API operations
+            account.platformSpecificId = did
 
             // Save tokens
             account.saveAccessToken(accessJwt)
@@ -256,7 +305,29 @@ class BlueskyService {
 
         do {
             // Send request using session data method
-            let (data, _) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request)
+
+            // Check response status
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode == 400 {
+                    // Try to parse the error response
+                    if let errorJson = try? JSONSerialization.jsonObject(with: data)
+                        as? [String: Any],
+                        let error = errorJson["error"] as? String
+                    {
+                        logger.error("Bluesky refresh token error: \(error)")
+                        if error == "ExpiredToken" {
+                            // Refresh token has expired, user needs to re-authenticate
+                            throw BlueskyTokenError.invalidRefreshToken
+                        }
+                    }
+                    throw BlueskyTokenError.refreshFailed
+                } else if httpResponse.statusCode != 200 {
+                    logger.error(
+                        "Bluesky refresh token failed with status: \(httpResponse.statusCode)")
+                    throw BlueskyTokenError.refreshFailed
+                }
+            }
 
             // Parse the response
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -273,6 +344,9 @@ class BlueskyService {
 
             return (accessJwt, refreshJwt)
         } catch {
+            if error is BlueskyTokenError {
+                throw error
+            }
             if error is NetworkError {
                 throw BlueskyTokenError.invalidRefreshToken
             }
@@ -417,9 +491,20 @@ class BlueskyService {
                     account.saveAccessToken(newAccessToken)
                     account.saveRefreshToken(newRefreshToken)
                     logger.info("Successfully refreshed Bluesky token")
+
+                    // Update the request with the new token
+                    request.setValue(
+                        "Bearer \(newAccessToken)", forHTTPHeaderField: "Authorization")
+                } catch BlueskyTokenError.invalidRefreshToken {
+                    logger.error(
+                        "Bluesky refresh token has expired for: \(account.username). User needs to re-authenticate."
+                    )
+                    throw ServiceError.unauthorized(
+                        "Your Bluesky session has expired. Please re-add your account.")
                 } catch {
                     logger.error("Failed to refresh Bluesky token: \(error.localizedDescription)")
-                    // Continue with existing token as fallback
+                    // Continue with existing token as fallback but warn about potential issues
+                    logger.warning("Continuing with existing token, but API calls may fail")
                 }
             }
 
@@ -633,9 +718,20 @@ class BlueskyService {
                     let (newAccessToken, newRefreshToken) = try await refreshSession(for: account)
                     account.saveAccessToken(newAccessToken)
                     account.saveRefreshToken(newRefreshToken)
+
+                    // Update the request with the new token
+                    request.setValue(
+                        "Bearer \(newAccessToken)", forHTTPHeaderField: "Authorization")
+                } catch BlueskyTokenError.invalidRefreshToken {
+                    logger.error(
+                        "Bluesky refresh token has expired for: \(account.username). User needs to re-authenticate."
+                    )
+                    throw ServiceError.unauthorized(
+                        "Your Bluesky session has expired. Please re-add your account.")
                 } catch {
                     logger.error("Failed to refresh Bluesky token: \(error.localizedDescription)")
-                    // Continue with existing token as fallback
+                    // Continue with existing token as fallback but warn about potential issues
+                    logger.warning("Continuing with existing token, but API calls may fail")
                 }
             }
 
@@ -725,20 +821,65 @@ class BlueskyService {
                 let authorUsername = author["handle"] as? String ?? "unknown"
                 let authorAvatarURL = author["avatar"] as? String ?? ""
 
-                // Get metrics if available - handle different API formats
+                // Extract viewer information for user interaction status
+                let viewer = post["viewer"] as? [String: Any]
+
+                // Extract interaction counts - these are crucial for user engagement metrics
                 var likeCount = 0
                 var repostCount = 0
+                var replyCount = 0
 
-                // Try viewer metrics first (common format)
-                if let metrics = post["viewer"] as? [String: Any] {
-                    likeCount = metrics["likeCount"] as? Int ?? 0
-                    repostCount = metrics["repostCount"] as? Int ?? 0
+                // DEBUG: Print entire post structure to understand API response
+                print("🔍 [BlueskyService] Post structure for \(uri.suffix(20)):")
+                print("🔍 [BlueskyService] Top-level keys: \(post.keys.sorted())")
+
+                // Method 1: Direct count fields (most common in AT Protocol)
+                if let likes = post["likeCount"] as? Int {
+                    likeCount = likes
                 }
-                // Then try top-level metrics
-                else if let metrics = post["likeCount"] as? Int {
-                    likeCount = metrics
-                    repostCount = post["repostCount"] as? Int ?? 0
+                if let reposts = post["repostCount"] as? Int {
+                    repostCount = reposts
                 }
+                if let replies = post["replyCount"] as? Int {
+                    replyCount = replies
+                }
+
+                // Method 2: Check in metrics object
+                if let metrics = post["metrics"] as? [String: Any] {
+                    print("📊 [BlueskyService] Found metrics object: \(metrics)")
+                    likeCount = metrics["likeCount"] as? Int ?? likeCount
+                    repostCount = metrics["repostCount"] as? Int ?? repostCount
+                    replyCount = metrics["replyCount"] as? Int ?? replyCount
+                }
+
+                // Method 3: Check in engagement/stats object
+                if let stats = post["stats"] as? [String: Any] {
+                    print("📊 [BlueskyService] Found stats object: \(stats)")
+                    likeCount = stats["likeCount"] as? Int ?? likeCount
+                    repostCount = stats["repostCount"] as? Int ?? repostCount
+                    replyCount = stats["replyCount"] as? Int ?? replyCount
+                }
+
+                // Method 4: Check various count field names
+                let countFields = [
+                    "likes", "likeCount", "repost", "repostCount", "replies", "replyCount",
+                ]
+                for field in countFields {
+                    if let value = post[field] as? Int {
+                        print("📊 [BlueskyService] Found \(field): \(value)")
+                        if field.contains("like") {
+                            likeCount = max(likeCount, value)
+                        } else if field.contains("repost") {
+                            repostCount = max(repostCount, value)
+                        } else if field.contains("repl") {
+                            replyCount = max(replyCount, value)
+                        }
+                    }
+                }
+
+                print(
+                    "📊 [BlueskyService] FINAL counts for \(uri.suffix(20)) - likes: \(likeCount), reposts: \(repostCount), replies: \(replyCount)"
+                )
 
                 // Check if this is a reply to another post
                 var inReplyToID: String? = nil
@@ -991,8 +1132,11 @@ class BlueskyService {
                             attachments: attachments,
                             mentions: mentions,
                             tags: tags,
+                            isReposted: viewer?["repost"] as? String != nil,  // Fixed: Use actual user repost status
+                            isLiked: viewer?["like"] as? String != nil,  // Fixed: Use actual user like status
                             likeCount: likeCount,
                             repostCount: repostCount,
+                            replyCount: replyCount,  // Add reply count
                             platformSpecificId: uri,
                             boostedBy: nil,  // Don't set boostedBy on the original post
                             parent: parentPost,
@@ -1001,12 +1145,16 @@ class BlueskyService {
                             quotedPostUri: nil,
                             quotedPostAuthorHandle: nil,
                             cid: post["cid"] as? String,
-                            blueskyLikeRecordURI: nil,  // Original posts in reposts don't have user interaction records
-                            blueskyRepostRecordURI: nil
+                            blueskyLikeRecordURI: viewer?["like"] as? String,  // Fixed: Use actual like URI
+                            blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
                         )
 
                         // Create the repost wrapper with repost timestamp for timeline positioning
                         let repostId = "repost-\(reposterUsername)-\(uri)"
+
+                        // Check if the current user has reposted this content (from the original post's viewer info)
+                        let userHasReposted = viewer?["repost"] as? String != nil
+
                         let repost = Post(
                             id: repostId,
                             content: "",  // Empty content for reposts
@@ -1021,7 +1169,7 @@ class BlueskyService {
                             mentions: [],
                             tags: [],
                             originalPost: originalPost,
-                            isReposted: true,
+                            isReposted: userHasReposted,  // Fixed: Use actual user repost status
                             platformSpecificId: repostId,
                             boostedBy: reposterName,
                             parent: nil,
@@ -1031,7 +1179,7 @@ class BlueskyService {
                             quotedPostAuthorHandle: nil,
                             cid: nil,  // <-- Explicitly nil for wrapper
                             blueskyLikeRecordURI: nil,  // No like record for wrapper posts
-                            blueskyRepostRecordURI: nil  // No repost record for wrapper posts
+                            blueskyRepostRecordURI: viewer?["repost"] as? String  // Use actual repost URI if user reposted
                         )
 
                         posts.append(repost)
@@ -1188,8 +1336,11 @@ class BlueskyService {
                     attachments: attachments,
                     mentions: mentions,
                     tags: tags,
+                    isReposted: viewer?["repost"] as? String != nil,  // Fixed: Use actual user repost status
+                    isLiked: viewer?["like"] as? String != nil,  // Fixed: Use actual user like status
                     likeCount: likeCount,
                     repostCount: repostCount,
+                    replyCount: replyCount,  // Add reply count
                     platformSpecificId: uri,
                     boostedBy: boostedBy,
                     parent: parentPost,
@@ -1198,8 +1349,8 @@ class BlueskyService {
                     quotedPostUri: quotedPostUri,
                     quotedPostAuthorHandle: quotedPostAuthorHandle,
                     cid: cid,
-                    blueskyLikeRecordURI: nil,  // Will be set when user likes the post
-                    blueskyRepostRecordURI: nil  // Will be set when user reposts the post
+                    blueskyLikeRecordURI: viewer?["like"] as? String,  // Fixed: Use actual like URI
+                    blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
                 )
                 newPost.quotedPost = quotedPost
                 logger.info(
@@ -1353,9 +1504,15 @@ class BlueskyService {
                 userInfo: [NSLocalizedDescriptionKey: "Malformed Bluesky likePost URL"])
         }
         logger.info("[Bluesky] likePost URL: \(urlString)")
-        guard let cid = post.cid, !cid.isEmpty else {
+
+        // For boost posts, we need to like the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+        let targetCid = targetPost.cid
+        let targetUri = targetPost.platformSpecificId
+
+        guard let cid = targetCid, !cid.isEmpty else {
             logger.error(
-                "[Bluesky] Cannot like post: missing CID for post \(post.platformSpecificId)")
+                "[Bluesky] Cannot like post: missing CID for post \(targetUri)")
             throw NSError(
                 domain: "BlueskyService", code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Cannot like post: missing CID for post"])
@@ -1365,12 +1522,12 @@ class BlueskyService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let parameters: [String: Any] = [
-            "repo": account.id,
+            "repo": account.platformSpecificId,  // Use DID instead of stable ID
             "collection": "app.bsky.feed.like",
             "record": [
                 "$type": "app.bsky.feed.like",
                 "subject": [
-                    "uri": post.platformSpecificId,
+                    "uri": targetUri,  // Use target URI for boost posts
                     "cid": cid,
                 ],
                 "createdAt": ISO8601DateFormatter().string(from: Date()),
@@ -1521,7 +1678,7 @@ class BlueskyService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let parameters: [String: Any] = [
-            "repo": account.id,
+            "repo": account.platformSpecificId,  // Use DID instead of stable ID
             "collection": "app.bsky.feed.like",
             "rkey": rkey,
         ]
@@ -1624,7 +1781,7 @@ class BlueskyService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let parameters: [String: Any] = [
-            "repo": account.id,
+            "repo": account.platformSpecificId,  // Use DID instead of stable ID
             "collection": "app.bsky.feed.repost",
             "record": [
                 "$type": "app.bsky.feed.repost",
@@ -1783,7 +1940,7 @@ class BlueskyService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let parameters: [String: Any] = [
-            "repo": account.id,
+            "repo": account.platformSpecificId,  // Use DID instead of stable ID
             "collection": "app.bsky.feed.repost",
             "rkey": rkey,
         ]
@@ -1877,7 +2034,7 @@ class BlueskyService {
             ],
         ]
         let parameters: [String: Any] = [
-            "repo": account.id,
+            "repo": account.platformSpecificId,  // Use DID instead of stable ID
             "collection": "app.bsky.feed.post",
             "record": record,
         ]

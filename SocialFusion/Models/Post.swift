@@ -116,7 +116,7 @@ public struct MediaAttachment: Codable, Identifiable, Equatable {
 }
 
 // MARK: - Post class
-public class Post: ObservableObject, Identifiable, Codable, Equatable {
+public class Post: Identifiable, Codable, Equatable, ObservableObject {
     public let id: String
     public let content: String
     public let authorName: String
@@ -129,10 +129,11 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
     public let mentions: [String]
     public let tags: [String]
 
-    // New properties for boosted/reposted content
+    // New properties for boosted/reposted content - these should NOT be @Published
+    // to prevent cycles when Posts contain other Posts
     public var originalPost: Post? {
         didSet {
-            if Post.detectCycle(start: self, next: originalPost) {
+            if let original = originalPost, Post.detectCycle(start: self, next: original) {
                 print(
                     "[Post] Cycle detected in originalPost chain for post id: \(id). Breaking cycle."
                 )
@@ -140,16 +141,18 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             }
         }
     }
-    public var isReposted: Bool = false
-    public var isLiked: Bool = false
-    public var likeCount: Int = 0
-    public var repostCount: Int = 0
+    @Published public var isReposted: Bool = false
+    @Published public var isLiked: Bool = false
+    @Published public var likeCount: Int = 0
+    @Published public var repostCount: Int = 0
+    @Published public var replyCount: Int = 0
 
-    // Properties for reply and boost functionality
-    @Published public var boostedBy: String?
-    @Published public var parent: Post? {
+    // Properties for reply and boost functionality - these should NOT be @Published
+    // to prevent cycles when Posts contain other Posts
+    public var boostedBy: String?
+    public var parent: Post? {
         didSet {
-            if Post.detectCycle(start: self, next: parent) {
+            if let parentPost = parent, Post.detectCycle(start: self, next: parentPost) {
                 print("[Post] Cycle detected in parent chain for post id: \(id). Breaking cycle.")
                 parent = nil
             }
@@ -158,7 +161,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
     public var inReplyToID: String?
     public var inReplyToUsername: String?
 
-    // Quoted post support
+    // Quoted post support - NOT @Published to prevent cycles
     public var quotedPost: Post? = nil
 
     // Computed properties for convenience
@@ -223,6 +226,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         case isLiked
         case repostCount
         case likeCount
+        case replyCount
         case platformSpecificId
         case boostedBy
         case parent
@@ -255,6 +259,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         let isLiked = try container.decode(Bool.self, forKey: .isLiked)
         let likeCount = try container.decode(Int.self, forKey: .likeCount)
         let repostCount = try container.decode(Int.self, forKey: .repostCount)
+        let replyCount = try container.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
         let platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
         let boostedBy = try container.decodeIfPresent(String.self, forKey: .boostedBy)
         let parent = try container.decodeIfPresent(Post.self, forKey: .parent)
@@ -287,6 +292,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             isLiked: isLiked,
             likeCount: likeCount,
             repostCount: repostCount,
+            replyCount: replyCount,
             platformSpecificId: platformSpecificId,
             boostedBy: boostedBy,
             parent: parent,
@@ -321,6 +327,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         try container.encode(isLiked, forKey: .isLiked)
         try container.encode(likeCount, forKey: .likeCount)
         try container.encode(repostCount, forKey: .repostCount)
+        try container.encode(replyCount, forKey: .replyCount)
         try container.encode(platformSpecificId, forKey: .platformSpecificId)
         try container.encodeIfPresent(boostedBy, forKey: .boostedBy)
         try container.encodeIfPresent(parent, forKey: .parent)
@@ -351,6 +358,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         isLiked: Bool = false,
         likeCount: Int = 0,
         repostCount: Int = 0,
+        replyCount: Int = 0,
         platformSpecificId: String = "",
         boostedBy: String? = nil,
         parent: Post? = nil,
@@ -378,6 +386,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
         self.isLiked = isLiked
         self.likeCount = likeCount
         self.repostCount = repostCount
+        self.replyCount = replyCount
         self.platformSpecificId = platformSpecificId.isEmpty ? id : platformSpecificId
         self.boostedBy = boostedBy
         self.inReplyToID = inReplyToID
@@ -424,6 +433,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             isLiked: true,
             likeCount: 5,
             repostCount: 2,
+            replyCount: 0,
             platformSpecificId: "",
             quotedPostUri: nil,
             quotedPostAuthorHandle: nil
@@ -561,6 +571,7 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             isLiked: self.isLiked,
             likeCount: self.likeCount,
             repostCount: self.repostCount,
+            replyCount: self.replyCount,
             platformSpecificId: newId,  // Update the platform-specific ID too
             boostedBy: self.boostedBy,
             parent: self.parent,
@@ -570,6 +581,40 @@ public class Post: ObservableObject, Identifiable, Codable, Equatable {
             quotedPostAuthorHandle: self.quotedPostAuthorHandle,
             quotedPost: self.quotedPost,
             cid: self.cid
+        )
+    }
+
+    /// Create a deep copy of this post to prevent reference sharing issues
+    func deepCopy() -> Post {
+        return Post(
+            id: self.id,
+            content: self.content,
+            authorName: self.authorName,
+            authorUsername: self.authorUsername,
+            authorProfilePictureURL: self.authorProfilePictureURL,
+            createdAt: self.createdAt,
+            platform: self.platform,
+            originalURL: self.originalURL,
+            attachments: self.attachments,
+            mentions: self.mentions,
+            tags: self.tags,
+            originalPost: self.originalPost?.deepCopy(),  // Deep copy nested posts too
+            isReposted: self.isReposted,
+            isLiked: self.isLiked,
+            likeCount: self.likeCount,
+            repostCount: self.repostCount,
+            replyCount: self.replyCount,
+            platformSpecificId: self.platformSpecificId,
+            boostedBy: self.boostedBy,
+            parent: self.parent?.deepCopy(),  // Deep copy parent too
+            inReplyToID: self.inReplyToID,
+            inReplyToUsername: self.inReplyToUsername,
+            quotedPostUri: self.quotedPostUri,
+            quotedPostAuthorHandle: self.quotedPostAuthorHandle,
+            quotedPost: self.quotedPost?.deepCopy(),  // Deep copy quoted posts too
+            cid: self.cid,
+            blueskyLikeRecordURI: self.blueskyLikeRecordURI,
+            blueskyRepostRecordURI: self.blueskyRepostRecordURI
         )
     }
 
@@ -728,6 +773,8 @@ class PostViewModel: ObservableObject, Identifiable {
     @Published var isReposted: Bool
     @Published var likeCount: Int
     @Published var repostCount: Int
+    @Published var replyCount: Int
+    @Published var isLoading: Bool = false
     @Published var error: AppError? = nil
 
     // Timeline context
@@ -747,6 +794,7 @@ class PostViewModel: ObservableObject, Identifiable {
         self.isReposted = post.isReposted
         self.likeCount = post.likeCount
         self.repostCount = post.repostCount
+        self.replyCount = post.replyCount
         self.serviceManager = serviceManager
         // Determine kind if not provided
         if let kind = kind {
@@ -766,21 +814,31 @@ class PostViewModel: ObservableObject, Identifiable {
 
     @MainActor
     func like() async {
-        // Optimistic UI update: update isLiked and likeCount immediately
+        // Prevent state modification during view updates to avoid AttributeGraph cycles
+        guard !isLoading else { return }
+
+        // Store original values for potential revert
         let prevLiked = isLiked
         let prevCount = likeCount
+
+        // Optimistic UI update
         isLiked.toggle()
         likeCount += isLiked ? 1 : -1
+        isLoading = true
+
         do {
-            _ = try await serviceManager.likePost(post)
-            post.isLiked = isLiked
-            post.likeCount = likeCount
-            // Remove problematic timeline refresh that causes AttributeGraph cycles
-            // The UI state is already updated optimistically above
+            let updatedPost = try await serviceManager.likePost(post)
+            // Update with server response
+            post.isLiked = updatedPost.isLiked
+            post.likeCount = updatedPost.likeCount
+            self.isLiked = updatedPost.isLiked
+            self.likeCount = updatedPost.likeCount
+            self.isLoading = false
         } catch {
             // Revert UI on error
             isLiked = prevLiked
             likeCount = prevCount
+            self.isLoading = false
             self.error = AppError(
                 type: .general, message: error.localizedDescription, underlyingError: error)
         }
@@ -788,21 +846,31 @@ class PostViewModel: ObservableObject, Identifiable {
 
     @MainActor
     func repost() async {
-        // Optimistic UI update: update isReposted and repostCount immediately
+        // Prevent state modification during view updates to avoid AttributeGraph cycles
+        guard !isLoading else { return }
+
+        // Store original values for potential revert
         let prevReposted = isReposted
         let prevCount = repostCount
+
+        // Optimistic UI update
         isReposted.toggle()
         repostCount += isReposted ? 1 : -1
+        isLoading = true
+
         do {
-            _ = try await serviceManager.repostPost(post)
-            post.isReposted = isReposted
-            post.repostCount = repostCount
-            // Remove problematic timeline refresh that causes AttributeGraph cycles
-            // The UI state is already updated optimistically above
+            let updatedPost = try await serviceManager.repostPost(post)
+            // Update with server response
+            post.isReposted = updatedPost.isReposted
+            post.repostCount = updatedPost.repostCount
+            self.isReposted = updatedPost.isReposted
+            self.repostCount = updatedPost.repostCount
+            self.isLoading = false
         } catch {
             // Revert UI on error
             isReposted = prevReposted
             repostCount = prevCount
+            self.isLoading = false
             self.error = AppError(
                 type: .general, message: error.localizedDescription, underlyingError: error)
         }
@@ -821,5 +889,12 @@ class PostViewModel: ObservableObject, Identifiable {
             self.error = AppError(
                 type: .general, message: "Unable to present share sheet", underlyingError: nil)
         }
+    }
+}
+
+// MARK: - Hashable Conformance
+extension Post: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }

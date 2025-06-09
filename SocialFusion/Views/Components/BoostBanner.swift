@@ -15,17 +15,21 @@ struct BoostBanner: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Image(systemName: "repeat")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(platformColor)
             Text("\(handle) boosted")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        .font(.caption2)
-        .foregroundColor(.secondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(platformColor.opacity(0.12)))
-        .overlay(Capsule().stroke(platformColor, lineWidth: 0.5))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
     }
 }

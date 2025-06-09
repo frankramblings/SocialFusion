@@ -17,7 +17,7 @@ struct AccountPickerView: View {
                         selectedAccountId = nil
                         serviceManager.selectedAccountIds = ["all"]
                         Task {
-                            await serviceManager.refreshTimeline(force: true)
+                            await serviceManager.refreshTimeline(force: false)
                         }
                         isPresented = false
                     }) {
@@ -156,6 +156,22 @@ struct AccountPickerView: View {
                 AddAccountView()
                     .environmentObject(serviceManager)
             }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: Notification.Name("shouldRepresentAddAccount"))
+            ) { notification in
+                // Only handle non-autofill recovery notifications
+                if let userInfo = notification.userInfo,
+                    let source = userInfo["source"] as? String,
+                    source == "autofillRecovery"
+                {
+                    // This is an autofill recovery - don't handle it here
+                    return
+                }
+
+                print("🔐 [AccountPickerView] Received notification to re-present AddAccountView")
+                showAddAccountSheet = true
+            }
         }
     }
 
@@ -165,7 +181,7 @@ struct AccountPickerView: View {
             selectedAccountId = account.id
             serviceManager.selectedAccountIds = [account.id]
             Task {
-                await serviceManager.refreshTimeline(force: true)
+                await serviceManager.refreshTimeline(force: false)
             }
             isPresented = false
         }) {

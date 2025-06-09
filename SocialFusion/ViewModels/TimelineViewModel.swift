@@ -53,10 +53,17 @@ public final class TimelineViewModel: ObservableObject {
 
     private let socialServiceManager: SocialServiceManager
     private var cancellables = Set<AnyCancellable>()
+    private let serialQueue = DispatchQueue(label: "TimelineViewModel.serial", qos: .userInitiated)
+    private var refreshTask: Task<Void, Never>?
 
     public init(socialServiceManager: SocialServiceManager = .shared) {
         self.socialServiceManager = socialServiceManager
         setupObservers()
+    }
+
+    deinit {
+        refreshTask?.cancel()
+        cancellables.removeAll()
     }
 
     // MARK: - Public Methods
@@ -70,8 +77,8 @@ public final class TimelineViewModel: ObservableObject {
         refreshTask = Task { [weak self] in
             guard let self = self else { return }
 
-            // Show loading state
-            await MainActor.run {
+            // Thread-safe loading state update
+            await self.safeStateUpdate {
                 self.isLoading = true
                 if case .idle = self.state {
                     self.state = .loading
@@ -509,6 +516,13 @@ public final class TimelineViewModel: ObservableObject {
             }
             self.state = .loaded(updatedPosts)
         }
+    }
+
+    /// Thread-safe state update method to prevent concurrent access crashes
+    @MainActor
+    private func safeStateUpdate(_ update: @escaping () -> Void) async {
+        guard !Task.isCancelled else { return }
+        update()
     }
 
     private func setupObservers() {

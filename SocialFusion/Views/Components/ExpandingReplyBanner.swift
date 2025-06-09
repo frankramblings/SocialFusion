@@ -1,5 +1,69 @@
 import SwiftUI
 
+// Simple PostParentCache for ExpandingReplyBanner
+class PostParentCache: ObservableObject {
+    static let shared = PostParentCache()
+    @Published var cache = [String: Post]()
+    private var fetching = Set<String>()
+
+    private init() {}
+
+    func isFetching(id: String) -> Bool {
+        return fetching.contains(id)
+    }
+
+    func getCachedPost(id: String) -> Post? {
+        return cache[id]
+    }
+
+    func preloadParentPost(
+        id: String, username: String, platform: SocialPlatform,
+        serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
+    ) {
+        fetchRealPost(
+            id: id, username: username, platform: platform,
+            serviceManager: serviceManager, allAccounts: allAccounts
+        )
+    }
+
+    func fetchRealPost(
+        id: String, username: String, platform: SocialPlatform,
+        serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
+    ) {
+        guard !fetching.contains(id) else { return }
+        fetching.insert(id)
+
+        Task {
+            do {
+                let post: Post?
+
+                switch platform {
+                case .mastodon:
+                    if let account = allAccounts.first(where: { $0.platform == .mastodon }) {
+                        post = try await serviceManager.fetchMastodonStatus(
+                            id: id, account: account)
+                    } else {
+                        post = nil
+                    }
+                case .bluesky:
+                    post = try await serviceManager.fetchBlueskyPostByID(id)
+                }
+
+                await MainActor.run {
+                    self.fetching.remove(id)
+                    if let post = post {
+                        self.cache[id] = post
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.fetching.remove(id)
+                }
+            }
+        }
+    }
+}
+
 struct ExpandingReplyBanner: View {
     let username: String
     let network: SocialPlatform
@@ -9,6 +73,9 @@ struct ExpandingReplyBanner: View {
     @ObservedObject private var parentCache = PostParentCache.shared
     @State private var parent: Post? = nil
     @State private var fetchAttempted = false
+
+    // Animation state isolation
+    @State private var isAnimating = false
 
     private var displayUsername: String {
         if let parent = parent {
@@ -40,17 +107,29 @@ struct ExpandingReplyBanner: View {
         VStack(alignment: .leading, spacing: 0) {
             // Banner row with improved tap handling
             Button(action: {
+                // Prevent multiple rapid taps during animation
+                guard !isAnimating else { return }
+
                 // Provide haptic feedback
                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                 impactFeedback.impactOccurred()
+
+                isAnimating = true
 
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     isExpanded.toggle()
                 }
 
-                // Start fetching when expanded
+                // Reset animation state after animation duration
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    isAnimating = false
+                }
+
+                // Start fetching when expanded - delay to avoid interfering with animation
                 if isExpanded, let parentId = parentId {
-                    triggerParentFetch(parentId: parentId)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        triggerParentFetch(parentId: parentId)
+                    }
                 }
 
                 onBannerTap?()
@@ -75,7 +154,6 @@ struct ExpandingReplyBanner: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -119,7 +197,6 @@ struct ExpandingReplyBanner: View {
                         .transition(.opacity)
                     }
                 }
-                .fixedSize(horizontal: false, vertical: true)
             }
         }
         .background(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
@@ -130,28 +207,21 @@ struct ExpandingReplyBanner: View {
         )
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
         .onReceive(parentCache.$cache) { cache in
-            guard let parentId = parentId else { return }
+            // Only update parent state when not animating to preserve animation context
+            guard !isAnimating, let parentId = parentId else { return }
             let newParent = cache[parentId]
             if parent !== newParent {
-                // Defer the state update to the next runloop cycle to prevent AttributeGraph cycles
-                DispatchQueue.main.async {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        parent = newParent
-                    }
-                }
+                parent = newParent
             }
         }
         .onAppear {
-            // Defer initial setup to prevent state modification during view rendering
-            DispatchQueue.main.async {
-                // Set initial parent from cache
-                if let parentId = parentId {
-                    parent = parentCache.getCachedPost(id: parentId)
+            // Set initial parent from cache immediately
+            if let parentId = parentId {
+                parent = parentCache.getCachedPost(id: parentId)
 
-                    // Preload in background for smoother experience
-                    if !parentCache.isFetching(id: parentId) && parent == nil {
-                        triggerBackgroundPreload(parentId: parentId)
-                    }
+                // Preload in background for smoother experience
+                if !parentCache.isFetching(id: parentId) && parent == nil {
+                    triggerBackgroundPreload(parentId: parentId)
                 }
             }
         }

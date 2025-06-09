@@ -11,6 +11,10 @@
   <img src="https://img.shields.io/badge/Status-Alpha-red.svg" alt="Development Status">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </div>
+<br>
+<div align="center">
+  <img src="Github%20header.png" alt="SocialFusion Header">
+</div>
 
 ## Overview
 

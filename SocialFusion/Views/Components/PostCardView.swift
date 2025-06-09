@@ -135,12 +135,12 @@ struct PostCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {  // Apple standard: 8pt spacing
             // Boost banner if this post was boosted/reposted
             if let boostedBy = boostedBy {
                 BoostBanner(handle: boostedBy, platform: post.platform)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)  // Apple standard: 12pt for content
+                    .padding(.vertical, 6)  // Adequate touch target
             }
 
             // Expanding reply banner if this post is a reply
@@ -152,7 +152,8 @@ struct PostCardView: View {
                     isExpanded: $expansionState.isExpanded,
                     onBannerTap: { bannerWasTapped = true }
                 )
-                .padding(.bottom, 4)
+                .padding(.horizontal, 12)  // Apple standard: 12pt for content - match boost banner alignment
+                .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
             }
 
             // Author section
@@ -160,14 +161,18 @@ struct PostCardView: View {
                 post: displayPost,
                 onAuthorTap: onAuthorTap
             )
+            .padding(.horizontal, 12)  // Apple standard: 12pt content padding
 
             // Content section with link previews
             displayPost.contentView(lineLimit: nil, showLinkPreview: true, font: .body)
-                .padding(.horizontal)
+                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+                .padding(.top, 4)  // Slight separation from author
 
             // Media section
             if !displayPost.attachments.isEmpty {
                 UnifiedMediaGridView(attachments: displayPost.attachments)
+                    .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+                    .padding(.top, 8)  // Apple standard: 8pt spacing from content
             }
 
             // Action bar (using the working ActionBar)
@@ -179,14 +184,21 @@ struct PostCardView: View {
                         case .reply:
                             onReply()
                         case .repost:
-                            onRepost()
+                            // Use viewModel for repost to get proper state updates
+                            Task { await viewModel.repost() }
                         case .like:
-                            onLike()
+                            // Use viewModel for like to get proper state updates
+                            Task { await viewModel.like() }
                         case .share:
-                            onShare()
+                            viewModel.share()
                         }
-                    }
+                    },
+                    onOpenInBrowser: onOpenInBrowser,
+                    onCopyLink: onCopyLink,
+                    onReport: onReport
                 )
+                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+                .padding(.top, 6)  // Apple standard: 6pt separation from content
             } else {
                 ActionBar(
                     post: displayPost,
@@ -201,20 +213,17 @@ struct PostCardView: View {
                         case .share:
                             onShare()
                         }
-                    }
+                    },
+                    onOpenInBrowser: onOpenInBrowser,
+                    onCopyLink: onCopyLink,
+                    onReport: onReport
                 )
+                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+                .padding(.top, 6)  // Apple standard: 6pt separation from content
             }
-
-            // Menu
-            PostMenu(
-                post: displayPost,
-                onOpenInBrowser: onOpenInBrowser,
-                onCopyLink: onCopyLink,
-                onShare: onShare,
-                onReport: onReport
-            )
         }
-        .padding()
+        .padding(.horizontal, 16)  // Apple standard: 16pt container padding
+        .padding(.vertical, 12)  // Apple standard: 12pt container padding
         .background(Color(.systemBackground))
         .contentShape(Rectangle())
         .onTapGesture {
@@ -231,24 +240,15 @@ struct PostCardView: View {
 struct PostCardView_Previews: PreviewProvider {
     static var previews: some View {
         VStack(spacing: 16) {
-            // Simple test - basic post
+            // Simple test - basic post using TimelineEntry
             PostCardView(
-                post: Post.samplePosts[0],
-                replyCount: 42,
-                repostCount: 123,
-                likeCount: 456,
-                isReplying: false,
-                isReposted: true,
-                isLiked: true,
-                onAuthorTap: {},
-                onReply: {},
-                onRepost: {},
-                onLike: {},
-                onShare: {},
-                onMediaTap: { _ in },
-                onOpenInBrowser: {},
-                onCopyLink: {},
-                onReport: {},
+                entry: TimelineEntry(
+                    id: "1",
+                    kind: .normal,
+                    post: Post.samplePosts[0],
+                    createdAt: Date()
+                ),
+                viewModel: nil,
                 onPostTap: {}
             )
         }

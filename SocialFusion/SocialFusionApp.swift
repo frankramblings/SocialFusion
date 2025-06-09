@@ -6,11 +6,14 @@ import UIKit
 
 @main
 struct SocialFusionApp: App {
-    // Use StateObject for SocialServiceManager since we're creating it here
-    @StateObject private var socialServiceManager = SocialServiceManager()
+    // Use the shared singleton instead of creating a new instance
+    @StateObject private var socialServiceManager = SocialServiceManager.shared
 
     // Version manager for launch animation control
     @StateObject private var appVersionManager = AppVersionManager()
+
+    // OAuth manager for handling authentication callbacks
+    @StateObject private var oauthManager = OAuthManager()
 
     // Environment object for scene phase to detect when app is terminating
     @Environment(\.scenePhase) private var scenePhase
@@ -28,12 +31,13 @@ struct SocialFusionApp: App {
             ContentView()
                 .environmentObject(socialServiceManager)
                 .environmentObject(appVersionManager)
+                .environmentObject(oauthManager)
                 .onOpenURL { url in
                     // Handle OAuth callback URLs
                     if url.scheme == "socialfusion" {
-                        print("Received callback URL: \(url)")
-                        // In the future, we'll implement callback handling through SocialServiceManager
-                        // Example: socialServiceManager.handleOAuthCallback(url: url)
+                        print("Received OAuth callback URL: \(url)")
+                        // Handle the OAuth callback
+                        handleOAuthCallback(url: url)
                     }
                 }
                 // Use NotificationCenter instead of onChange for backward compatibility
@@ -47,13 +51,50 @@ struct SocialFusionApp: App {
                     print("App terminating - final account save")
                     socialServiceManager.saveAccounts()
                 }
-                .onChange(of: scenePhase) { newPhase in
-                    if newPhase == .background || newPhase == .inactive {
+                .onChange(of: scenePhase) { _ in
+                    if scenePhase == .background || scenePhase == .inactive {
                         // App is entering background - save state
-                        print("Scene phase changed to \(newPhase) - saving app state")
+                        print("Scene phase changed to \(scenePhase) - saving app state")
                         socialServiceManager.saveAccounts()
+                    } else if scenePhase == .active {
+                        // App returned to foreground - check if AddAccountView needs to be re-presented
+                        checkForAutofillRecovery()
                     }
                 }
+        }
+    }
+
+    private func handleOAuthCallback(url: URL) {
+        // Forward the callback to the OAuth manager
+        oauthManager.handleCallback(url: url)
+    }
+
+    private func checkForAutofillRecovery() {
+        // Check if AddAccountView was presented when going to background
+        let wasPresented = UserDefaults.standard.bool(
+            forKey: "AddAccountView.WasPresentedDuringBackground")
+
+        if wasPresented {
+            print(
+                "🔐 [SocialFusionApp] Detected AddAccountView was dismissed during autofill - posting recovery notification"
+            )
+
+            // Add a flag to prevent multiple handlers from responding simultaneously
+            UserDefaults.standard.set(true, forKey: "AddAccountView.RecoveryInProgress")
+
+            // Small delay to ensure the app is fully active
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                NotificationCenter.default.post(
+                    name: Notification.Name("shouldRepresentAddAccount"), object: nil,
+                    userInfo: [
+                        "source": "autofillRecovery"
+                    ]
+                )
+
+                // Clear the flag
+                UserDefaults.standard.removeObject(
+                    forKey: "AddAccountView.WasPresentedDuringBackground")
+            }
         }
     }
 }

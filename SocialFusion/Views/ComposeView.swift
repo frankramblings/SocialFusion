@@ -1,5 +1,262 @@
+import Combine
 import SwiftUI
 import UIKit
+
+/// A view that shows context for what post is being replied to
+struct ReplyContextHeader: View {
+    let post: Post
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var platformColor: Color {
+        switch post.platform {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // "Replying to" indicator
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.turn.up.left")
+                    .font(.caption)
+                    .foregroundColor(platformColor)
+
+                Text("Replying to")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("@\(post.authorUsername)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(platformColor)
+
+                Spacer()
+
+                // Platform indicator
+                Image(systemName: post.platform.icon)
+                    .font(.caption2)
+                    .foregroundColor(platformColor)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+
+            // Original post preview
+            VStack(alignment: .leading, spacing: 8) {
+                // Author info
+                HStack(spacing: 8) {
+                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    } placeholder: {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                    }
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(post.authorName)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+
+                        Text("@\(post.authorUsername)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+                }
+
+                // Post content (truncated)
+                Text(post.content)
+                    .font(.subheadline)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(
+                        colorScheme == .dark
+                            ? Color(UIColor.tertiarySystemBackground)
+                            : Color(UIColor.secondarySystemBackground)
+                    )
+            )
+            .padding(.horizontal, 16)
+        }
+        .padding(.bottom, 8)
+        .background(Color(UIColor.systemBackground))
+        .overlay(
+            Divider(),
+            alignment: .bottom
+        )
+    }
+}
+
+/// A UIViewRepresentable wrapper for UITextView with better focus control
+struct FocusableTextEditor: UIViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let shouldAutoFocus: Bool
+    let onFocusChange: (Bool) -> Void
+
+    func makeUIView(context: Context) -> UITextView {
+        let textView = UITextView()
+        textView.delegate = context.coordinator
+        textView.font = UIFont.preferredFont(forTextStyle: .body)
+        textView.backgroundColor = UIColor.systemBackground
+        textView.textColor = UIColor.label
+        textView.layer.cornerRadius = 8
+        textView.textContainerInset = UIEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
+
+        // Set placeholder if text is empty
+        if text.isEmpty {
+            textView.text = placeholder
+            textView.textColor = UIColor.placeholderText
+        } else {
+            textView.text = text
+            textView.textColor = UIColor.label
+        }
+
+        return textView
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        // Thread-safe check to prevent crashes
+        guard !Task.isCancelled else { return }
+
+        // Update text if it's different and not showing placeholder
+        if uiView.text != text && uiView.textColor != UIColor.placeholderText {
+            uiView.text = text
+        }
+
+        // Handle auto-focus with proper safety checks
+        if shouldAutoFocus && !uiView.isFirstResponder {
+            // Check if the view is still in the view hierarchy
+            guard uiView.window != nil else { return }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                // Double-check the view is still valid before focusing
+                guard !Task.isCancelled,
+                    uiView.window != nil,
+                    !uiView.isFirstResponder
+                else { return }
+                uiView.becomeFirstResponder()
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, UITextViewDelegate {
+        var parent: FocusableTextEditor?
+        private var isUpdating = false
+
+        init(_ parent: FocusableTextEditor) {
+            self.parent = parent
+            super.init()
+        }
+
+        deinit {
+            parent = nil
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            guard let parent = parent, !isUpdating else { return }
+            isUpdating = true
+
+            if textView.textColor == UIColor.placeholderText {
+                textView.text = ""
+                textView.textColor = UIColor.label
+            }
+            parent.onFocusChange(true)
+
+            isUpdating = false
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            guard let parent = parent, !isUpdating else { return }
+            isUpdating = true
+
+            if textView.text.isEmpty {
+                textView.text = parent.placeholder
+                textView.textColor = UIColor.placeholderText
+            }
+            parent.onFocusChange(false)
+
+            isUpdating = false
+        }
+
+        func textViewDidChange(_ textView: UITextView) {
+            guard let parent = parent,
+                !isUpdating,
+                textView.textColor != UIColor.placeholderText
+            else { return }
+
+            isUpdating = true
+            parent.text = textView.text
+            isUpdating = false
+        }
+    }
+}
+
+/// A modifier to handle keyboard notifications and adjust the UI accordingly
+struct KeyboardAdaptive: ViewModifier {
+    @State private var keyboardHeight: CGFloat = 0
+    @State private var isUpdating = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.bottom, keyboardHeight)
+            .onReceive(Publishers.keyboardHeight) { keyboardHeight in
+                guard !isUpdating else { return }
+                isUpdating = true
+
+                withAnimation(.easeOut(duration: 0.3)) {
+                    self.keyboardHeight = keyboardHeight
+                }
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    self.isUpdating = false
+                }
+            }
+    }
+}
+
+extension Publishers {
+    static var keyboardHeight: AnyPublisher<CGFloat, Never> {
+        let willShow = NotificationCenter.default.publisher(
+            for: UIResponder.keyboardWillShowNotification
+        )
+        .map { notification -> CGFloat in
+            (notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect)?.height
+                ?? 0
+        }
+
+        let willHide = NotificationCenter.default.publisher(
+            for: UIResponder.keyboardWillHideNotification
+        )
+        .map { _ -> CGFloat in 0 }
+
+        return willShow.merge(with: willHide)
+            .eraseToAnyPublisher()
+    }
+}
+
+extension View {
+    func keyboardAdaptive() -> some View {
+        modifier(KeyboardAdaptive())
+    }
+}
 
 struct ComposeView: View {
     @State private var postText = ""
@@ -10,7 +267,11 @@ struct ComposeView: View {
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
-    
+
+    // Reply context
+    let replyingTo: Post?
+    @State private var isTextFieldFocused: Bool = false
+
     // Add SocialServiceManager for actual posting
     @ObservedObject private var socialServiceManager = SocialServiceManager.shared
 
@@ -42,9 +303,10 @@ struct ComposeView: View {
     }
 
     private var canPost: Bool {
-        !postText.isEmpty && !isOverLimit && !selectedPlatforms.isEmpty && !isPosting && hasAccountsForSelectedPlatforms
+        !postText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isOverLimit
+            && !selectedPlatforms.isEmpty && !isPosting && hasAccountsForSelectedPlatforms
     }
-    
+
     // Check if we have accounts for the selected platforms
     private var hasAccountsForSelectedPlatforms: Bool {
         for platform in selectedPlatforms {
@@ -61,29 +323,40 @@ struct ComposeView: View {
         }
         return true
     }
-    
+
     // Helper for button text
     private var buttonText: String {
         if !hasAccountsForSelectedPlatforms {
             return "No Accounts"
         } else if isPosting {
-            return "Posting..."
+            return replyingTo != nil ? "Replying..." : "Posting..."
         } else {
-            return "Post"
+            return replyingTo != nil ? "Reply" : "Post"
         }
     }
-    
+
     // Helper for button color
     private var buttonColor: Color {
         if !hasAccountsForSelectedPlatforms {
             return Color.orange
         } else if canPost {
-            return Color.blue
+            return replyingTo != nil ? platformColor : Color.blue
         } else {
             return Color.gray.opacity(0.5)
         }
     }
-    
+
+    // Platform color for reply context
+    private var platformColor: Color {
+        guard let replyingTo = replyingTo else { return .blue }
+        switch replyingTo.platform {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
     // Helper to get missing platforms
     private var missingAccountPlatforms: [SocialPlatform] {
         var missing: [SocialPlatform] = []
@@ -102,76 +375,88 @@ struct ComposeView: View {
         return missing
     }
 
-    init() {
+    // Placeholder text based on context
+    private var placeholderText: String {
+        if let replyingTo = replyingTo {
+            return "Reply to \(replyingTo.authorName)..."
+        }
+        return "What's on your mind?"
+    }
+
+    // Navigation title based on context
+    private var navigationTitle: String {
+        return replyingTo != nil ? "Reply" : "New Post"
+    }
+
+    init(replyingTo: Post? = nil) {
+        self.replyingTo = replyingTo
         // Initialize with the default visibility from user preferences
         _selectedVisibility = State(
             initialValue: UserDefaults.standard.integer(forKey: "defaultPostVisibility"))
+
+        // For replies, filter platforms to match the original post
+        if let post = replyingTo {
+            _selectedPlatforms = State(initialValue: [post.platform])
+        }
     }
 
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Platform selection
-                HStack(spacing: 16) {
-                    ForEach(SocialPlatform.allCases, id: \.self) { platform in
-                        PlatformToggleButton(
-                            platform: platform,
-                            isSelected: selectedPlatforms.contains(platform),
-                            action: {
-                                togglePlatform(platform)
-                            }
-                        )
-                    }
-
-                    Spacer()
-
-                    // Visibility picker
-                    Menu {
-                        Picker("Visibility", selection: $selectedVisibility) {
-                            ForEach(0..<postVisibilityOptions.count, id: \.self) { index in
-                                Text(postVisibilityOptions[index]).tag(index)
-                            }
-                        }
-                    } label: {
-                        Image(systemName: "eye")
-                            .foregroundColor(.secondary)
-                            .padding(8)
-                            .background(Color(UIColor.secondarySystemBackground))
-                            .clipShape(Circle())
-                    }
+                // Reply context header (only shown for replies)
+                if let replyingTo = replyingTo {
+                    ReplyContextHeader(post: replyingTo)
                 }
-                .padding(.horizontal)
-                .padding(.vertical, 12)
-                .background(Color(UIColor.systemBackground))
-                .overlay(
-                    Divider(),
-                    alignment: .bottom
-                )
+
+                // Platform selection (hidden for replies since platform is predetermined)
+                if replyingTo == nil {
+                    HStack(spacing: 16) {
+                        ForEach(SocialPlatform.allCases, id: \.self) { platform in
+                            PlatformToggleButton(
+                                platform: platform,
+                                isSelected: selectedPlatforms.contains(platform),
+                                action: {
+                                    togglePlatform(platform)
+                                }
+                            )
+                        }
+
+                        Spacer()
+
+                        // Visibility picker
+                        Menu {
+                            Picker("Visibility", selection: $selectedVisibility) {
+                                ForEach(0..<postVisibilityOptions.count, id: \.self) { index in
+                                    Text(postVisibilityOptions[index]).tag(index)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "eye")
+                                .foregroundColor(.secondary)
+                                .padding(8)
+                                .background(Color(UIColor.secondarySystemBackground))
+                                .clipShape(Circle())
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 12)
+                    .background(Color(UIColor.systemBackground))
+                    .overlay(
+                        Divider(),
+                        alignment: .bottom
+                    )
+                }
 
                 // Text editor
                 ZStack(alignment: .topLeading) {
-                    if postText.isEmpty {
-                        Text("What's on your mind?")
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal, 12)
-                            .padding(.top, 12)
-                    }
-
-                    TextEditor(text: $postText)
-                        .padding(8)
-                        .background(Color(UIColor.systemBackground))
-                        .cornerRadius(8)
-                        // Add keyboard toolbar to avoid SystemInputAssistantView conflict
-                        .toolbar {
-                            ToolbarItemGroup(placement: .keyboard) {
-                                Spacer()
-                                Button("Done") {
-                                    UIApplication.shared.sendAction(
-                                        #selector(UIResponder.resignFirstResponder), to: nil,
-                                        from: nil, for: nil)
-                                }
-                            }
+                    FocusableTextEditor(
+                        text: $postText,
+                        placeholder: placeholderText,
+                        shouldAutoFocus: replyingTo != nil,
+                        onFocusChange: { isFocused in
+                            isTextFieldFocused = isFocused
                         }
+                    )
                 }
                 .frame(maxHeight: .infinity)
                 .padding(.horizontal, 8)
@@ -215,7 +500,7 @@ struct ComposeView: View {
                     )
                 }
 
-                // Bottom toolbar
+                // Bottom toolbar - this will stay above keyboard
                 HStack {
                     // Add image button
                     Button(action: {
@@ -266,8 +551,9 @@ struct ComposeView: View {
                     alignment: .top
                 )
             }
-            .navigationTitle("New Post")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .keyboardAdaptive()
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(selectedImages: $selectedImages, maxImages: 4)
             }
@@ -316,7 +602,7 @@ struct ComposeView: View {
     }
 
     private func postContent() {
-        guard canPost else { 
+        guard canPost else {
             // Handle the case where user tries to post without proper accounts
             if !hasAccountsForSelectedPlatforms {
                 let missing = missingAccountPlatforms.map { $0.rawValue }.joined(separator: " and ")
@@ -324,7 +610,7 @@ struct ComposeView: View {
                 alertMessage = "Please add \(missing) account(s) to post to the selected platforms."
                 showAlert = true
             }
-            return 
+            return
         }
 
         isPosting = true
@@ -333,7 +619,7 @@ struct ComposeView: View {
         let mediaData: [Data] = selectedImages.compactMap { image in
             return image.jpegData(compressionQuality: 0.8)
         }
-        
+
         // Convert visibility index to string
         let visibilityString: String
         switch selectedVisibility {
@@ -349,43 +635,66 @@ struct ComposeView: View {
 
         Task {
             do {
-                // Call the actual posting API
-                let createdPosts = try await socialServiceManager.createPost(
-                    content: postText,
-                    platforms: selectedPlatforms,
-                    mediaAttachments: mediaData,
-                    visibility: visibilityString
-                )
-                
-                await MainActor.run {
-                    isPosting = false
-                    alertTitle = "Success!"
-                    
-                    if createdPosts.count == selectedPlatforms.count {
-                        let platformNames = createdPosts.map { $0.platform.rawValue }.joined(separator: " and ")
-                        alertMessage = "Your post has been successfully shared to \(platformNames)."
-                    } else {
-                        let successfulPlatforms = createdPosts.map { $0.platform.rawValue }.joined(separator: " and ")
-                        alertMessage = "Your post was shared to \(successfulPlatforms). Some platforms may have failed."
-                    }
-                    showAlert = true
+                // Handle reply vs new post
+                if let replyingTo = replyingTo {
+                    // This is a reply
+                    let _ = try await socialServiceManager.replyToPost(
+                        replyingTo, content: postText)
 
-                    // Reset the compose view
-                    postText = ""
-                    selectedImages = []
-                    
-                    // Reset platform selection to default
-                    selectedPlatforms = [.mastodon, .bluesky]
+                    await MainActor.run {
+                        isPosting = false
+                        alertTitle = "Reply Sent!"
+                        alertMessage = "Your reply has been posted successfully."
+                        showAlert = true
+
+                        // Reset the compose view
+                        postText = ""
+                        selectedImages = []
+                    }
+                } else {
+                    // This is a new post
+                    let createdPosts = try await socialServiceManager.createPost(
+                        content: postText,
+                        platforms: selectedPlatforms,
+                        mediaAttachments: mediaData,
+                        visibility: visibilityString
+                    )
+
+                    await MainActor.run {
+                        isPosting = false
+                        alertTitle = "Success!"
+
+                        if createdPosts.count == selectedPlatforms.count {
+                            let platformNames = createdPosts.map { $0.platform.rawValue }.joined(
+                                separator: " and ")
+                            alertMessage =
+                                "Your post has been successfully shared to \(platformNames)."
+                        } else {
+                            let successfulPlatforms = createdPosts.map { $0.platform.rawValue }
+                                .joined(separator: " and ")
+                            alertMessage =
+                                "Your post was shared to \(successfulPlatforms). Some platforms may have failed."
+                        }
+                        showAlert = true
+
+                        // Reset the compose view
+                        postText = ""
+                        selectedImages = []
+
+                        // Reset platform selection to default
+                        selectedPlatforms = [.mastodon, .bluesky]
+                    }
                 }
-                
+
             } catch {
                 await MainActor.run {
                     isPosting = false
                     alertTitle = "Error"
-                    alertMessage = "Failed to post: \(error.localizedDescription)"
+                    alertMessage =
+                        "Failed to \(replyingTo != nil ? "reply" : "post"): \(error.localizedDescription)"
                     showAlert = true
                 }
-                
+
                 print("Posting error: \(error)")
             }
         }

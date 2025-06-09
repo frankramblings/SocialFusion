@@ -21,17 +21,23 @@ struct UnifiedTimelineView: View {
     }
 
     private var displayPosts: [Post] {
-        return serviceManager.unifiedTimeline.filter { post in
-            if serviceManager.selectedAccountIds.contains("all") {
-                // When "All" is selected, show posts from all accounts
-                return true
-            } else {
-                // For specific account selection, match the post author
-                let username = post.authorUsername
-                let selectedAccounts = serviceManager.selectedAccountIds
-                return selectedAccounts.contains(where: { $0.contains(username) })
-            }
-        }
+        let posts = serviceManager.unifiedTimeline
+        print("📊 UnifiedTimelineView: Total posts in unifiedTimeline: \(posts.count)")
+        print("📊 UnifiedTimelineView: selectedAccountIds: \(serviceManager.selectedAccountIds)")
+
+        // Log platform distribution for debugging
+        let mastodonCount = posts.filter { $0.platform == .mastodon }.count
+        let blueskyCount = posts.filter { $0.platform == .bluesky }.count
+        print(
+            "📊 UnifiedTimelineView: Platform distribution - Mastodon: \(mastodonCount), Bluesky: \(blueskyCount)"
+        )
+
+        // For now, show all posts regardless of account selection since these are timeline posts
+        // Timeline posts come from people you follow, not just your own posts
+        // We can implement more sophisticated filtering later if needed
+
+        print("📊 UnifiedTimelineView: Returning \(posts.count) posts (no filtering applied)")
+        return posts
     }
 
     private var displayTitle: String {
@@ -77,7 +83,7 @@ struct UnifiedTimelineView: View {
                         if hasAccounts {
                             Task {
                                 do {
-                                    try await serviceManager.refreshTimeline()
+                                    try await serviceManager.refreshTimeline(force: false)
                                 } catch {
                                     print(
                                         "Error refreshing timeline: \(error.localizedDescription)")
@@ -202,15 +208,6 @@ struct UnifiedTimelineView: View {
                 }
             }
         }
-        .onChange(of: serviceManager.selectedAccountIds) { _ in
-            // When selected accounts change, refresh the timeline
-            if hasAccounts {
-                Task {
-                    print("Selected accounts changed, refreshing timeline")
-                    await refreshTimelineAsync(force: true)
-                }
-            }
-        }
         .onReceive(serviceManager.$error) { newError in
             // Show auth error banner if applicable
             handleServiceError(newError)
@@ -222,7 +219,7 @@ struct UnifiedTimelineView: View {
                     if hasAccounts {
                         // Use refreshTimeline to fetch real posts from API
                         do {
-                            try await serviceManager.refreshTimeline(force: true)
+                            try await serviceManager.refreshTimeline(force: false)
                         } catch {
                             print("Error loading timeline: \(error.localizedDescription)")
                         }

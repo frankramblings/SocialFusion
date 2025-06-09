@@ -35,7 +35,7 @@ enum ActionBarAction: CaseIterable {
     func count(for post: Post) -> Int {
         switch self {
         case .reply:
-            return 0  // We don't have reply counts yet
+            return post.replyCount  // Now we have reply counts!
         case .repost:
             return post.repostCount
         case .like:
@@ -48,7 +48,7 @@ enum ActionBarAction: CaseIterable {
     func showCount(for post: Post) -> Bool {
         switch self {
         case .reply:
-            return false
+            return post.replyCount > 0  // Show reply count when available
         case .repost:
             return true
         case .like:

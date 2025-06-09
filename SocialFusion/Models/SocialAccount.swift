@@ -85,13 +85,13 @@ public enum SocialPlatform: String, Codable, CaseIterable {
         return false
     }
 
-    /// Returns the platform-specific icon image name
+    /// Returns the platform-specific system symbol name
     public var icon: String {
         switch self {
         case .mastodon:
-            return "MastodonLogo"
+            return "message.fill"
         case .bluesky:
-            return "BlueskyLogo"
+            return "cloud.fill"
         }
     }
 
@@ -476,6 +476,17 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
     public func getRefreshToken() -> String? {
         return refreshToken
+    }
+
+    public func getClientCredentials() -> (clientId: String?, clientSecret: String?) {
+        let clientId = UserDefaults.standard.string(forKey: "clientId-\(id)")
+        let clientSecret = UserDefaults.standard.string(forKey: "clientSecret-\(id)")
+        return (clientId, clientSecret)
+    }
+
+    public func saveClientCredentials(clientId: String, clientSecret: String) {
+        UserDefaults.standard.set(clientId, forKey: "clientId-\(id)")
+        UserDefaults.standard.set(clientSecret, forKey: "clientSecret-\(id)")
     }
 
     public func getAccountDetails() -> [String: String]? {

@@ -5,8 +5,10 @@ import UIKit
 
 struct AddAccountView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @EnvironmentObject private var oauthManager: OAuthManager
     @Environment(\.presentationMode) var presentationMode
     @Environment(\.dismiss) var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var selectedPlatform: SocialPlatform = .mastodon
     @State private var server = ""
@@ -23,7 +25,25 @@ struct AddAccountView: View {
     @State private var serverName = ""
     @State private var showError = false
 
-    enum AuthMethod: String, CaseIterable, Identifiable {
+    // App lifecycle persistence to prevent 1Password autofill from dismissing the view
+    @State private var wasInBackground = false
+    @State private var preserveFormState = false
+    @State private var presentationStatePreserved = false
+
+    // UserDefaults keys for form persistence
+    private let formDataKey = "AddAccountView.FormData"
+    private let presentationStateKey = "AddAccountView.WasPresented"
+
+    private struct FormData: Codable {
+        let selectedPlatform: SocialPlatform
+        let server: String
+        let username: String
+        let password: String
+        let accessToken: String
+        let authMethod: AuthMethod
+    }
+
+    enum AuthMethod: String, CaseIterable, Identifiable, Codable {
         case oauth = "OAuth"
         case manual = "Access Token"
 
@@ -176,11 +196,8 @@ struct AddAccountView: View {
                             } else {
                                 HStack {
                                     Spacer()
-                                    Image("BlueskyLogo")
-                                        .resizable()
-                                        .renderingMode(.template)
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 20, height: 20)
+                                    Image(systemName: "cloud.fill")
+                                        .font(.system(size: 18, weight: .semibold))
                                         .foregroundColor(.white)
                                     Text("Sign in with Bluesky")
                                         .fontWeight(.semibold)
@@ -204,7 +221,9 @@ struct AddAccountView: View {
             .navigationBarItems(
                 leading:
                     Button("Cancel") {
-                        dismiss()
+                        if !preserveFormState {
+                            dismiss()
+                        }
                     }
             )
             .alert(isPresented: $showError) {
@@ -213,6 +232,47 @@ struct AddAccountView: View {
                     message: Text(errorMessage ?? "An unknown error occurred"),
                     dismissButton: .default(Text("OK"))
                 )
+            }
+            .onAppear {
+                // Restore form data if it was preserved
+                restoreFormDataIfNeeded()
+                // Set flag to indicate AddAccountView is presented
+                UserDefaults.standard.set(
+                    true, forKey: "AddAccountView.WasPresentedDuringBackground")
+            }
+            .onChange(of: scenePhase) { newPhase in
+                handleScenePhaseChange(newPhase)
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: Notification.Name("shouldRepresentAddAccount"))
+            ) { notification in
+                // Check if this is an autofill recovery and we should handle it
+                if let userInfo = notification.userInfo,
+                    let source = userInfo["source"] as? String,
+                    source == "autofillRecovery"
+                {
+
+                    // Only handle if we're not already presented
+                    guard !UserDefaults.standard.bool(forKey: "AddAccountView.RecoveryInProgress")
+                    else {
+                        return
+                    }
+
+                    print("🔐 [AddAccountView] Received autofill recovery notification")
+
+                    // Mark recovery as in progress
+                    UserDefaults.standard.set(true, forKey: "AddAccountView.RecoveryInProgress")
+
+                    // Restore form data if needed
+                    restoreFormDataIfNeeded()
+
+                    // Clear recovery flag after a short delay
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        UserDefaults.standard.removeObject(
+                            forKey: "AddAccountView.RecoveryInProgress")
+                    }
+                }
             }
             .overlay {
                 if isLoading {
@@ -265,16 +325,33 @@ struct AddAccountView: View {
                     )
                 }
 
-                // Use the SocialServiceManager to add the Mastodon account
-                _ = try await serviceManager.addMastodonAccount(
-                    server: url.absoluteString,
-                    username: username,
-                    password: password
-                )
+                if authMethod == .manual {
+                    // Use access token authentication
+                    _ = try await serviceManager.addMastodonAccountWithToken(
+                        serverURL: url.absoluteString,
+                        accessToken: accessToken
+                    )
+                } else {
+                    // Use OAuth flow
+                    let credentials = try await withCheckedThrowingContinuation { continuation in
+                        oauthManager.authenticateMastodon(server: url.absoluteString) { result in
+                            continuation.resume(with: result)
+                        }
+                    }
+
+                    // Add account with proper OAuth credentials
+                    _ = try await serviceManager.addMastodonAccountWithOAuth(
+                        credentials: credentials)
+                }
 
                 // Update the UI
                 DispatchQueue.main.async {
                     self.isLoading = false
+
+                    // Clear the presentation flag since we're dismissing successfully
+                    UserDefaults.standard.removeObject(
+                        forKey: "AddAccountView.WasPresentedDuringBackground")
+
                     self.dismiss()
 
                     // Notify about the account change
@@ -317,6 +394,11 @@ struct AddAccountView: View {
                 // Update the UI
                 DispatchQueue.main.async {
                     self.isLoading = false
+
+                    // Clear the presentation flag since we're dismissing successfully
+                    UserDefaults.standard.removeObject(
+                        forKey: "AddAccountView.WasPresentedDuringBackground")
+
                     self.dismiss()
 
                     // Notify about the account change
@@ -383,12 +465,12 @@ struct AddAccountView: View {
         }
     }
 
-    private func getLogoName(for platform: SocialPlatform) -> String {
+    private func getLogoSystemName(for platform: SocialPlatform) -> String {
         switch platform {
         case .mastodon:
-            return "MastodonLogo"
+            return "message.fill"
         case .bluesky:
-            return "BlueskyLogo"
+            return "cloud.fill"
         }
     }
 
@@ -399,6 +481,83 @@ struct AddAccountView: View {
             return Color(hex: "6364FF")
         case .bluesky:
             return Color(hex: "0085FF")
+        }
+    }
+
+    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
+        switch newPhase {
+        case .inactive, .background:
+            // App is going to background (1Password is appearing)
+            // Preserve form state and mark that view was presented
+            wasInBackground = true
+            preserveFormState = true
+            preserveFormData()
+            UserDefaults.standard.set(true, forKey: presentationStateKey)
+            UserDefaults.standard.set(true, forKey: "AddAccountView.WasPresentedDuringBackground")
+            print(
+                "🔐 [AddAccountView] App went to background - preserving form state and presentation flag"
+            )
+
+        case .active:
+            // App returned to foreground
+            if wasInBackground {
+                print("🔐 [AddAccountView] App returned to foreground - checking for autofill")
+
+                // Small delay to allow autofill to complete
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    // Re-enable normal navigation after autofill completes
+                    preserveFormState = false
+                    print("🔐 [AddAccountView] Form state preservation disabled")
+
+                    // Clear the presentation state since we're still here
+                    UserDefaults.standard.removeObject(forKey: presentationStateKey)
+                    UserDefaults.standard.removeObject(
+                        forKey: "AddAccountView.WasPresentedDuringBackground")
+                }
+
+                wasInBackground = false
+            }
+
+        @unknown default:
+            break
+        }
+    }
+
+    private func restoreFormDataIfNeeded() {
+        guard let data = UserDefaults.standard.data(forKey: formDataKey),
+            let formData = try? JSONDecoder().decode(FormData.self, from: data)
+        else {
+            print("🔐 [AddAccountView] No preserved form data found")
+            return
+        }
+
+        // Restore form state
+        selectedPlatform = formData.selectedPlatform
+        server = formData.server
+        username = formData.username
+        password = formData.password
+        accessToken = formData.accessToken
+        authMethod = formData.authMethod
+
+        print("🔐 [AddAccountView] Restored form data for platform: \\(formData.selectedPlatform)")
+
+        // Clear the preserved data after restoration
+        UserDefaults.standard.removeObject(forKey: formDataKey)
+    }
+
+    private func preserveFormData() {
+        let formData = FormData(
+            selectedPlatform: selectedPlatform,
+            server: server,
+            username: username,
+            password: password,
+            accessToken: accessToken,
+            authMethod: authMethod
+        )
+
+        if let encoded = try? JSONEncoder().encode(formData) {
+            UserDefaults.standard.set(encoded, forKey: formDataKey)
+            print("🔐 [AddAccountView] Preserved form data for platform: \\(selectedPlatform)")
         }
     }
 }
@@ -417,12 +576,9 @@ struct PlatformButton: View {
                         .frame(height: 56)
 
                     HStack(spacing: 8) {
-                        // Use the SVG logo image with appropriate sizing
-                        Image(getLogoName(for: platform))
-                            .resizable()
-                            .renderingMode(.template)
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 24, height: 24)
+                        // Use system symbols for platform icons
+                        Image(systemName: platform == .mastodon ? "message.fill" : "cloud.fill")
+                            .font(.system(size: 22, weight: .semibold))
                             .foregroundColor(isSelected ? .white : platformColor(for: platform))
 
                         Text(platform.rawValue.capitalized)
@@ -438,12 +594,12 @@ struct PlatformButton: View {
         .buttonStyle(PlainButtonStyle())
     }
 
-    private func getLogoName(for platform: SocialPlatform) -> String {
+    private func getLogoSystemName(for platform: SocialPlatform) -> String {
         switch platform {
         case .mastodon:
-            return "MastodonLogo"
+            return "message.fill"
         case .bluesky:
-            return "BlueskyLogo"
+            return "cloud.fill"
         }
     }
 
@@ -460,7 +616,6 @@ struct PlatformButton: View {
 
 struct AddAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        let manager = SocialServiceManager()
-        AddAccountView().environmentObject(manager)
+        AddAccountView().environmentObject(SocialServiceManager.shared)
     }
 }

@@ -112,13 +112,13 @@ public enum SocialPlatform: String, Codable, CaseIterable {
         return false
     }
 
-    /// Returns the platform-specific icon image name
+    /// Returns the platform-specific system symbol name
     public var icon: String {
         switch self {
         case .mastodon:
-            return "MastodonLogo"
+            return "message.fill"
         case .bluesky:
-            return "BlueskyLogo"
+            return "cloud.fill"
         }
     }
 
