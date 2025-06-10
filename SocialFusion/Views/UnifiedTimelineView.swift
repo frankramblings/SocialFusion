@@ -24,8 +24,11 @@ struct UnifiedTimelineView: View {
     @State private var errorMessage: String? = nil
     @State private var isRefreshing = false
 
+    // PHASE 2: Add TimelineState while keeping all existing state
+    @State private var timelineState = TimelineState()
+    
     @State private var isLoading = false
-    @State private var entries: [TimelineEntry] = []
+    @State private var entries: [TimelineEntry] = [] // Keep for compatibility during transition
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: TimelineViewModel
 
@@ -51,41 +54,59 @@ struct UnifiedTimelineView: View {
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
+    // PHASE 2: Enhanced computed property that uses TimelineState when available
+    private var displayEntries: [TimelineEntry] {
+        // Use TimelineState if it has content, otherwise fallback to existing entries
+        let timelineEntries = timelineState.compatibleTimelineEntries
+        return timelineEntries.isEmpty ? entries : timelineEntries
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Timeline Content
-            if isLoading && entries.isEmpty {
-                loadingView
-            } else if entries.isEmpty {
-                emptyView
-            } else {
-                timelineContent
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 0) {
+                // Timeline Content
+                if isLoading && displayEntries.isEmpty {
+                    loadingView
+                } else if displayEntries.isEmpty {
+                    emptyView
+                } else {
+                    timelineContent
+                }
             }
-        }
-        .onAppear {
-            // Only load timeline on first appear to prevent infinite loops
-            if !hasInitiallyLoaded
-                && (!serviceManager.mastodonAccounts.isEmpty
-                    || !serviceManager.blueskyAccounts.isEmpty)
-            {
-                hasInitiallyLoaded = true
-                Task {
-                    // Load timeline when view appears for the first time
-                    if let account = serviceManager.mastodonAccounts.first
-                        ?? serviceManager.blueskyAccounts.first
-                    {
-                        viewModel.refreshTimeline(for: account)
+            .onAppear {
+                // PHASE 2: Load cached content immediately for instant display
+                timelineState.loadCachedContent(from: serviceManager)
+                timelineState.updateLastVisitDate()
+                
+                // SAME: Existing network loading logic preserved
+                if !hasInitiallyLoaded
+                    && (!serviceManager.mastodonAccounts.isEmpty
+                        || !serviceManager.blueskyAccounts.isEmpty)
+                {
+                    hasInitiallyLoaded = true
+                    Task {
+                        // Load timeline when view appears for the first time
+                        if let account = serviceManager.mastodonAccounts.first
+                            ?? serviceManager.blueskyAccounts.first
+                        {
+                            viewModel.refreshTimeline(for: account)
+                        }
                     }
                 }
             }
-        }
-        .refreshable {
-            await refreshTimeline()
-        }
-        .alert("Error", isPresented: $showingErrorAlert) {
-            Button("OK") {}
-        } message: {
-            Text(errorMessage ?? "An unknown error occurred")
+            .refreshable {
+                await refreshTimeline()
+            }
+            .alert("Error", isPresented: $showingErrorAlert) {
+                Button("OK") {}
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
+            
+            // PHASE 2: Add unread count indicator
+            if timelineState.unreadCount > 0 {
+                unreadCountIndicator
+            }
         }
         // Navigation Links - iOS 16 compatible
         .background(
@@ -125,10 +146,15 @@ struct UnifiedTimelineView: View {
                 .environmentObject(serviceManager)
         }
         .onReceive(viewModel.$state) { state in
-            // Simple state update without forcing UI changes
+            // PHASE 2: Update both existing entries and TimelineState
             let posts = state.posts
-            self.entries = self.serviceManager.makeTimelineEntries(from: posts)
+            self.entries = self.serviceManager.makeTimelineEntries(from: posts) // Keep existing for compatibility
             self.isLoading = state.isLoading
+            
+            // Update TimelineState with new posts (preserves scroll position)
+            if !posts.isEmpty {
+                timelineState.updateFromServiceManagerWithExistingLogic(serviceManager, isRefresh: timelineState.isInitialized)
+            }
         }
     }
 
@@ -162,38 +188,96 @@ struct UnifiedTimelineView: View {
     }
 
     private var timelineContent: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(entries, id: \.id) { entry in
-                    let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(displayEntries, id: \.id) { entry in
+                        let index = displayEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
 
-                    ResponsivePostCardView(
-                        entry: entry,
-                        onReply: { handleReplyTap(entry.post) },
-                        onRepost: { Task { await handleBoostTap(entry.post) } },
-                        onLike: { Task { await handleLikeTap(entry.post) } },
-                        onShare: { handleShareTap(entry.post) },
-                        onPostTap: { handlePostTap(entry.post) },
-                        viewModel: nil
-                    )
-                    .padding(.horizontal, 8)  // Apple standard: 8pt for timeline separation
-                    .padding(.vertical, 6)  // Apple standard: 6pt between posts
+                        ResponsivePostCardView(
+                            entry: entry,
+                            onReply: { handleReplyTap(entry.post) },
+                            onRepost: { Task { await handleBoostTap(entry.post) } },
+                            onLike: { Task { await handleLikeTap(entry.post) } },
+                            onShare: { handleShareTap(entry.post) },
+                            onPostTap: { handlePostTap(entry.post) },
+                            viewModel: nil
+                        )
+                        .padding(.horizontal, 8)  // Apple standard: 8pt for timeline separation
+                        .padding(.vertical, 6)  // Apple standard: 6pt between posts
+                        .onAppear {
+                            // PHASE 2: Mark posts as read when they appear
+                            timelineState.markPostAsRead(entry.post.id)
+                        }
 
-                    // Add divider between posts (but not after the last one)
-                    if index < entries.count - 1 {
-                        Divider()
-                            .background(
-                                colorScheme == .dark
-                                    ? Color.white.opacity(0.12)
-                                    : Color.gray.opacity(0.25)
-                            )
-                            .padding(.horizontal, 24)  // Apple standard: 24pt for divider insets
+                        // Add divider between posts (but not after the last one)
+                        if index < displayEntries.count - 1 {
+                            Divider()
+                                .background(
+                                    colorScheme == .dark
+                                        ? Color.white.opacity(0.12)
+                                        : Color.gray.opacity(0.25)
+                                )
+                                .padding(.horizontal, 24)  // Apple standard: 24pt for divider insets
+                        }
+                    }
+                }
+                .padding(.vertical, 8)  // Apple standard: 8pt top/bottom timeline padding
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .onAppear {
+                // PHASE 2: Restore scroll position on appear
+                if let savedPosition = timelineState.getRestoreScrollPosition() {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        proxy.scrollTo(savedPosition, anchor: .center)
                     }
                 }
             }
-            .padding(.vertical, 8)  // Apple standard: 8pt top/bottom timeline padding
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { _ in
+                // SAME: Existing scroll to top functionality
+                if let firstEntry = displayEntries.first {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        proxy.scrollTo(firstEntry.id, anchor: .top)
+                    }
+                    // PHASE 2: Clear unread when scrolling to top
+                    timelineState.clearAllUnread()
+                }
+            }
         }
-        .scrollDismissesKeyboard(.immediately)
+    }
+
+    // PHASE 2: New unread count indicator
+    private var unreadCountIndicator: some View {
+        VStack {
+            HStack {
+                Spacer()
+                
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 14, weight: .medium))
+                    
+                    Text("\(timelineState.unreadCount)")
+                        .font(.system(size: 14, weight: .semibold))
+                        .monospacedDigit()
+                    
+                    Text(timelineState.unreadCount == 1 ? "new post" : "new posts")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.blue.opacity(0.9))
+                .clipShape(Capsule())
+                .onTapGesture {
+                    NotificationCenter.default.post(name: .scrollToTop, object: nil)
+                }
+                .padding(.trailing, 16)
+            }
+            Spacer()
+        }
+        .padding(.top, 8)
+        .transition(.opacity)
+        .allowsHitTesting(true)
     }
 
     // MARK: - Action Handlers
@@ -209,13 +293,13 @@ struct UnifiedTimelineView: View {
 
     private func handleLikeTap(_ post: Post) async {
         // Find the post in our entries array and get its index
-        guard let entryIndex = entries.firstIndex(where: { $0.post.id == post.id }) else {
+        guard let entryIndex = displayEntries.firstIndex(where: { $0.post.id == post.id }) else {
             print("❌ Could not find post in entries array")
             return
         }
 
         // Get a reference to the current post for optimistic updates
-        let currentPost = entries[entryIndex].post
+        let currentPost = displayEntries[entryIndex].post
 
         // Store original values for potential revert
         let originalLiked = currentPost.isLiked
@@ -271,13 +355,13 @@ struct UnifiedTimelineView: View {
 
     private func handleBoostTap(_ post: Post) async {
         // Find the post in our entries array
-        guard let entryIndex = entries.firstIndex(where: { $0.post.id == post.id }) else {
+        guard let entryIndex = displayEntries.firstIndex(where: { $0.post.id == post.id }) else {
             print("❌ Could not find post in entries array")
             return
         }
 
         // Get a reference to the current post
-        let currentPost = entries[entryIndex].post
+        let currentPost = displayEntries[entryIndex].post
 
         // Store original values for potential revert
         let originalReposted = currentPost.isReposted
@@ -327,8 +411,16 @@ struct UnifiedTimelineView: View {
 
     @MainActor
     private func refreshTimeline() async {
+        // PHASE 2: Enhanced refresh that updates TimelineState
         isRefreshing = true
+        
+        // Save current scroll position before refresh
+        if let firstVisibleEntry = displayEntries.first {
+            timelineState.saveScrollPosition(firstVisibleEntry.id)
+        }
+        
         viewModel.refreshUnifiedTimeline()
+        
         // Wait for the refresh to complete
         while viewModel.isRefreshing {
             try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
@@ -360,4 +452,9 @@ struct ResponsivePostCardView: View {
         )
         .id(entry.id)  // Use stable entry ID without like state to prevent AttributeGraph cycles
     }
+}
+
+// PHASE 2: Extension for scroll to top notification
+extension Notification.Name {
+    static let scrollToTop = Notification.Name("scrollToTop")
 }
