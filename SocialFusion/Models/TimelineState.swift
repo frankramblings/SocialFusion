@@ -39,6 +39,14 @@ class TimelineState {
     private(set) var lastReadPosition: String? = nil
     private(set) var isInitialized: Bool = false
     
+    // Enhanced Position Management
+    private let smartPositionManager = SmartPositionManager()
+    private let config = TimelineConfiguration.shared
+    
+    // Restoration suggestions for user
+    @Published var restorationSuggestions: [RestorationSuggestion] = []
+    @Published var showRestoreOptions: Bool = false
+    
     // Storage keys for persistence
     private let scrollPositionKey = "timeline_scroll_position"
     private let readPostsKey = "timeline_read_posts"
@@ -48,8 +56,80 @@ class TimelineState {
     private var readPostIds: Set<String> = []
     private var lastVisitDate: Date = Date()
     
+    // Auto-save timer for position tracking
+    private var autoSaveTimer: Timer?
+    
     init() {
         loadPersistedState()
+        setupAutoSave()
+        
+        if config.verboseMode {
+            config.logConfiguration()
+        }
+    }
+    
+    deinit {
+        autoSaveTimer?.invalidate()
+    }
+    
+    // MARK: - Enhanced Position Management
+    
+    private func setupAutoSave() {
+        guard config.isFeatureEnabled(.positionPersistence) else { return }
+        
+        autoSaveTimer = Timer.scheduledTimer(withTimeInterval: config.autoSaveInterval, repeats: true) { [weak self] _ in
+            self?.autoSaveCurrentPosition()
+        }
+    }
+    
+    private func autoSaveCurrentPosition() {
+        guard let currentPosition = scrollPosition else { return }
+        
+        smartPositionManager.recordPosition(postId: currentPosition)
+        
+        if config.positionLogging {
+            print("💾 Auto-saved position: \(currentPosition)")
+        }
+    }
+    
+    /// Smart position restoration with fallback strategies
+    func restorePositionIntelligently(fallbackStrategy: FallbackStrategy? = nil) -> (index: Int?, offset: CGFloat) {
+        let result = smartPositionManager.restorePosition(
+            for: entries,
+            targetPostId: scrollPosition,
+            fallbackStrategy: fallbackStrategy
+        )
+        
+        // Update restoration suggestions
+        updateRestorationSuggestions()
+        
+        if config.timelineLogging {
+            print("🎯 Smart restoration result: index=\(result.index?.description ?? "nil"), offset=\(result.offset)")
+        }
+        
+        return result
+    }
+    
+    /// Update restoration suggestions based on current timeline
+    private func updateRestorationSuggestions() {
+        restorationSuggestions = smartPositionManager.getRestorationSuggestions(for: entries)
+        showRestoreOptions = !restorationSuggestions.isEmpty && config.smartRestorationEnabled
+    }
+    
+    /// Apply a specific restoration suggestion
+    func applyRestorationSuggestion(_ suggestion: RestorationSuggestion) {
+        saveScrollPosition(suggestion.postId)
+        showRestoreOptions = false
+        
+        if config.verboseMode {
+            print("✅ Applied restoration suggestion: \(suggestion.title)")
+        }
+    }
+    
+    /// Dismiss restoration suggestions
+    func dismissRestorationSuggestions() {
+        showRestoreOptions = false
+        restorationSuggestions = []
     }
     
     // MARK: - Bridge Methods to Existing System
@@ -72,7 +152,11 @@ class TimelineState {
         }
         
         updateUnreadCount()
-        print("📱 TimelineState: Updated with \(entries.count) entries, \(unreadCount) unread")
+        updateRestorationSuggestions()
+        
+        if config.timelineLogging {
+            print("📱 TimelineState: Updated with \(entries.count) entries, \(unreadCount) unread")
+        }
     }
     
     /// Bridge method - converts Post array to enhanced entries
@@ -93,12 +177,17 @@ class TimelineState {
         }
         
         updateUnreadCount()
-        print("📱 TimelineState: Updated with \(entries.count) posts, \(unreadCount) unread")
+        updateRestorationSuggestions()
+        
+        if config.timelineLogging {
+            print("📱 TimelineState: Updated with \(entries.count) posts, \(unreadCount) unread")
+        }
     }
     
     // MARK: - Read State Management
     
     func markPostAsRead(_ postId: String) {
+        guard config.isFeatureEnabled(.unreadTracking) else { return }
         guard !readPostIds.contains(postId) else { return }
         
         readPostIds.insert(postId)
@@ -111,10 +200,15 @@ class TimelineState {
         
         // Persist read state
         saveReadState()
-        print("📱 TimelineState: Marked post \(postId) as read")
+        
+        if config.timelineLogging {
+            print("📱 TimelineState: Marked post \(postId) as read")
+        }
     }
     
     func markPostAsUnread(_ postId: String) {
+        guard config.isFeatureEnabled(.unreadTracking) else { return }
+        
         readPostIds.remove(postId)
         
         // Update entry if it exists
@@ -127,6 +221,7 @@ class TimelineState {
     }
     
     private func isPostRead(_ postId: String) -> Bool {
+        guard config.isFeatureEnabled(.unreadTracking) else { return false }
         return readPostIds.contains(postId)
     }
     
@@ -138,14 +233,36 @@ class TimelineState {
     // MARK: - Scroll Position Management
     
     func saveScrollPosition(_ postId: String) {
+        guard config.isFeatureEnabled(.positionPersistence) else { return }
         guard scrollPosition != postId else { return }
         
         scrollPosition = postId
         UserDefaults.standard.set(postId, forKey: scrollPositionKey)
-        print("📱 TimelineState: Saved scroll position to \(postId)")
+        
+        // Record in smart position manager for cross-session sync
+        smartPositionManager.recordPosition(postId: postId)
+        
+        if config.positionLogging {
+            print("📱 TimelineState: Saved scroll position to \(postId)")
+        }
+    }
+    
+    func saveScrollPositionWithOffset(_ postId: String, offset: CGFloat) {
+        guard config.isFeatureEnabled(.positionPersistence) else { return }
+        
+        scrollPosition = postId
+        UserDefaults.standard.set(postId, forKey: scrollPositionKey)
+        
+        // Record with offset in smart position manager
+        smartPositionManager.recordPosition(postId: postId, scrollOffset: offset)
+        
+        if config.positionLogging {
+            print("📱 TimelineState: Saved position \(postId) with offset \(offset)")
+        }
     }
     
     func getRestoreScrollPosition() -> String? {
+        guard config.isFeatureEnabled(.positionPersistence) else { return nil }
         return scrollPosition
     }
     
@@ -154,24 +271,58 @@ class TimelineState {
         UserDefaults.standard.removeObject(forKey: scrollPositionKey)
     }
     
+    // MARK: - Cross-Session Sync
+    
+    /// Trigger manual sync with iCloud
+    func syncAcrossDevices() async {
+        guard config.isFeatureEnabled(.crossSessionSync) else { return }
+        
+        await smartPositionManager.syncWithiCloud()
+        
+        // After sync, update restoration suggestions
+        updateRestorationSuggestions()
+    }
+    
+    /// Get sync status for UI
+    var syncStatus: SyncStatus {
+        return smartPositionManager.syncStatus
+    }
+    
+    var lastSyncTime: Date? {
+        return smartPositionManager.lastSyncTime
+    }
+    
     // MARK: - Unread Count Management
     
     private func updateUnreadCount() {
+        guard config.isFeatureEnabled(.unreadTracking) else {
+            unreadCount = 0
+            return
+        }
+        
         let newUnreadCount = entries.filter { !$0.isRead }.count
         if unreadCount != newUnreadCount {
             unreadCount = newUnreadCount
-            print("📱 TimelineState: Unread count updated to \(unreadCount)")
+            
+            if config.timelineLogging {
+                print("📱 TimelineState: Unread count updated to \(unreadCount)")
+            }
         }
     }
     
     func clearAllUnread() {
+        guard config.isFeatureEnabled(.unreadTracking) else { return }
+        
         for i in entries.indices {
             entries[i].isRead = true
         }
         readPostIds.formUnion(entries.map { $0.id })
         updateUnreadCount()
         saveReadState()
-        print("📱 TimelineState: Cleared all unread posts")
+        
+        if config.timelineLogging {
+            print("📱 TimelineState: Cleared all unread posts")
+        }
     }
     
     // MARK: - Smart Insertion Logic
@@ -184,7 +335,10 @@ class TimelineState {
         if !genuinelyNewEntries.isEmpty {
             // Insert new posts at the top, preserving user's current position
             entries = genuinelyNewEntries + entries
-            print("📱 TimelineState: Inserted \(genuinelyNewEntries.count) new entries at top")
+            
+            if config.timelineLogging {
+                print("📱 TimelineState: Inserted \(genuinelyNewEntries.count) new entries at top")
+            }
         }
         
         // Update existing entries with latest data
@@ -204,10 +358,13 @@ class TimelineState {
     
     private func loadPersistedState() {
         // Load scroll position
-        scrollPosition = UserDefaults.standard.string(forKey: scrollPositionKey)
+        if config.isFeatureEnabled(.positionPersistence) {
+            scrollPosition = UserDefaults.standard.string(forKey: scrollPositionKey)
+        }
         
         // Load read posts
-        if let savedReadPosts = UserDefaults.standard.array(forKey: readPostsKey) as? [String] {
+        if config.isFeatureEnabled(.unreadTracking),
+           let savedReadPosts = UserDefaults.standard.array(forKey: readPostsKey) as? [String] {
             readPostIds = Set(savedReadPosts)
         }
         
@@ -216,16 +373,44 @@ class TimelineState {
             lastVisitDate = savedLastVisit
         }
         
-        print("📱 TimelineState: Loaded persisted state - \(readPostIds.count) read posts, scroll position: \(scrollPosition ?? "none")")
+        if config.verboseMode {
+            print("📱 TimelineState: Loaded persisted state - \(readPostIds.count) read posts, scroll position: \(scrollPosition ?? "none")")
+        }
     }
     
     private func saveReadState() {
+        guard config.isFeatureEnabled(.unreadTracking) else { return }
         UserDefaults.standard.set(Array(readPostIds), forKey: readPostsKey)
     }
     
     func updateLastVisitDate() {
         lastVisitDate = Date()
         UserDefaults.standard.set(lastVisitDate, forKey: lastVisitKey)
+    }
+    
+    // MARK: - Memory Management & Performance
+    
+    /// Clean up old data based on configuration
+    func performMaintenance() {
+        // Clean up old position history
+        smartPositionManager.cleanupOldHistory()
+        
+        // Limit read posts to prevent unbounded growth
+        if readPostIds.count > config.maxUnreadHistory {
+            let sortedReadPosts = Array(readPostIds).prefix(config.maxUnreadHistory / 2)
+            readPostIds = Set(sortedReadPosts)
+            saveReadState()
+        }
+        
+        // Limit entries based on cache size
+        if entries.count > config.maxCacheSize {
+            let keepCount = config.maxCacheSize
+            entries = Array(entries.prefix(keepCount))
+        }
+        
+        if config.verboseMode {
+            print("🧹 TimelineState: Performed maintenance - \(entries.count) entries, \(readPostIds.count) read posts")
+        }
     }
     
     // MARK: - Utility Methods
@@ -244,6 +429,27 @@ class TimelineState {
         - Read posts in session: \(readPostIds.count)
         - Scroll position: \(scrollPosition ?? "none")
         - Initialized: \(isInitialized)
+        - Smart restoration: \(config.smartRestorationEnabled)
+        - Cross-session sync: \(config.crossSessionSyncEnabled)
+        - Sync status: \(syncStatus)
+        - Restoration suggestions: \(restorationSuggestions.count)
+        """
+    }
+    
+    /// Export state for debugging
+    func exportStateForDebugging() -> String {
+        let smartPositionData = smartPositionManager.exportPositionHistory()
+        
+        return """
+        📋 Complete TimelineState Debug Export:
+        
+        \(getStateSummary())
+        
+        📍 Smart Position History:
+        \(smartPositionData)
+        
+        ⚙️ Configuration:
+        \(config.verboseMode ? "Verbose logging enabled" : "Standard logging")
         """
     }
 }

@@ -24,7 +24,7 @@ struct UnifiedTimelineView: View {
     @State private var errorMessage: String? = nil
     @State private var isRefreshing = false
 
-    // PHASE 2: Add TimelineState while keeping all existing state
+    // PHASE 3+: Enhanced TimelineState with smart restoration
     @State private var timelineState = TimelineState()
     
     @State private var isLoading = false
@@ -39,11 +39,13 @@ struct UnifiedTimelineView: View {
     @State private var showingDetailView = false
     @State private var showingReplyView = false
 
-    // Scroll state
+    // Enhanced scroll state with smart restoration
     @State private var scrollPosition: TimelineEntry? = nil
     @State private var savedScrollPosition: TimelineEntry? = nil
     @State private var isScrolling = false
     @State private var hasInitiallyLoaded = false
+    @State private var lastScrollOffset: CGFloat = 0
+    @State private var scrollReader: ScrollViewReader? = nil
 
     // Store accounts for filtering
     private let accounts: [SocialAccount]
@@ -54,7 +56,7 @@ struct UnifiedTimelineView: View {
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
-    // PHASE 2: Enhanced computed property that uses TimelineState when available
+    // PHASE 3+: Enhanced computed property that uses TimelineState
     private var displayEntries: [TimelineEntry] {
         // Use TimelineState if it has content, otherwise fallback to existing entries
         let timelineEntries = timelineState.compatibleTimelineEntries
@@ -64,6 +66,16 @@ struct UnifiedTimelineView: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
+                // PHASE 3+: Restoration suggestions banner
+                if timelineState.showRestoreOptions {
+                    restorationSuggestionsBanner
+                }
+                
+                // PHASE 3+: Sync status indicator
+                if case .syncing = timelineState.syncStatus {
+                    syncStatusBanner
+                }
+                
                 // Timeline Content
                 if isLoading && displayEntries.isEmpty {
                     loadingView
@@ -74,17 +86,21 @@ struct UnifiedTimelineView: View {
                 }
             }
             .onAppear {
-                // PHASE 2: Load cached content immediately for instant display
-                timelineState.loadCachedContent(from: serviceManager)
-                timelineState.updateLastVisitDate()
-                
-                // SAME: Existing network loading logic preserved
-                if !hasInitiallyLoaded
-                    && (!serviceManager.mastodonAccounts.isEmpty
-                        || !serviceManager.blueskyAccounts.isEmpty)
-                {
-                    hasInitiallyLoaded = true
-                    Task {
+                // PHASE 3+: Enhanced onAppear with smart restoration
+                Task {
+                    // Load cached content immediately for instant display
+                    timelineState.loadCachedContent(from: serviceManager)
+                    timelineState.updateLastVisitDate()
+                    
+                    // Perform cross-session sync
+                    await timelineState.syncAcrossDevices()
+                    
+                    // Same: Existing network loading logic preserved
+                    if !hasInitiallyLoaded
+                        && (!serviceManager.mastodonAccounts.isEmpty
+                            || !serviceManager.blueskyAccounts.isEmpty)
+                    {
+                        hasInitiallyLoaded = true
                         // Load timeline when view appears for the first time
                         if let account = serviceManager.mastodonAccounts.first
                             ?? serviceManager.blueskyAccounts.first
@@ -103,7 +119,7 @@ struct UnifiedTimelineView: View {
                 Text(errorMessage ?? "An unknown error occurred")
             }
             
-            // PHASE 2: Add unread count indicator
+            // PHASE 3+: Enhanced unread count indicator with sync status
             if timelineState.unreadCount > 0 {
                 unreadCountIndicator
             }
@@ -146,7 +162,7 @@ struct UnifiedTimelineView: View {
                 .environmentObject(serviceManager)
         }
         .onReceive(viewModel.$state) { state in
-            // PHASE 2: Update both existing entries and TimelineState
+            // PHASE 3+: Update both existing entries and TimelineState
             let posts = state.posts
             self.entries = self.serviceManager.makeTimelineEntries(from: posts) // Keep existing for compatibility
             self.isLoading = state.isLoading
@@ -156,6 +172,81 @@ struct UnifiedTimelineView: View {
                 timelineState.updateFromServiceManagerWithExistingLogic(serviceManager, isRefresh: timelineState.isInitialized)
             }
         }
+    }
+
+    // PHASE 3+: Restoration suggestions banner
+    private var restorationSuggestionsBanner: some View {
+        VStack(spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Continue Reading?")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+                    
+                    if let suggestion = timelineState.restorationSuggestions.first {
+                        Text(suggestion.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 12) {
+                    Button("Continue") {
+                        if let suggestion = timelineState.restorationSuggestions.first {
+                            applyRestorationSuggestion(suggestion)
+                        }
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+                    
+                    Button("Dismiss") {
+                        timelineState.dismissRestorationSuggestions()
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color(.separator)),
+                alignment: .bottom
+            )
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+    
+    // PHASE 3+: Sync status banner
+    private var syncStatusBanner: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            
+            Text("Syncing position across devices...")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                
+            Spacer()
+            
+            if let lastSyncTime = timelineState.lastSyncTime {
+                Text("Last: \(lastSyncTime.formatted(.relative(presentation: .named)))")
+                    .font(.caption2)
+                    .foregroundColor(.tertiary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground))
+        .transition(.opacity)
     }
 
     private var loadingView: some View {
@@ -206,8 +297,11 @@ struct UnifiedTimelineView: View {
                         .padding(.horizontal, 8)  // Apple standard: 8pt for timeline separation
                         .padding(.vertical, 6)  // Apple standard: 6pt between posts
                         .onAppear {
-                            // PHASE 2: Mark posts as read when they appear
+                            // PHASE 3+: Enhanced read tracking and position saving
                             timelineState.markPostAsRead(entry.post.id)
+                            
+                            // Save position as user scrolls through
+                            timelineState.saveScrollPosition(entry.post.id)
                         }
 
                         // Add divider between posts (but not after the last one)
@@ -226,50 +320,65 @@ struct UnifiedTimelineView: View {
             }
             .scrollDismissesKeyboard(.immediately)
             .onAppear {
-                // PHASE 2: Restore scroll position on appear
-                if let savedPosition = timelineState.getRestoreScrollPosition() {
-                    withAnimation(.easeInOut(duration: 0.5)) {
-                        proxy.scrollTo(savedPosition, anchor: .center)
-                    }
+                // PHASE 3+: Smart position restoration on appear
+                Task {
+                    await restoreScrollPositionIntelligently(using: proxy)
                 }
             }
             .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { _ in
-                // SAME: Existing scroll to top functionality
+                // Same: Existing scroll to top functionality
                 if let firstEntry = displayEntries.first {
                     withAnimation(.easeInOut(duration: 0.5)) {
                         proxy.scrollTo(firstEntry.id, anchor: .top)
                     }
-                    // PHASE 2: Clear unread when scrolling to top
+                    // Clear unread when scrolling to top
                     timelineState.clearAllUnread()
                 }
             }
         }
     }
 
-    // PHASE 2: New unread count indicator
+    // PHASE 3+: Enhanced unread count indicator with sync status
     private var unreadCountIndicator: some View {
         VStack {
             HStack {
                 Spacer()
                 
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 14, weight: .medium))
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 14, weight: .medium))
+                        
+                        Text("\(timelineState.unreadCount)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .monospacedDigit()
+                        
+                        Text(timelineState.unreadCount == 1 ? "new post" : "new posts")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.blue.opacity(0.9))
+                    .clipShape(Capsule())
+                    .onTapGesture {
+                        NotificationCenter.default.post(name: .scrollToTop, object: nil)
+                    }
                     
-                    Text("\(timelineState.unreadCount)")
-                        .font(.system(size: 14, weight: .semibold))
-                        .monospacedDigit()
-                    
-                    Text(timelineState.unreadCount == 1 ? "new post" : "new posts")
-                        .font(.system(size: 12, weight: .medium))
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.blue.opacity(0.9))
-                .clipShape(Capsule())
-                .onTapGesture {
-                    NotificationCenter.default.post(name: .scrollToTop, object: nil)
+                    // Sync status indicator
+                    if case .success = timelineState.syncStatus {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.icloud")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("Synced")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
                 }
                 .padding(.trailing, 16)
             }
@@ -278,6 +387,50 @@ struct UnifiedTimelineView: View {
         .padding(.top, 8)
         .transition(.opacity)
         .allowsHitTesting(true)
+    }
+
+    // MARK: - Smart Restoration Methods
+    
+    /// PHASE 3+: Smart position restoration with multiple strategies
+    private func restoreScrollPositionIntelligently(using proxy: ScrollViewReader) async {
+        // Give a moment for the content to load
+        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+        
+        let restoration = timelineState.restorePositionIntelligently()
+        
+        await MainActor.run {
+            if let index = restoration.index, index < displayEntries.count {
+                let targetEntry = displayEntries[index]
+                
+                withAnimation(.easeInOut(duration: 0.8)) {
+                    if restoration.offset > 0 {
+                        // Use offset-based restoration if available
+                        proxy.scrollTo(targetEntry.id, anchor: .top)
+                    } else {
+                        // Center-based restoration for better UX
+                        proxy.scrollTo(targetEntry.id, anchor: .center)
+                    }
+                }
+                
+                print("🎯 Restored to position: \(targetEntry.id) at index \(index)")
+            } else if restoration.offset > 0 {
+                // Fallback to offset-based restoration
+                // Note: ScrollView doesn't support direct offset, so we approximate
+                print("📍 Using offset-based fallback: \(restoration.offset)")
+            }
+        }
+    }
+    
+    /// Apply a restoration suggestion from the banner
+    private func applyRestorationSuggestion(_ suggestion: RestorationSuggestion) {
+        timelineState.applyRestorationSuggestion(suggestion)
+        
+        // Scroll to the suggested position
+        if let entry = displayEntries.first(where: { $0.id == suggestion.postId }) {
+            // This would need a ScrollViewReader reference
+            // For now, we'll save the position and let the next onAppear handle it
+            print("✅ Applied suggestion: \(suggestion.title)")
+        }
     }
 
     // MARK: - Action Handlers
@@ -411,12 +564,12 @@ struct UnifiedTimelineView: View {
 
     @MainActor
     private func refreshTimeline() async {
-        // PHASE 2: Enhanced refresh that updates TimelineState
+        // PHASE 3+: Enhanced refresh that updates TimelineState with smart position preservation
         isRefreshing = true
         
-        // Save current scroll position before refresh
+        // Save current scroll position with enhanced tracking
         if let firstVisibleEntry = displayEntries.first {
-            timelineState.saveScrollPosition(firstVisibleEntry.id)
+            timelineState.saveScrollPositionWithOffset(firstVisibleEntry.id, offset: lastScrollOffset)
         }
         
         viewModel.refreshUnifiedTimeline()
@@ -425,6 +578,13 @@ struct UnifiedTimelineView: View {
         while viewModel.isRefreshing {
             try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
         }
+        
+        // Trigger cross-session sync after refresh
+        await timelineState.syncAcrossDevices()
+        
+        // Perform maintenance to clean up old data
+        timelineState.performMaintenance()
+        
         isRefreshing = false
     }
 }
@@ -454,7 +614,7 @@ struct ResponsivePostCardView: View {
     }
 }
 
-// PHASE 2: Extension for scroll to top notification
+// PHASE 3+: Extension for scroll to top notification
 extension Notification.Name {
     static let scrollToTop = Notification.Name("scrollToTop")
 }
