@@ -245,15 +245,29 @@ class TimelineState: ObservableObject {
         // Consider posts "new" if they're not already read
         // On first load, we want some posts to be marked as new so the unread indicator works
 
-        // If this is the very first time using the app, mark recent posts as new
-        if !isInitialized {
+        // If this is the very first time using the app (no read posts in history), mark recent posts as new
+        if readPostIds.isEmpty {
             // Mark posts from the last 24 hours as "new" on first load
             let oneDayAgo = Date().addingTimeInterval(-24 * 60 * 60)
-            return post.createdAt > oneDayAgo && !isPostRead(post.id)
+            let isRecent = post.createdAt > oneDayAgo
+            let isNotRead = !isPostRead(post.id)
+
+            if config.verboseMode && isRecent && isNotRead {
+                print("📱 TimelineState: Marking post as new (first-time user): \(post.id)")
+            }
+
+            return isRecent && isNotRead
         }
 
         // For subsequent loads, only mark posts newer than last visit as new
-        return post.createdAt > lastVisitDate && !isPostRead(post.id)
+        let isNewerThanLastVisit = post.createdAt > lastVisitDate
+        let isNotRead = !isPostRead(post.id)
+
+        if config.verboseMode && isNewerThanLastVisit && isNotRead {
+            print("📱 TimelineState: Marking post as new (newer than last visit): \(post.id)")
+        }
+
+        return isNewerThanLastVisit && isNotRead
     }
 
     // MARK: - Scroll Position Management
@@ -318,10 +332,28 @@ class TimelineState: ObservableObject {
         }
 
         // Only count posts that are actually "new" (not all unread posts)
-        let newUnreadCount = entries.filter { $0.isNew && !$0.isRead }.count
+        let newEntries = entries.filter { $0.isNew && !$0.isRead }
+        let newUnreadCount = newEntries.count
+
+        if config.verboseMode {
+            print(
+                "📱 TimelineState: Updating unread count - total entries: \(entries.count), new entries: \(newEntries.count), read posts: \(readPostIds.count)"
+            )
+
+            // Log a few example entries for debugging
+            for (index, entry) in entries.prefix(5).enumerated() {
+                print(
+                    "  Entry \(index): isNew=\(entry.isNew), isRead=\(entry.isRead), id=\(entry.post.id)"
+                )
+            }
+        }
 
         if unreadCount != newUnreadCount {
             unreadCount = newUnreadCount
+
+            if config.timelineLogging {
+                print("📱 TimelineState: Unread count updated to \(unreadCount) (new posts only)")
+            }
         }
     }
 
@@ -405,6 +437,13 @@ class TimelineState: ObservableObject {
             lastVisitDate = savedLastVisit
         }
 
+        if config.verboseMode {
+            print("📱 TimelineState: Loaded persisted state:")
+            print("  - Read posts: \(readPostIds.count)")
+            print("  - Scroll position: \(scrollPosition ?? "none")")
+            print("  - Last visit date: \(lastVisitDate)")
+            print("  - Time since last visit: \(Date().timeIntervalSince(lastVisitDate)) seconds")
+        }
     }
 
     private func saveReadState() {
@@ -460,6 +499,32 @@ class TimelineState: ObservableObject {
             - Sync status: \(syncStatus)
             - Restoration suggestions: \(restorationSuggestions.count)
             """
+    }
+
+    /// Debug method to reset read posts and test unread indicators
+    func debugResetReadPosts() {
+        guard config.verboseMode else { return }
+
+        print("🐛 DEBUG: Resetting read posts to test unread indicators")
+
+        // Clear read posts
+        readPostIds.removeAll()
+        saveReadState()
+
+        // Set last visit to 1 hour ago so recent posts appear as new
+        lastVisitDate = Date().addingTimeInterval(-3600)  // 1 hour ago
+        UserDefaults.standard.set(lastVisitDate, forKey: lastVisitKey)
+
+        // Update all entries to be unread and potentially new
+        for i in entries.indices {
+            entries[i].isRead = false
+            entries[i].isNew = isPostNew(entries[i].post)
+        }
+
+        // Recalculate unread count
+        updateUnreadCount()
+
+        print("🐛 DEBUG: Reset complete - \(unreadCount) posts should now show as unread")
     }
 
     /// Export state for debugging

@@ -47,6 +47,10 @@ struct UnifiedTimelineView: View {
     @State private var lastScrollOffset: CGFloat = 0
     @State private var shouldShowRestorationBanner = false
 
+    // Pre-load position state for best-in-class restoration
+    @State private var initialScrollTarget: String? = nil
+    @State private var hasSetInitialPosition = false
+
     // Store accounts for filtering
     private let accounts: [SocialAccount]
 
@@ -54,6 +58,12 @@ struct UnifiedTimelineView: View {
         self.accounts = accounts
         let viewModel = TimelineViewModel(accounts: accounts)
         self._viewModel = StateObject(wrappedValue: viewModel)
+
+        // Pre-load the saved scroll position for instant restoration
+        let timelineState = TimelineState()
+        if let savedPostId = timelineState.getRestoreScrollPosition() {
+            self._initialScrollTarget = State(initialValue: savedPostId)
+        }
     }
 
     // PHASE 3+: Enhanced computed property that uses TimelineState
@@ -106,7 +116,7 @@ struct UnifiedTimelineView: View {
                 Task {
                     // Load cached content immediately for instant display
                     // TODO: Implement loadCachedContent method or remove this call
-                    timelineState.updateLastVisitDate()
+                    // NOTE: Don't update last visit date here - that should happen when leaving the app
 
                     // Perform cross-session sync - DISABLED to prevent hangs
                     // await timelineState.syncAcrossDevices()
@@ -125,6 +135,10 @@ struct UnifiedTimelineView: View {
                         }
                     }
                 }
+            }
+            .onDisappear {
+                // Update last visit date when leaving the timeline view
+                timelineState.updateLastVisitDate()
             }
             .refreshable {
                 await refreshTimeline()
@@ -192,16 +206,9 @@ struct UnifiedTimelineView: View {
 
                 // Update TimelineState with new posts (preserves scroll position)
                 if !posts.isEmpty {
-                    let wasFirstLoad = !timelineState.isInitialized
-                    timelineState.updateFromPosts(
-                        posts, preservePosition: timelineState.isInitialized)
-
-                    // If this was the first load, we'll handle position restoration in the ScrollViewReader
-                    if wasFirstLoad {
-                        NSLog(
-                            "🎯 First load detected, position restoration will be handled in timeline content"
-                        )
-                    }
+                    // Just update posts - position restoration handled by onChange(of: displayEntries)
+                    await timelineState.updatePosts(posts)
+                    print("📱 Updated \(posts.count) posts in TimelineState")
                 }
             }
         }
@@ -381,6 +388,28 @@ struct UnifiedTimelineView: View {
             }
             .refreshable {
                 await refreshTimeline()
+            }
+            .onChange(of: displayEntries) { entries in
+                // BEST-IN-CLASS: Set initial position immediately when posts load
+                guard !hasSetInitialPosition, !entries.isEmpty else { return }
+
+                if let targetPostId = initialScrollTarget,
+                    let targetEntry = entries.first(where: { $0.post.id == targetPostId })
+                {
+
+                    print("🎯 INSTANT: Setting initial position to \(targetPostId)")
+
+                    // Set position instantly with no animation
+                    DispatchQueue.main.async {
+                        proxy.scrollTo(targetEntry.id, anchor: .top)
+                        hasSetInitialPosition = true
+                        print("🎯 INSTANT: Position set successfully - no visible scrolling")
+                    }
+                } else {
+                    // No saved position or post not found - start at top
+                    hasSetInitialPosition = true
+                    print("🎯 INSTANT: No saved position, starting at top")
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { _ in
                 // Same: Existing scroll to top functionality with safety checks

@@ -173,11 +173,11 @@
 			<key>TimelineLogging</key>
 			<true/>
 			<key>PositionLogging</key>
-			<false/>
+			<true/>
 			<key>PerformanceLogging</key>
 			<false/>
 			<key>VerboseMode</key>
-			<false/>
+			<true/>
 		</dict>
 	</dict>
 	
