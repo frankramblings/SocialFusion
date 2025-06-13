@@ -239,16 +239,7 @@ struct FullscreenMediaView: View {
 
     private func mediaView(for attachment: Post.Attachment) -> some View {
         print("FullscreenMediaView loading URL: \(attachment.url) type: \(attachment.type)")
-        guard attachment.type == .image else {
-            return AnyView(
-                VStack {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
-                    Text("Unsupported media type")
-                }
-                .foregroundColor(.white)
-            )
-        }
+
         guard let url = URL(string: attachment.url), !attachment.url.isEmpty else {
             return AnyView(
                 VStack {
@@ -259,23 +250,42 @@ struct FullscreenMediaView: View {
                 .foregroundColor(.white)
             )
         }
+
+        // Try to load as image regardless of the type field, since it might not be set correctly
         return AnyView(
             AsyncImage(url: url) { phase in
-                if let image = phase.image {
+                switch phase {
+                case .success(let image):
                     image
                         .resizable()
                         .scaledToFit()
-                } else if phase.error != nil {
-                    VStack {
+                case .failure(let error):
+                    VStack(spacing: 16) {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
                         Text("Failed to load image")
+                            .font(.headline)
+                        Text(error.localizedDescription)
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
                     }
                     .foregroundColor(.white)
-                } else {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(2)
+                case .empty:
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .scaleEffect(2)
+                        Text("Loading...")
+                            .foregroundColor(.white)
+                            .font(.subheadline)
+                    }
+                @unknown default:
+                    VStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.largeTitle)
+                        Text("Unknown error")
+                    }
+                    .foregroundColor(.white)
                 }
             }
         )

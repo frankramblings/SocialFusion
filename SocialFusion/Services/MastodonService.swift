@@ -1695,6 +1695,15 @@ public class MastodonService {
         if let avatarURL = URL(string: userInfo.avatar) {
             account.profileImageURL = avatarURL
             print("Updated Mastodon profile image URL: \(avatarURL.absoluteString)")
+
+            // Post notification about the profile image update
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Notification.Name("AccountProfileImageUpdated"),
+                    object: nil,
+                    userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
+                )
+            }
         }
 
         return account

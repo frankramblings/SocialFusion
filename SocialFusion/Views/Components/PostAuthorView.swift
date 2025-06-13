@@ -5,35 +5,71 @@ struct PostAuthorView: View {
     let post: Post
     let onAuthorTap: () -> Void
 
+    // Extract stable values to prevent view rebuilds from cancelling AsyncImage
+    private let stableAuthorImageURL: String
+    private let stableAuthorName: String
+    private let stableAuthorUsername: String
+    private let stablePlatform: SocialPlatform
+    private let stableCreatedAt: Date
+
+    init(post: Post, onAuthorTap: @escaping () -> Void) {
+        self.post = post
+        self.onAuthorTap = onAuthorTap
+
+        // Capture stable values at init time to prevent AsyncImage cancellation
+        self.stableAuthorImageURL = post.authorProfilePictureURL
+        self.stableAuthorName = post.authorName
+        self.stableAuthorUsername = post.authorUsername
+        self.stablePlatform = post.platform
+        self.stableCreatedAt = post.createdAt
+    }
+
     var body: some View {
         HStack(spacing: 12) {
-            // Avatar with platform indicator as colored border
-            PostAvatar(
-                imageURL: post.authorProfilePictureURL,
-                platform: post.platform,
-                size: 40
-            )
-            .onTapGesture(perform: onAuthorTap)
+            // Author avatar
+            Button(action: onAuthorTap) {
+                PostAuthorImageView(
+                    authorProfilePictureURL: stableAuthorImageURL,
+                    platform: stablePlatform,
+                    size: 44
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
 
             // Author info
             VStack(alignment: .leading, spacing: 2) {
-                // Just the name, no platform badge
-                Text(post.authorName)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                Button(action: onAuthorTap) {
+                    Text(stableAuthorName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(PlainButtonStyle())
 
-                // Username
-                Text("@\(post.authorUsername)")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Button(action: onAuthorTap) {
+                        Text("@\(stableAuthorUsername)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+
+                    Text("•")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Text(formatRelativeTime(from: stableCreatedAt))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
 
             Spacer()
 
-            // Timestamp on the right
-            Text(timeAgoString)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            // Platform badge
+            PlatformBadge(platform: stablePlatform)
         }
     }
 
@@ -41,6 +77,12 @@ struct PostAuthorView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
         return formatter.localizedString(for: post.createdAt, relativeTo: Date())
+    }
+
+    private func formatRelativeTime(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

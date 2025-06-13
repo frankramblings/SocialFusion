@@ -41,34 +41,14 @@ struct ParentPostPreview: View {
                 // Author avatar with platform indicator
                 ZStack(alignment: .bottomTrailing) {
                     // Author avatar with proper frame constraints
-                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure(_):
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 16))
-                                )
-                        case .empty:
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                )
-                        @unknown default:
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                        }
-                    }
+                    StabilizedAsyncImage(
+                        url: URL(string: post.authorProfilePictureURL),
+                        idealHeight: 36,
+                        aspectRatio: 1.0,
+                        contentMode: .fill,
+                        cornerRadius: 18
+                    )
                     .frame(width: 36, height: 36)
-                    .clipShape(Circle())
                     .overlay(
                         Circle()
                             .stroke(Color(.systemBackground), lineWidth: 1)

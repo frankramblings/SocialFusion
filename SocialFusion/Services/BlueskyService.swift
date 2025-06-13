@@ -414,6 +414,18 @@ class BlueskyService {
 
             if let avatar = json["avatar"] as? String, let avatarURL = URL(string: avatar) {
                 account.profileImageURL = avatarURL
+                print(
+                    "✅ Updated Bluesky account \(account.username) with profile image URL: \(avatarURL)"
+                )
+
+                // Post notification about the profile image update
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("AccountProfileImageUpdated"),
+                        object: nil,
+                        userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
+                    )
+                }
             }
         } catch {
             throw error

@@ -39,7 +39,8 @@ public struct QuotedPostView: View {
         HStack(spacing: 8) {
             // Author avatar with platform indicator
             ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                let stableImageURL = URL(string: post.authorProfilePictureURL)
+                AsyncImage(url: stableImageURL) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable()
@@ -51,6 +52,7 @@ public struct QuotedPostView: View {
                 }
                 .frame(width: 32, height: 32)
                 .clipShape(Circle())
+                .id(stableImageURL?.absoluteString ?? "no-url")
 
                 PlatformDot(platform: post.platform, size: 8)
                     .offset(x: 1, y: 1)
@@ -403,7 +405,8 @@ private struct PostAttachmentView: View {
     let attachment: Post.Attachment
 
     var body: some View {
-        AsyncImage(url: URL(string: attachment.url)) { phase in
+        let stableImageURL = URL(string: attachment.url)
+        AsyncImage(url: stableImageURL) { phase in
             if let image = phase.image {
                 image
                     .resizable()
@@ -430,6 +433,7 @@ private struct PostAttachmentView: View {
                     )
             }
         }
+        .id(stableImageURL?.absoluteString ?? "no-url")
     }
 }
 

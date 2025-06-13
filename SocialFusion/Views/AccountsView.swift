@@ -5,7 +5,7 @@ struct AccountsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
-    @State private var showDebugInfo = false
+
     @State private var accountToDelete: SocialAccount? = nil
     @State private var showDeleteConfirmation = false
     @State private var showingAddTokenView = false
@@ -13,6 +13,7 @@ struct AccountsView: View {
     @State private var tokenAccessToken = ""
     @State private var isTokenLoading = false
     @State private var tokenErrorMessage: String? = nil
+    @State private var showDebugInfo = false
 
     var body: some View {
         NavigationView {
@@ -45,69 +46,6 @@ struct AccountsView: View {
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
-                }
-
-                // Debug info (hidden by default)
-                if showDebugInfo {
-                    Section(header: Text("Debug Info")) {
-                        Text("Mastodon Accounts: \(serviceManager.mastodonAccounts.count)")
-                        Text("Bluesky Accounts: \(serviceManager.blueskyAccounts.count)")
-                        Text(
-                            "Selected IDs: \(serviceManager.selectedAccountIds.joined(separator: ", "))"
-                        )
-
-                        Button("Print Debug Info") {
-                            print("=== DEBUGGING ACCOUNT STATE ===")
-                            print(
-                                "Total accounts in serviceManager.accounts: \(serviceManager.accounts.count)"
-                            )
-                            print("Mastodon accounts: \(serviceManager.mastodonAccounts.count)")
-                            print("Bluesky accounts: \(serviceManager.blueskyAccounts.count)")
-                            print("Selected account IDs: \(serviceManager.selectedAccountIds)")
-
-                            print("\nAccount Details:")
-                            for account in serviceManager.accounts {
-                                print(
-                                    "- \(account.username) (\(account.platform)) - ID: \(account.id)"
-                                )
-                                let hasToken = account.getAccessToken() != nil
-                                print("  Has Token: \(hasToken)")
-                            }
-
-                            // Check UserDefaults data
-                            if let data = UserDefaults.standard.data(forKey: "savedAccounts") {
-                                print(
-                                    "\nUserDefaults savedAccounts data exists: \(data.count) bytes")
-                                if let accounts = try? JSONDecoder().decode(
-                                    [SocialAccount].self, from: data)
-                                {
-                                    print("Decoded \(accounts.count) accounts from UserDefaults:")
-                                    for account in accounts {
-                                        print(
-                                            "- \(account.username) (\(account.platform)) - ID: \(account.id)"
-                                        )
-                                    }
-                                } else {
-                                    print("Failed to decode accounts from UserDefaults data")
-                                }
-                            } else {
-                                print("\nNo savedAccounts data found in UserDefaults")
-                            }
-                            print("=== END DEBUG INFO ===")
-                        }
-
-                        Button("Force Reload Accounts") {
-                            print("=== FORCING ACCOUNT RELOAD ===")
-                            // Trigger account reload
-                            Task { @MainActor in
-                                await serviceManager.forceReloadAccounts()
-                            }
-                        }
-
-                        Button("Toggle Debug") {
-                            showDebugInfo.toggle()
-                        }
-                    }
                 }
 
                 // Mastodon accounts section

@@ -16,6 +16,13 @@ struct UnifiedTimelineView: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var navigateToParentPost = false
 
+    // Navigation state for post detail and reply
+    @State private var selectedPostForDetail: Post? = nil
+    @State private var selectedPostForReply: Post? = nil
+    @State private var showingDetailView = false
+    @State private var showingReplyView = false
+    @State private var showingComposeSheet = false
+
     private var hasAccounts: Bool {
         return !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty
     }
@@ -90,103 +97,117 @@ struct UnifiedTimelineView: View {
                                 }
                             }
                         } else {
-                            // Load sample data for testing if no accounts
-                            serviceManager.loadSamplePosts()
+                            // No accounts available - show empty state
+                            print("No accounts configured for refresh")
                         }
                     }
             } else {
-                VStack(spacing: 0) {
-                    // Header at the top with an elegant design
-                    HStack {
-                        Text(displayTitle)
-                            .font(.headline)
-                            .fontWeight(.semibold)
-
-                        Spacer()
-
-                        // Refresh button
-                        Button(action: {
-                            refreshTimeline()
-                        }) {
-                            if isRefreshing {
-                                ProgressView()
-                                    .frame(width: 20, height: 20)
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                                    .font(.system(size: 16))
+                // Post list (removed redundant header since navigation already has title)
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        // Display error alert if there's an authentication issue
+                        if showingAuthError {
+                            HStack {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                Text(authErrorMessage)
+                                    .font(.footnote)
                                     .foregroundColor(.primary)
+                                Spacer()
+                                Button(action: {
+                                    showingAuthError = false
+                                }) {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.gray)
+                                }
                             }
+                            .padding()
+                            .background(Color(.systemGray6))
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
                         }
-                        .disabled(isRefreshing)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
 
-                    // Post list
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            // Display error alert if there's an authentication issue
-                            if showingAuthError {
-                                HStack {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.orange)
-                                    Text(authErrorMessage)
-                                        .font(.footnote)
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    Button(action: {
-                                        showingAuthError = false
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                    }
-                                }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(10)
-                                .padding(.horizontal)
-                                .padding(.top, 8)
-                            }
-
-                            ForEach(displayPosts) { post in
-                                VStack {
-                                    // Use the proper view for displaying posts
-                                    if #available(iOS 16.0, *) {
-                                        PostCardView(post: post)
-                                            .padding(.vertical, 4)
-                                            .padding(.horizontal, 8)
-                                    } else {
-                                        // Fallback for older iOS versions
-                                        Text(post.content)
-                                            .padding()
-                                            .background(Color(.secondarySystemBackground))
-                                            .cornerRadius(8)
-                                            .padding(.vertical, 4)
-                                            .padding(.horizontal, 8)
-                                    }
-                                }
-                            }
-
-                            // Show loading indicator at the bottom when more posts are loading
-                            if isLoadingMorePosts {
-                                ProgressView("Loading more posts...")
-                                    .padding()
-                                    .onAppear {
+                        ForEach(displayPosts) { post in
+                            VStack {
+                                // Use the proper PostCardView with working action handlers
+                                PostCardView(
+                                    entry: TimelineEntry(
+                                        id: post.id,
+                                        kind: .normal,
+                                        post: post,
+                                        createdAt: post.createdAt
+                                    ),
+                                    viewModel: nil,
+                                    onPostTap: {
+                                        // Navigate to post detail
+                                        print("Post tapped: \(post.id)")
+                                        selectedPostForDetail = post
+                                        showingDetailView = true
+                                    },
+                                    onReply: {
+                                        // Handle reply
+                                        print("Reply to post: \(post.id)")
+                                        selectedPostForReply = post
+                                        showingReplyView = true
+                                    },
+                                    onRepost: {
+                                        // Handle repost
                                         Task {
-                                            isLoadingMorePosts = false
+                                            do {
+                                                if post.isReposted {
+                                                    try await serviceManager.unrepostPost(post)
+                                                } else {
+                                                    try await serviceManager.repostPost(post)
+                                                }
+                                            } catch {
+                                                print("Repost failed: \(error)")
+                                            }
                                         }
+                                    },
+                                    onLike: {
+                                        // Handle like
+                                        Task {
+                                            do {
+                                                if post.isLiked {
+                                                    try await serviceManager.unlikePost(post)
+                                                } else {
+                                                    try await serviceManager.likePost(post)
+                                                }
+                                            } catch {
+                                                print("Like failed: \(error)")
+                                            }
+                                        }
+                                    },
+                                    onShare: {
+                                        // Handle share
+                                        print("Share post: \(post.id)")
                                     }
+                                )
+                                .padding(.vertical, 4)
+                                .padding(.horizontal, 8)
                             }
-
-                            // Add spacing at bottom to prevent content being hidden behind tab bar
-                            Color.clear.frame(height: 60)
                         }
-                        .padding(.top, 0)
+
+                        // Show loading indicator at the bottom when more posts are loading
+                        if isLoadingMorePosts {
+                            ProgressView("Loading more posts...")
+                                .padding()
+                                .onAppear {
+                                    Task {
+                                        isLoadingMorePosts = false
+                                    }
+                                }
+                        }
+
+                        // Add spacing at bottom to prevent content being hidden behind tab bar
+                        Color.clear.frame(height: 60)
                     }
-                    .background(Color(.systemBackground))
-                    .refreshable {
-                        await refreshTimelineAsync()
-                    }
+                    .padding(.top, 0)
+                }
+                .background(Color(.systemBackground))
+                .refreshable {
+                    await refreshTimelineAsync()
                 }
                 .background(Color(.systemBackground))
             }
@@ -224,11 +245,48 @@ struct UnifiedTimelineView: View {
                             print("Error loading timeline: \(error.localizedDescription)")
                         }
                     } else {
-                        // Only use sample posts if there are no accounts
-                        serviceManager.loadSamplePosts()
+                        // No accounts available - show empty state instead of sample data
+                        print("No accounts configured - showing empty timeline")
                     }
                 }
             }
+        }
+        // Navigation Links for post detail and reply
+        .background(
+            Group {
+                NavigationLink(
+                    destination: Group {
+                        if let post = selectedPostForDetail {
+                            let viewModel = PostViewModel(
+                                post: post, serviceManager: serviceManager)
+                            PostDetailNavigationView(
+                                viewModel: viewModel,
+                                focusReplyComposer: false
+                            )
+                        }
+                    },
+                    isActive: $showingDetailView
+                ) { EmptyView() }
+
+                NavigationLink(
+                    destination: Group {
+                        if let post = selectedPostForReply {
+                            let viewModel = PostViewModel(
+                                post: post, serviceManager: serviceManager)
+                            PostDetailNavigationView(
+                                viewModel: viewModel,
+                                focusReplyComposer: true
+                            )
+                        }
+                    },
+                    isActive: $showingReplyView
+                ) { EmptyView() }
+            }
+            .opacity(0)
+        )
+        .sheet(isPresented: $showingComposeSheet) {
+            ComposeView(replyingTo: nil)
+                .environmentObject(serviceManager)
         }
     }
 
@@ -284,8 +342,8 @@ struct UnifiedTimelineView: View {
         do {
             try await Task.sleep(nanoseconds: 1_000_000_000)  // Simulate network delay
 
-            // Use the serviceManager to load sample posts including replies
-            serviceManager.loadSamplePosts()
+            // Attempt to load real posts from API instead of sample data
+            try await serviceManager.refreshTimeline(force: false)
 
             // Posts are now available through serviceManager.unifiedTimeline
             isLoadingMorePosts = false

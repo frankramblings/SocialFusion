@@ -84,8 +84,8 @@ struct PostDetailView: View {
                                         // Show as quote post if it's a social media post URL
                                         FetchQuotePostView(url: url)
                                     } else {
-                                        // Regular link preview
-                                        LinkPreview(url: url)
+                                        // Regular link preview with stable height
+                                        StabilizedLinkPreview(url: url, idealHeight: 200)
                                     }
                                 }
                             }
@@ -96,10 +96,10 @@ struct PostDetailView: View {
                         if !post.attachments.isEmpty {
                             UnifiedMediaGridView(
                                 attachments: post.attachments,
-                                maxHeight: 220
+                                maxHeight: 300
                             )
-                            .padding(.horizontal)
-                            .padding(.bottom, 8)  // Add bottom padding
+                            .padding(.horizontal, 8)
+                            .padding(.bottom, 6)
                         }
 
                         // Stats row (likes, reposts)

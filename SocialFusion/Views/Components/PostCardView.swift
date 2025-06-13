@@ -49,7 +49,7 @@ struct PostCardView: View {
     // Determine which post to display: use original for boosts, otherwise self.post
     private var displayPost: Post {
         // For boosts, use the original post for display content
-        if let boostedBy = boostedBy, let original = post.originalPost {
+        if boostedBy != nil, let original = post.originalPost {
             return original
         }
         return post
@@ -163,64 +163,43 @@ struct PostCardView: View {
             )
             .padding(.horizontal, 12)  // Apple standard: 12pt content padding
 
-            // Content section with link previews
-            displayPost.contentView(lineLimit: nil, showLinkPreview: true, font: .body)
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 4)  // Slight separation from author
+            // Content section - disable link previews when media is present (Ivory style)
+            displayPost.contentView(
+                lineLimit: nil,
+                showLinkPreview: displayPost.attachments.isEmpty,
+                font: .body
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
 
             // Media section
             if !displayPost.attachments.isEmpty {
                 UnifiedMediaGridView(attachments: displayPost.attachments)
-                    .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                    .padding(.top, 8)  // Apple standard: 8pt spacing from content
+                    .padding(.horizontal, 4)
+                    .padding(.top, 6)
             }
 
             // Action bar (using the working ActionBar)
-            if let viewModel = viewModel {
-                ObservableActionBar(
-                    viewModel: viewModel,
-                    onAction: { action in
-                        switch action {
-                        case .reply:
-                            onReply()
-                        case .repost:
-                            // Use viewModel for repost to get proper state updates
-                            Task { await viewModel.repost() }
-                        case .like:
-                            // Use viewModel for like to get proper state updates
-                            Task { await viewModel.like() }
-                        case .share:
-                            viewModel.share()
-                        }
-                    },
-                    onOpenInBrowser: onOpenInBrowser,
-                    onCopyLink: onCopyLink,
-                    onReport: onReport
-                )
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 6)  // Apple standard: 6pt separation from content
-            } else {
-                ActionBar(
-                    post: displayPost,
-                    onAction: { action in
-                        switch action {
-                        case .reply:
-                            onReply()
-                        case .repost:
-                            onRepost()
-                        case .like:
-                            onLike()
-                        case .share:
-                            onShare()
-                        }
-                    },
-                    onOpenInBrowser: onOpenInBrowser,
-                    onCopyLink: onCopyLink,
-                    onReport: onReport
-                )
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 6)  // Apple standard: 6pt separation from content
-            }
+            ActionBar(
+                post: displayPost,
+                onAction: { action in
+                    switch action {
+                    case .reply:
+                        onReply()
+                    case .repost:
+                        onRepost()
+                    case .like:
+                        onLike()
+                    case .share:
+                        onShare()
+                    }
+                },
+                onOpenInBrowser: onOpenInBrowser,
+                onCopyLink: onCopyLink,
+                onReport: onReport
+            )
+            .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+            .padding(.top, 6)  // Apple standard: 6pt separation from content
         }
         .padding(.horizontal, 16)  // Apple standard: 16pt container padding
         .padding(.vertical, 12)  // Apple standard: 12pt container padding

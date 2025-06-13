@@ -24,8 +24,11 @@ struct UnifiedTimelineView: View {
     @State private var errorMessage: String? = nil
     @State private var isRefreshing = false
 
+    // PHASE 3+: Enhanced TimelineState with smart restoration
+    @StateObject private var timelineState = TimelineState()
+
     @State private var isLoading = false
-    @State private var entries: [TimelineEntry] = []
+    @State private var entries: [TimelineEntry] = []  // Keep for compatibility during transition
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel: TimelineViewModel
 
@@ -36,11 +39,13 @@ struct UnifiedTimelineView: View {
     @State private var showingDetailView = false
     @State private var showingReplyView = false
 
-    // Scroll state
+    // Enhanced scroll state with smart restoration
     @State private var scrollPosition: TimelineEntry? = nil
     @State private var savedScrollPosition: TimelineEntry? = nil
     @State private var isScrolling = false
     @State private var hasInitiallyLoaded = false
+    @State private var lastScrollOffset: CGFloat = 0
+    @State private var shouldShowRestorationBanner = false
 
     // Store accounts for filtering
     private let accounts: [SocialAccount]
@@ -51,41 +56,91 @@ struct UnifiedTimelineView: View {
         self._viewModel = StateObject(wrappedValue: viewModel)
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Timeline Content
-            if isLoading && entries.isEmpty {
-                loadingView
-            } else if entries.isEmpty {
-                emptyView
+    // PHASE 3+: Enhanced computed property that uses TimelineState
+    private var displayEntries: [TimelineEntry] {
+        // Use TimelineState if it has content, otherwise fallback to existing entries
+        let timelineEntries = timelineState.entries.map { entry in
+            let kind: TimelineEntryKind
+            if let boostedBy = entry.post.boostedBy {
+                kind = .boost(boostedBy: boostedBy)
             } else {
-                timelineContent
+                kind = .normal
             }
+
+            return TimelineEntry(
+                id: entry.id,
+                kind: kind,
+                post: entry.post,
+                createdAt: entry.post.createdAt
+            )
         }
-        .onAppear {
-            // Only load timeline on first appear to prevent infinite loops
-            if !hasInitiallyLoaded
-                && (!serviceManager.mastodonAccounts.isEmpty
-                    || !serviceManager.blueskyAccounts.isEmpty)
-            {
-                hasInitiallyLoaded = true
+        return timelineEntries.isEmpty ? entries : timelineEntries
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 0) {
+                // PHASE 3+: Restoration suggestions banner (only show as fallback)
+                if timelineState.showRestoreOptions && hasInitiallyLoaded
+                    && shouldShowRestorationBanner
+                {
+                    restorationSuggestionsBanner
+                }
+
+                // PHASE 3+: Sync status indicator
+                if case .syncing = timelineState.syncStatus {
+                    syncStatusBanner
+                }
+
+                // Timeline Content
+                if isLoading && displayEntries.isEmpty {
+                    loadingView
+                } else if displayEntries.isEmpty {
+                    emptyView
+                } else {
+                    timelineContent
+                }
+            }
+            .onAppear {
+                // PHASE 3+: Enhanced onAppear with smart restoration
                 Task {
-                    // Load timeline when view appears for the first time
-                    if let account = serviceManager.mastodonAccounts.first
-                        ?? serviceManager.blueskyAccounts.first
+                    // Load cached content immediately for instant display
+                    // TODO: Implement loadCachedContent method or remove this call
+                    timelineState.updateLastVisitDate()
+
+                    // Perform cross-session sync - DISABLED to prevent hangs
+                    // await timelineState.syncAcrossDevices()
+
+                    // Same: Existing network loading logic preserved
+                    if !hasInitiallyLoaded
+                        && (!serviceManager.mastodonAccounts.isEmpty
+                            || !serviceManager.blueskyAccounts.isEmpty)
                     {
-                        viewModel.refreshTimeline(for: account)
+                        hasInitiallyLoaded = true
+                        // Load timeline when view appears for the first time
+                        if let account = serviceManager.mastodonAccounts.first
+                            ?? serviceManager.blueskyAccounts.first
+                        {
+                            viewModel.refreshTimeline(for: account)
+                        }
                     }
                 }
             }
-        }
-        .refreshable {
-            await refreshTimeline()
-        }
-        .alert("Error", isPresented: $showingErrorAlert) {
-            Button("OK") {}
-        } message: {
-            Text(errorMessage ?? "An unknown error occurred")
+            .refreshable {
+                await refreshTimeline()
+            }
+            .alert("Error", isPresented: $showingErrorAlert) {
+                Button("OK") {}
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
+
+            // PHASE 3+: Enhanced unread count indicator with sync status
+            if timelineState.unreadCount > 0 {
+                unreadCountIndicator
+            }
+
+            // Debug UI removed to prevent AttributeGraph cycles
         }
         // Navigation Links - iOS 16 compatible
         .background(
@@ -125,11 +180,107 @@ struct UnifiedTimelineView: View {
                 .environmentObject(serviceManager)
         }
         .onReceive(viewModel.$state) { state in
-            // Simple state update without forcing UI changes
-            let posts = state.posts
-            self.entries = self.serviceManager.makeTimelineEntries(from: posts)
-            self.isLoading = state.isLoading
+            // PHASE 3+: Update both existing entries and TimelineState
+            // Use Task to avoid "Modifying state during view update" warnings
+            Task { @MainActor in
+                // Small delay to ensure we're not in the middle of a view update
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 1ms
+
+                let posts = state.posts
+                self.entries = self.serviceManager.makeTimelineEntries(from: posts)  // Keep existing for compatibility
+                self.isLoading = state.isLoading
+
+                // Update TimelineState with new posts (preserves scroll position)
+                if !posts.isEmpty {
+                    let wasFirstLoad = !timelineState.isInitialized
+                    timelineState.updateFromPosts(
+                        posts, preservePosition: timelineState.isInitialized)
+
+                    // If this was the first load, we'll handle position restoration in the ScrollViewReader
+                    if wasFirstLoad {
+                        NSLog(
+                            "🎯 First load detected, position restoration will be handled in timeline content"
+                        )
+                    }
+                }
+            }
         }
+    }
+
+    // PHASE 3+: Restoration suggestions banner
+    private var restorationSuggestionsBanner: some View {
+        VStack(spacing: 8) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Continue Reading?")
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    if let suggestion = timelineState.restorationSuggestions.first {
+                        Text(suggestion.description)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    Button("Continue") {
+                        if let suggestion = timelineState.restorationSuggestions.first {
+                            applyRestorationSuggestion(suggestion)
+                        }
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+
+                    Button("Dismiss") {
+                        timelineState.dismissRestorationSuggestions()
+                        shouldShowRestorationBanner = false
+                    }
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(.systemBackground))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundColor(Color(.separator)),
+                alignment: .bottom
+            )
+        }
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    // PHASE 3+: Sync status banner
+    private var syncStatusBanner: some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+
+            Text("Syncing position across devices...")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Spacer()
+
+            if let lastSyncTime = timelineState.lastSyncTime {
+                Text("Last: \(lastSyncTime.formatted(.relative(presentation: .named)))")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(.secondarySystemBackground))
+        .transition(.opacity)
     }
 
     private var loadingView: some View {
@@ -162,38 +313,211 @@ struct UnifiedTimelineView: View {
     }
 
     private var timelineContent: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(entries, id: \.id) { entry in
-                    let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
+        ScrollViewReader { proxy in
+            ScrollView {
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(
+                            key: ScrollOffsetPreferenceKey.self,
+                            value: geometry.frame(in: .named("scroll")).minY)
+                }
+                .frame(height: 0)
 
-                    ResponsivePostCardView(
-                        entry: entry,
-                        onReply: { handleReplyTap(entry.post) },
-                        onRepost: { Task { await handleBoostTap(entry.post) } },
-                        onLike: { Task { await handleLikeTap(entry.post) } },
-                        onShare: { handleShareTap(entry.post) },
-                        onPostTap: { handlePostTap(entry.post) },
-                        viewModel: nil
-                    )
-                    .padding(.horizontal, 8)  // Apple standard: 8pt for timeline separation
-                    .padding(.vertical, 6)  // Apple standard: 6pt between posts
+                LazyVStack(spacing: 0) {
+                    ForEach(displayEntries, id: \.id) { entry in
+                        let index = displayEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
 
-                    // Add divider between posts (but not after the last one)
-                    if index < entries.count - 1 {
-                        Divider()
-                            .background(
-                                colorScheme == .dark
-                                    ? Color.white.opacity(0.12)
-                                    : Color.gray.opacity(0.25)
-                            )
-                            .padding(.horizontal, 24)  // Apple standard: 24pt for divider insets
+                        ResponsivePostCardView(
+                            entry: entry,
+                            onReply: { handleReplyTap(entry.post) },
+                            onRepost: { Task { await handleBoostTap(entry.post) } },
+                            onLike: { Task { await handleLikeTap(entry.post) } },
+                            onShare: { handleShareTap(entry.post) },
+                            onPostTap: { handlePostTap(entry.post) },
+                            viewModel: nil
+                        )
+                        .padding(.horizontal, 4)  // Reduced padding for tighter layout
+                        .padding(.vertical, 4)  // Reduced padding for tighter layout
+                        .onAppear {
+                            // PHASE 3+: Enhanced read tracking and position saving
+                            // Use DispatchQueue to defer state updates and avoid AttributeGraph cycles
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                timelineState.markPostAsRead(entry.post.id)
+                            }
+
+                            // Save position as user scrolls through - with longer delay to ensure it's intentional scrolling
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                timelineState.saveScrollPosition(entry.post.id)
+                            }
+
+                            // Clear unread count if user has scrolled to the top (first few posts)
+                            if index <= 2 && timelineState.unreadCount > 0 {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                    timelineState.clearAllUnread()
+                                    print("📱 Cleared unread count - user reached top of timeline")
+                                }
+                            }
+                        }
+
+                        // Add divider between posts (but not after the last one)
+                        if entry.id != displayEntries.last?.id {
+                            Divider()
+                                .background(Color.gray.opacity(0.2))
+                                .padding(.horizontal, 16)
+                        }
+                    }
+                }
+                .padding(.bottom, 100)  // Extra padding for better scroll experience
+            }
+            .coordinateSpace(name: "scroll")
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                // Clear unread count when user scrolls to the top
+                if value >= -10 && timelineState.unreadCount > 0 {  // Allow small tolerance for "at top"
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        timelineState.clearAllUnread()
+                        print("📱 Cleared unread count - user scrolled to top (offset: \(value))")
                     }
                 }
             }
-            .padding(.vertical, 8)  // Apple standard: 8pt top/bottom timeline padding
+            .refreshable {
+                await refreshTimeline()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToTop)) { _ in
+                // Same: Existing scroll to top functionality with safety checks
+                guard let firstEntry = displayEntries.first else { return }
+
+                // Use DispatchQueue to avoid ScrollViewProxy access during view updates
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.5)) {
+                        proxy.scrollTo(firstEntry.id, anchor: .top)
+                    }
+                }
+                // Clear unread state separately to avoid AttributeGraph cycles
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    timelineState.clearAllUnread()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .scrollToPosition)) {
+                notification in
+                // Handle scroll to specific position for Continue Reading
+                guard let userInfo = notification.userInfo,
+                    let postId = userInfo["postId"] as? String,
+                    let targetEntry = displayEntries.first(where: { $0.post.id == postId })
+                else {
+                    let unknownId = notification.userInfo?["postId"] as? String ?? "unknown"
+                    print("🎯 Failed to find target post \(unknownId) for position restoration")
+                    return
+                }
+
+                print("🎯 Scrolling to position: \(postId)")
+
+                // Use DispatchQueue to avoid "Modifying state during view update"
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.easeInOut(duration: 1.0)) {
+                        proxy.scrollTo(targetEntry.id, anchor: .top)
+                    }
+
+                    print(
+                        "🎯 Position restoration completed - unread indicator should now work properly"
+                    )
+                }
+            }
         }
-        .scrollDismissesKeyboard(.immediately)
+    }
+
+    // PHASE 3+: Enhanced unread count indicator with sync status
+    private var unreadCountIndicator: some View {
+        VStack {
+            HStack {
+                Spacer()
+
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+
+                        Text("\(timelineState.unreadCount)")
+                            .font(.system(size: 18, weight: .bold))
+                            .monospacedDigit()
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Color.blue, Color.blue.opacity(0.8)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(Capsule())
+                    .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
+                    .scaleEffect(1.1)  // Make it slightly larger
+                    .overlay(
+                        // Pulse animation for attention
+                        Circle()
+                            .stroke(Color.blue.opacity(0.6), lineWidth: 2)
+                            .scaleEffect(timelineState.unreadCount > 0 ? 1.5 : 1.0)
+                            .opacity(timelineState.unreadCount > 0 ? 0.0 : 1.0)
+                            .animation(
+                                timelineState.unreadCount > 0
+                                    ? Animation.easeInOut(duration: 1.5).repeatForever(
+                                        autoreverses: false) : .default,
+                                value: timelineState.unreadCount
+                            )
+                    )
+                    .onTapGesture {
+                        // Add haptic feedback
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                        impactFeedback.impactOccurred()
+
+                        NotificationCenter.default.post(name: .scrollToTop, object: nil)
+                    }
+
+                    // Sync status indicator
+                    if case .success = timelineState.syncStatus {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.icloud")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("Synced")
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
+                }
+                .padding(.trailing, 16)
+            }
+            Spacer()
+        }
+        .padding(.top, 8)
+        .transition(.opacity)
+        .allowsHitTesting(true)
+    }
+
+    // MARK: - Smart Restoration Methods
+
+    /// Apply a restoration suggestion from the banner
+    private func applyRestorationSuggestion(_ suggestion: RestorationSuggestion) {
+        timelineState.applyRestorationSuggestion(suggestion)
+        shouldShowRestorationBanner = false
+
+        // Trigger scroll to the suggested position using async Task
+        Task { @MainActor in
+            // Small delay for safety
+            try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds
+
+            NotificationCenter.default.post(
+                name: .scrollToPosition,
+                object: nil,
+                userInfo: ["postId": suggestion.postId]
+            )
+        }
+
+        print("✅ Applied suggestion: \(suggestion.title)")
     }
 
     // MARK: - Action Handlers
@@ -208,55 +532,16 @@ struct UnifiedTimelineView: View {
     }
 
     private func handleLikeTap(_ post: Post) async {
-        // Find the post in our entries array and get its index
-        guard let entryIndex = entries.firstIndex(where: { $0.post.id == post.id }) else {
-            print("❌ Could not find post in entries array")
-            return
-        }
-
-        // Get a reference to the current post for optimistic updates
-        let currentPost = entries[entryIndex].post
-
-        // Store original values for potential revert
-        let originalLiked = currentPost.isLiked
-        let originalCount = currentPost.likeCount
-
-        // Create updated values
-        let newLikedState = !originalLiked
-        let newLikeCount = originalCount + (newLikedState ? 1 : -1)
-
-        // Optimistically update the post and trigger UI update
-        await MainActor.run {
-            currentPost.isLiked = newLikedState
-            currentPost.likeCount = newLikeCount
-            // Force UI update by triggering objectWillChange on the Post
-            currentPost.objectWillChange.send()
-        }
-
-        // Perform the actual like operation
+        // Avoid modifying Post @Published properties to prevent AttributeGraph cycles
+        // Instead, let the service manager handle the state updates
         do {
-            let updatedPost: Post
-            if newLikedState {
-                updatedPost = try await serviceManager.likePost(currentPost)
+            if post.isLiked {
+                _ = try await serviceManager.unlikePost(post)
             } else {
-                updatedPost = try await serviceManager.unlikePost(currentPost)
+                _ = try await serviceManager.likePost(post)
             }
-
-            // Update with server response
-            await MainActor.run {
-                currentPost.isLiked = updatedPost.isLiked
-                currentPost.likeCount = updatedPost.likeCount
-                // Force UI update again with final server state
-                currentPost.objectWillChange.send()
-            }
+            print("✅ Like operation completed successfully")
         } catch {
-            // Revert on error
-            await MainActor.run {
-                currentPost.isLiked = originalLiked
-                currentPost.likeCount = originalCount
-                // Force UI update for revert
-                currentPost.objectWillChange.send()
-            }
             print("❌ Like failed: \(error.localizedDescription)")
 
             // Show user-friendly error for auth issues
@@ -270,53 +555,17 @@ struct UnifiedTimelineView: View {
     }
 
     private func handleBoostTap(_ post: Post) async {
-        // Find the post in our entries array
-        guard let entryIndex = entries.firstIndex(where: { $0.post.id == post.id }) else {
-            print("❌ Could not find post in entries array")
-            return
-        }
-
-        // Get a reference to the current post
-        let currentPost = entries[entryIndex].post
-
-        // Store original values for potential revert
-        let originalReposted = currentPost.isReposted
-        let originalCount = currentPost.repostCount
-
-        // Update the post object and trigger UI update
-        let newRepostedState = !originalReposted
-        let newRepostCount = originalCount + (newRepostedState ? 1 : -1)
-
-        await MainActor.run {
-            currentPost.isReposted = newRepostedState
-            currentPost.repostCount = newRepostCount
-            // Force UI update
-            currentPost.objectWillChange.send()
-        }
-
-        // Perform the actual repost operation
+        // Avoid modifying Post @Published properties to prevent AttributeGraph cycles
+        // Instead, let the service manager handle the state updates
         do {
-            let updatedPost: Post
-            if newRepostedState {
-                updatedPost = try await serviceManager.repostPost(currentPost)
+            if post.isReposted {
+                _ = try await serviceManager.unrepostPost(post)
             } else {
-                updatedPost = try await serviceManager.unrepostPost(currentPost)
+                _ = try await serviceManager.repostPost(post)
             }
-
-            // Update with server response
-            await MainActor.run {
-                currentPost.isReposted = updatedPost.isReposted
-                currentPost.repostCount = updatedPost.repostCount
-                currentPost.objectWillChange.send()
-            }
+            print("✅ Repost operation completed successfully")
         } catch {
-            // Revert on error
-            await MainActor.run {
-                currentPost.isReposted = originalReposted
-                currentPost.repostCount = originalCount
-                currentPost.objectWillChange.send()
-            }
-            print("Repost failed: \(error)")
+            print("❌ Repost failed: \(error.localizedDescription)")
         }
     }
 
@@ -327,12 +576,28 @@ struct UnifiedTimelineView: View {
 
     @MainActor
     private func refreshTimeline() async {
+        // PHASE 3+: Enhanced refresh that updates TimelineState with smart position preservation
         isRefreshing = true
+
+        // Save current scroll position with enhanced tracking
+        if let firstVisibleEntry = displayEntries.first {
+            timelineState.saveScrollPositionWithOffset(
+                firstVisibleEntry.id, offset: lastScrollOffset)
+        }
+
         viewModel.refreshUnifiedTimeline()
+
         // Wait for the refresh to complete
         while viewModel.isRefreshing {
             try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
         }
+
+        // Trigger cross-session sync after refresh
+        await timelineState.syncAcrossDevices()
+
+        // Perform maintenance to clean up old data
+        timelineState.performMaintenance()
+
         isRefreshing = false
     }
 }
@@ -359,5 +624,19 @@ struct ResponsivePostCardView: View {
             onShare: onShare
         )
         .id(entry.id)  // Use stable entry ID without like state to prevent AttributeGraph cycles
+    }
+}
+
+// PHASE 3+: Extension for scroll to top notification
+extension Notification.Name {
+    static let scrollToTop = Notification.Name("scrollToTop")
+    static let scrollToPosition = Notification.Name("scrollToPosition")
+}
+
+// Add the preference key for scroll offset detection
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }

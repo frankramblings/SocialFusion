@@ -78,10 +78,8 @@ struct AccountTimelineView: View {
             self.error = error
             print("Error loading posts: \(error)")
 
-            // For testing, fallback to some sample data
-            if posts.isEmpty {
-                posts = Post.samplePosts.filter { $0.platform == account.platform }
-            }
+            // Don't fallback to sample data - show empty state for failed API calls
+            // Let the UI handle the empty state properly
         }
 
         isLoading = false

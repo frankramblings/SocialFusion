@@ -173,6 +173,14 @@ final class SocialServiceManager: ObservableObject {
             name: UIApplication.willTerminateNotification,
             object: nil
         )
+
+        // Register for profile image update notifications to save accounts
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleProfileImageUpdate),
+            name: Notification.Name("AccountProfileImageUpdated"),
+            object: nil
+        )
     }
 
     deinit {
@@ -181,6 +189,12 @@ final class SocialServiceManager: ObservableObject {
 
     @objc private func saveAccountsBeforeTermination() {
         saveAccounts()
+    }
+
+    @objc private func handleProfileImageUpdate(_ notification: Notification) {
+        // Save accounts when profile images are updated to persist the new URLs
+        saveAccounts()
+        print("💾 [SocialServiceManager] Saved accounts after profile image update")
     }
 
     // MARK: - Account Management
@@ -192,8 +206,6 @@ final class SocialServiceManager: ObservableObject {
 
         guard let data = UserDefaults.standard.data(forKey: "savedAccounts") else {
             logger.info("No saved accounts found")
-            print(
-                "🔧 SocialServiceManager.loadAccounts: No saved accounts data found in UserDefaults")
             updateAccountLists()
             return
         }
@@ -204,33 +216,15 @@ final class SocialServiceManager: ObservableObject {
             accounts = decodedAccounts
 
             logger.info("Successfully loaded \(decodedAccounts.count) accounts")
-            print(
-                "🔧 SocialServiceManager.loadAccounts: Successfully loaded \(decodedAccounts.count) accounts from UserDefaults"
-            )
 
             // Load tokens for each account from keychain
             for account in accounts {
                 account.loadTokensFromKeychain()
                 logger.debug("Loaded tokens for account: \(account.username, privacy: .public)")
-                print(
-                    "🔧 SocialServiceManager.loadAccounts: Loading tokens for \(account.username) (\(account.platform))"
-                )
-
-                // Check if tokens were loaded successfully
-                if let token = account.getAccessToken() {
-                    print(
-                        "✅ SocialServiceManager.loadAccounts: Token loaded for \(account.username): \(token.prefix(20))..."
-                    )
-                } else {
-                    print(
-                        "❌ SocialServiceManager.loadAccounts: No token found for \(account.username)"
-                    )
-                }
             }
         } catch {
             logger.error(
                 "Failed to decode saved accounts: \(error.localizedDescription, privacy: .public)")
-            print("❌ SocialServiceManager.loadAccounts: Failed to decode accounts: \(error)")
         }
 
         // After loading accounts, separate them by platform
@@ -238,28 +232,6 @@ final class SocialServiceManager: ObservableObject {
 
         // MIGRATION: Check for and migrate old DID-based Bluesky accounts
         migrateOldBlueskyAccounts()
-
-        // Debug account info
-        print("🔧 SocialServiceManager: After loading accounts:")
-        print("🔧   Total accounts: \(accounts.count)")
-        print("🔧   Mastodon accounts: \(mastodonAccounts.count)")
-        print("🔧   Bluesky accounts: \(blueskyAccounts.count)")
-        for account in accounts {
-            print("🔧   - \(account.username) (\(account.platform)) - ID: \(account.id)")
-            if account.platform == .bluesky {
-                print("🔧     * Bluesky DID: \(account.platformSpecificId)")
-                print("🔧     * Has Access Token: \(account.getAccessToken() != nil)")
-                print("🔧     * Has Refresh Token: \(account.getRefreshToken() != nil)")
-            }
-        }
-
-        // Check what accounts are selected for timeline fetching
-        print("🔧 SocialServiceManager: Selected account IDs: \(selectedAccountIds)")
-        let accountsToFetch = getAccountsToFetch()
-        print("🔧 SocialServiceManager: Accounts to fetch timeline from: \(accountsToFetch.count)")
-        for account in accountsToFetch {
-            print("🔧   - Will fetch from: \(account.username) (\(account.platform))")
-        }
     }
 
     /// Save accounts to UserDefaults
@@ -315,9 +287,6 @@ final class SocialServiceManager: ObservableObject {
 
     /// Add a new account
     func addAccount(_ account: SocialAccount) {
-        print("📊 [SocialServiceManager] Adding account: \(account.username) (\(account.platform))")
-        print("📊 [SocialServiceManager] Current timeline posts: \(unifiedTimeline.count)")
-        print("📊 [SocialServiceManager] Current selectedAccountIds: \(selectedAccountIds)")
 
         accounts.append(account)
         // Save to UserDefaults
@@ -334,28 +303,19 @@ final class SocialServiceManager: ObservableObject {
         } else {
             // If "all" is already selected, keep it
             if selectedAccountIds.contains("all") {
-                print("📊 [SocialServiceManager] 'all' already selected, keeping it")
+                // Keep "all" selected
             } else {
                 // Add the new account to selectedAccountIds or switch to "all"
                 selectedAccountIds.insert(account.id)
-                print(
-                    "📊 [SocialServiceManager] Added new account to selectedAccountIds: \(account.id)"
-                )
             }
         }
 
-        print("📊 [SocialServiceManager] Account added successfully. Total: \(accounts.count)")
-        print("📊 [SocialServiceManager] Mastodon accounts: \(mastodonAccounts.count)")
-        print("📊 [SocialServiceManager] Bluesky accounts: \(blueskyAccounts.count)")
-        print("📊 [SocialServiceManager] Final selectedAccountIds: \(selectedAccountIds)")
-
         // Automatically refresh timeline after adding account
         Task {
-            print("📊 [SocialServiceManager] Auto-refreshing timeline after adding account")
             do {
                 try await refreshTimeline(force: true)
             } catch {
-                print("❌ [SocialServiceManager] Error auto-refreshing timeline: \(error)")
+                // Error is already logged by the timeline refresh method
             }
         }
     }
@@ -441,26 +401,14 @@ final class SocialServiceManager: ObservableObject {
 
     /// Add a Bluesky account
     func addBlueskyAccount(username: String, password: String) async throws -> SocialAccount {
-        print("📊 [SocialServiceManager] Starting Bluesky authentication for: \(username)")
-
         let account = try await blueskyService.authenticate(
             username: username,
             password: password
         )
 
-        print("✅ [SocialServiceManager] Bluesky authentication successful for: \(account.username)")
-        print(
-            "📊 [SocialServiceManager] Account details - ID: \(account.id), Platform: \(account.platform)"
-        )
-
         // Add the account to our collection
         await MainActor.run {
             addAccount(account)
-            print(
-                "📊 [SocialServiceManager] Bluesky account added on MainActor. Total accounts: \(accounts.count)"
-            )
-            print("📊 [SocialServiceManager] Current Bluesky accounts: \(blueskyAccounts.count)")
-            print("📊 [SocialServiceManager] Current Mastodon accounts: \(mastodonAccounts.count)")
         }
 
         return account
@@ -662,8 +610,8 @@ final class SocialServiceManager: ObservableObject {
             let posts = try await mastodonService.fetchTrendingPosts()
             self.unifiedTimeline = posts
         } catch {
-            // If that fails, use sample posts
-            self.unifiedTimeline = Post.samplePosts
+            // If API call fails, show empty timeline and let the error handling in the UI deal with it
+            self.unifiedTimeline = []
             self.error = error
         }
     }
@@ -854,10 +802,8 @@ final class SocialServiceManager: ObservableObject {
                 }
             }
 
-            // Use sample posts if no real posts available
-            if posts.isEmpty {
-                posts = Post.samplePosts
-            }
+            // Don't fall back to sample posts - if API calls fail, show empty timeline
+            // posts.isEmpty is okay - we'll show the proper empty state in the UI
 
             await MainActor.run {
                 isLoading = false
@@ -1184,27 +1130,10 @@ final class SocialServiceManager: ObservableObject {
         let now = Date()
         // Increase debounce time to 1 second to prevent rapid updates
         guard now.timeIntervalSince(lastTimelineUpdate) > 1.0 else {
-            print("📊 SocialServiceManager: Debouncing timeline update (too rapid)")
             return
         }
 
         lastTimelineUpdate = now
-
-        print("📊 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
-
-        // Log platform distribution
-        let mastodonCount = posts.filter { $0.platform == .mastodon }.count
-        let blueskyCount = posts.filter { $0.platform == .bluesky }.count
-        print(
-            "📊 SocialServiceManager: Platform distribution - Mastodon: \(mastodonCount), Bluesky: \(blueskyCount)"
-        )
-
-        // Log some sample posts for debugging
-        for (index, post) in posts.prefix(5).enumerated() {
-            print(
-                "📊 Sample post \(index + 1): \(post.platform) - \(post.authorUsername) - \(post.content.prefix(50))..."
-            )
-        }
 
         // Ensure we're on MainActor and update safely
         self.unifiedTimeline = posts
@@ -1214,10 +1143,6 @@ final class SocialServiceManager: ObservableObject {
         if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
             debug.setBlueskyPosts(posts.filter { $0.platform == .bluesky })
         }
-
-        print(
-            "📊 SocialServiceManager: unifiedTimeline successfully updated to \(self.unifiedTimeline.count) posts"
-        )
     }
 
     @MainActor
@@ -1290,7 +1215,6 @@ final class SocialServiceManager: ObservableObject {
 
         // Replace old accounts with migrated ones
         if !accountsToMigrate.isEmpty {
-            print("🔄 [Migration] Migrating \(accountsToMigrate.count) Bluesky accounts")
 
             // Remove old accounts
             for oldAccount in accountsToMigrate {
@@ -1309,8 +1233,6 @@ final class SocialServiceManager: ObservableObject {
             print(
                 "✅ [Migration] Successfully migrated \(migratedAccounts.count) Bluesky accounts to new stable ID format"
             )
-        } else {
-            print("ℹ️ [Migration] No old DID-based Bluesky accounts found to migrate")
         }
     }
 }

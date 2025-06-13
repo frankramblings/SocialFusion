@@ -23,58 +23,21 @@ struct ContentView: View {
     @State private var isAtTopOfFeed = true
     @State private var tabBarDelegate: TabBarDelegate?
 
+    // Migration manager for architecture switching
+    @StateObject private var migrationManager = GradualMigrationManager.shared
+
     var body: some View {
         ZStack {
             TabView(selection: $selectedTab) {
                 // Home Tab - Timeline implementation
                 NavigationView {
                     ZStack {
-                        // Main timeline
-                        UnifiedTimelineView(accounts: timelineAccounts)
-                            .navigationTitle(navigationTitle)
-                            .navigationBarTitleDisplayMode(.inline)
-                            .navigationBarItems(
-                                leading: HStack {
-                                    // Account selector - show current account icon or unified icon
-                                    Button(action: {
-                                        // Show account dropdown menu
-                                        showAccountDropdown = true
-                                        // Get the position for the dropdown
-                                        let windowScene =
-                                            UIApplication.shared.connectedScenes.first
-                                            as? UIWindowScene
-                                        let window = windowScene?.windows.first
-                                        if let frame = window?.frame {
-                                            dropdownPosition = CGPoint(x: 30, y: 60)  // Position near the account button
-                                        }
-                                    }) {
-                                        HStack(spacing: 6) {
-                                            // Show current account image or unified icon
-                                            getCurrentAccountImage()
-                                                .frame(width: 30, height: 30)
-                                                .clipShape(Circle())
-
-                                            // Dropdown indicator
-                                            Image(systemName: "chevron.down")
-                                                .font(.system(size: 13, weight: .medium))
-                                                .foregroundColor(.primary)
-                                        }
-                                    }
-                                    // Debug: Triple tap to show launch animation
-                                    .onTapGesture(count: 3) {
-                                        #if DEBUG
-                                            appVersionManager.forceShowLaunchAnimation()
-                                        #endif
-                                    }
-                                },
-                                trailing: Button(action: {
-                                    showComposeView = true
-                                }) {
-                                    Image(systemName: "square.and.pencil")
-                                        .font(.system(size: 18))
-                                        .foregroundColor(.primary)
-                                }
-                            )
+                        // Main timeline - conditionally use new architecture based on migration settings
+                        if migrationManager.isNewArchitectureEnabled {
+                            UnifiedTimelineViewV2(serviceManager: serviceManager)
+                        } else {
+                            UnifiedTimelineView(accounts: timelineAccounts)
+                        }
 
                         // Account dropdown overlay (conditionally displayed)
                         if showAccountDropdown {
@@ -87,6 +50,50 @@ struct ContentView: View {
                             .environmentObject(serviceManager)
                         }
                     }
+                    .navigationTitle(navigationTitle)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .navigationBarItems(
+                        leading: HStack {
+                            // Account selector - show current account icon or unified icon
+                            Button(action: {
+                                // Show account dropdown menu
+                                showAccountDropdown = true
+                                // Get the position for the dropdown
+                                let windowScene =
+                                    UIApplication.shared.connectedScenes.first
+                                    as? UIWindowScene
+                                let window = windowScene?.windows.first
+                                if let frame = window?.frame {
+                                    dropdownPosition = CGPoint(x: 30, y: 60)  // Position near the account button
+                                }
+                            }) {
+                                HStack(spacing: 6) {
+                                    // Show current account image or unified icon
+                                    getCurrentAccountImage()
+                                        .frame(width: 30, height: 30)
+                                        .clipShape(Circle())
+
+                                    // Dropdown indicator
+                                    Image(systemName: "chevron.down")
+                                        .font(.system(size: 13, weight: .medium))
+                                        .foregroundColor(.primary)
+                                }
+                            }
+                            // Debug: Triple tap to show launch animation
+                            .onTapGesture(count: 3) {
+                                #if DEBUG
+                                    appVersionManager.forceShowLaunchAnimation()
+                                #endif
+                            }
+                        },
+                        trailing: Button(action: {
+                            showComposeView = true
+                        }) {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 18))
+                                .foregroundColor(.primary)
+                        }
+                    )
                     .sheet(isPresented: $showComposeView) {
                         ComposeView()
                             .environmentObject(serviceManager)

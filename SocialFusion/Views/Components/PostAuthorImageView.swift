@@ -2,17 +2,25 @@ import SwiftUI
 
 /// Avatar view with platform indicator for Bluesky
 struct PostAuthorImageView: View {
-    var authorProfilePictureURL: String
     var platform: SocialPlatform
     var size: CGFloat = 44
 
     // Bluesky blue color
     private let blueskyBlue = Color(red: 0, green: 122 / 255, blue: 255 / 255)
 
+    // Capture stable values at init time to prevent AsyncImage cancellation
+    private let stableImageURL: URL?
+
+    init(authorProfilePictureURL: String, platform: SocialPlatform, size: CGFloat = 44) {
+        self.stableImageURL = URL(string: authorProfilePictureURL)
+        self.platform = platform
+        self.size = size
+    }
+
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Author avatar
-            AsyncImage(url: URL(string: authorProfilePictureURL)) { phase in
+            // Author avatar using completely stable URL
+            AsyncImage(url: stableImageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image
@@ -44,6 +52,7 @@ struct PostAuthorImageView: View {
                 Circle()
                     .stroke(Color(.systemBackground), lineWidth: 1)
             )
+            .id(stableImageURL?.absoluteString ?? "no-url")
 
             // Platform indicator - small circle in bottom right
             if platform == .bluesky {

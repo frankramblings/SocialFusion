@@ -4,7 +4,7 @@ import SwiftUI
 import os.log
 
 /// Represents the states a timeline view can be in
-public enum TimelineState {
+public enum ViewModelState {
     case idle
     case loading
     case loaded([Post])
@@ -45,7 +45,7 @@ public enum TimelineState {
 public final class TimelineViewModel: ObservableObject {
     // MARK: - Published Properties
 
-    @Published public private(set) var state: TimelineState = .idle
+    @Published public private(set) var state: ViewModelState = .idle
     @Published public private(set) var posts: [Post] = []
     @Published public private(set) var isLoading = false
     @Published public private(set) var error: Error?
@@ -266,7 +266,9 @@ public final class TimelineViewModel: ObservableObject {
             .sink { [weak self] _ in
                 // Refresh posts if needed when account profile images update
                 if case .loaded(let posts) = self?.state, !posts.isEmpty {
-                    self?.objectWillChange.send()
+                    // State change will automatically trigger UI updates
+                    // Removed objectWillChange.send() to prevent AttributeGraph cycles
+                    self?.state = .loaded(posts)
                 }
             }
             .store(in: &cancellables)

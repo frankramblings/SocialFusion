@@ -449,7 +449,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             originalURL: "https://bsky.app/profile/user2.bsky.social/post/abcdef",
             attachments: [
                 Attachment(
-                    url: "https://picsum.photos/400",
+                    url: "https://httpbin.org/image/jpeg",
                     type: .image,
                     altText: "A sample image"
                 )
@@ -487,7 +487,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
                 originalURL: "https://mastodon.social/@original/789012",
                 attachments: [
                     Attachment(
-                        url: "https://picsum.photos/401",
+                        url: "https://httpbin.org/image/png",
                         type: .image,
                         altText: "Image in boosted post"
                     )
@@ -530,7 +530,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
                 originalURL: "https://bsky.app/profile/hiker.bsky.social/post/ghijkl",
                 attachments: [
                     Attachment(
-                        url: "https://picsum.photos/600/400",
+                        url: "https://httpbin.org/image/webp",
                         type: .image,
                         altText: "Mountain landscape with trees"
                     )
@@ -652,7 +652,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             // 3. Otherwise, show link preview for first valid previewable link (not self-link)
             for link in links {
                 if !isSelfLink(link, post: self) {
-                    return AnyView(LinkPreview(url: link))
+                    return AnyView(StabilizedLinkPreview(url: link, idealHeight: 200))
                 }
             }
         }

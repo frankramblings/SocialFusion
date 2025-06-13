@@ -75,10 +75,6 @@ struct SocialFusionApp: App {
             forKey: "AddAccountView.WasPresentedDuringBackground")
 
         if wasPresented {
-            print(
-                "🔐 [SocialFusionApp] Detected AddAccountView was dismissed during autofill - posting recovery notification"
-            )
-
             // Add a flag to prevent multiple handlers from responding simultaneously
             UserDefaults.standard.set(true, forKey: "AddAccountView.RecoveryInProgress")
 
@@ -96,5 +92,29 @@ struct SocialFusionApp: App {
                     forKey: "AddAccountView.WasPresentedDuringBackground")
             }
         }
+    }
+
+    // MARK: - Testing Support
+
+    /// Check if app is in testing mode
+    private var isTestingMode: Bool {
+        #if DEBUG
+            // Check for debug setting
+            if UserDefaults.standard.bool(forKey: "ArchitectureTestingEnabled") {
+                return true
+            }
+
+            // Check for command line arguments
+            if ProcessInfo.processInfo.arguments.contains("--test-architecture") {
+                return true
+            }
+
+            // Check for environment variable
+            if ProcessInfo.processInfo.environment["SOCIALFUSION_TEST_MODE"] == "1" {
+                return true
+            }
+        #endif
+
+        return false
     }
 }

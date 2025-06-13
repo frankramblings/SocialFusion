@@ -141,12 +141,12 @@ extension Post {
         // 1. First check if we have a fully hydrated quoted post
         if let quotedPost = quotedPost {
             QuotedPostView(post: quotedPost)
-                .padding(.top, 4)
+                .padding(.top, 8)
         }
         // 2. If no hydrated quote but have quote metadata, fetch it
         else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
             FetchQuotePostView(url: quotedPostURL)
-                .padding(.top, 4)
+                .padding(.top, 8)
         }
         // 3. Otherwise, check for post links and regular links in content
         else {
@@ -165,7 +165,7 @@ extension Post {
         // Show first social media post as quote
         if let firstSocialLink = firstSocialLink {
             FetchQuotePostView(url: firstSocialLink)
-                .padding(.top, 4)
+                .padding(.top, 8)
         }
 
         // Show remaining links as previews (limit to first 2 for performance)
@@ -173,8 +173,8 @@ extension Post {
             firstSocialLink != nil ? Array(regularLinks.prefix(2)) : Array(allLinks.prefix(2))
 
         ForEach(previewLinks, id: \.absoluteString) { url in
-            LinkPreview(url: url)
-                .padding(.top, 4)
+            StabilizedLinkPreview(url: url, idealHeight: 200)
+                .padding(.top, 8)
         }
     }
 }
