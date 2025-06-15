@@ -106,9 +106,9 @@ struct ExpandingReplyBanner: View {
         }
     }
 
-    // Apple-style animation curves
+    // Apple-style animation curves - refined for consistency
     private var expandAnimation: Animation {
-        .timingCurve(0.2, 0.0, 0.0, 1.0, duration: 0.45)
+        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
     }
 
     private var collapseAnimation: Animation {
@@ -116,7 +116,7 @@ struct ExpandingReplyBanner: View {
     }
 
     private var chevronAnimation: Animation {
-        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.25)
     }
 
     var body: some View {
@@ -269,9 +269,9 @@ struct ExpandingReplyBanner: View {
         }
         .onChange(of: isExpanded) { newValue in
             if newValue {
-                // Expanding: show content with delay for smooth animation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(expandAnimation.delay(0.1)) {
+                // Expanding: show content with shorter delay for snappy feel
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(expandAnimation.delay(0.05)) {
                         showContent = true
                     }
                 }
@@ -302,15 +302,14 @@ struct ExpandingReplyBanner: View {
             isExpanded.toggle()
         }
 
-        // Reset animation state with proper timing
-        let duration = isExpanded ? 0.35 : 0.45
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.1) {
+        // Reset animation state with consistent timing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             isAnimating = false
         }
 
-        // Start fetching when expanded - delay to avoid interfering with animation
+        // Start fetching when expanded - shorter delay for snappier feel
         if isExpanded, let parentId = parentId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 triggerParentFetch(parentId: parentId)
             }
         }
