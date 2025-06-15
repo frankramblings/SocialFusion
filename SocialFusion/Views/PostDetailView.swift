@@ -83,6 +83,10 @@ struct PostDetailView: View {
                                     {
                                         // Show as quote post if it's a social media post URL
                                         FetchQuotePostView(url: url)
+                                    } else if URLServiceWrapper.shared.isYouTubeURL(url),
+                                              let videoID = URLServiceWrapper.shared.extractYouTubeVideoID(from: url) {
+                                        // Show YouTube videos as inline players
+                                        YouTubeVideoPreview(url: url, videoID: videoID, idealHeight: 250)
                                     } else {
                                         // Regular link preview with stable height
                                         StabilizedLinkPreview(url: url, idealHeight: 200)

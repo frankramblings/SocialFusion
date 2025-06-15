@@ -31,4 +31,12 @@ class URLServiceWrapper {
     func isMastodonPostURL(_ url: URL) -> Bool {
         return URLService.shared.isMastodonPostURL(url)
     }
+
+    func isYouTubeURL(_ url: URL) -> Bool {
+        return URLService.shared.isYouTubeURL(url)
+    }
+
+    func extractYouTubeVideoID(from url: URL) -> String? {
+        return URLService.shared.extractYouTubeVideoID(from: url)
+    }
 }

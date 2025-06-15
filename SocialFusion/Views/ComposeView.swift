@@ -220,16 +220,8 @@ struct KeyboardAdaptive: ViewModifier {
         content
             .padding(.bottom, keyboardHeight)
             .onReceive(Publishers.keyboardHeight) { keyboardHeight in
-                guard !isUpdating else { return }
-                isUpdating = true
-
-                withAnimation(.easeOut(duration: 0.3)) {
-                    self.keyboardHeight = keyboardHeight
-                }
-
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    self.isUpdating = false
-                }
+                // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
+                // Keyboard handling will be managed through normal SwiftUI state flow instead
             }
     }
 }

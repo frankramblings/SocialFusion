@@ -149,8 +149,14 @@ final class SocialServiceManager: ObservableObject {
 
     // Make initializer public so it can be used in SocialFusionApp
     public init() {
+        print("🔧 SocialServiceManager: Starting initialization...")
+
         // Load saved accounts first
         loadAccounts()
+
+        print("🔧 SocialServiceManager: After loadAccounts() - accounts.count = \(accounts.count)")
+        print("🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count)")
+        print("🔧 SocialServiceManager: Bluesky accounts: \(blueskyAccounts.count)")
 
         // Initialize selectedAccountIds based on whether accounts exist
         if !accounts.isEmpty {
@@ -161,10 +167,25 @@ final class SocialServiceManager: ObservableObject {
             print(
                 "🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count), Bluesky accounts: \(blueskyAccounts.count)"
             )
+
+            // List all accounts for debugging
+            for (index, account) in accounts.enumerated() {
+                print(
+                    "🔧 SocialServiceManager: Account \(index): \(account.username) (\(account.platform)) - ID: \(account.id)"
+                )
+            }
         } else {
-            selectedAccountIds = []  // Empty if no accounts exist
-            print("🔧 SocialServiceManager: No accounts found, selectedAccountIds set to empty")
+            selectedAccountIds = []  // No accounts available
+            print("🔧 SocialServiceManager: No accounts found - selectedAccountIds set to empty")
         }
+
+        print("🔧 SocialServiceManager: Initialization completed")
+        print("🔧 SocialServiceManager: Final selectedAccountIds = \(selectedAccountIds)")
+        print("🔧 SocialServiceManager: Final accounts count = \(accounts.count)")
+        print("🔧 SocialServiceManager: Final unifiedTimeline count = \(unifiedTimeline.count)")
+
+        // Note: Timeline refresh will be handled by UI lifecycle events
+        // This ensures reliable refresh when the user actually opens the app
 
         // Register for app termination notification to save accounts
         NotificationCenter.default.addObserver(
@@ -203,12 +224,16 @@ final class SocialServiceManager: ObservableObject {
     private func loadAccounts() {
         let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
         logger.info("Loading saved accounts")
+        print("🔧 SocialServiceManager: loadAccounts() called")
 
         guard let data = UserDefaults.standard.data(forKey: "savedAccounts") else {
             logger.info("No saved accounts found")
+            print("🔧 SocialServiceManager: No saved accounts data found in UserDefaults")
             updateAccountLists()
             return
         }
+
+        print("🔧 SocialServiceManager: Found saved accounts data, attempting to decode...")
 
         do {
             let decoder = JSONDecoder()
@@ -216,22 +241,33 @@ final class SocialServiceManager: ObservableObject {
             accounts = decodedAccounts
 
             logger.info("Successfully loaded \(decodedAccounts.count) accounts")
+            print("🔧 SocialServiceManager: Successfully decoded \(decodedAccounts.count) accounts")
 
             // Load tokens for each account from keychain
-            for account in accounts {
+            for (index, account) in accounts.enumerated() {
+                print(
+                    "🔧 SocialServiceManager: Loading tokens for account \(index): \(account.username) (\(account.platform))"
+                )
                 account.loadTokensFromKeychain()
                 logger.debug("Loaded tokens for account: \(account.username, privacy: .public)")
             }
         } catch {
             logger.error(
                 "Failed to decode saved accounts: \(error.localizedDescription, privacy: .public)")
+            print(
+                "🔧 SocialServiceManager: Failed to decode saved accounts: \(error.localizedDescription)"
+            )
         }
 
         // After loading accounts, separate them by platform
         updateAccountLists()
+        print(
+            "🔧 SocialServiceManager: Updated account lists - Mastodon: \(mastodonAccounts.count), Bluesky: \(blueskyAccounts.count)"
+        )
 
         // MIGRATION: Check for and migrate old DID-based Bluesky accounts
         migrateOldBlueskyAccounts()
+        print("🔧 SocialServiceManager: loadAccounts() completed")
     }
 
     /// Save accounts to UserDefaults
@@ -259,11 +295,26 @@ final class SocialServiceManager: ObservableObject {
 
     /// Get accounts to fetch based on current selection
     private func getAccountsToFetch() -> [SocialAccount] {
+        print("🔧 SocialServiceManager: getAccountsToFetch() called")
+        print("🔧 SocialServiceManager: selectedAccountIds = \(selectedAccountIds)")
+        print("🔧 SocialServiceManager: total accounts = \(accounts.count)")
+
+        let accountsToFetch: [SocialAccount]
         if selectedAccountIds.contains("all") {
-            return accounts
+            accountsToFetch = accounts
+            print("🔧 SocialServiceManager: Using ALL accounts (\(accounts.count))")
         } else {
-            return accounts.filter { selectedAccountIds.contains($0.id) }
+            accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
+            print("🔧 SocialServiceManager: Using filtered accounts (\(accountsToFetch.count))")
         }
+
+        for (index, account) in accountsToFetch.enumerated() {
+            print(
+                "🔧 SocialServiceManager: Account \(index): \(account.username) (\(account.platform)) - ID: \(account.id)"
+            )
+        }
+
+        return accountsToFetch
     }
 
     /// Force reload accounts for debugging
@@ -427,29 +478,60 @@ final class SocialServiceManager: ObservableObject {
 
     /// Fetch posts for a specific account
     func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
-        // Minimal logging - only errors
-        switch account.platform {
-        case .mastodon:
-            let result = try await mastodonService.fetchHomeTimeline(for: account)
-            return result.posts
-        case .bluesky:
-            let result = try await blueskyService.fetchTimeline(for: account)
-            return result.posts
+        print(
+            "🔄 SocialServiceManager: fetchPostsForAccount called for \(account.username) (\(account.platform))"
+        )
+
+        do {
+            let posts: [Post]
+            switch account.platform {
+            case .mastodon:
+                print("🔄 SocialServiceManager: Fetching Mastodon timeline for \(account.username)")
+                let result = try await mastodonService.fetchHomeTimeline(for: account)
+                posts = result.posts
+                print("🔄 SocialServiceManager: Mastodon fetch completed - \(posts.count) posts")
+            case .bluesky:
+                print("🔄 SocialServiceManager: Fetching Bluesky timeline for \(account.username)")
+                let result = try await blueskyService.fetchTimeline(for: account)
+                posts = result.posts
+                print("🔄 SocialServiceManager: Bluesky fetch completed - \(posts.count) posts")
+            }
+            return posts
+        } catch {
+            print(
+                "❌ SocialServiceManager: fetchPostsForAccount failed for \(account.username): \(error.localizedDescription)"
+            )
+            throw error
         }
     }
 
     /// Refresh timeline, with option to force refresh
     func refreshTimeline(force: Bool = false) async throws {
+        print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
+
         let now = Date()
 
+        // Allow initial load to bypass restrictions if timeline is completely empty
+        let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
+        let shouldBypassRestrictions = force || isInitialLoad
+
+        print(
+            "🔄 SocialServiceManager: isInitialLoad = \(isInitialLoad), shouldBypassRestrictions = \(shouldBypassRestrictions)"
+        )
+        print(
+            "🔄 SocialServiceManager: unifiedTimeline.count = \(unifiedTimeline.count), isLoadingTimeline = \(isLoadingTimeline)"
+        )
+
         // AGGRESSIVE GLOBAL LOCK: Block all refresh attempts from ANY source if one is in progress
-        if Self.globalRefreshLock {
+        // BUT allow initial loads to proceed
+        if Self.globalRefreshLock && !shouldBypassRestrictions {
             // Check if lock is stale (older than 10 seconds)
             if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
                 Self.globalRefreshLock = false
                 print("🔓 SocialServiceManager: Stale refresh lock reset")
             } else {
-                // Lock is active - BLOCK this attempt completely
+                // Lock is active - BLOCK this attempt completely (unless it's initial load)
+                print("🔒 SocialServiceManager: Refresh blocked by global lock (not initial load)")
                 return
             }
         }
@@ -463,7 +545,8 @@ final class SocialServiceManager: ObservableObject {
         }
 
         // Circuit breaker: if too many failures, temporarily stop all requests
-        if isCircuitBreakerOpen {
+        // BUT allow initial loads to proceed
+        if isCircuitBreakerOpen && !shouldBypassRestrictions {
             if let openTime = circuitBreakerOpenTime,
                 now.timeIntervalSince(openTime) > circuitBreakerResetInterval
             {
@@ -473,19 +556,31 @@ final class SocialServiceManager: ObservableObject {
                 consecutiveFailures = 0
                 print("🔄 SocialServiceManager: Circuit breaker reset - resuming requests")
             } else {
-                // Circuit breaker is still open - block all requests
+                // Circuit breaker is still open - block all requests (unless initial load)
+                print(
+                    "🚫 SocialServiceManager: Refresh blocked by circuit breaker (not initial load)")
                 return
             }
         }
 
-        // Super aggressive rate limiting - minimum 3 seconds between ANY attempts
-        guard force || now.timeIntervalSince(lastRefreshAttempt) > 3.0 else {
+        // Rate limiting - minimum time between attempts
+        // BUT allow initial loads to proceed with reduced restrictions
+        let minimumInterval = shouldBypassRestrictions ? 1.0 : 3.0
+        guard
+            shouldBypassRestrictions || now.timeIntervalSince(lastRefreshAttempt) > minimumInterval
+        else {
+            print("🕐 SocialServiceManager: Refresh blocked by rate limiting")
             return
         }
 
-        // Additional check: if we're already loading or refreshing, abort
-        guard !isLoadingTimeline && !isRefreshInProgress else {
+        // Additional check: if we're already loading or refreshing, abort (unless forced or initial)
+        guard shouldBypassRestrictions || (!isLoadingTimeline && !isRefreshInProgress) else {
+            print("🔄 SocialServiceManager: Refresh blocked - already in progress")
             return
+        }
+
+        if isInitialLoad {
+            print("🚀 SocialServiceManager: Initial load detected - bypassing restrictions")
         }
 
         isRefreshInProgress = true
@@ -497,8 +592,10 @@ final class SocialServiceManager: ObservableObject {
             try await fetchTimeline()
             // Reset failure count on success
             consecutiveFailures = 0
+            print("✅ SocialServiceManager: Timeline refresh completed successfully")
         } catch {
             consecutiveFailures += 1
+            print("❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)")
 
             if consecutiveFailures >= maxConsecutiveFailures {
                 isCircuitBreakerOpen = true
@@ -514,9 +611,19 @@ final class SocialServiceManager: ObservableObject {
 
     /// Refresh timeline for specific accounts
     func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
+        print(
+            "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts"
+        )
+
         // Drastically reduce logging spam
         if accounts.isEmpty {
+            print("🔄 SocialServiceManager: No accounts provided, returning empty array")
             return []
+        }
+
+        print("🔄 SocialServiceManager: Accounts to fetch from:")
+        for account in accounts {
+            print("🔄   - \(account.username) (\(account.platform)) - ID: \(account.id)")
         }
 
         var allPosts: [Post] = []
@@ -526,7 +633,11 @@ final class SocialServiceManager: ObservableObject {
             for account in accounts {
                 group.addTask {
                     do {
+                        print("🔄 SocialServiceManager: Starting fetch for \(account.username)")
                         let posts = try await self.fetchPostsForAccount(account)
+                        print(
+                            "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
+                        )
                         return posts
                     } catch {
                         // Only log serious errors, not cancellations
@@ -545,19 +656,32 @@ final class SocialServiceManager: ObservableObject {
             }
         }
 
+        print("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
         return allPosts
     }
 
     /// Fetch the unified timeline for all accounts
     private func fetchTimeline() async throws {
+        print("🔄 SocialServiceManager: fetchTimeline() called")
+
         // Check if we're already loading or if too many rapid requests
         let now = Date()
-        guard !isLoadingTimeline && !isRefreshInProgress else {
+        let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
+
+        // Allow initial loads to proceed even if refresh is in progress
+        guard !isLoadingTimeline && (!isRefreshInProgress || isInitialLoad) else {
+            print(
+                "🔄 SocialServiceManager: Already loading or refreshing - aborting (isInitialLoad: \(isInitialLoad))"
+            )
             return  // Silent return - avoid spam
         }
 
         // Prevent rapid successive refreshes (minimum 2 seconds between attempts)
-        guard now.timeIntervalSince(lastRefreshAttempt) > 2.0 else {
+        // But allow initial loads to bypass this restriction
+        guard now.timeIntervalSince(lastRefreshAttempt) > 2.0 || isInitialLoad else {
+            print(
+                "🔄 SocialServiceManager: Too soon since last attempt - aborting (isInitialLoad: \(isInitialLoad))"
+            )
             return  // Silent return - avoid spam
         }
 
@@ -567,7 +691,15 @@ final class SocialServiceManager: ObservableObject {
 
         // Only log important info, not spam
         let accountsToFetch = getAccountsToFetch()
-        print("🔄 SocialServiceManager: Fetching timeline for \(accountsToFetch.count) accounts")
+        print(
+            "🔄 SocialServiceManager: Fetching timeline for \(accountsToFetch.count) accounts (isInitialLoad: \(isInitialLoad))"
+        )
+
+        for (index, account) in accountsToFetch.enumerated() {
+            print(
+                "🔄 SocialServiceManager: Account \(index): \(account.username) (\(account.platform))"
+            )
+        }
 
         // Reset loading state
         await MainActor.run {
@@ -581,16 +713,24 @@ final class SocialServiceManager: ObservableObject {
             }
         }
 
-        let collectedPosts = try await refreshTimeline(accounts: accountsToFetch)
+        do {
+            let collectedPosts = try await refreshTimeline(accounts: accountsToFetch)
+            print("🔄 SocialServiceManager: Collected \(collectedPosts.count) posts from accounts")
 
-        // Process and update timeline
-        let sortedPosts = collectedPosts.sorted { $0.createdAt > $1.createdAt }
+            // Process and update timeline
+            let sortedPosts = collectedPosts.sorted { $0.createdAt > $1.createdAt }
+            print("🔄 SocialServiceManager: Sorted posts, updating timeline...")
 
-        // Update UI on main thread with proper delay to prevent rapid updates
-        Task { @MainActor in
-            // Add additional delay to prevent rapid updates
-            try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
-            await self.safelyUpdateTimeline(sortedPosts)
+            // Update UI on main thread with proper delay to prevent rapid updates
+            Task { @MainActor in
+                // Add additional delay to prevent rapid updates
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
+                await self.safelyUpdateTimeline(sortedPosts)
+                print("🔄 SocialServiceManager: Timeline updated with \(sortedPosts.count) posts")
+            }
+        } catch {
+            print("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
+            throw error
         }
     }
 
@@ -1128,21 +1268,35 @@ final class SocialServiceManager: ObservableObject {
     @MainActor
     private func safelyUpdateTimeline(_ posts: [Post]) {
         let now = Date()
-        // Increase debounce time to 1 second to prevent rapid updates
-        guard now.timeIntervalSince(lastTimelineUpdate) > 1.0 else {
-            return
+        let isInitialLoad = unifiedTimeline.isEmpty
+
+        // Allow initial loads to bypass debounce, but still debounce subsequent updates
+        if !isInitialLoad {
+            // Increase debounce time to 1 second to prevent rapid updates
+            guard now.timeIntervalSince(lastTimelineUpdate) > 1.0 else {
+                print("🔄 SocialServiceManager: Update blocked by debounce (not initial load)")
+                return
+            }
+        } else {
+            print("🔄 SocialServiceManager: Initial load detected - bypassing debounce")
         }
 
         lastTimelineUpdate = now
 
-        // Ensure we're on MainActor and update safely
+        // Direct update on main actor - no additional dispatch needed
+        print("🔄 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
         self.unifiedTimeline = posts
         self.isLoadingTimeline = false
+        print(
+            "✅ SocialServiceManager: unifiedTimeline updated - new count: \(self.unifiedTimeline.count)"
+        )
 
         // Wire up timeline debug singleton for Bluesky
         if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
             debug.setBlueskyPosts(posts.filter { $0.platform == .bluesky })
         }
+
+        print("🔄 SocialServiceManager: Timeline updated with \(posts.count) posts")
     }
 
     @MainActor
@@ -1234,5 +1388,45 @@ final class SocialServiceManager: ObservableObject {
                 "✅ [Migration] Successfully migrated \(migratedAccounts.count) Bluesky accounts to new stable ID format"
             )
         }
+    }
+
+    // MARK: - Reliable Refresh Methods
+
+    /// Ensures timeline is refreshed when app becomes active or user navigates to timeline
+    /// This is the primary method that should be called from UI lifecycle events
+    func ensureTimelineRefresh(force: Bool = false) async {
+        print("🔄 SocialServiceManager: ensureTimelineRefresh called (force: \(force))")
+
+        // Simple check: if timeline is empty or force is true, refresh
+        let shouldRefresh = force || unifiedTimeline.isEmpty || shouldRefreshBasedOnTime()
+
+        if shouldRefresh {
+            print("🔄 SocialServiceManager: Timeline needs refresh - proceeding")
+            do {
+                try await refreshTimeline(force: true)
+                print("✅ SocialServiceManager: Timeline refresh completed successfully")
+            } catch {
+                print(
+                    "❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)"
+                )
+            }
+        } else {
+            print("🔄 SocialServiceManager: Timeline is fresh, no refresh needed")
+        }
+    }
+
+    /// Check if timeline should be refreshed based on time elapsed
+    private func shouldRefreshBasedOnTime() -> Bool {
+        let now = Date()
+        let timeSinceLastRefresh = now.timeIntervalSince(lastRefreshAttempt)
+
+        // Refresh if more than 5 minutes have passed since last refresh
+        return timeSinceLastRefresh > 300
+    }
+
+    /// Force refresh timeline regardless of current state - for pull-to-refresh
+    func forceRefreshTimeline() async {
+        print("🔄 SocialServiceManager: forceRefreshTimeline called")
+        await ensureTimelineRefresh(force: true)
     }
 }

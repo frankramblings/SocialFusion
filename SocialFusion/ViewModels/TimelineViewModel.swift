@@ -3,6 +3,10 @@ import Foundation
 import SwiftUI
 import os.log
 
+/// DEPRECATED: This TimelineViewModel is now deprecated in favor of UnifiedTimelineController
+/// It's kept for backward compatibility but should not be used in new code.
+/// Use ConsolidatedTimelineView with UnifiedTimelineController instead.
+
 /// Represents the states a timeline view can be in
 public enum TimelineState {
     case idle
@@ -41,7 +45,8 @@ public enum TimelineState {
     }
 }
 
-/// A ViewModel for managing timeline data and state
+/// DEPRECATED: A ViewModel for managing timeline data and state
+/// Use UnifiedTimelineController instead for new implementations
 @MainActor
 public final class TimelineViewModel: ObservableObject {
     @Published public private(set) var state: TimelineState = .idle
@@ -58,7 +63,8 @@ public final class TimelineViewModel: ObservableObject {
 
     public init(socialServiceManager: SocialServiceManager = .shared) {
         self.socialServiceManager = socialServiceManager
-        setupObservers()
+        // PHASE 3+: Removed setupObservers() to prevent AttributeGraph cycles
+        // State updates will be handled through normal data flow instead
     }
 
     deinit {
@@ -120,9 +126,10 @@ public final class TimelineViewModel: ObservableObject {
                                                     .fetchMastodonStatus(
                                                         id: parentID, account: mastodonAccount)
                                                 {
-                                                    // Defer the state update to the next runloop cycle
-                                                    // This prevents "Modifying state during view update" errors
-                                                    DispatchQueue.main.async {
+                                                    // Use Task with MainActor to prevent AttributeGraph cycles
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.parent = parent
@@ -156,8 +163,10 @@ public final class TimelineViewModel: ObservableObject {
                                                     .blueskyService.fetchPostByID(
                                                         parentID, account: blueskyAccount)
                                                 {
-                                                    // Defer the state update to the next runloop cycle
-                                                    DispatchQueue.main.async {
+                                                    // Use Task with MainActor to prevent AttributeGraph cycles
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.parent = parent
@@ -202,7 +211,9 @@ public final class TimelineViewModel: ObservableObject {
                                                     .fetchMastodonStatus(
                                                         id: originalURI, account: mastodonAccount)
                                                 {
-                                                    DispatchQueue.main.async {
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.originalPost = original
@@ -229,7 +240,9 @@ public final class TimelineViewModel: ObservableObject {
                                                     .blueskyService.fetchPostByID(
                                                         originalURI, account: blueskyAccount)
                                                 {
-                                                    DispatchQueue.main.async {
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.originalPost = original
@@ -312,9 +325,10 @@ public final class TimelineViewModel: ObservableObject {
                                                     .fetchMastodonStatus(
                                                         id: parentID, account: mastodonAccount)
                                                 {
-                                                    // Defer the state update to the next runloop cycle
-                                                    // This prevents "Modifying state during view update" errors
-                                                    DispatchQueue.main.async {
+                                                    // Use Task with MainActor to prevent AttributeGraph cycles
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.parent = parent
@@ -348,8 +362,10 @@ public final class TimelineViewModel: ObservableObject {
                                                     .blueskyService.fetchPostByID(
                                                         parentID, account: blueskyAccount)
                                                 {
-                                                    // Defer the state update to the next runloop cycle
-                                                    DispatchQueue.main.async {
+                                                    // Use Task with MainActor to prevent AttributeGraph cycles
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.parent = parent
@@ -394,7 +410,9 @@ public final class TimelineViewModel: ObservableObject {
                                                     .fetchMastodonStatus(
                                                         id: originalURI, account: mastodonAccount)
                                                 {
-                                                    DispatchQueue.main.async {
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.originalPost = original
@@ -421,7 +439,9 @@ public final class TimelineViewModel: ObservableObject {
                                                     .blueskyService.fetchPostByID(
                                                         originalURI, account: blueskyAccount)
                                                 {
-                                                    DispatchQueue.main.async {
+                                                    Task { @MainActor in
+                                                        try? await Task.sleep(
+                                                            nanoseconds: 50_000_000)  // 0.05 seconds
                                                         self.updatePost(withId: post.id) {
                                                             newPost in
                                                             newPost.originalPost = original
@@ -452,34 +472,113 @@ public final class TimelineViewModel: ObservableObject {
         }
     }
 
-    /// Like a post
+    /// Like a post with optimistic UI updates
     public func likePost(_ post: Post) {
         Task { [weak self] in
             guard let self = self else { return }
+
+            // Store original values for potential revert
+            let originalLiked = post.isLiked
+            let originalCount = post.likeCount
+
+            // Calculate new state
+            let newLikedState = !originalLiked
+            let newLikeCount = max(0, originalCount + (newLikedState ? 1 : -1))
+
+            // Optimistic UI update
+            await MainActor.run {
+                self.updatePost(withId: post.id) { updatedPost in
+                    updatedPost.isLiked = newLikedState
+                    updatedPost.likeCount = newLikeCount
+                }
+            }
+
             do {
-                try await socialServiceManager.likePost(post)
-                self.logger.info("Post liked: \(post.id, privacy: .public)")
+                let serverUpdatedPost: Post
+                if newLikedState {
+                    serverUpdatedPost = try await socialServiceManager.likePost(post)
+                } else {
+                    serverUpdatedPost = try await socialServiceManager.unlikePost(post)
+                }
+
+                // Update with server response
+                await MainActor.run {
+                    self.updatePost(withId: post.id) { updatedPost in
+                        updatedPost.isLiked = serverUpdatedPost.isLiked
+                        updatedPost.likeCount = serverUpdatedPost.likeCount
+                    }
+                }
+
+                self.logger.info("Post like/unlike completed: \(post.id, privacy: .public)")
             } catch {
+                // Revert on error
+                await MainActor.run {
+                    self.updatePost(withId: post.id) { updatedPost in
+                        updatedPost.isLiked = originalLiked
+                        updatedPost.likeCount = originalCount
+                    }
+                }
+
                 self.logger.error(
-                    "Failed to like post: \(error.localizedDescription, privacy: .public)")
+                    "Failed to like/unlike post: \(error.localizedDescription, privacy: .public)")
                 // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
             }
         }
     }
 
-    /// Repost a post
+    /// Repost a post with optimistic UI updates
     public func repostPost(_ post: Post) {
         Task { [weak self] in
             guard let self = self else { return }
+
+            // Store original values for potential revert
+            let originalReposted = post.isReposted
+            let originalCount = post.repostCount
+
+            // Calculate new state
+            let newRepostedState = !originalReposted
+            let newRepostCount = max(0, originalCount + (newRepostedState ? 1 : -1))
+
+            // Optimistic UI update
+            await MainActor.run {
+                self.updatePost(withId: post.id) { updatedPost in
+                    updatedPost.isReposted = newRepostedState
+                    updatedPost.repostCount = newRepostCount
+                }
+            }
+
             do {
-                try await socialServiceManager.repostPost(post)
+                let serverUpdatedPost: Post
+                if newRepostedState {
+                    serverUpdatedPost = try await socialServiceManager.repostPost(post)
+                } else {
+                    serverUpdatedPost = try await socialServiceManager.unrepostPost(post)
+                }
+
+                // Update with server response
                 await MainActor.run {
-                    self.logger.info("Post reposted: \(post.id, privacy: .public)")
+                    self.updatePost(withId: post.id) { updatedPost in
+                        updatedPost.isReposted = serverUpdatedPost.isReposted
+                        updatedPost.repostCount = serverUpdatedPost.repostCount
+                    }
+                }
+
+                await MainActor.run {
+                    self.logger.info("Post repost/unrepost completed: \(post.id, privacy: .public)")
                 }
             } catch {
+                // Revert on error
+                await MainActor.run {
+                    self.updatePost(withId: post.id) { updatedPost in
+                        updatedPost.isReposted = originalReposted
+                        updatedPost.repostCount = originalCount
+                    }
+                }
+
                 await MainActor.run {
                     self.logger.error(
-                        "Failed to repost: \(error.localizedDescription, privacy: .public)")
+                        "Failed to repost/unrepost: \(error.localizedDescription, privacy: .public)"
+                    )
                     // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
                 }
             }
@@ -523,25 +622,6 @@ public final class TimelineViewModel: ObservableObject {
     private func safeStateUpdate(_ update: @escaping () -> Void) async {
         guard !Task.isCancelled else { return }
         update()
-    }
-
-    private func setupObservers() {
-        // Listen for account changes or other relevant notifications
-        NotificationCenter.default.publisher(for: .accountProfileImageUpdated)
-            .receive(on: RunLoop.main)  // Ensure on main thread
-            .sink { [weak self] _ in
-                // Instead of manually triggering objectWillChange (which can cause AttributeGraph cycles),
-                // use a deferred state update to refresh the UI safely
-                if case .loaded(let posts) = self?.state, !posts.isEmpty {
-                    // Defer the state refresh to prevent "Modifying state during view update" errors
-                    DispatchQueue.main.async {
-                        // Simply reassign the same state to trigger a UI refresh
-                        // This is safer than manual objectWillChange.send()
-                        self?.state = .loaded(posts)
-                    }
-                }
-            }
-            .store(in: &cancellables)
     }
 
     private func handleError(_ error: Error) {
@@ -591,7 +671,8 @@ public final class TimelineViewModel: ObservableObject {
                 self.rateLimitTimer = nil
 
                 // Reset state to idle so user can try again
-                DispatchQueue.main.async {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
                     self.state = .idle
                 }
             }

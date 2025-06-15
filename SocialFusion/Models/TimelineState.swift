@@ -37,6 +37,29 @@ struct EnhancedTimelineEntry: Identifiable, Equatable {
     static func == (lhs: EnhancedTimelineEntry, rhs: EnhancedTimelineEntry) -> Bool {
         return lhs.id == rhs.id && lhs.isRead == rhs.isRead && lhs.isNew == rhs.isNew
     }
+
+    /// Convert to TimelineEntry for compatibility with existing components
+    var asTimelineEntry: TimelineEntry {
+        // Determine the kind based on post properties (same logic as SocialServiceManager.makeTimelineEntries)
+        let kind: TimelineEntryKind
+        if let original = post.originalPost {
+            // This is a boost/repost
+            kind = .boost(boostedBy: post.authorUsername)
+        } else if let parentId = post.inReplyToID {
+            // This is a reply
+            kind = .reply(parentId: parentId)
+        } else {
+            // Normal post
+            kind = .normal
+        }
+
+        return TimelineEntry(
+            id: self.id,
+            kind: kind,
+            post: self.post,
+            createdAt: self.post.createdAt  // Use post's createdAt, not insertedAt
+        )
+    }
 }
 
 /// Timeline state manager that handles position tracking, read state, and unread counting
@@ -85,23 +108,13 @@ class TimelineState: ObservableObject {
     // MARK: - Enhanced Position Management
 
     private func setupAutoSave() {
-        guard config.isFeatureEnabled(.positionPersistence) else { return }
-
-        autoSaveTimer = Timer.scheduledTimer(
-            withTimeInterval: config.autoSaveInterval, repeats: true
-        ) { [weak self] _ in
-            self?.autoSaveCurrentPosition()
-        }
+        // PHASE 3+: Removed Timer-based auto-save to prevent AttributeGraph cycles
+        // Position saving will be handled through normal user interaction flow instead
     }
 
     private func autoSaveCurrentPosition() {
-        guard let currentPosition = scrollPosition else { return }
-
-        smartPositionManager.recordPosition(postId: currentPosition)
-
-        if config.positionLogging {
-            print("💾 Auto-saved position: \(currentPosition)")
-        }
+        // PHASE 3+: Removed auto-save functionality to prevent AttributeGraph cycles
+        // Position saving will be handled through normal user interaction flow instead
     }
 
     /// Smart position restoration with fallback strategies
@@ -476,6 +489,28 @@ class TimelineState: ObservableObject {
             entries = Array(entries.prefix(keepCount))
         }
 
+    }
+
+    // MARK: - Optimistic Updates
+
+    /// Optimistically update a post for immediate UI feedback
+    func optimisticallyUpdatePost(_ postId: String, updateBlock: (inout Post) -> Void) {
+        guard let index = entries.firstIndex(where: { $0.id == postId }) else {
+            print("⚠️ TimelineState: Could not find post \(postId) for optimistic update")
+            return
+        }
+
+        var updatedPost = entries[index].post
+        updateBlock(&updatedPost)
+
+        // Update the entry with the modified post
+        entries[index] = EnhancedTimelineEntry(
+            from: updatedPost,
+            isRead: entries[index].isRead,
+            isNew: entries[index].isNew
+        )
+
+        print("✅ TimelineState: Optimistically updated post \(postId)")
     }
 
     // MARK: - Utility Methods

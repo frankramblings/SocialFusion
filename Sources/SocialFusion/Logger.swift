@@ -1,9 +1,9 @@
 import Logging
 
 /// A centralized logging system for the SocialFusion application.
-public struct AppLogger {
+public struct AppLogger: Sendable {
     /// The shared logger instance.
-    @MainActor public static let shared = AppLogger()
+    public static let shared = AppLogger()
 
     private let logger: Logger
     private let inMemoryHandler: InMemoryLogHandler?

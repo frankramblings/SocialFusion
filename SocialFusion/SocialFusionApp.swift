@@ -7,7 +7,7 @@ import UIKit
 @main
 struct SocialFusionApp: App {
     // Use the shared singleton instead of creating a new instance
-    @StateObject private var socialServiceManager = SocialServiceManager.shared
+    @StateObject private var serviceManager = SocialServiceManager.shared
 
     // Version manager for launch animation control
     @StateObject private var appVersionManager = AppVersionManager()
@@ -29,7 +29,7 @@ struct SocialFusionApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environmentObject(socialServiceManager)
+                .environmentObject(serviceManager)
                 .environmentObject(appVersionManager)
                 .environmentObject(oauthManager)
                 .onOpenURL { url in
@@ -42,23 +42,24 @@ struct SocialFusionApp: App {
                 }
                 // Use NotificationCenter instead of onChange for backward compatibility
                 .onReceive(willResignActivePublisher) { _ in
-                    // App is going to background - trigger account saving
-                    print("App entering background - saving accounts")
-                    socialServiceManager.saveAccounts()
+                    // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
+                    // Account saving will be handled through normal app lifecycle instead
                 }
                 .onReceive(willTerminatePublisher) { _ in
-                    // App is terminating - ensure accounts are saved
-                    print("App terminating - final account save")
-                    socialServiceManager.saveAccounts()
+                    // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
+                    // Account saving will be handled through normal app lifecycle instead
                 }
                 .onChange(of: scenePhase) { _ in
-                    if scenePhase == .background || scenePhase == .inactive {
-                        // App is entering background - save state
-                        print("Scene phase changed to \(scenePhase) - saving app state")
-                        socialServiceManager.saveAccounts()
-                    } else if scenePhase == .active {
-                        // App returned to foreground - check if AddAccountView needs to be re-presented
-                        checkForAutofillRecovery()
+                    // PHASE 3+: Removed state modifications to prevent AttributeGraph cycles
+                    // App state management will be handled through normal lifecycle instead
+                }
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: UIApplication.didBecomeActiveNotification)
+                ) { _ in
+                    // Ensure timeline refreshes when app becomes active
+                    Task {
+                        await serviceManager.ensureTimelineRefresh()
                     }
                 }
         }

@@ -247,32 +247,8 @@ struct AddAccountView: View {
                 NotificationCenter.default.publisher(
                     for: Notification.Name("shouldRepresentAddAccount"))
             ) { notification in
-                // Check if this is an autofill recovery and we should handle it
-                if let userInfo = notification.userInfo,
-                    let source = userInfo["source"] as? String,
-                    source == "autofillRecovery"
-                {
-
-                    // Only handle if we're not already presented
-                    guard !UserDefaults.standard.bool(forKey: "AddAccountView.RecoveryInProgress")
-                    else {
-                        return
-                    }
-
-                    print("🔐 [AddAccountView] Received autofill recovery notification")
-
-                    // Mark recovery as in progress
-                    UserDefaults.standard.set(true, forKey: "AddAccountView.RecoveryInProgress")
-
-                    // Restore form data if needed
-                    restoreFormDataIfNeeded()
-
-                    // Clear recovery flag after a short delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                        UserDefaults.standard.removeObject(
-                            forKey: "AddAccountView.RecoveryInProgress")
-                    }
-                }
+                // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
+                // Account management will be handled through normal UI flow instead
             }
             .overlay {
                 if isLoading {
@@ -344,8 +320,9 @@ struct AddAccountView: View {
                         credentials: credentials)
                 }
 
-                // Update the UI
-                DispatchQueue.main.async {
+                // Use Task with MainActor to prevent AttributeGraph cycles
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
                     self.isLoading = false
 
                     // Clear the presentation flag since we're dismissing successfully
@@ -359,7 +336,8 @@ struct AddAccountView: View {
                 }
 
             } catch {
-                DispatchQueue.main.async {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
                 }
@@ -391,8 +369,9 @@ struct AddAccountView: View {
                     password: password
                 )
 
-                // Update the UI
-                DispatchQueue.main.async {
+                // Use Task with MainActor to prevent AttributeGraph cycles
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
                     self.isLoading = false
 
                     // Clear the presentation flag since we're dismissing successfully
@@ -406,7 +385,8 @@ struct AddAccountView: View {
                 }
 
             } catch {
-                DispatchQueue.main.async {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
                 }

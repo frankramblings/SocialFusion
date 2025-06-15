@@ -652,7 +652,14 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             // 3. Otherwise, show link preview for first valid previewable link (not self-link)
             for link in links {
                 if !isSelfLink(link, post: self) {
-                    return AnyView(StabilizedLinkPreview(url: link, idealHeight: 200))
+                    // Check if it's a YouTube video
+                    if URLServiceWrapper.shared.isYouTubeURL(link),
+                        let videoID = URLServiceWrapper.shared.extractYouTubeVideoID(from: link)
+                    {
+                        return AnyView(YouTubeVideoPreview(url: link, videoID: videoID))
+                    } else {
+                        return AnyView(StabilizedLinkPreview(url: link, idealHeight: 200))
+                    }
                 }
             }
         }

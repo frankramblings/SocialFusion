@@ -11,7 +11,7 @@ class GradualMigrationManager: ObservableObject {
     // MARK: - Published Properties
 
     @Published var migrationPhase: MigrationPhase = .preparation
-    @Published var isNewArchitectureEnabled: Bool = false  // TEMPORARILY DISABLED - Restore stable timeline
+    @Published var isNewArchitectureEnabled: Bool = true  // TEMPORARILY ENABLED - Test new timeline
     @Published var migrationProgress: Double = 0.0
     @Published var performanceMetrics: PerformanceMetrics = PerformanceMetrics()
     @Published var errorLog: [MigrationError] = []

@@ -190,7 +190,7 @@ public class PostViewModel: ObservableObject {
         // Create the share sheet with the post URL
         guard let url = URL(string: post.originalURL) else { return }
 
-        DispatchQueue.main.async {
+        Task { @MainActor in
             let activityViewController = UIActivityViewController(
                 activityItems: [url],
                 applicationActivities: nil

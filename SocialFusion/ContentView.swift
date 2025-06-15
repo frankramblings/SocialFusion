@@ -32,12 +32,8 @@ struct ContentView: View {
                 // Home Tab - Timeline implementation
                 NavigationView {
                     ZStack {
-                        // Main timeline - conditionally use new architecture based on migration settings
-                        if migrationManager.isNewArchitectureEnabled {
-                            UnifiedTimelineViewV2(serviceManager: serviceManager)
-                        } else {
-                            UnifiedTimelineView(accounts: timelineAccounts)
-                        }
+                        // Use the single, consolidated timeline view
+                        ConsolidatedTimelineView(serviceManager: serviceManager)
 
                         // Account dropdown overlay (conditionally displayed)
                         if showAccountDropdown {
@@ -268,34 +264,42 @@ struct ContentView: View {
             .onAppear {
                 setupTabBarDelegate()
 
-                // Ensure proper account selection initialization
+                print("🔧 ContentView: onAppear called")
                 print(
-                    "🔧 ContentView: ServiceManager selectedAccountIds: \(serviceManager.selectedAccountIds)"
+                    "🔧 ContentView: serviceManager.accounts.count = \(serviceManager.accounts.count)"
                 )
-                print("🔧 ContentView: ContentView selectedAccountId: \(selectedAccountId ?? "nil")")
+                print(
+                    "🔧 ContentView: serviceManager.unifiedTimeline.count = \(serviceManager.unifiedTimeline.count)"
+                )
+                print(
+                    "🔧 ContentView: serviceManager.selectedAccountIds = \(serviceManager.selectedAccountIds)"
+                )
 
-                if serviceManager.selectedAccountIds.contains("all") && selectedAccountId != nil {
-                    // ServiceManager says "all" but ContentView has a specific account - fix this
-                    selectedAccountId = nil
-                    print("🔧 ContentView: Synced account selection to 'all'")
-                } else if !serviceManager.selectedAccountIds.contains("all")
-                    && selectedAccountId == nil
-                {
-                    // ServiceManager has specific accounts but ContentView says "all" - pick the first account
-                    if let firstSelected = serviceManager.selectedAccountIds.first {
-                        selectedAccountId = firstSelected
+                // Ensure account selection is properly initialized
+                if selectedAccountId == nil && !serviceManager.accounts.isEmpty {
+                    print(
+                        "🔧 ContentView: No account selected but accounts exist - setting to unified view"
+                    )
+                    selectedAccountId = nil  // This represents "All" accounts
+                    serviceManager.selectedAccountIds = ["all"]
+                } else if let selectedId = selectedAccountId {
+                    print("🔧 ContentView: Account selection already set to: \(selectedId)")
+                    // Ensure service manager is in sync
+                    if !serviceManager.selectedAccountIds.contains(selectedId)
+                        && selectedId != "all"
+                    {
+                        serviceManager.selectedAccountIds = [selectedId]
                         print(
-                            "🔧 ContentView: Synced account selection to specific account: \(firstSelected)"
+                            "🔧 ContentView: Updated serviceManager.selectedAccountIds to match UI selection"
                         )
                     }
                 } else {
                     print("🔧 ContentView: Account selections are already in sync")
                 }
 
-                // Force refresh timeline to ensure content appears
+                // Ensure timeline is refreshed when app opens
                 Task {
-                    print("🔧 ContentView: Triggering initial timeline refresh on appear")
-                    try? await serviceManager.refreshTimeline(force: false)
+                    await serviceManager.ensureTimelineRefresh()
                 }
             }
 
@@ -593,17 +597,8 @@ struct AccountDropdownView: View {
             NotificationCenter.default.publisher(
                 for: Notification.Name("shouldRepresentAddAccount"))
         ) { notification in
-            // Only handle non-autofill recovery notifications
-            if let userInfo = notification.userInfo,
-                let source = userInfo["source"] as? String,
-                source == "autofillRecovery"
-            {
-                // This is an autofill recovery - don't handle it here
-                return
-            }
-
-            print("🔐 [AccountDropdownView] Received notification to re-present AddAccountView")
-            showAddAccountView = true
+            // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
+            // Account management will be handled through normal UI flow instead
         }
     }
 
@@ -804,17 +799,8 @@ struct AccountPickerSheet: View {
                 NotificationCenter.default.publisher(
                     for: Notification.Name("shouldRepresentAddAccount"))
             ) { notification in
-                // Only handle non-autofill recovery notifications
-                if let userInfo = notification.userInfo,
-                    let source = userInfo["source"] as? String,
-                    source == "autofillRecovery"
-                {
-                    // This is an autofill recovery - don't handle it here
-                    return
-                }
-
-                print("🔐 [AccountPickerSheet] Received notification to re-present AddAccountView")
-                showAddAccountView = true
+                // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
+                // Account management will be handled through normal UI flow instead
             }
         }
     }

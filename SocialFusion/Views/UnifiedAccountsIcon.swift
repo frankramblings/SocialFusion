@@ -19,16 +19,8 @@ struct UnifiedAccountsIcon: View {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
                     notification in
-                    if let accountId = notification.object as? String {
-                        // Check if the updated account is one of ours
-                        let isOurAccount =
-                            mastodonAccounts.contains { $0.id == accountId }
-                            || blueskyAccounts.contains { $0.id == accountId }
-                        if isOurAccount {
-                            print("Refreshing UnifiedAccountsIcon for account update: \(accountId)")
-                            refreshTrigger.toggle()
-                        }
-                    }
+                    // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
+                    // Profile image updates will be handled through normal data flow instead
                 }
 
             if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {

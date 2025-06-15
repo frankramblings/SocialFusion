@@ -15,11 +15,10 @@
 		503171602DE6AEB700E1C528 /* PostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715F2DE6AEB700E1C528 /* PostStore.swift */; };
 		5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */; };
 		5067F5CE2DF23D5B00373A5B /* QuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */; };
-		5067F5D02DF23D7600373A5B /* UnifiedMediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5067F5CF2DF23D7600373A5B /* UnifiedMediaGridView.swift */; };
 		50782E742DF8CA4F0064B61D /* TimelineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E732DF8CA4F0064B61D /* TimelineState.swift */; };
 		50782E782DF8CB320064B61D /* TimelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E762DF8CB320064B61D /* TimelineConfiguration.swift */; };
 		50782E792DF8CB320064B61D /* SmartPositionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E752DF8CB320064B61D /* SmartPositionManager.swift */; };
-		50782E7C2DFA00B50064B61D /* UnifiedTimelineView+NewArchitecture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E7B2DFA00B50064B61D /* UnifiedTimelineView+NewArchitecture.swift */; };
+
 		50782E872DFA064A0064B61D /* GradualMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E832DFA064A0064B61D /* GradualMigrationManager.swift */; };
 		50782E882DFA064A0064B61D /* TimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E852DFA064A0064B61D /* TimelineController.swift */; };
 		50782E892DFA064A0064B61D /* MigrationTestController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E842DFA064A0064B61D /* MigrationTestController.swift */; };
@@ -74,6 +73,8 @@
 		HIJ234HIJ2345678901HIJ23 /* PostMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = VWX567VWX5678901234VWX56 /* PostMenu.swift */; };
 		JKL012JKL0123456789JKL01 /* BoostBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF456DEF4567890123DEF45 /* BoostBanner.swift */; };
 		RST567RST5678901234RST56 /* PostAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = ZAB890ZAB8901234567ZAB89 /* PostAvatar.swift */; };
+		CON456CON4567890123CON45 /* ConsolidatedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CON123CON1234567890CON12 /* ConsolidatedTimelineView.swift */; };
+		UNI456UNI4567890123UNI45 /* UnifiedTimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNI123UNI1234567890UNI12 /* UnifiedTimelineController.swift */; };
 		UVW345UVW3456789012UVW34 /* TimelineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = RST678RST6789012345RST67 /* TimelineCard.swift */; };
 		UVW890UVW8901234567UVW89 /* PostPlatformBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE123CDE1234567890CDE12 /* PostPlatformBadge.swift */; };
 		XYZ123XYZ1234567890XYZ12 /* PostReplyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FGH456FGH4567890123FGH45 /* PostReplyButton.swift */; };
@@ -96,7 +97,7 @@
 		50782E752DF8CB320064B61D /* SmartPositionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPositionManager.swift; sourceTree = "<group>"; };
 		50782E762DF8CB320064B61D /* TimelineConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineConfiguration.swift; sourceTree = "<group>"; };
 		50782E7A2DF912D70064B61D /* SocialFusion.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = SocialFusion.entitlements; path = SocialFusion/SocialFusion.entitlements; sourceTree = "<group>"; };
-		50782E7B2DFA00B50064B61D /* UnifiedTimelineView+NewArchitecture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UnifiedTimelineView+NewArchitecture.swift"; sourceTree = "<group>"; };
+
 		50782E832DFA064A0064B61D /* GradualMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradualMigrationManager.swift; sourceTree = "<group>"; };
 		50782E842DFA064A0064B61D /* MigrationTestController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTestController.swift; sourceTree = "<group>"; };
 		50782E852DFA064A0064B61D /* TimelineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineController.swift; sourceTree = "<group>"; };
@@ -155,6 +156,8 @@
 		STU234STU2345678901STU23 /* PostActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionBar.swift; sourceTree = "<group>"; };
 		VWX567VWX5678901234VWX56 /* PostMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenu.swift; sourceTree = "<group>"; };
 		ZAB890ZAB8901234567ZAB89 /* PostAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAvatar.swift; sourceTree = "<group>"; };
+		CON123CON1234567890CON12 /* ConsolidatedTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsolidatedTimelineView.swift; sourceTree = "<group>"; };
+		UNI123UNI1234567890UNI12 /* UnifiedTimelineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedTimelineController.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -190,6 +193,7 @@
 				50782E832DFA064A0064B61D /* GradualMigrationManager.swift */,
 				50782E842DFA064A0064B61D /* MigrationTestController.swift */,
 				50782E852DFA064A0064B61D /* TimelineController.swift */,
+				UNI123UNI1234567890UNI12 /* UnifiedTimelineController.swift */,
 			);
 			path = Controllers;
 			sourceTree = "<group>";
@@ -274,10 +278,11 @@
 		761AB201F57C7300D7B363FD /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				50782E7B2DFA00B50064B61D /* UnifiedTimelineView+NewArchitecture.swift */,
+
 				50CDC8342DD7CDDD00144E13 /* Components */,
 				17A16665C419E79A3564DF6E /* AccountsView.swift */,
 				B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */,
+				CON123CON1234567890CON12 /* ConsolidatedTimelineView.swift */,
 				DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */,
 				A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */,
 				1F67A8C32BAE1F2B00C99A3C /* AddAccountView.swift */,
@@ -385,7 +390,6 @@
 				C707093DC30F2A021B42DF23 /* AccountsView.swift in Sources */,
 				1F67A8C42BAE1F2B00C99A3C /* AddAccountView.swift in Sources */,
 				50FAF00A2DF086EA0072F099 /* AppVersionManager.swift in Sources */,
-				5067F5D02DF23D7600373A5B /* UnifiedMediaGridView.swift in Sources */,
 				5067F5CE2DF23D5B00373A5B /* QuotePostView.swift in Sources */,
 				DE91F47C006A959509F64E0D /* BlueskyModels.swift in Sources */,
 				CD35F1063863DA1C608F3743 /* BlueskyService.swift in Sources */,
@@ -403,7 +407,7 @@
 				503171602DE6AEB700E1C528 /* PostStore.swift in Sources */,
 				50A229422DFB1CE400C1C1BF /* StabilizedLinkPreview.swift in Sources */,
 				50A229432DFB1CE400C1C1BF /* StabilizedAsyncImage.swift in Sources */,
-				50782E7C2DFA00B50064B61D /* UnifiedTimelineView+NewArchitecture.swift in Sources */,
+
 				50CDC8392DD7CDDD00144E13 /* PostDetailView.swift in Sources */,
 				50CDC83A2DD7CDDD00144E13 /* ActionBar.swift in Sources */,
 				50CDC83B2DD7CDDD00144E13 /* ParentPostPreview.swift in Sources */,
@@ -452,6 +456,8 @@
 				DEF789DEF7890123456DEF78 /* PostLikeButton.swift in Sources */,
 				GHI012GHI0123456789GHI01 /* PostShareButton.swift in Sources */,
 				UVW345UVW3456789012UVW34 /* TimelineCard.swift in Sources */,
+				CON456CON4567890123CON45 /* ConsolidatedTimelineView.swift in Sources */,
+				UNI456UNI4567890123UNI45 /* UnifiedTimelineController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -467,6 +473,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SocialFusion;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -612,6 +619,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SocialFusion;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

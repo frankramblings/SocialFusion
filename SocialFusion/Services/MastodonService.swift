@@ -1108,17 +1108,53 @@ public class MastodonService {
             }
         }
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                throw errorResponse
-            }
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("[Mastodon] Invalid HTTP response received")
             throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to like post"])
+                domain: "MastodonService",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
         }
 
-        let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        guard httpResponse.statusCode == 200 else {
+            print("[Mastodon] HTTP error status: \(httpResponse.statusCode)")
+
+            // Try to decode server error response
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                print("[Mastodon] Server error: \(errorResponse.error)")
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
+            }
+
+            // If we can't decode the error, provide a generic message
+            let errorMessage = "Failed to like post (HTTP \(httpResponse.statusCode))"
+            print("[Mastodon] \(errorMessage)")
+            throw NSError(
+                domain: "MastodonService",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
+
+        // Try to decode the successful response
+        do {
+            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+            print("[Mastodon] Successfully liked post: \(status.id)")
+            return convertMastodonStatusToPost(status, account: account)
+        } catch {
+            print("[Mastodon] Failed to decode like response: \(error)")
+            if let responseBody = String(data: data, encoding: .utf8) {
+                print("[Mastodon] Response body: \(responseBody)")
+            }
+            throw NSError(
+                domain: "MastodonService",
+                code: 500,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to decode like response: \(error.localizedDescription)"
+                ])
+        }
     }
 
     /// Unlike a post
@@ -1126,34 +1162,98 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to unlike the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
+        print(
+            "[Mastodon] Attempting to unlike post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
+        )
+        print("[Mastodon] Using statusId: \(statusId)")
+
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unfavourite") else {
+            print(
+                "[Mastodon] Failed to create URL: \(serverUrl)/api/v1/statuses/\(statusId)/unfavourite"
+            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
         }
 
+        print("[Mastodon] Unlike URL: \(url.absoluteString)")
+
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                throw errorResponse
+        if let httpResponse = response as? HTTPURLResponse {
+            print("[Mastodon] Unlike response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("[Mastodon] Unlike error response: \(responseBody)")
+                }
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to unlike post"])
         }
 
-        let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("[Mastodon] Invalid HTTP response received for unlike")
+            throw NSError(
+                domain: "MastodonService",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            print("[Mastodon] HTTP error status for unlike: \(httpResponse.statusCode)")
+
+            // Try to decode server error response
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                print("[Mastodon] Server error for unlike: \(errorResponse.error)")
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
+            }
+
+            // If we can't decode the error, provide a generic message
+            let errorMessage = "Failed to unlike post (HTTP \(httpResponse.statusCode))"
+            print("[Mastodon] \(errorMessage)")
+            throw NSError(
+                domain: "MastodonService",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
+
+        // Try to decode the successful response
+        do {
+            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+            print("[Mastodon] Successfully unliked post: \(status.id)")
+            return convertMastodonStatusToPost(status, account: account)
+        } catch {
+            print("[Mastodon] Failed to decode unlike response: \(error)")
+            if let responseBody = String(data: data, encoding: .utf8) {
+                print("[Mastodon] Response body: \(responseBody)")
+            }
+            throw NSError(
+                domain: "MastodonService",
+                code: 500,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to decode unlike response: \(error.localizedDescription)"
+                ])
+        }
     }
 
     /// Repost (reblog) a post on Mastodon
