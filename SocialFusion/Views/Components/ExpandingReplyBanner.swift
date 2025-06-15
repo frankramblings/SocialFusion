@@ -74,8 +74,11 @@ struct ExpandingReplyBanner: View {
     @State private var parent: Post? = nil
     @State private var fetchAttempted = false
 
-    // Animation state isolation
+    // Enhanced animation state management
     @State private var isAnimating = false
+    @State private var isPressed = false
+    @State private var contentHeight: CGFloat = 0
+    @State private var showContent = false
 
     private var displayUsername: String {
         if let parent = parent {
@@ -103,41 +106,30 @@ struct ExpandingReplyBanner: View {
         }
     }
 
+    // Apple-style animation curves
+    private var expandAnimation: Animation {
+        .timingCurve(0.2, 0.0, 0.0, 1.0, duration: 0.45)
+    }
+
+    private var collapseAnimation: Animation {
+        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
+    }
+
+    private var chevronAnimation: Animation {
+        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Banner row with improved tap handling
+            // Banner row with enhanced interaction feedback
             Button(action: {
-                // Prevent multiple rapid taps during animation
-                guard !isAnimating else { return }
-
-                // Provide haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-
-                isAnimating = true
-
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    isExpanded.toggle()
-                }
-
-                // Reset animation state after animation duration
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    isAnimating = false
-                }
-
-                // Start fetching when expanded - delay to avoid interfering with animation
-                if isExpanded, let parentId = parentId {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        triggerParentFetch(parentId: parentId)
-                    }
-                }
-
-                onBannerTap?()
+                handleBannerTap()
             }) {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.turn.up.left")
                         .font(.caption)
                         .foregroundColor(platformColor)
+                        .scaleEffect(isPressed ? 0.95 : 1.0)
 
                     Text("Replying to @\(displayUsername)")
                         .font(.caption)
@@ -147,42 +139,70 @@ struct ExpandingReplyBanner: View {
                         ProgressView()
                             .scaleEffect(0.6)
                             .frame(width: 12, height: 12)
+                            .transition(.scale.combined(with: .opacity))
                     }
 
                     Spacer()
+
                     Image(systemName: "chevron.right")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .scaleEffect(isPressed ? 0.9 : 1.0)
+                        .animation(chevronAnimation, value: isExpanded)
+                        .animation(.easeInOut(duration: 0.1), value: isPressed)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
+                .scaleEffect(isPressed ? 0.98 : 1.0)
+                .opacity(isPressed ? 0.8 : 1.0)
             }
             .buttonStyle(PlainButtonStyle())
+            .onLongPressGesture(
+                minimumDuration: 0, maximumDistance: .infinity,
+                pressing: { pressing in
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = pressing
+                    }
+                }, perform: {})
 
-            // Parent post preview with skeleton loading state
+            // Parent post preview with refined animations
             if isExpanded {
                 Group {
                     if let parent = parent, !parent.isPlaceholder {
                         // Real parent post content
                         ParentPostPreview(post: parent)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .opacity(showContent ? 1 : 0)
+                            .scaleEffect(showContent ? 1 : 0.96)
+                            .offset(y: showContent ? 0 : -8)
                             .transition(
                                 .asymmetric(
-                                    insertion: .opacity.combined(with: .scale(scale: 0.95)),
-                                    removal: .opacity
-                                ))
+                                    insertion: .identity,
+                                    removal: .opacity.combined(with: .scale(scale: 0.96)).combined(
+                                        with: .offset(y: -8))
+                                )
+                            )
                     } else if shouldShowLoadingState {
-                        // Skeleton loading state to prevent layout shifts
+                        // Skeleton loading state with refined animation
                         ParentPostSkeleton()
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .transition(.opacity)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .opacity(showContent ? 1 : 0)
+                            .scaleEffect(showContent ? 1 : 0.96)
+                            .offset(y: showContent ? 0 : -8)
+                            .transition(
+                                .asymmetric(
+                                    insertion: .identity,
+                                    removal: .opacity.combined(with: .scale(scale: 0.96)).combined(
+                                        with: .offset(y: -8))
+                                )
+                            )
                     } else if fetchAttempted && parent == nil {
-                        // Error state
+                        // Error state with refined animation
                         VStack(spacing: 8) {
                             Image(systemName: "exclamationmark.triangle")
                                 .foregroundColor(.orange)
@@ -192,20 +212,42 @@ struct ExpandingReplyBanner: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 12)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 12)
                         .frame(maxWidth: .infinity)
-                        .transition(.opacity)
+                        .opacity(showContent ? 1 : 0)
+                        .scaleEffect(showContent ? 1 : 0.96)
+                        .offset(y: showContent ? 0 : -8)
+                        .transition(
+                            .asymmetric(
+                                insertion: .identity,
+                                removal: .opacity.combined(with: .scale(scale: 0.96)).combined(
+                                    with: .offset(y: -8))
+                            )
+                        )
                     }
                 }
             }
         }
-        .background(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
+                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                .stroke(
+                    Color.secondary.opacity(isExpanded ? 0.15 : 0.2),
+                    lineWidth: isExpanded ? 0.5 : 1
+                )
+                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isExpanded)
+        .shadow(
+            color: isExpanded ? Color.black.opacity(0.04) : Color.clear,
+            radius: isExpanded ? 2 : 0,
+            x: 0,
+            y: isExpanded ? 1 : 0
+        )
+        .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         .onReceive(parentCache.$cache) { cache in
             // Only update parent state when not animating to preserve animation context
             guard !isAnimating, let parentId = parentId else { return }
@@ -225,6 +267,55 @@ struct ExpandingReplyBanner: View {
                 }
             }
         }
+        .onChange(of: isExpanded) { newValue in
+            if newValue {
+                // Expanding: show content with delay for smooth animation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(expandAnimation.delay(0.1)) {
+                        showContent = true
+                    }
+                }
+            } else {
+                // Collapsing: hide content immediately for snappy feel
+                withAnimation(collapseAnimation) {
+                    showContent = false
+                }
+            }
+        }
+    }
+
+    private func handleBannerTap() {
+        // Prevent multiple rapid taps during animation
+        guard !isAnimating else { return }
+
+        // Provide refined haptic feedback
+        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+        impactFeedback.prepare()
+        impactFeedback.impactOccurred()
+
+        isAnimating = true
+
+        // Use different animations for expand vs collapse
+        let animation = isExpanded ? collapseAnimation : expandAnimation
+
+        withAnimation(animation) {
+            isExpanded.toggle()
+        }
+
+        // Reset animation state with proper timing
+        let duration = isExpanded ? 0.35 : 0.45
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.1) {
+            isAnimating = false
+        }
+
+        // Start fetching when expanded - delay to avoid interfering with animation
+        if isExpanded, let parentId = parentId {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                triggerParentFetch(parentId: parentId)
+            }
+        }
+
+        onBannerTap?()
     }
 
     private func triggerBackgroundPreload(parentId: String) {
@@ -256,54 +347,71 @@ struct ExpandingReplyBanner: View {
     }
 }
 
-// Skeleton loading state to prevent layout shifts
+// Enhanced skeleton loading state with refined animations
 struct ParentPostSkeleton: View {
     @State private var isAnimating = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                // Avatar skeleton
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                // Avatar skeleton with subtle pulse
                 Circle()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(Color.gray.opacity(0.25))
                     .frame(width: 36, height: 36)
+                    .overlay(
+                        Circle()
+                            .fill(Color.gray.opacity(0.1))
+                            .scaleEffect(isAnimating ? 1.1 : 1.0)
+                            .opacity(isAnimating ? 0 : 1)
+                    )
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 4) {
                     // Username skeleton
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 80, height: 12)
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.gray.opacity(0.25))
+                        .frame(width: 85, height: 14)
 
                     // Handle skeleton
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(width: 60, height: 10)
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(width: 65, height: 11)
                 }
 
                 Spacer()
 
                 // Time skeleton
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(width: 40, height: 10)
+                    .fill(Color.gray.opacity(0.15))
+                    .frame(width: 35, height: 11)
             }
 
-            // Content skeleton
-            VStack(alignment: .leading, spacing: 4) {
+            // Content skeleton with varied widths for realism
+            VStack(alignment: .leading, spacing: 6) {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(height: 12)
+                    .fill(Color.gray.opacity(0.25))
+                    .frame(height: 14)
 
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color.gray.opacity(0.2))
-                    .frame(width: 180, height: 12)
+                    .frame(width: 220, height: 14)
+
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.gray.opacity(0.15))
+                    .frame(width: 160, height: 14)
             }
             .padding(.leading, 4)
         }
-        .opacity(isAnimating ? 0.6 : 1.0)
-        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isAnimating)
+        .opacity(isAnimating ? 0.7 : 1.0)
+        .animation(
+            .easeInOut(duration: 1.8)
+                .repeatForever(autoreverses: true),
+            value: isAnimating
+        )
         .onAppear {
-            isAnimating = true
+            // Stagger animation start for more natural feel
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isAnimating = true
+            }
         }
     }
 }
