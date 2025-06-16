@@ -292,7 +292,7 @@ struct FullscreenMediaView: View {
     }
 }
 
-// GlassyButtonStyle for overlay buttons
+// Enhanced GlassyButtonStyle with Liquid Glass materials
 struct GlassyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

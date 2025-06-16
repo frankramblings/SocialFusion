@@ -98,6 +98,15 @@ struct ParentPostPreview: View {
             .padding(.leading, 6)
             .padding(.trailing, 8)
             .opacity(isPressed ? 0.85 : 1.0)
+
+            // Media attachments if present
+            if !post.attachments.isEmpty {
+                ParentPostMediaView(attachments: post.attachments)
+                    .padding(.leading, 6)
+                    .padding(.trailing, 8)
+                    .padding(.top, 6)
+                    .opacity(isPressed ? 0.85 : 1.0)
+            }
         }
         .padding(.vertical, 6)
         .padding(.bottom, 8)
@@ -121,6 +130,144 @@ struct ParentPostPreview: View {
 
                 onTap?()
             })
+    }
+}
+
+// MARK: - Parent Post Media View
+struct ParentPostMediaView: View {
+    let attachments: [Post.Attachment]
+    private let maxHeight: CGFloat = 200  // Maximum height for parent post media
+
+    var body: some View {
+        let imageAttachments = attachments.filter { $0.type == .image }
+
+        if !imageAttachments.isEmpty {
+            ZStack(alignment: .bottom) {
+                mediaContent(for: imageAttachments)
+                    .frame(maxHeight: maxHeight)
+                    .clipped()
+
+                // Only show gradient fade when content is actually truncated
+                if shouldShowGradientFade(for: imageAttachments) {
+                    VStack(spacing: 0) {
+                        Spacer()
+
+                        // Gradient fade to transparency for truncated content
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color(.systemBackground).opacity(0.1),
+                                Color(.systemBackground).opacity(0.3),
+                                Color(.systemBackground).opacity(0.6),
+                                Color(.systemBackground),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 50)
+                    }
+                }
+            }
+            .frame(maxHeight: maxHeight)
+            .clipped()
+        }
+    }
+
+    @ViewBuilder
+    private func mediaContent(for imageAttachments: [Post.Attachment]) -> some View {
+        switch imageAttachments.count {
+        case 1:
+            SingleParentImage(attachment: imageAttachments[0], maxHeight: maxHeight)
+        case 2:
+            HStack(spacing: 4) {
+                ForEach(imageAttachments.prefix(2), id: \.id) { attachment in
+                    ParentImageView(attachment: attachment)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: min(120, maxHeight))
+        case 3:
+            HStack(spacing: 4) {
+                ParentImageView(attachment: imageAttachments[0])
+                    .frame(maxWidth: .infinity)
+
+                VStack(spacing: 4) {
+                    ForEach(imageAttachments[1...2], id: \.id) { attachment in
+                        ParentImageView(attachment: attachment)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(height: min(120, maxHeight))
+        default:
+            // 4+ images: show first 3 with a "+X more" overlay on the last one
+            HStack(spacing: 4) {
+                ParentImageView(attachment: imageAttachments[0])
+                    .frame(maxWidth: .infinity)
+
+                VStack(spacing: 4) {
+                    ParentImageView(attachment: imageAttachments[1])
+
+                    ZStack {
+                        ParentImageView(attachment: imageAttachments[2])
+
+                        // Overlay for additional images
+                        Rectangle()
+                            .fill(Color.black.opacity(0.6))
+                            .overlay(
+                                Text("+\(imageAttachments.count - 3)")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                            )
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(height: min(120, maxHeight))
+        }
+    }
+
+    private func shouldShowGradientFade(for imageAttachments: [Post.Attachment]) -> Bool {
+        // For single images, we can assume truncation if we're at maxHeight
+        // For multiple images, they're sized to fit within bounds so no truncation
+        return imageAttachments.count == 1
+    }
+
+}
+
+// MARK: - Single Parent Image
+struct SingleParentImage: View {
+    let attachment: Post.Attachment
+    let maxHeight: CGFloat
+
+    var body: some View {
+        StabilizedAsyncImage(
+            url: URL(string: attachment.url),
+            idealHeight: maxHeight,
+            aspectRatio: nil,
+            contentMode: .fill,
+            cornerRadius: 8
+        )
+        .frame(maxHeight: maxHeight)
+        .clipped()
+    }
+}
+
+// MARK: - Parent Image View
+struct ParentImageView: View {
+    let attachment: Post.Attachment
+
+    var body: some View {
+        StabilizedAsyncImage(
+            url: URL(string: attachment.url),
+            idealHeight: 58,
+            aspectRatio: 1.0,
+            contentMode: .fill,
+            cornerRadius: 6
+        )
+        .frame(height: 58)
+        .clipped()
     }
 }
 

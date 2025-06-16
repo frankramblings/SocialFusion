@@ -10,6 +10,7 @@ public enum PostAction {
     case repost
     case like
     case share
+    case quote
 }
 
 // MARK: - Post visibility level
@@ -461,6 +462,48 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             platformSpecificId: "",
             quotedPostUri: nil,
             quotedPostAuthorHandle: nil
+        ),
+        // Sample post with quote post (Bluesky)
+        Post(
+            id: "quote-test",
+            content: "This is a great point! Quoting this for visibility.",
+            authorName: "Quote User",
+            authorUsername: "quoteuser.bsky.social",
+            authorProfilePictureURL: "https://picsum.photos/204",
+            createdAt: Date().addingTimeInterval(-1200),
+            platform: .bluesky,
+            originalURL: "https://bsky.app/profile/quoteuser.bsky.social/post/quoteid",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            likeCount: 8,
+            repostCount: 3,
+            platformSpecificId: "at://did:plc:example/app.bsky.feed.post/quoteid",
+            quotedPostUri: "at://did:plc:example/app.bsky.feed.post/originalid",
+            quotedPostAuthorHandle: "original.bsky.social",
+            quotedPost: Post(
+                id: "quoted-original",
+                content:
+                    "Quote posts are a powerful way to add context and commentary to existing posts. They help facilitate meaningful discussions!",
+                authorName: "Original Author",
+                authorUsername: "original.bsky.social",
+                authorProfilePictureURL: "https://picsum.photos/205",
+                createdAt: Date().addingTimeInterval(-3600),
+                platform: .bluesky,
+                originalURL: "https://bsky.app/profile/original.bsky.social/post/originalid",
+                attachments: [
+                    Attachment(
+                        url: "https://httpbin.org/image/png",
+                        type: .image,
+                        altText: "Quote post example image"
+                    )
+                ],
+                mentions: [],
+                tags: [],
+                likeCount: 15,
+                repostCount: 7,
+                platformSpecificId: "at://did:plc:example/app.bsky.feed.post/originalid"
+            )
         ),
         // Sample boosted post (Mastodon)
         Post(

@@ -519,7 +519,7 @@ struct ComposeView: View {
                         )
                         .padding(.horizontal, 10)
 
-                    // Post button
+                    // Post button - Enhanced with Liquid Glass
                     Button(action: {
                         postContent()
                     }) {
@@ -528,12 +528,11 @@ struct ComposeView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 20)
                             .padding(.vertical, 10)
-                            .background(buttonColor)
-                            .cornerRadius(20)
-                            .shadow(
-                                color: canPost ? Color.blue.opacity(0.3) : Color.clear, radius: 2,
-                                x: 0, y: 1)
                     }
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(canPost ? .regularMaterial : .ultraThinMaterial)
+                    )
                     .disabled(!canPost)
                     .animation(.easeInOut(duration: 0.2), value: canPost)
                 }
@@ -547,6 +546,8 @@ struct ComposeView: View {
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .keyboardAdaptive()
             .sheet(isPresented: $showImagePicker) {
                 ImagePicker(selectedImages: $selectedImages, maxImages: 4)

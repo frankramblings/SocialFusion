@@ -5,7 +5,7 @@ alwaysApply: false
 ---
 // Cursor Rule: Session Onboarding
 // Description: Injects project context, layout, user info, and active rules into every new chat/session.
-// Version: 1.0.0
+// Version: 1.1.0
 
 export default {
   name: "session-onboarding",
@@ -27,6 +27,14 @@ export default {
       logger.info("[Project Layout]\n" + layout);
     } catch (e) {
       logger.warn("Could not load project layout: " + e.message);
+    }
+
+    // Inject Apple documentation
+    try {
+      const appleDocs = await workspace.readFile(".cursor/context/apple-documentation.md");
+      logger.info("[Apple Documentation]\n" + appleDocs);
+    } catch (e) {
+      logger.warn("Could not load Apple documentation: " + e.message);
     }
 
     // Inject user/environment info

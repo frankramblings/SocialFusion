@@ -1,26 +1,31 @@
 import SwiftUI
 
 /// A view that displays a platform indicator badge
+/// Enhanced with Liquid Glass styling
 struct PostPlatformBadge: View {
     let platform: SocialPlatform
 
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: platformIcon)
+                .font(.caption2)
                 .foregroundColor(platformColor)
 
             Text(platformName)
-                .font(.caption)
+                .font(.caption2)
+                .fontWeight(.medium)
                 .foregroundColor(platformColor)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(platformColor.opacity(0.3), lineWidth: 0.5)
+        .background(
+            Capsule()
+                .fill(platformColor.opacity(0.1))
+                .overlay(
+                    Capsule()
+                        .stroke(platformColor.opacity(0.3), lineWidth: 0.5)
+                )
         )
-        .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 0.5)
     }
 
     private var platformColor: Color {

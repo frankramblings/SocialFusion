@@ -74,6 +74,23 @@ struct ActionBar: View {
 
             Spacer()
 
+            // Quote button
+            Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
+                onAction(.quote)
+            } label: {
+                Image(systemName: "quote.bubble")
+                    .font(.system(size: iconSize))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Quote Post")
+
+            Spacer()
+
             // Like button
             Button {
                 // Add haptic feedback

@@ -12,8 +12,8 @@ struct BlueskyAuthResponse: Codable {
     let email: String?
 
     var expirationDate: Date {
-        // JWT tokens typically expire after 2 hours
-        return Date().addingTimeInterval(2 * 60 * 60)
+        // JWT tokens typically last longer than 2 hours - use 24 hours for better UX
+        return Date().addingTimeInterval(24 * 60 * 60)
     }
 }
 

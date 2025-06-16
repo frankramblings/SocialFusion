@@ -48,6 +48,24 @@ struct AccountsView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
 
+                // Accounts needing re-authentication section
+                if let tokenRefreshService = serviceManager.automaticTokenRefreshService,
+                    !tokenRefreshService.accountsNeedingReauth.isEmpty
+                {
+                    Section(
+                        header: HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Authentication Required")
+                                .foregroundColor(.orange)
+                        }
+                    ) {
+                        ForEach(tokenRefreshService.accountsNeedingReauth) { account in
+                            reauthenticationRow(account, tokenRefreshService: tokenRefreshService)
+                        }
+                    }
+                }
+
                 // Mastodon accounts section
                 Section(header: Text("Mastodon")) {
                     if serviceManager.mastodonAccounts.isEmpty {
@@ -132,6 +150,8 @@ struct AccountsView: View {
                 }
             }
             .navigationTitle("Accounts")
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingAddAccount) {
                 AddAccountView()
                     .environmentObject(serviceManager)
@@ -201,6 +221,8 @@ struct AccountsView: View {
                         }
                     }
                     .navigationTitle("Add with Access Token")
+                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button("Cancel") {
@@ -437,6 +459,103 @@ struct AccountsView: View {
                 }
             }
         }
+    }
+
+    // Row for accounts needing re-authentication
+    private func reauthenticationRow(
+        _ account: SocialAccount, tokenRefreshService: AutomaticTokenRefreshService
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                if account.platform.usesSFSymbol {
+                    Image(systemName: account.platform.sfSymbol)
+                        .foregroundColor(platformColor(for: account.platform))
+                        .font(.system(size: 24))
+                        .frame(width: 32, height: 32)
+                } else {
+                    Image(account.platform.icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundColor(platformColor(for: account.platform))
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                        .padding(2)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.displayName ?? account.username)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 20))
+            }
+
+            // Guidance text
+            Text(tokenRefreshService.getTokenRefreshGuidance(for: account))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Action buttons
+            HStack(spacing: 12) {
+                Button(action: {
+                    // Remove the account
+                    Task {
+                        await serviceManager.removeAccount(account)
+                        tokenRefreshService.clearReauthNotification(for: account)
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                        Text("Remove")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.red)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(6)
+                }
+
+                Button(action: {
+                    // Show add account flow for this platform
+                    selectedPlatform = account.platform
+                    showingAddAccount = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 12))
+                        Text("Re-add Account")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+                }
+
+                Spacer()
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(Color.orange.opacity(0.05))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 

@@ -90,9 +90,9 @@ struct RateLimitInfo {
     }
 }
 
-/// Manages the social services and accounts
+/// Manages social media accounts and services
 @MainActor
-final class SocialServiceManager: ObservableObject {
+public final class SocialServiceManager: ObservableObject {
     static let shared = SocialServiceManager()
 
     @Published var accounts: [SocialAccount] = []
@@ -123,7 +123,7 @@ final class SocialServiceManager: ObservableObject {
     private let maxConsecutiveFailures: Int = 3
     private var isCircuitBreakerOpen: Bool = false
     private var circuitBreakerOpenTime: Date?
-    private let circuitBreakerResetInterval: TimeInterval = 30.0  // 30 seconds
+    private let circuitBreakerResetInterval: TimeInterval = 300  // 5 minutes
 
     // Global refresh lock to prevent multiple simultaneous refreshes from ANY source
     private static var globalRefreshLock = false
@@ -145,6 +145,9 @@ final class SocialServiceManager: ObservableObject {
     // Track in-progress parent fetches to avoid redundant network calls
     private var parentFetchInProgress: Set<String> = []
 
+    // Automatic token refresh service
+    public var automaticTokenRefreshService: AutomaticTokenRefreshService?
+
     // MARK: - Initialization
 
     // Make initializer public so it can be used in SocialFusionApp
@@ -153,6 +156,9 @@ final class SocialServiceManager: ObservableObject {
 
         // Load saved accounts first
         loadAccounts()
+
+        // Initialize automatic token refresh service after main initialization
+        self.automaticTokenRefreshService = AutomaticTokenRefreshService(socialServiceManager: self)
 
         print("🔧 SocialServiceManager: After loadAccounts() - accounts.count = \(accounts.count)")
         print("🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count)")
@@ -431,8 +437,8 @@ final class SocialServiceManager: ObservableObject {
         if let expiresAt = credentials.expiresAt {
             account.saveTokenExpirationDate(expiresAt)
         } else {
-            // Default to 24 hours if no expiration provided
-            account.saveTokenExpirationDate(Date().addingTimeInterval(24 * 60 * 60))
+            // Default to 30 days if no expiration provided (more realistic than 24 hours)
+            account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
         // Add the account to our collection
@@ -1005,7 +1011,25 @@ final class SocialServiceManager: ObservableObject {
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.replyToPost(post, content: content, account: account)
+            do {
+                return try await mastodonService.replyToPost(
+                    post, content: content, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -1027,12 +1051,14 @@ final class SocialServiceManager: ObservableObject {
                 // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
                 {
                     print(
                         "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
                     )
                     throw ServiceError.authenticationExpired(
-                        "Please re-add your Mastodon account in settings")
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
                 } else {
                     throw error
                 }
@@ -1058,12 +1084,14 @@ final class SocialServiceManager: ObservableObject {
                 // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
                 {
                     print(
                         "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
                     )
                     throw ServiceError.authenticationExpired(
-                        "Please re-add your Mastodon account in settings")
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
                 } else {
                     throw error
                 }
@@ -1083,7 +1111,24 @@ final class SocialServiceManager: ObservableObject {
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.repostPost(post, account: account)
+            do {
+                return try await mastodonService.repostPost(post, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -1099,7 +1144,24 @@ final class SocialServiceManager: ObservableObject {
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.unrepostPost(post, account: account)
+            do {
+                return try await mastodonService.unrepostPost(post, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -1262,6 +1324,120 @@ final class SocialServiceManager: ObservableObject {
             mentions: [],
             tags: [],
             platformSpecificId: uri
+        )
+    }
+
+    /// Create a quote post
+    func createQuotePost(content: String, quotedPost: Post, platforms: Set<SocialPlatform>)
+        async throws -> [Post]
+    {
+        var createdPosts: [Post] = []
+
+        for platform in platforms {
+            switch platform {
+            case .bluesky:
+                if let account = blueskyAccounts.first {
+                    let post = try await createBlueskyQuotePost(
+                        content: content, quotedPost: quotedPost, account: account)
+                    createdPosts.append(post)
+                }
+            case .mastodon:
+                if let account = mastodonAccounts.first {
+                    // For Mastodon, include the quoted post URL in the content
+                    let quotedContent = "\(content)\n\n\(quotedPost.originalURL)"
+                    let post = try await mastodonService.createPost(
+                        content: quotedContent, account: account)
+                    createdPosts.append(post)
+                }
+            }
+        }
+
+        return createdPosts
+    }
+
+    /// Create a Bluesky quote post with proper embed
+    private func createBlueskyQuotePost(content: String, quotedPost: Post, account: SocialAccount)
+        async throws -> Post
+    {
+        guard let accessToken = account.getAccessToken() else {
+            throw ServiceError.unauthorized("No access token available for Bluesky account")
+        }
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Create the quote post embed
+        let embed: [String: Any] = [
+            "$type": "app.bsky.embed.record",
+            "record": [
+                "uri": quotedPost.quotedPostUri ?? quotedPost.platformSpecificId,
+                "cid": quotedPost.cid ?? "",
+            ],
+        ]
+
+        let body: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.feed.post",
+            "record": [
+                "text": content,
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+                "$type": "app.bsky.feed.post",
+                "embed": embed,
+            ],
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.networkError(
+                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw ServiceError.postFailed(
+                reason: "Bluesky quote post API error (\(httpResponse.statusCode)): \(errorMessage)"
+            )
+        }
+
+        // Parse the response to get the created post URI
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw ServiceError.postFailed(reason: "Invalid response from Bluesky quote post API")
+        }
+
+        // Create a Post object from the successful creation
+        return Post(
+            id: uri,
+            content: content,
+            authorName: account.displayName ?? account.username,
+            authorUsername: account.username,
+            authorProfilePictureURL: account.profileImageURL?.absoluteString ?? "",
+            createdAt: Date(),
+            platform: .bluesky,
+            originalURL: "",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            platformSpecificId: uri,
+            quotedPostUri: quotedPost.quotedPostUri ?? quotedPost.platformSpecificId,
+            quotedPostAuthorHandle: quotedPost.quotedPostAuthorHandle ?? quotedPost.authorUsername,
+            quotedPost: quotedPost
         )
     }
 

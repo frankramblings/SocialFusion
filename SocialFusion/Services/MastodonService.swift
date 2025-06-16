@@ -31,21 +31,24 @@ public class MastodonService {
 
     // MARK: - Authentication Utilities
 
-    /// Creates an authenticated request with a valid access token
-    /// - Parameters:
-    ///   - url: The URL for the request
-    ///   - method: The HTTP method
-    ///   - account: The account to authenticate as
-    /// - Returns: A URLRequest with the Authorization header set
-    private func createAuthenticatedRequest(url: URL, method: String, account: SocialAccount)
-        async throws -> URLRequest
-    {
+    /// Creates an authenticated request with automatic token refresh
+    private func createAuthenticatedRequest(
+        url: URL,
+        method: String,
+        account: SocialAccount,
+        body: Data? = nil
+    ) async throws -> URLRequest {
+        // Get a valid access token (automatically refreshes if needed)
+        let accessToken = try await account.getValidAccessToken()
+
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Ensure we have a valid token, refreshing if necessary
-        let token = try await account.getValidAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body = body {
+            request.httpBody = body
+        }
 
         return request
     }
@@ -419,7 +422,9 @@ public class MastodonService {
                 account.saveRefreshToken(newRefreshToken)
             }
 
-            let expiresIn = token.expiresIn ?? (7 * 24 * 60 * 60)
+            // Use server-provided expiration or fallback to 30 days (more realistic than 7 days)
+            // Many Mastodon instances provide tokens that last weeks or months
+            let expiresIn = token.expiresIn ?? (30 * 24 * 60 * 60)
             account.saveTokenExpirationDate(Date().addingTimeInterval(TimeInterval(expiresIn)))
 
             return token.accessToken
@@ -628,9 +633,10 @@ public class MastodonService {
         // Save the access token securely
         verifiedAccount.saveAccessToken(accessToken)
 
-        // Set a default expiration time (24 hours) if none provided
+        // Set a more realistic default expiration time (30 days) if none provided
+        // Most Mastodon instances provide tokens that last weeks or months
         if verifiedAccount.tokenExpirationDate == nil {
-            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(24 * 60 * 60))
+            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
         print("Successfully verified Mastodon account: \(mastodonAccount.username)")
@@ -699,9 +705,10 @@ public class MastodonService {
         // Save the access token securely
         verifiedAccount.saveAccessToken(accessToken)
 
-        // Set a default expiration time (24 hours) if none provided
+        // Set a more realistic default expiration time (30 days) if none provided
+        // Most Mastodon instances provide tokens that last weeks or months
         if verifiedAccount.tokenExpirationDate == nil {
-            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(24 * 60 * 60))
+            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
         print("Successfully verified Mastodon account: \(mastodonAccount.username)")
@@ -1789,7 +1796,7 @@ public class MastodonService {
 
         // Store credentials
         account.saveAccessToken(accessToken)
-        account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+        account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))  // 30 days
 
         // Try to fetch the actual profile image
         if let avatarURL = URL(string: userInfo.avatar) {

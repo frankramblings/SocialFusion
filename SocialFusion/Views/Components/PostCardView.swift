@@ -25,6 +25,7 @@ struct PostCardView: View {
     let onCopyLink: () -> Void
     let onReport: () -> Void
     let onPostTap: () -> Void
+    let onParentPostTap: (Post) -> Void
 
     // Optional boost information
     let boostedBy: String?
@@ -60,6 +61,7 @@ struct PostCardView: View {
         entry: TimelineEntry,
         viewModel: PostViewModel? = nil,
         onPostTap: @escaping () -> Void = {},
+        onParentPostTap: @escaping (Post) -> Void = { _ in },
         onReply: @escaping () -> Void = {},
         onRepost: @escaping () -> Void = {},
         onLike: @escaping () -> Void = {},
@@ -82,6 +84,7 @@ struct PostCardView: View {
         self.onCopyLink = {}
         self.onReport = {}
         self.onPostTap = onPostTap
+        self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
 
         // Extract boost information from TimelineEntry
@@ -111,6 +114,7 @@ struct PostCardView: View {
         onCopyLink: @escaping () -> Void,
         onReport: @escaping () -> Void,
         onPostTap: @escaping () -> Void,
+        onParentPostTap: @escaping (Post) -> Void = { _ in },
         viewModel: PostViewModel? = nil
     ) {
         self.post = post
@@ -130,6 +134,7 @@ struct PostCardView: View {
         self.onCopyLink = onCopyLink
         self.onReport = onReport
         self.onPostTap = onPostTap
+        self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
         self.boostedBy = nil
     }
@@ -150,7 +155,10 @@ struct PostCardView: View {
                     network: displayPost.platform,
                     parentId: displayPost.inReplyToID,
                     isExpanded: $expansionState.isExpanded,
-                    onBannerTap: { bannerWasTapped = true }
+                    onBannerTap: { bannerWasTapped = true },
+                    onParentPostTap: { parentPost in
+                        onParentPostTap(parentPost)  // Navigate to the parent post
+                    }
                 )
                 .padding(.horizontal, 12)  // Apple standard: 12pt for content - match boost banner alignment
                 .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
@@ -163,11 +171,14 @@ struct PostCardView: View {
             )
             .padding(.horizontal, 12)  // Apple standard: 12pt content padding
 
-            // Content section - disable link previews when media is present (Ivory style)
+            // Content section - show quote posts always, but disable other link previews when media is present (Ivory style)
             displayPost.contentView(
                 lineLimit: nil,
-                showLinkPreview: displayPost.attachments.isEmpty,
-                font: .body
+                showLinkPreview: displayPost.attachments.isEmpty,  // Ivory style for regular links
+                font: .body,
+                onQuotePostTap: { quotedPost in
+                    onParentPostTap(quotedPost)  // Navigate to the quoted post
+                }
             )
             .padding(.horizontal, 12)
             .padding(.top, 4)
@@ -192,6 +203,9 @@ struct PostCardView: View {
                         onLike()
                     case .share:
                         onShare()
+                    case .quote:
+                        // TODO: Implement quote post functionality
+                        print("🔗 Quote action triggered for post: \(displayPost.id)")
                     }
                 },
                 onOpenInBrowser: onOpenInBrowser,
