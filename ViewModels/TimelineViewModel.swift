@@ -411,9 +411,8 @@ public final class TimelineViewModel: ObservableObject {
     ) async {
         guard !fetchRequests.isEmpty else { return }
 
-        var hydratedPosts: [String: Post] = [:]
-
         // Fetch all parent posts concurrently
+        var results: [(String, Post?)] = []
         await withTaskGroup(of: (String, Post?).self) { group in
             for request in fetchRequests {
                 group.addTask { [weak self] in
@@ -423,32 +422,30 @@ public final class TimelineViewModel: ObservableObject {
                         let parent: Post?
                         switch request.platform {
                         case .mastodon:
-                            if let account = self.accounts.first(where: { $0.platform == .mastodon }
-                            ) {
+                            if let account = self.accounts.first(where: { $0.platform == .mastodon }) {
                                 parent = try await self.socialServiceManager.fetchMastodonStatus(
                                     id: request.parentId, account: account)
                             } else {
                                 parent = nil
                             }
                         case .bluesky:
-                            parent = try await self.socialServiceManager.fetchBlueskyPostByID(
-                                request.parentId)
+                            parent = try await self.socialServiceManager.fetchBlueskyPostByID(request.parentId)
                         }
                         return (request.postId, parent)
                     } catch {
-                        self.logger.warning(
-                            "Failed to fetch parent post \(request.parentId): \(error)")
+                        self.logger.warning("Failed to fetch parent post \(request.parentId): \(error)")
                         return (request.postId, nil)
                     }
                 }
             }
 
-            for await (postId, parent) in group {
-                if let parent = parent {
-                    hydratedPosts[postId] = parent
-                }
+            for await result in group {
+                results.append(result)
             }
         }
+        let hydratedPosts = Dictionary(uniqueKeysWithValues: results.compactMap { postId, parent in
+            parent.map { (postId, $0) }
+        })
 
         // Apply all updates in a single state change
         await MainActor.run {
@@ -456,7 +453,7 @@ public final class TimelineViewModel: ObservableObject {
                 // Use immutable update pattern to prevent AttributeGraph cycles
                 let updatedPosts = currentPosts.map { existingPost in
                     if let parent = hydratedPosts[existingPost.id] {
-                        var newPost = existingPost
+                        let newPost = existingPost
                         newPost.parent = parent
                         if newPost.inReplyToUsername?.isEmpty != false {
                             newPost.inReplyToUsername = parent.authorUsername
@@ -476,9 +473,8 @@ public final class TimelineViewModel: ObservableObject {
     ) async {
         guard !fetchRequests.isEmpty else { return }
 
-        var hydratedPosts: [String: Post] = [:]
-
         // Fetch all original posts concurrently
+        var results: [(String, Post?)] = []
         await withTaskGroup(of: (String, Post?).self) { group in
             for request in fetchRequests {
                 group.addTask { [weak self] in
@@ -488,32 +484,30 @@ public final class TimelineViewModel: ObservableObject {
                         let original: Post?
                         switch request.platform {
                         case .mastodon:
-                            if let account = self.accounts.first(where: { $0.platform == .mastodon }
-                            ) {
+                            if let account = self.accounts.first(where: { $0.platform == .mastodon }) {
                                 original = try await self.socialServiceManager.fetchMastodonStatus(
                                     id: request.originalId, account: account)
                             } else {
                                 original = nil
                             }
                         case .bluesky:
-                            original = try await self.socialServiceManager.fetchBlueskyPostByID(
-                                request.originalId)
+                            original = try await self.socialServiceManager.fetchBlueskyPostByID(request.originalId)
                         }
                         return (request.postId, original)
                     } catch {
-                        self.logger.warning(
-                            "Failed to fetch original post \(request.originalId): \(error)")
+                        self.logger.warning("Failed to fetch original post \(request.originalId): \(error)")
                         return (request.postId, nil)
                     }
                 }
             }
 
-            for await (postId, original) in group {
-                if let original = original {
-                    hydratedPosts[postId] = original
-                }
+            for await result in group {
+                results.append(result)
             }
         }
+        let hydratedPosts = Dictionary(uniqueKeysWithValues: results.compactMap { postId, original in
+            original.map { (postId, $0) }
+        })
 
         // Apply all updates in a single state change
         await MainActor.run {
@@ -533,3 +527,4 @@ public final class TimelineViewModel: ObservableObject {
         }
     }
 }
+

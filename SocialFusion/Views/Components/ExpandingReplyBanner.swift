@@ -1,5 +1,13 @@
 import SwiftUI
 
+// HeightPreferenceKey for smooth height measurement updates
+private struct HeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 // Simple PostParentCache for ExpandingReplyBanner
 class PostParentCache: ObservableObject {
     static let shared = PostParentCache()
@@ -49,14 +57,14 @@ class PostParentCache: ObservableObject {
                     post = try await serviceManager.fetchBlueskyPostByID(id)
                 }
 
-                await MainActor.run {
+                _ = await MainActor.run {
                     self.fetching.remove(id)
                     if let post = post {
                         self.cache[id] = post
                     }
                 }
             } catch {
-                await MainActor.run {
+                _ = await MainActor.run {
                     self.fetching.remove(id)
                 }
             }
@@ -167,21 +175,17 @@ struct ExpandingReplyBanner: View {
                 .background(
                     GeometryReader { geometry in
                         Color.clear
-                            .onAppear {
-                                DispatchQueue.main.async {
-                                    contentHeight = geometry.size.height
-                                }
-                            }
-                            .onChange(of: geometry.size.height) { newHeight in
-                                DispatchQueue.main.async {
-                                    contentHeight = newHeight
-                                }
-                            }
+                            .preference(key: HeightPreferenceKey.self, value: geometry.size.height)
                     }
                 )
                 .frame(height: showContent ? contentHeight : 0)
                 .clipped()
                 .animation(fluidAnimation, value: showContent)
+                .onPreferenceChange(HeightPreferenceKey.self) { newHeight in
+                    if contentHeight != newHeight {
+                        contentHeight = newHeight
+                    }
+                }
                 .allowsHitTesting(showContent && isExpanded)  // Only allow content interaction when fully expanded
         }
         .background(

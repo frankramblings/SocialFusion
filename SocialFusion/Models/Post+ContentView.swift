@@ -128,7 +128,6 @@ extension Post {
                 mentions: mentions,
                 tags: tags
             )
-            .lineLimit(lineLimit)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
