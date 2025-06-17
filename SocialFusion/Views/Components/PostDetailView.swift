@@ -166,8 +166,7 @@ struct PostDetailNavigationView: View {
             }
         }
         .scrollDismissesKeyboard(.immediately)
-        .navigationTitle("Post")
-        .navigationBarTitleDisplayMode(.inline)
+
         .navigationBarBackButtonHidden(true)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbarBackground(.regularMaterial, for: .navigationBar)

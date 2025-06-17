@@ -4,6 +4,7 @@ import SwiftUI
 struct FullscreenMediaView: View {
     let media: Post.Attachment
     let allMedia: [Post.Attachment]
+    let showAltTextInitially: Bool
 
     @State private var currentScale: CGFloat = 1.0
     @State private var previousScale: CGFloat = 1.0
@@ -14,9 +15,10 @@ struct FullscreenMediaView: View {
     @State private var showAltText: Bool = false
     @Environment(\.dismiss) private var dismiss
 
-    init(media: Post.Attachment, allMedia: [Post.Attachment]) {
+    init(media: Post.Attachment, allMedia: [Post.Attachment], showAltTextInitially: Bool = false) {
         self.media = media
         self.allMedia = allMedia
+        self.showAltTextInitially = showAltTextInitially
 
         // Find the index of the current media in the array
         if let index = allMedia.firstIndex(where: { $0.id == media.id }) {
@@ -24,6 +26,9 @@ struct FullscreenMediaView: View {
         } else {
             _currentIndex = State(initialValue: 0)
         }
+
+        // Initialize showAltText based on parameter
+        _showAltText = State(initialValue: showAltTextInitially)
     }
 
     var body: some View {
@@ -296,6 +301,7 @@ struct FullscreenMediaView_Previews: PreviewProvider {
             ),
         ]
 
-        FullscreenMediaView(media: sampleMedia[0], allMedia: sampleMedia)
+        FullscreenMediaView(
+            media: sampleMedia[0], allMedia: sampleMedia, showAltTextInitially: false)
     }
 }

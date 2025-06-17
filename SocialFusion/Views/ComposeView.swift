@@ -380,11 +380,6 @@ struct ComposeView: View {
         return "What's on your mind?"
     }
 
-    // Navigation title based on context
-    private var navigationTitle: String {
-        return replyingTo != nil ? "Reply" : "New Post"
-    }
-
     init(replyingTo: Post? = nil) {
         self.replyingTo = replyingTo
         // Initialize with the default visibility from user preferences
@@ -547,8 +542,7 @@ struct ComposeView: View {
                     alignment: .top
                 )
             }
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
+
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .keyboardAdaptive()
@@ -868,8 +862,7 @@ struct ImagePicker: View {
                 }
                 .padding()
             }
-            .navigationTitle("Select Photos")
-            .navigationBarTitleDisplayMode(.inline)
+
         }
     }
 

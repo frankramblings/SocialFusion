@@ -121,58 +121,23 @@ struct ContentView: View {
                             .zIndex(1000)
                         }
                     }
-                    .navigationTitle(navigationTitle)
-                    .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.clear, for: .navigationBar)
-                    .toolbar {
-                        ToolbarItem(placement: .principal) {
-                            HStack {
-                                Text(navigationTitle)
-                                    .font(.headline)
-                                    .fontWeight(.semibold)
-                                    .foregroundStyle(Color.primary)
-                            }
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .advancedLiquidGlass(
-                                variant: .floating,
-                                intensity: 0.9,
-                                morphingState: .floating
-                            )
-                            .clipShape(Capsule())
-                        }
-                    }
                     .navigationBarItems(
-                        leading: HStack {
-                            // Account selector button - liquid glass circle
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    showAccountDropdown.toggle()
-                                }
-                            }) {
-                                // Show current account image or unified icon
-                                getCurrentAccountImage()
-                                    .frame(width: 24, height: 24)
-                                    .clipShape(Circle())
+                        leading: Button(action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showAccountDropdown.toggle()
                             }
-                            .frame(width: 40, height: 40)
-                            .advancedLiquidGlass(
-                                variant: .floating,
-                                intensity: showAccountDropdown ? 1.2 : 0.9,
-                                morphingState: showAccountDropdown ? .pressed : .floating
-                            )
-                            .clipShape(Circle())
-                            .scaleEffect(showAccountDropdown ? 0.95 : 1.0)
-                            .animation(
-                                .spring(response: 0.3, dampingFraction: 0.7),
-                                value: showAccountDropdown
-                            )
-                            // Debug: Triple tap to show launch animation
-                            .onTapGesture(count: 3) {
-                                #if DEBUG
-                                    appVersionManager.forceShowLaunchAnimation()
-                                #endif
-                            }
+                        }) {
+                            // Show current account image or unified icon
+                            getCurrentAccountImage()
+                                .frame(width: 24, height: 24)
+                                .clipShape(Circle())
+                        }
+                        // Debug: Triple tap to show launch animation
+                        .onTapGesture(count: 3) {
+                            #if DEBUG
+                                appVersionManager.forceShowLaunchAnimation()
+                            #endif
                         },
                         trailing: Button(action: {
                             showComposeView = true
@@ -214,8 +179,7 @@ struct ContentView: View {
                                 .padding(.horizontal, 40)
                         }
                     }
-                    .navigationTitle("Notifications")
-                    .navigationBarTitleDisplayMode(.inline)
+
                     .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                     .toolbarBackground(.visible, for: .navigationBar)
                 }
@@ -246,8 +210,7 @@ struct ContentView: View {
                                 .padding(.horizontal, 40)
                         }
                     }
-                    .navigationTitle("Search")
-                    .navigationBarTitleDisplayMode(.inline)
+
                     .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                     .toolbarBackground(.visible, for: .navigationBar)
                 }
@@ -343,8 +306,7 @@ struct ContentView: View {
                             }
                         }
                     }
-                    .navigationTitle("Profile")
-                    .navigationBarTitleDisplayMode(.inline)
+
                     .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                     .toolbarBackground(.visible, for: .navigationBar)
                 }
@@ -485,17 +447,6 @@ struct ContentView: View {
                 mastodonAccounts: serviceManager.mastodonAccounts,
                 blueskyAccounts: serviceManager.blueskyAccounts
             )
-        }
-    }
-
-    // Dynamic navigation title based on selection
-    private var navigationTitle: String {
-        if selectedAccountId == nil {
-            return "All Accounts"
-        } else if let account = getCurrentAccount() {
-            return "@\(account.username)"
-        } else {
-            return "Home"
         }
     }
 

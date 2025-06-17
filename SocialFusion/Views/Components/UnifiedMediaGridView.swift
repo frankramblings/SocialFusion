@@ -3,6 +3,7 @@ import SwiftUI
 private class MediaSelectionModel: ObservableObject {
     @Published var selectedAttachment: Post.Attachment? = nil
     @Published var showFullscreen: Bool = false
+    @Published var showAltTextInitially: Bool = false
 }
 
 struct UnifiedMediaGridView: View {
@@ -20,6 +21,12 @@ struct UnifiedMediaGridView: View {
                     attachment: attachments[0],
                     onTap: {
                         selection.selectedAttachment = attachments[0]
+                        selection.showAltTextInitially = false
+                        selection.showFullscreen = true
+                    },
+                    onAltTap: { att in
+                        selection.selectedAttachment = att
+                        selection.showAltTextInitially = true
                         selection.showFullscreen = true
                     }
                 )
@@ -28,6 +35,12 @@ struct UnifiedMediaGridView: View {
                     attachments: attachments,
                     onTap: { att in
                         selection.selectedAttachment = att
+                        selection.showAltTextInitially = false
+                        selection.showFullscreen = true
+                    },
+                    onAltTap: { att in
+                        selection.selectedAttachment = att
+                        selection.showAltTextInitially = true
                         selection.showFullscreen = true
                     }
                 )
@@ -36,6 +49,12 @@ struct UnifiedMediaGridView: View {
                     attachments: Array(attachments.prefix(4)),
                     onTap: { att in
                         selection.selectedAttachment = att
+                        selection.showAltTextInitially = false
+                        selection.showFullscreen = true
+                    },
+                    onAltTap: { att in
+                        selection.selectedAttachment = att
+                        selection.showAltTextInitially = true
                         selection.showFullscreen = true
                     },
                     extraCount: attachments.count - 4
@@ -44,9 +63,17 @@ struct UnifiedMediaGridView: View {
         }
         .sheet(isPresented: $selection.showFullscreen) {
             if let selected = selection.selectedAttachment {
-                FullscreenMediaView(media: selected, allMedia: attachments)
+                FullscreenMediaView(
+                    media: selected, allMedia: attachments,
+                    showAltTextInitially: selection.showAltTextInitially)
             } else {
                 Color.black  // fallback
+            }
+        }
+        .onChange(of: selection.showFullscreen) { isPresented in
+            if !isPresented {
+                // Reset alt text flag when sheet is dismissed
+                selection.showAltTextInitially = false
             }
         }
     }
@@ -55,13 +82,18 @@ struct UnifiedMediaGridView: View {
 private struct SingleImageView: View {
     let attachment: Post.Attachment
     let onTap: () -> Void
+    let onAltTap: ((Post.Attachment) -> Void)?
 
     // Capture stable URL at init time
     private let stableURL: URL?
 
-    init(attachment: Post.Attachment, onTap: @escaping () -> Void) {
+    init(
+        attachment: Post.Attachment, onTap: @escaping () -> Void,
+        onAltTap: ((Post.Attachment) -> Void)? = nil
+    ) {
         self.attachment = attachment
         self.onTap = onTap
+        self.onAltTap = onAltTap
         self.stableURL = URL(string: attachment.url)
         print("🖼️ [SingleImageView] Loading image URL: \(attachment.url)")
         print("🖼️ [SingleImageView] Parsed URL: \(String(describing: stableURL))")
@@ -130,6 +162,9 @@ private struct SingleImageView: View {
                 GlassyAltBadge()
                     .padding(.bottom, 8)
                     .padding(.trailing, 8)
+                    .onTapGesture {
+                        onAltTap?(attachment)
+                    }
             }
         }
     }
@@ -138,57 +173,37 @@ private struct SingleImageView: View {
 private struct MultiImageGridView: View {
     let attachments: [Post.Attachment]
     let onTap: (Post.Attachment) -> Void
+    let onAltTap: ((Post.Attachment) -> Void)?
     var extraCount: Int = 0
     private let gridSize: CGFloat = 150
     private let spacing: CGFloat = 6
 
-    @State private var currentIndex: Int = 0
-
     var body: some View {
-        VStack(spacing: 8) {
-            // Swipeable TabView for media navigation
-            TabView(selection: $currentIndex) {
-                ForEach(0..<attachmentPages.count, id: \.self) { pageIndex in
-                    HStack {
-                        Spacer()
-                        // Single image per page for swiping
-                        let attachment = attachmentPages[pageIndex][0]
-                        GridImageView(
-                            attachment: attachment,
-                            gridSize: gridSize * 1.8,  // Make swipeable images larger
-                            onTap: onTap,
-                            extraCount: extraCount,
-                            isLast: attachment.id == attachments.last?.id)
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())  // Make entire page area respond to gestures
-                    .tag(pageIndex)
-                }
-            }
-            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-            .frame(height: gridSize * 1.8)
+        HStack {
+            Spacer()
 
-            // Custom page indicators (only show if multiple images)
-            if attachments.count > 1 {
-                HStack(spacing: 6) {
-                    ForEach(0..<attachments.count, id: \.self) { index in
-                        Circle()
-                            .fill(
-                                index == currentIndex
-                                    ? Color.primary : Color.secondary.opacity(0.3)
-                            )
-                            .frame(width: 6, height: 6)
-                    }
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: spacing),
+                    GridItem(.flexible()),
+                ],
+                spacing: spacing
+            ) {
+                ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
+                    GridImageView(
+                        attachment: attachment,
+                        gridSize: gridSize,
+                        onTap: onTap,
+                        extraCount: extraCount,
+                        isLast: attachment.id == attachments.last?.id,
+                        onAltTap: onAltTap
+                    )
                 }
-                .padding(.top, 4)
             }
+            .frame(width: gridSize * 2 + spacing)
+
+            Spacer()
         }
-    }
-
-    // Split attachments into pages (1 image per page for swiping)
-    private var attachmentPages: [[Post.Attachment]] {
-        // Create individual pages for each image to enable swiping
-        return attachments.map { [$0] }
     }
 }
 
@@ -198,19 +213,21 @@ private struct GridImageView: View {
     let onTap: (Post.Attachment) -> Void
     let extraCount: Int
     let isLast: Bool
+    let onAltTap: ((Post.Attachment) -> Void)?
 
     // Capture stable URL at init time
     private let stableURL: URL?
 
     init(
         attachment: Post.Attachment, gridSize: CGFloat, onTap: @escaping (Post.Attachment) -> Void,
-        extraCount: Int, isLast: Bool
+        extraCount: Int, isLast: Bool, onAltTap: ((Post.Attachment) -> Void)? = nil
     ) {
         self.attachment = attachment
         self.gridSize = gridSize
         self.onTap = onTap
         self.extraCount = extraCount
         self.isLast = isLast
+        self.onAltTap = onAltTap
         self.stableURL = URL(string: attachment.url)
     }
 
@@ -255,6 +272,9 @@ private struct GridImageView: View {
                 GlassyAltBadge()
                     .padding(.bottom, 4)
                     .padding(.trailing, 4)
+                    .onTapGesture {
+                        onAltTap?(attachment)
+                    }
             }
 
             // Show "+X more" overlay on the last item if there are extra items

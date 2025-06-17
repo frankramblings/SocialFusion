@@ -149,7 +149,7 @@ struct AccountsView: View {
                     }
                 }
             }
-            .navigationTitle("Accounts")
+
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingAddAccount) {
@@ -220,7 +220,7 @@ struct AccountsView: View {
                             }
                         }
                     }
-                    .navigationTitle("Add with Access Token")
+
                     .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
                     .toolbarBackground(.visible, for: .navigationBar)
                     .toolbar {
@@ -668,7 +668,7 @@ struct LegacyAddAccountView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
-            .navigationTitle("Add \(platform.rawValue) Account")
+
             .navigationBarItems(
                 trailing: Button("Cancel") {
                     presentationMode.wrappedValue.dismiss()
@@ -789,7 +789,7 @@ struct AccountDetailView: View {
                     }
                 }
             }
-            .navigationTitle(account.displayName ?? account.username)
+
             .navigationBarItems(
                 trailing: Button("Done") {
                     presentationMode.wrappedValue.dismiss()

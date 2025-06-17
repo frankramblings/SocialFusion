@@ -213,7 +213,7 @@ struct AddAccountView: View {
                     }
                 }
             }
-            .navigationTitle("Add \(selectedPlatform.rawValue.capitalized) Account")
+
             .navigationBarBackButtonHidden(true)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)

@@ -82,7 +82,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            .navigationTitle("Settings")
+
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingAbout) {
@@ -135,7 +135,7 @@ struct AboutView: View {
                 }
                 .padding()
             }
-            .navigationTitle("About")
+
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarItems(
@@ -156,7 +156,7 @@ struct WebContentView: View {
                 Text(content)
                     .padding()
             }
-            .navigationTitle(title)
+
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarItems(
