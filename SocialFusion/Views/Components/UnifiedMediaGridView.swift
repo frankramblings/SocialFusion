@@ -142,16 +142,53 @@ private struct MultiImageGridView: View {
     private let gridSize: CGFloat = 150
     private let spacing: CGFloat = 6
 
+    @State private var currentIndex: Int = 0
+
     var body: some View {
-        let columns = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
-        LazyVGrid(columns: columns, spacing: spacing) {
-            ForEach(attachments.prefix(4)) { att in
-                GridImageView(
-                    attachment: att, gridSize: gridSize, onTap: onTap, extraCount: extraCount,
-                    isLast: att.id == attachments.prefix(4).last?.id)
+        VStack(spacing: 8) {
+            // Swipeable TabView for media navigation
+            TabView(selection: $currentIndex) {
+                ForEach(0..<attachmentPages.count, id: \.self) { pageIndex in
+                    HStack {
+                        Spacer()
+                        // Single image per page for swiping
+                        let attachment = attachmentPages[pageIndex][0]
+                        GridImageView(
+                            attachment: attachment,
+                            gridSize: gridSize * 1.8,  // Make swipeable images larger
+                            onTap: onTap,
+                            extraCount: extraCount,
+                            isLast: attachment.id == attachments.last?.id)
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())  // Make entire page area respond to gestures
+                    .tag(pageIndex)
+                }
+            }
+            .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
+            .frame(height: gridSize * 1.8)
+
+            // Custom page indicators (only show if multiple images)
+            if attachments.count > 1 {
+                HStack(spacing: 6) {
+                    ForEach(0..<attachments.count, id: \.self) { index in
+                        Circle()
+                            .fill(
+                                index == currentIndex
+                                    ? Color.primary : Color.secondary.opacity(0.3)
+                            )
+                            .frame(width: 6, height: 6)
+                    }
+                }
+                .padding(.top, 4)
             }
         }
-        .frame(height: attachments.count <= 2 ? gridSize : gridSize * 2 + spacing)
+    }
+
+    // Split attachments into pages (1 image per page for swiping)
+    private var attachmentPages: [[Post.Attachment]] {
+        // Create individual pages for each image to enable swiping
+        return attachments.map { [$0] }
     }
 }
 
