@@ -49,9 +49,6 @@ struct PostDetailView: View {
                             }
 
                             Spacer()
-
-                            // Platform badge
-                            PlatformBadge(platform: post.platform)
                         }
                         .padding(.horizontal)
                         .padding(.top)
@@ -230,8 +227,8 @@ struct PostDetailView: View {
                         .frame(maxWidth: .infinity)
                         .background(
                             colorScheme == .dark
-                                ? Color(UIColor.systemBackground)
-                                : Color(UIColor.secondarySystemBackground)
+                                ? Color(UIColor.secondarySystemBackground)
+                                : Color(UIColor.tertiarySystemBackground)
                         )
                         .cornerRadius(12)
                         .padding(.horizontal)
@@ -239,12 +236,16 @@ struct PostDetailView: View {
                     }
                     .background(
                         colorScheme == .dark
-                            ? Color(UIColor.secondarySystemBackground).opacity(0.7) : Color.white
+                            ? Color(UIColor.secondarySystemBackground).opacity(0.7) 
+                            : Color(UIColor.systemBackground)
                     )
                     .cornerRadius(16)
                     .padding(.horizontal, 12)
                     .padding(.top, 12)
-                    .shadow(color: Color.black.opacity(0.05), radius: 1, x: 0, y: 1)
+                    .shadow(
+                        color: colorScheme == .dark ? Color.black.opacity(0.05) : Color.black.opacity(0.1), 
+                        radius: 1, x: 0, y: 1
+                    )
 
                     // Visual separator between posts
                     Rectangle()
@@ -318,13 +319,18 @@ struct PostDetailView: View {
                     .background(
                         colorScheme == .dark
                             ? Color(UIColor.secondarySystemBackground).opacity(0.3)
-                            : Color(UIColor.secondarySystemBackground).opacity(0.2)
+                            : Color(UIColor.tertiarySystemBackground).opacity(0.5)
                     )
                     .cornerRadius(16)
                     .padding(.horizontal, 12)
                 }
                 .padding(.bottom, 20)
             }
+            .background(
+                colorScheme == .dark 
+                    ? Color(UIColor.systemBackground) 
+                    : Color(UIColor.secondarySystemBackground)
+            )
             .navigationBarTitle("Post", displayMode: .inline)
             .onAppear {
                 detectLinks()
@@ -828,7 +834,7 @@ private struct URLServiceWrapper {
     }
 
     func isMastodonPostURL(_ url: URL) -> Bool {
-        guard let host = url.host else { return false }
+        guard let host = url.host?.lowercased() else { return false }
 
         // Check for common Mastodon instances or pattern
         let isMastodonInstance =
@@ -838,9 +844,24 @@ private struct URLServiceWrapper {
 
         // Check if it matches Mastodon post URL pattern: /@username/postID
         let path = url.path
-        let isPostURL = path.contains("/@") && path.split(separator: "/").count >= 3
+        let components = path.split(separator: "/")
 
-        return isMastodonInstance && isPostURL
+        // For Mastodon URLs like /@username/postID, we expect exactly 2 components
+        // Don't treat profile-only URLs (just /@username) as post URLs
+        if path.contains("/@") && components.count < 2 {
+            return false
+        }
+
+        // Check if we have the right pattern and last component is numeric (status ID)
+        if components.count >= 2 {
+            let lastComponent = components.last!
+            let isNumericID = lastComponent.allSatisfy { $0.isNumber }
+            // Also ensure the first component starts with @
+            let hasUsernamePattern = components.first?.hasPrefix("@") == true
+            return isMastodonInstance && isNumericID && hasUsernamePattern
+        }
+
+        return false
     }
 
     func validateURL(_ urlString: String) -> URL? {

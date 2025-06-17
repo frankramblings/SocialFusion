@@ -256,16 +256,19 @@ class URLService {
         let path = url.path
         let components = path.split(separator: "/")
 
-        // Don't treat profile-only URLs as post URLs
-        if path.contains("/@") && components.count < 3 {
+        // For Mastodon URLs like /@username/postID, we expect exactly 2 components
+        // Don't treat profile-only URLs (just /@username) as post URLs
+        if path.contains("/@") && components.count < 2 {
             return false
         }
 
-        // Check if last component is numeric (status ID)
-        if components.count >= 3 {
+        // Check if we have the right pattern and last component is numeric (status ID)
+        if components.count >= 2 {
             let lastComponent = components.last!
             let isNumericID = lastComponent.allSatisfy { $0.isNumber }
-            return isMastodonInstance && isNumericID
+            // Also ensure the first component starts with @
+            let hasUsernamePattern = components.first?.hasPrefix("@") == true
+            return isMastodonInstance && isNumericID && hasUsernamePattern
         }
 
         return false
