@@ -103,7 +103,7 @@ struct AboutView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                    Image(systemName: "globe.americas.fill")
                         .font(.system(size: 80))
                         .foregroundColor(Color("PrimaryColor"))
                         .padding(.top, 40)

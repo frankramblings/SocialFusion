@@ -134,6 +134,12 @@ public struct EmojiTextApp: View {
         var attributed = AttributedString(
             nsAttr ?? NSAttributedString(string: htmlString.plainText))
 
+        // Debug logging
+        print("🔗 [EmojiTextApp] DEBUG buildAttributedString")
+        print("🔗 [EmojiTextApp] Raw HTML: \(htmlString.raw)")
+        print("🔗 [EmojiTextApp] Plain text: \(htmlString.plainText)")
+        print("🔗 [EmojiTextApp] Attributed string: \(attributed)")
+
         // Gather mention/tag URLs
         let mentionURLs = mentions.compactMap { URL(string: $0) }
         let tagURLs = tags.compactMap { URL(string: $0) }
@@ -141,18 +147,26 @@ public struct EmojiTextApp: View {
         // Walk all runs and reassign links as needed
         for run in attributed.runs {
             if let url = run.link {
+                print("🔗 [EmojiTextApp] Found link in text: \(url)")
+
                 // If this is a mention or tag, convert to custom scheme
                 if mentionURLs.contains(url) {
                     let username = url.lastPathComponent
                     attributed[run.range].link = URL(string: "socialfusion://user/\(username)")
                     attributed[run.range].foregroundColor = .accentColor
+                    print(
+                        "🔗 [EmojiTextApp] Converted mention link: \(url) -> socialfusion://user/\(username)"
+                    )
                 } else if tagURLs.contains(url) {
                     let tag = url.lastPathComponent
                     attributed[run.range].link = URL(string: "socialfusion://tag/\(tag)")
                     attributed[run.range].foregroundColor = .accentColor
+                    print(
+                        "🔗 [EmojiTextApp] Converted tag link: \(url) -> socialfusion://tag/\(tag)")
                 } else {
                     // Real web link: style as link
                     attributed[run.range].foregroundColor = .accentColor
+                    print("🔗 [EmojiTextApp] Styled web link: \(url)")
                 }
             }
             // Always apply font and color

@@ -60,8 +60,20 @@ public struct QuotedPostView: View {
                 .clipShape(Circle())
                 .id(stableImageURL?.absoluteString ?? "no-url")
 
-                PlatformDot(platform: post.platform, size: 8)
-                    .offset(x: 1, y: 1)
+                PlatformDot(
+                    platform: post.platform, size: 14, useLogo: true  // Increased from 12 to 14 for better visibility
+                )
+                .background(
+                    Circle()
+                        .fill(Color(.systemBackground))
+                        .frame(width: 18, height: 18)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
+                        )
+                        .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                )
+                .offset(x: 2, y: 2)
             }
 
             // Author info

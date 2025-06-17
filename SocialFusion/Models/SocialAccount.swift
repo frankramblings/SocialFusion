@@ -89,9 +89,9 @@ public enum SocialPlatform: String, Codable, CaseIterable {
     public var icon: String {
         switch self {
         case .mastodon:
-            return "message.fill"
+            return "person.crop.circle"
         case .bluesky:
-            return "cloud.fill"
+            return "person.crop.circle"
         }
     }
 
@@ -104,9 +104,9 @@ public enum SocialPlatform: String, Codable, CaseIterable {
     public var sfSymbol: String {
         switch self {
         case .mastodon:
-            return "m.circle.fill"
+            return "person.crop.circle"
         case .bluesky:
-            return "cloud.fill"
+            return "person.crop.circle"
         }
     }
 }
@@ -235,7 +235,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         didSet {
             if profileImageURL != oldValue {
                 NotificationCenter.default.post(
-                    name: Notification.Name.accountProfileImageUpdated, object: self, userInfo: nil)
+                    name: .profileImageUpdated, object: self, userInfo: nil)
             }
         }
     }

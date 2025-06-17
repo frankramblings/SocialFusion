@@ -61,8 +61,8 @@ struct PostDetailNavigationView: View {
 
         GeometryReader { geometry in
             ZStack {
-                // Plain dark background like Mail.app
-                Color.black
+                // Adaptive background that works in both light and dark mode
+                (colorScheme == .dark ? Color.black : Color(UIColor.systemBackground))
                     .ignoresSafeArea(.all)
 
                 ScrollView {
@@ -81,7 +81,11 @@ struct PostDetailNavigationView: View {
 
                             // Subtle divider
                             Divider()
-                                .background(Color.gray.opacity(0.3))
+                                .background(
+                                    colorScheme == .dark
+                                        ? Color.gray.opacity(0.3)
+                                        : Color.gray.opacity(0.2)
+                                )
                                 .padding(.horizontal, 16)
 
                             // Post content
@@ -92,7 +96,11 @@ struct PostDetailNavigationView: View {
                             // Media attachments
                             if !displayPost.attachments.isEmpty {
                                 Divider()
-                                    .background(Color.gray.opacity(0.3))
+                                    .background(
+                                        colorScheme == .dark
+                                            ? Color.gray.opacity(0.3)
+                                            : Color.gray.opacity(0.2)
+                                    )
                                     .padding(.horizontal, 16)
 
                                 mediaSection(for: displayPost)
@@ -102,7 +110,11 @@ struct PostDetailNavigationView: View {
 
                             // Action bar
                             Divider()
-                                .background(Color.gray.opacity(0.3))
+                                .background(
+                                    colorScheme == .dark
+                                        ? Color.gray.opacity(0.3)
+                                        : Color.gray.opacity(0.2)
+                                )
                                 .padding(.horizontal, 16)
 
                             actionBarSection(for: displayPost)
@@ -112,7 +124,11 @@ struct PostDetailNavigationView: View {
                             // Engagement metadata
                             if viewModel.post.repostCount > 0 || viewModel.post.likeCount > 0 {
                                 Divider()
-                                    .background(Color.gray.opacity(0.3))
+                                    .background(
+                                        colorScheme == .dark
+                                            ? Color.gray.opacity(0.3)
+                                            : Color.gray.opacity(0.2)
+                                    )
                                     .padding(.horizontal, 16)
 
                                 metadataSection(for: displayPost)
@@ -122,7 +138,11 @@ struct PostDetailNavigationView: View {
 
                             // Timestamp section
                             Divider()
-                                .background(Color.gray.opacity(0.3))
+                                .background(
+                                    colorScheme == .dark
+                                        ? Color.gray.opacity(0.3)
+                                        : Color.gray.opacity(0.2)
+                                )
                                 .padding(.horizontal, 16)
 
                             bottomMetadataSection(for: displayPost)
@@ -258,7 +278,11 @@ struct PostDetailNavigationView: View {
             .padding(.vertical, 16)
 
             Divider()
-                .background(Color.gray.opacity(0.3))
+                .background(
+                    colorScheme == .dark
+                        ? Color.gray.opacity(0.3)
+                        : Color.gray.opacity(0.2)
+                )
                 .padding(.horizontal, 16)
 
             // Text input with proper styling
@@ -331,9 +355,6 @@ struct PostDetailNavigationView: View {
             }
             .buttonStyle(.plain)
 
-            Text("Posted via \(post.platform.rawValue.capitalized)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -362,7 +383,6 @@ struct PostDetailNavigationView: View {
                 platform: post.platform
             )
             .frame(width: 48, height: 48)
-            .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 2) {
                 // Name with clean typography
@@ -380,17 +400,6 @@ struct PostDetailNavigationView: View {
 
             Spacer()
 
-            // Platform indicator
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(platformColor)
-                    .frame(width: 6, height: 6)
-
-                Text(post.platform.rawValue.capitalized)
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .foregroundStyle(platformColor)
-            }
         }
     }
 

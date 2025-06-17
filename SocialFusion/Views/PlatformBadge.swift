@@ -7,9 +7,9 @@ struct PlatformBadge: View {
     private func getLogoSystemName(for platform: SocialPlatform) -> String {
         switch platform {
         case .mastodon:
-            return "message.fill"
+            return "person.crop.circle"
         case .bluesky:
-            return "cloud.fill"
+            return "person.crop.circle"
         }
     }
 

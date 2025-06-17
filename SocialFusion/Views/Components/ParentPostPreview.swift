@@ -58,10 +58,22 @@ struct ParentPostPreview: View {
                     )
                     .scaleEffect(isPressed ? 0.95 : 1.0)
 
-                    // Platform indicator with subtle animation
-                    PlatformDot(platform: post.platform, size: 10)
-                        .offset(x: 2, y: 2)
-                        .scaleEffect(isPressed ? 0.9 : 1.0)
+                    // Platform indicator with enhanced visibility and subtle animation
+                    PlatformDot(
+                        platform: post.platform, size: 16, useLogo: true  // Increased from 14 to 16 for better visibility
+                    )
+                    .background(
+                        Circle()
+                            .fill(Color(.systemBackground))
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                    )
+                    .offset(x: 3, y: 3)
+                    .scaleEffect(isPressed ? 0.9 : 1.0)
                 }
                 .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
 

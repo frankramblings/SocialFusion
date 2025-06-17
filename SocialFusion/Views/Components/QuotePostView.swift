@@ -3,13 +3,16 @@ import SwiftUI
 /// A compact view of a quoted post - styled like ParentPostPreview
 public struct QuotePostView: View {
     public let post: Post
+    public var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
 
     // Maximum characters before content is trimmed
     private let maxCharacters = 300
 
-    public init(post: Post) {
+    public init(post: Post, onTap: (() -> Void)? = nil) {
         self.post = post
+        self.onTap = onTap
     }
 
     public var body: some View {
@@ -31,7 +34,16 @@ public struct QuotePostView: View {
         )
         .shadow(
             color: colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05),
-            radius: 1, y: 1)
+            radius: 1, y: 1
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let onTap = onTap {
+                onTap()
+            } else {
+                navigationEnvironment.navigateToPost(post)
+            }
+        }
     }
 
     // MARK: - View Components
@@ -60,8 +72,25 @@ public struct QuotePostView: View {
                     .stroke(Color(.systemBackground), lineWidth: 1)
             )
 
-            PlatformDot(platform: post.platform, size: 10)
-                .offset(x: 2, y: 2)
+            PlatformDot(
+                platform: post.platform, size: 16, useLogo: true  // Increased from 14 to 16 for better visibility
+            )
+            .background(
+                Circle()
+                    .fill(Color(.systemBackground))
+                    .frame(width: 20, height: 20)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                colorScheme == .dark
+                                    ? Color.white.opacity(0.2) : Color.black.opacity(0.1),
+                                lineWidth: 0.5)
+                    )
+                    .shadow(
+                        color: .black.opacity(colorScheme == .dark ? 0.3 : 0.15), radius: 2, x: 0,
+                        y: 1)
+            )
+            .offset(x: 3, y: 3)
         }
         .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
     }

@@ -2,6 +2,61 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
+// Clean circular unified accounts icon that behaves like the compose button
+struct UnifiedAccountsIcon: View {
+    let mastodonAccounts: [SocialAccount]
+    let blueskyAccounts: [SocialAccount]
+    @Environment(\.colorScheme) var colorScheme
+
+    private var totalAccountCount: Int {
+        mastodonAccounts.count + blueskyAccounts.count
+    }
+
+    private var hasAccounts: Bool {
+        !mastodonAccounts.isEmpty || !blueskyAccounts.isEmpty
+    }
+
+    var body: some View {
+        Circle()
+            .fill(
+                colorScheme == .dark
+                    ? Color(UIColor.secondarySystemBackground)
+                    : Color(UIColor.systemGray6)
+            )
+            .frame(width: 32, height: 32)
+            .overlay(
+                Group {
+                    if !hasAccounts {
+                        // No accounts - plus icon
+                        Image(systemName: "plus")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.secondary)
+                    } else if totalAccountCount == 1 {
+                        // Single account
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                    } else {
+                        // Multiple accounts
+                        Image(systemName: "person.2.fill")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                    }
+                }
+            )
+            .overlay(
+                Circle()
+                    .stroke(
+                        colorScheme == .dark
+                            ? Color(UIColor.tertiaryLabel).opacity(0.3)
+                            : Color(UIColor.systemGray4).opacity(0.5),
+                        lineWidth: 0.5
+                    )
+            )
+            .animation(.easeInOut(duration: 0.2), value: totalAccountCount)
+    }
+}
+
 struct ContentView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject var appVersionManager: AppVersionManager
@@ -89,48 +144,29 @@ struct ContentView: View {
                     }
                     .navigationBarItems(
                         leading: HStack {
-                            // Account selector button
+                            // Account selector button - liquid glass circle
                             Button(action: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
                                     showAccountDropdown.toggle()
                                 }
                             }) {
-                                HStack(spacing: 8) {
-                                    // Show current account image or unified icon
-                                    getCurrentAccountImage()
-                                        .frame(width: 30, height: 30)
-                                        .clipShape(Circle())
-
-                                    // Dropdown indicator with rotation animation
-                                    Image(systemName: "chevron.down")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundColor(.primary)
-                                        .rotationEffect(
-                                            .degrees(showAccountDropdown ? 180 : 0)
-                                        )
-                                        .animation(
-                                            .easeInOut(duration: 0.2),
-                                            value: showAccountDropdown)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Group {
-                                        if showAccountDropdown {
-                                            RoundedRectangle(cornerRadius: 22)
-                                                .foregroundColor(Color.primary.opacity(0.08))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 22)
-                                                        .stroke(
-                                                            Color.primary.opacity(0.15),
-                                                            lineWidth: 0.5)
-                                                )
-                                        } else {
-                                            Color.clear
-                                        }
-                                    }
-                                )
+                                // Show current account image or unified icon
+                                getCurrentAccountImage()
+                                    .frame(width: 24, height: 24)
+                                    .clipShape(Circle())
                             }
+                            .frame(width: 40, height: 40)
+                            .advancedLiquidGlass(
+                                variant: .floating,
+                                intensity: showAccountDropdown ? 1.2 : 0.9,
+                                morphingState: showAccountDropdown ? .pressed : .floating
+                            )
+                            .clipShape(Circle())
+                            .scaleEffect(showAccountDropdown ? 0.95 : 1.0)
+                            .animation(
+                                .spring(response: 0.3, dampingFraction: 0.7),
+                                value: showAccountDropdown
+                            )
                             // Debug: Triple tap to show launch animation
                             .onTapGesture(count: 3) {
                                 #if DEBUG
@@ -251,11 +287,6 @@ struct ContentView: View {
                                                 .foregroundColor(.secondary)
                                         }
 
-                                        // Platform badge - Enhanced with Liquid Glass
-                                        HStack {
-                                            PostPlatformBadge(platform: account.platform)
-                                        }
-                                        .padding(.bottom, 10)
                                     }
                                     .frame(maxWidth: .infinity)
                                     .background(
@@ -1171,42 +1202,7 @@ struct ProfileImageView: View {
     }
 }
 
-/// UnifiedAccountsIcon displays a visually appealing representation
-/// of all accounts when no specific account is selected
-struct UnifiedAccountsIcon: View {
-    let mastodonAccounts: [SocialAccount]
-    let blueskyAccounts: [SocialAccount]
-
-    // Compute accounts without causing side effects
-    private var allAccounts: [SocialAccount] {
-        mastodonAccounts + blueskyAccounts
-    }
-
-    var body: some View {
-        if allAccounts.isEmpty {
-            // Show placeholder if no accounts
-            Image(systemName: "person.3.fill")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .foregroundColor(.gray)
-        } else {
-            // Show account profiles with colored outlines
-            ZStack {
-                // First profile (if any Mastodon accounts)
-                if let firstMastodonAccount = mastodonAccounts.first {
-                    ProfileImageView(account: firstMastodonAccount)
-                        .offset(x: -6, y: -6)
-                }
-
-                // Second profile (if any Bluesky accounts)
-                if let firstBlueskyAccount = blueskyAccounts.first {
-                    ProfileImageView(account: firstBlueskyAccount)
-                        .offset(x: 6, y: 6)
-                }
-            }
-        }
-    }
-}
+// UnifiedAccountsIcon is now defined in Views/UnifiedAccountsIcon.swift
 
 /// Platform badge to show on account avatars (temporary duplicate to fix build)
 struct PlatformBadge: View {
@@ -1215,9 +1211,9 @@ struct PlatformBadge: View {
     private func getLogoSystemName(for platform: SocialPlatform) -> String {
         switch platform {
         case .mastodon:
-            return "message.fill"
+            return "person.crop.circle"
         case .bluesky:
-            return "cloud.fill"
+            return "person.crop.circle"
         }
     }
 

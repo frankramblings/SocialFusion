@@ -491,7 +491,7 @@ class BlueskyService {
                 // Post notification about the profile image update
                 DispatchQueue.main.async {
                     NotificationCenter.default.post(
-                        name: Notification.Name("AccountProfileImageUpdated"),
+                        name: .profileImageUpdated,
                         object: nil,
                         userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
                     )

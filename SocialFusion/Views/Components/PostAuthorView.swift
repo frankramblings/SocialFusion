@@ -67,9 +67,6 @@ struct PostAuthorView: View {
             }
 
             Spacer()
-
-            // Platform badge
-            PlatformBadge(platform: stablePlatform)
         }
     }
 

@@ -1710,23 +1710,46 @@ public class MastodonService {
         return convertToGenericPosts(statuses: statuses)
     }
 
-    // Try to fetch the profile image data
-    private func updateProfileImage(for account: SocialAccount) async {
+    /// Update profile image for a Mastodon account
+    public func updateProfileImage(for account: SocialAccount) async {
         do {
-            guard let serverStr = account.serverURL?.absoluteString
-            else {
-                print("No server URL found for account")
+            guard let serverURL = account.serverURL else {
+                print("❌ No server URL found for Mastodon account: \(account.username)")
                 return
             }
 
-            let endpoint = "https://\(serverStr)/api/v1/accounts/verify_credentials"
-            var request = URLRequest(url: URL(string: endpoint)!)
+            print("🔄 Fetching Mastodon profile for \(account.username) from server: \(serverURL)")
 
-            if let accessToken = account.getAccessToken() {
-                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            // Build the endpoint URL properly
+            let endpoint = serverURL.appendingPathComponent("api/v1/accounts/verify_credentials")
+            var request = URLRequest(url: endpoint)
+
+            guard let accessToken = account.getAccessToken() else {
+                print("❌ No access token found for Mastodon account: \(account.username)")
+                return
             }
 
-            let (data, _) = try await URLSession.shared.data(for: request)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            print("🔐 Using access token for \(account.username): \(accessToken.prefix(10))...")
+
+            print("🌐 Making Mastodon API request to: \(endpoint)")
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            // Check HTTP response status
+            if let httpResponse = response as? HTTPURLResponse {
+                print(
+                    "📡 Mastodon API response status for \(account.username): \(httpResponse.statusCode)"
+                )
+                if httpResponse.statusCode != 200 {
+                    print(
+                        "❌ Mastodon API returned error status \(httpResponse.statusCode) for \(account.username)"
+                    )
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("❌ Response body: \(responseString)")
+                    }
+                    return
+                }
+            }
             let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
 
             print(
@@ -1764,7 +1787,16 @@ public class MastodonService {
                 )
             }
         } catch {
-            print("Error fetching Mastodon profile: \(error)")
+            print("❌ Error fetching Mastodon profile for \(account.username): \(error)")
+
+            // More detailed error logging
+            if let urlError = error as? URLError {
+                print(
+                    "❌ URLError code: \(urlError.code.rawValue), description: \(urlError.localizedDescription)"
+                )
+            } else if let decodingError = error as? DecodingError {
+                print("❌ JSON decoding error: \(decodingError)")
+            }
         }
     }
 
@@ -1806,7 +1838,7 @@ public class MastodonService {
             // Post notification about the profile image update
             DispatchQueue.main.async {
                 NotificationCenter.default.post(
-                    name: Notification.Name("AccountProfileImageUpdated"),
+                    name: .profileImageUpdated,
                     object: nil,
                     userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
                 )

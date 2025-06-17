@@ -205,7 +205,7 @@ public final class SocialServiceManager: ObservableObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleProfileImageUpdate),
-            name: Notification.Name("AccountProfileImageUpdated"),
+            name: .profileImageUpdated,
             object: nil
         )
     }
@@ -273,7 +273,11 @@ public final class SocialServiceManager: ObservableObject {
 
         // MIGRATION: Check for and migrate old DID-based Bluesky accounts
         migrateOldBlueskyAccounts()
+
         print("🔧 SocialServiceManager: loadAccounts() completed")
+
+        // PROFILE REFRESH: Update profile images for all loaded accounts (after method is defined)
+        refreshAccountProfiles()
     }
 
     /// Save accounts to UserDefaults
@@ -297,6 +301,42 @@ public final class SocialServiceManager: ObservableObject {
         // Separate accounts by platform
         mastodonAccounts = accounts.filter { $0.platform == .mastodon }
         blueskyAccounts = accounts.filter { $0.platform == .bluesky }
+    }
+
+    /// Refresh profile information for all accounts
+    private func refreshAccountProfiles() {
+        print("🔄 SocialServiceManager: Refreshing profile images for all accounts...")
+
+        Task {
+            for account in accounts {
+                do {
+                    switch account.platform {
+                    case .mastodon:
+                        await mastodonService.updateProfileImage(for: account)
+                    case .bluesky:
+                        try await blueskyService.updateProfileInfo(for: account)
+                    }
+                    print("✅ Refreshed profile for \(account.username) (\(account.platform))")
+                } catch {
+                    print("⚠️ Failed to refresh profile for \(account.username): \(error)")
+                }
+
+                // Small delay to avoid overwhelming the APIs
+                try? await Task.sleep(nanoseconds: 250_000_000)  // 0.25 seconds
+            }
+
+            // Save updated accounts
+            await MainActor.run {
+                saveAccounts()
+                print("💾 Saved accounts after profile refresh")
+            }
+        }
+    }
+
+    /// Public method to manually refresh profile images for all accounts
+    @MainActor
+    public func refreshAllProfileImages() async {
+        refreshAccountProfiles()
     }
 
     /// Get accounts to fetch based on current selection

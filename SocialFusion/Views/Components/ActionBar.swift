@@ -82,7 +82,7 @@ struct ActionBar: View {
 
                 onAction(.quote)
             } label: {
-                Image(systemName: "quote.bubble")
+                Image(systemName: "quote.opening")
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
             }

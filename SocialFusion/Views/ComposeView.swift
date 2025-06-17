@@ -48,17 +48,20 @@ struct ReplyContextHeader: View {
                 // Author info
                 HStack(spacing: 8) {
                     let stableImageURL = URL(string: post.authorProfilePictureURL)
-                    AsyncImage(url: stableImageURL) { image in
+                    CachedAsyncImage(url: stableImageURL) { image in
                         image
                             .resizable()
                             .scaledToFill()
                     } placeholder: {
                         Circle()
                             .fill(Color.gray.opacity(0.3))
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                            )
                     }
                     .frame(width: 32, height: 32)
                     .clipShape(Circle())
-                    .id(stableImageURL?.absoluteString ?? "no-url")
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(post.authorName)

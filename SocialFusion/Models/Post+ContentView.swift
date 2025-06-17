@@ -146,8 +146,12 @@ extension Post {
     private func quotePostViews(onQuotePostTap: ((Post) -> Void)? = nil) -> some View {
         // 1. First check if we have a fully hydrated quoted post
         if let quotedPost = quotedPost {
-            QuotedPostView(post: quotedPost)
-                .padding(.top, 8)
+            QuotedPostView(post: quotedPost) {
+                if let onQuotePostTap = onQuotePostTap {
+                    onQuotePostTap(quotedPost)
+                }
+            }
+            .padding(.top, 8)
         }
         // 2. If no hydrated quote but have quote metadata, fetch it
         else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
@@ -231,6 +235,19 @@ extension Post {
         }
         let firstYouTubeLink = youtubeLinks.first
 
+        // Debug logging
+        EmptyView()
+            .onAppear {
+                print("🔗 [regularLinkPreviewsOnly] DEBUG for post: \(self.id)")
+                print("🔗 [regularLinkPreviewsOnly] Platform: \(self.platform)")
+                print("🔗 [regularLinkPreviewsOnly] Content: \(self.content)")
+                print("🔗 [regularLinkPreviewsOnly] PlainText: \(plainText)")
+                print("🔗 [regularLinkPreviewsOnly] All links: \(allLinks)")
+                print("🔗 [regularLinkPreviewsOnly] Social media links: \(socialMediaLinks)")
+                print("🔗 [regularLinkPreviewsOnly] YouTube links: \(youtubeLinks)")
+                print("🔗 [regularLinkPreviewsOnly] Regular links: \(regularLinks)")
+            }
+
         // Show first YouTube video as inline player
         if let firstYouTubeLink = firstYouTubeLink,
             let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
@@ -251,6 +268,9 @@ extension Post {
         ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
             StabilizedLinkPreview(url: url, idealHeight: 200)
                 .padding(.top, 8)
+                .onAppear {
+                    print("🔗 [regularLinkPreviewsOnly] Showing link preview for: \(url)")
+                }
         }
     }
 

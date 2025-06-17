@@ -116,9 +116,9 @@ public enum SocialPlatform: String, Codable, CaseIterable {
     public var icon: String {
         switch self {
         case .mastodon:
-            return "message.fill"
+            return "person.crop.circle"
         case .bluesky:
-            return "cloud.fill"
+            return "person.crop.circle"
         }
     }
 
@@ -131,9 +131,9 @@ public enum SocialPlatform: String, Codable, CaseIterable {
     public var sfSymbol: String {
         switch self {
         case .mastodon:
-            return "m.circle.fill"
+            return "person.crop.circle"
         case .bluesky:
-            return "cloud.fill"
+            return "person.crop.circle"
         }
     }
 }

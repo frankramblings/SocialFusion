@@ -68,7 +68,7 @@ private struct SingleImageView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .bottomTrailing) {
             AsyncImage(url: stableURL) { phase in
                 switch phase {
                 case .success(let image):
@@ -128,8 +128,8 @@ private struct SingleImageView: View {
 
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()
-                    .padding(.top, 8)
-                    .padding(.leading, 8)
+                    .padding(.bottom, 8)
+                    .padding(.trailing, 8)
             }
         }
     }
@@ -178,7 +178,7 @@ private struct GridImageView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .bottomTrailing) {
             AsyncImage(url: stableURL) { phase in
                 switch phase {
                 case .success(let image):
@@ -216,8 +216,8 @@ private struct GridImageView: View {
 
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()
-                    .padding(.top, 4)
-                    .padding(.leading, 4)
+                    .padding(.bottom, 4)
+                    .padding(.trailing, 4)
             }
 
             // Show "+X more" overlay on the last item if there are extra items
@@ -240,20 +240,15 @@ private struct GridImageView: View {
 // Helper badge for alt text indication
 private struct GlassyAltBadge: View {
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "text.bubble")
-                .font(.caption2)
-                .foregroundColor(.white)
-
-            Text("ALT")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(.ultraThinMaterial, in: Capsule())
-        .environment(\.colorScheme, .dark)  // Force dark appearance for glass effect
+        Text("ALT")
+            .font(.caption2)
+            .fontWeight(.medium)
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.ultraThinMaterial, in: Capsule())
+            .environment(\.colorScheme, .dark)  // Force dark appearance for glass effect
+            .scaleEffect(1.1)  // 10% larger
     }
 }
 
