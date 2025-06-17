@@ -129,9 +129,9 @@ extension Post {
                 tags: tags
             )
             .lineLimit(lineLimit)
-            .fixedSize(horizontal: false, vertical: true)
             .multilineTextAlignment(.leading)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
 
             // Always show quote posts, but respect showLinkPreview for other content
             quotePostViews(onQuotePostTap: onQuotePostTap)
