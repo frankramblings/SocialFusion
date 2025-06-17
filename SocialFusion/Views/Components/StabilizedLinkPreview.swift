@@ -423,12 +423,14 @@ private struct StabilizedLinkFallbackView: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Text("External Link")
+                    // Show more of the URL path for better context
+                    Text(url.path.isEmpty ? "External Link" : url.path)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, 12)
