@@ -180,7 +180,7 @@ struct PostCardView: View {
                     onParentPostTap(quotedPost)  // Navigate to the quoted post
                 }
             )
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 8)  // Reduced from 12 to give more space for text
             .padding(.top, 4)
 
             // Media section
@@ -215,7 +215,7 @@ struct PostCardView: View {
             .padding(.horizontal, 12)  // Apple standard: 12pt content padding
             .padding(.top, 6)  // Apple standard: 6pt separation from content
         }
-        .padding(.horizontal, 16)  // Apple standard: 16pt container padding
+        .padding(.horizontal, 12)  // Reduced from 16 to give more space for content
         .padding(.vertical, 12)  // Apple standard: 12pt container padding
         .background(Color(.systemBackground))
         .contentShape(Rectangle())

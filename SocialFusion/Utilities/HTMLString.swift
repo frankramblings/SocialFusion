@@ -115,6 +115,8 @@ public struct EmojiTextApp: View {
         Text(attributed)
             .lineLimit(lineLimit)
             .textSelection(.enabled)
+            .allowsTightening(false)
+            .environment(\.layoutDirection, .leftToRight)
     }
 
     // Build AttributedString with robust mention/tag/web link handling
