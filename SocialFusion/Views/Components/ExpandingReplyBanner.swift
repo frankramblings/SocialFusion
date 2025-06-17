@@ -83,10 +83,10 @@ struct ExpandingReplyBanner: View {
     @State private var parent: Post? = nil
     @State private var fetchAttempted = false
 
-    // Smooth animation state
+    // Improved animation state management
     @State private var isPressed = false
-    @State private var contentHeight: CGFloat = 0
-    @State private var showContent = false
+    @State private var measuredContentHeight: CGFloat = 0
+    @State private var animatedContentHeight: CGFloat = 0
 
     private var displayUsername: String {
         if let parent = parent {
@@ -116,11 +116,11 @@ struct ExpandingReplyBanner: View {
 
     // Ultra-smooth liquid glass animation
     private var fluidAnimation: Animation {
-        .easeInOut(duration: 0.5)
+        .spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0.2)
     }
 
     private var chevronAnimation: Animation {
-        .easeInOut(duration: 0.5)
+        .easeInOut(duration: 0.3)
     }
 
     var body: some View {
@@ -169,24 +169,37 @@ struct ExpandingReplyBanner: View {
             )
             .zIndex(1)  // Ensure banner is above content for tap handling
 
-            // Content with smooth height animation
-            contentView
-                .background(Color(.systemGray6))  // Opaque background to prevent transparency
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear
-                            .preference(key: HeightPreferenceKey.self, value: geometry.size.height)
-                    }
-                )
-                .frame(height: showContent ? contentHeight : 0)
-                .clipped()
-                .animation(fluidAnimation, value: showContent)
-                .onPreferenceChange(HeightPreferenceKey.self) { newHeight in
-                    if contentHeight != newHeight {
-                        contentHeight = newHeight
-                    }
+            // Content with improved height animation
+            VStack(spacing: 0) {
+                // Always-present measurement view (invisible but measured)
+                if !isExpanded {
+                    contentView
+                        .background(
+                            GeometryReader { geometry in
+                                Color.clear
+                                    .preference(
+                                        key: HeightPreferenceKey.self, value: geometry.size.height)
+                            }
+                        )
+                        .onPreferenceChange(HeightPreferenceKey.self) { newHeight in
+                            if newHeight > 0 && measuredContentHeight != newHeight {
+                                measuredContentHeight = newHeight
+                            }
+                        }
+                        .fixedSize(horizontal: false, vertical: true)
+                        .opacity(0)
+                        .allowsHitTesting(false)
+                        .accessibility(hidden: true)
                 }
-                .allowsHitTesting(showContent && isExpanded)  // Only allow content interaction when fully expanded
+
+                // Visible content when expanded
+                if isExpanded {
+                    contentView
+                        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
+                }
+            }
+            .frame(height: animatedContentHeight)
+            .clipped()
         }
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -211,8 +224,13 @@ struct ExpandingReplyBanner: View {
             let newParent = cache[parentId]
             if parent !== newParent {
                 parent = newParent
-                // Reset content height when parent changes to trigger recalculation
-                contentHeight = 0
+                // Only reset heights if we don't have valid content
+                if parent == nil {
+                    measuredContentHeight = 0
+                    if !isExpanded {
+                        animatedContentHeight = 0
+                    }
+                }
             }
         }
         .onAppear {
@@ -226,12 +244,41 @@ struct ExpandingReplyBanner: View {
                 }
             }
 
-            // Initialize showContent state
-            showContent = isExpanded
+            // Initialize animation state
+            animatedContentHeight = isExpanded ? measuredContentHeight : 0
+
+            // Force a layout pass to ensure content is measured
+            DispatchQueue.main.async {
+                // This ensures the content gets measured even when initially collapsed
+            }
         }
         .onChange(of: isExpanded) { newValue in
-            withAnimation(fluidAnimation) {
-                showContent = newValue
+            if newValue {
+                // Start fetching when expanded
+                if let parentId = parentId {
+                    triggerParentFetch(parentId: parentId)
+                }
+
+                // Wait a short moment for measurement, then animate
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    let targetHeight = measuredContentHeight > 0 ? measuredContentHeight : 100
+                    withAnimation(fluidAnimation) {
+                        animatedContentHeight = targetHeight
+                    }
+                }
+            } else {
+                // Collapsing: animate to zero height immediately
+                withAnimation(fluidAnimation) {
+                    animatedContentHeight = 0
+                }
+            }
+        }
+        .onChange(of: measuredContentHeight) { newHeight in
+            // When content height is measured and we're expanded, update animation
+            if isExpanded && newHeight > 0 {
+                withAnimation(fluidAnimation) {
+                    animatedContentHeight = newHeight
+                }
             }
         }
     }
@@ -307,13 +354,6 @@ struct ExpandingReplyBanner: View {
 
         // Toggle expansion state
         isExpanded.toggle()
-
-        // Start fetching when expanded
-        if isExpanded, let parentId = parentId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                triggerParentFetch(parentId: parentId)
-            }
-        }
 
         onBannerTap?()
     }

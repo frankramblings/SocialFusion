@@ -17,6 +17,9 @@ struct StabilizedLinkPreview: View {
     init(url: URL, idealHeight: CGFloat = 200) {
         self.url = url
         self.idealHeight = idealHeight
+        print(
+            "🎯 [StabilizedLinkPreview] Created for URL: \(url.absoluteString) with height: \(idealHeight)"
+        )
     }
 
     var body: some View {
@@ -24,9 +27,11 @@ struct StabilizedLinkPreview: View {
             .frame(maxWidth: .infinity)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
             .onAppear {
+                print("🎯 [StabilizedLinkPreview] onAppear for URL: \(url.absoluteString)")
                 loadMetadata()
             }
             .onDisappear {
+                print("🎯 [StabilizedLinkPreview] onDisappear for URL: \(url.absoluteString)")
                 MetadataProviderManager.shared.cancelProvider(for: url)
             }
     }
@@ -48,29 +53,51 @@ struct StabilizedLinkPreview: View {
 
     private func loadMetadata() {
         guard retryCount <= maxRetries else {
+            print("🎯 [StabilizedLinkPreview] Max retries exceeded for URL: \(url.absoluteString)")
             isLoading = false
             loadingFailed = true
             return
         }
 
+        print(
+            "🎯 [StabilizedLinkPreview] Starting metadata load for URL: \(url.absoluteString) (attempt \(retryCount + 1))"
+        )
         isLoading = true
 
         MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    print("Error fetching link metadata for \(url): \(error)")
+                    print(
+                        "🎯 [StabilizedLinkPreview] Error fetching metadata for \(self.url): \(error)"
+                    )
 
-                    if retryCount < maxRetries && isTransientError(error) {
-                        retryCount += 1
+                    if self.retryCount < self.maxRetries && self.isTransientError(error) {
+                        self.retryCount += 1
+                        print(
+                            "🎯 [StabilizedLinkPreview] Will retry after delay for URL: \(self.url.absoluteString)"
+                        )
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            loadMetadata()
+                            self.loadMetadata()
                         }
                         return
                     }
 
-                    isLoading = false
-                    loadingFailed = true
+                    print(
+                        "🎯 [StabilizedLinkPreview] Failed to load metadata for URL: \(self.url.absoluteString)"
+                    )
+                    self.isLoading = false
+                    self.loadingFailed = true
                     return
+                }
+
+                print(
+                    "🎯 [StabilizedLinkPreview] Successfully loaded metadata for URL: \(self.url.absoluteString)"
+                )
+                if let metadata = metadata {
+                    print("🎯 [StabilizedLinkPreview] Metadata title: \(metadata.title ?? "nil")")
+                    print(
+                        "🎯 [StabilizedLinkPreview] Metadata URL: \(metadata.url?.absoluteString ?? "nil")"
+                    )
                 }
 
                 self.metadata = metadata

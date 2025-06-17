@@ -244,6 +244,9 @@ extension Post {
                 url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
             )
             .padding(.top, 8)
+            .onAppear {
+                print("🔗   Showing YouTube video: \(firstYouTubeLink)")
+            }
         }
 
         // Show remaining links as previews (limit to first 2 for performance)
@@ -256,6 +259,29 @@ extension Post {
         ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
             StabilizedLinkPreview(url: url, idealHeight: 200)
                 .padding(.top, 8)
+                .onAppear {
+                    print("🔗   Creating StabilizedLinkPreview for: \(url)")
+                }
+        }
+        .onAppear {
+            // Debug logging for link detection
+            print("🔗 [regularLinkPreviewsOnly] Post \(self.id) link analysis:")
+            print("🔗   Platform: \(self.platform)")
+            print("🔗   Content length: \(self.content.count)")
+            print("🔗   Plain text length: \(plainText.count)")
+            print("🔗   Content preview: '\(self.content.prefix(200))'")
+            print("🔗   Plain text preview: '\(plainText.prefix(200))'")
+            print("🔗   All links found: \(allLinks.count)")
+            for (index, link) in allLinks.enumerated() {
+                print("🔗     [\(index)] \(link.absoluteString)")
+            }
+            print("🔗   Social media links: \(socialMediaLinks.count)")
+            print("🔗   YouTube links: \(youtubeLinks.count)")
+            print("🔗   Regular links: \(regularLinks.count)")
+            print("🔗   Preview links after filtering: \(previewLinks.count)")
+            for (index, link) in previewLinks.enumerated() {
+                print("🔗     Preview [\(index)] \(link.absoluteString)")
+            }
         }
     }
 

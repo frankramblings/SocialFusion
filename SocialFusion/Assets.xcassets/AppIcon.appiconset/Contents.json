@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "AppIcon-Light-1024 copy.png",
+      "filename" : "SocialFusion.icon",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "AppIcon-Dark-1024 copy.png",
+      "filename" : "SocialFusion.icon",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "AppIcon-Monochrome-1024 copy.png",
+      "filename" : "SocialFusion.icon",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

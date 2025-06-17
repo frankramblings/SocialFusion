@@ -71,8 +71,12 @@ class URLService {
     /// Extract links from a text string with improved filtering
     func extractLinks(from text: String) -> [URL] {
         return linkDetectionQueue.sync {
+            print("🔍 [URLService] Starting link extraction from text length: \(text.count)")
+            print("🔍 [URLService] Text preview: '\(text.prefix(200))'")
+
             // Remove hashtags to avoid false positives
             let processedText = removeHashtags(from: text)
+            print("🔍 [URLService] After hashtag removal: '\(processedText.prefix(200))'")
 
             let detector = try? NSDataDetector(
                 types: NSTextCheckingResult.CheckingType.link.rawValue)
@@ -83,24 +87,46 @@ class URLService {
                     range: NSRange(location: 0, length: processedText.utf16.count)
                 ) ?? []
 
-            return matches.compactMap { match in
-                guard let url = match.url else { return nil }
+            print("🔍 [URLService] NSDataDetector found \(matches.count) potential links")
+
+            let results = matches.compactMap { match -> URL? in
+                guard let url = match.url else {
+                    print("🔍 [URLService] Skipping match with no URL")
+                    return nil
+                }
+
+                print("🔍 [URLService] Processing URL: \(url.absoluteString)")
 
                 // Validate and filter the URL
                 let validatedURL = validateURL(url)
+                print("🔍 [URLService] Validated URL: \(validatedURL.absoluteString)")
 
                 // Only allow HTTP/HTTPS
                 guard validatedURL.scheme == "http" || validatedURL.scheme == "https" else {
+                    print(
+                        "🔍 [URLService] Rejected URL (invalid scheme): \(validatedURL.absoluteString)"
+                    )
                     return nil
                 }
 
                 // Skip hashtags and mentions
                 if isHashtagOrMentionURL(validatedURL) {
+                    print(
+                        "🔍 [URLService] Rejected URL (hashtag/mention): \(validatedURL.absoluteString)"
+                    )
                     return nil
                 }
 
+                print("🔍 [URLService] Accepted URL: \(validatedURL.absoluteString)")
                 return validatedURL
             }
+
+            print("🔍 [URLService] Final results: \(results.count) valid URLs")
+            for (index, url) in results.enumerated() {
+                print("🔍 [URLService] [\(index)] \(url.absoluteString)")
+            }
+
+            return results
         }
     }
 

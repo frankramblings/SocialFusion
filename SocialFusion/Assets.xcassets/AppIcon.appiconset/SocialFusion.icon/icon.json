@@ -1,37 +1,36 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-srgb:0.00000,0.47843,1.00000,1.00000"
+    "automatic-gradient" : "extended-gray:1.00000,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "tinted",
-              "value" : "none"
-            }
-          ],
-          "glass" : true,
-          "hidden" : false,
+          "blend-mode" : "normal",
+          "fill" : "automatic",
           "image-name" : "AppIcon-Rightcircle.png",
           "name" : "AppIcon-Rightcircle",
-          "opacity-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : 0.9
-            }
-          ]
+          "position" : {
+            "scale" : 0.9,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         },
         {
+          "blend-mode" : "normal",
+          "fill" : "automatic",
+          "hidden" : false,
           "image-name" : "AppIcon-Leftcircle.png",
           "name" : "AppIcon-Leftcircle",
-          "opacity-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : 0.9
-            }
-          ]
+          "position" : {
+            "scale" : 0.9,
+            "translation-in-points" : [
+              0,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {

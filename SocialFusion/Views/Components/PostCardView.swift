@@ -171,10 +171,10 @@ struct PostCardView: View {
             )
             .padding(.horizontal, 12)  // Apple standard: 12pt content padding
 
-            // Content section - show quote posts always, but disable other link previews when media is present (Ivory style)
+            // Content section - show quote posts always, and show link previews for all posts
             displayPost.contentView(
                 lineLimit: nil,
-                showLinkPreview: displayPost.attachments.isEmpty,  // Ivory style for regular links
+                showLinkPreview: true,  // Always show link previews
                 font: .body,
                 onQuotePostTap: { quotedPost in
                     onParentPostTap(quotedPost)  // Navigate to the quoted post
