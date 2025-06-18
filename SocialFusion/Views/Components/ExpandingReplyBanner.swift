@@ -228,16 +228,20 @@ struct ExpandingReplyBanner: View {
             )
         }
         .background(
-            // Single consistent background layer
-            RoundedRectangle(cornerRadius: isExpanded ? 20 : 16, style: .continuous)
-                .fill(.ultraThinMaterial)
+            // Background that matches boost banner in closed state, morphs to expanded state
+            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
+                .fill(
+                    isExpanded
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(Color(.systemBackground))
+                )
                 .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: isExpanded ? 20 : 16, style: .continuous)
+            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
                 .stroke(
-                    Color.secondary.opacity(isExpanded ? 0.12 : 0.18),
-                    lineWidth: isExpanded ? 0.5 : 0.8
+                    Color.secondary.opacity(isExpanded ? 0.12 : 0.2),
+                    lineWidth: isExpanded ? 0.5 : 1
                 )
                 .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
@@ -254,7 +258,7 @@ struct ExpandingReplyBanner: View {
             intensity: isExpanded ? 0.9 : 0.7,
             morphingState: liquidGlassMorphingState
         )
-        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
         .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         .onAppear {
             // Set initial parent from cache immediately
