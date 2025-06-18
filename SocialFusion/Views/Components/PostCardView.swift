@@ -1,11 +1,5 @@
 import SwiftUI
 
-// State manager for post expansion to avoid view reuse issues
-@MainActor
-class PostExpansionState: ObservableObject {
-    @Published var isExpanded = false
-}
-
 /// A view that displays a post card with all its components
 struct PostCardView: View {
     let post: Post
@@ -33,8 +27,8 @@ struct PostCardView: View {
     // Optional PostViewModel for state updates
     let viewModel: PostViewModel?
 
-    // State for expanding reply banner - keyed to post ID to prevent view reuse issues
-    @StateObject private var expansionState = PostExpansionState()
+    // State for expanding reply banner - properly keyed to prevent view reuse issues
+    @State private var isReplyBannerExpanded = false
     @State private var bannerWasTapped = false
 
     // Platform color helper
@@ -154,7 +148,7 @@ struct PostCardView: View {
                     username: inReplyToUsername,
                     network: displayPost.platform,
                     parentId: displayPost.inReplyToID,
-                    isExpanded: $expansionState.isExpanded,
+                    isExpanded: $isReplyBannerExpanded,
                     onBannerTap: { bannerWasTapped = true },
                     onParentPostTap: { parentPost in
                         onParentPostTap(parentPost)  // Navigate to the parent post
@@ -162,6 +156,7 @@ struct PostCardView: View {
                 )
                 .padding(.horizontal, 12)  // Apple standard: 12pt for content - match boost banner alignment
                 .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
+                .id(displayPost.id + "_reply_banner")  // Key the banner to the specific post ID
             }
 
             // Author section

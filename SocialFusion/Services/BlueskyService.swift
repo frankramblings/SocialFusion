@@ -1320,6 +1320,7 @@ class BlueskyService {
                 var quotedPostUri: String? = nil
                 var quotedPostAuthorHandle: String? = nil
                 var quotedPost: Post? = nil
+                var externalEmbedURL: String? = nil
 
                 if let embed = post["embed"] as? [String: Any] {
                     print(
@@ -1335,6 +1336,16 @@ class BlueskyService {
                         let embedString = String(data: embedData, encoding: .utf8)
                     {
                         print("[Bluesky] 🔍 Embed JSON: \(String(embedString.prefix(500)))")
+                    }
+
+                    // Extract external URLs from embeds for link preview
+                    if let embedType = embed["$type"] as? String,
+                        embedType == "app.bsky.embed.external#view",
+                        let external = embed["external"] as? [String: Any],
+                        let externalUri = external["uri"] as? String
+                    {
+                        externalEmbedURL = externalUri
+                        logger.info("[Bluesky] Found external embed URL: \(externalUri)")
                     }
 
                     // Handle direct record embed (quote post) - check for app.bsky.embed.record#view
@@ -1566,10 +1577,23 @@ class BlueskyService {
                     displayDate = createdAtDate
                 }
 
+                // Add external embed URL to content for link detection
+                var finalContent = text
+                if let externalURL = externalEmbedURL {
+                    // If the post has no text content, add the URL
+                    // If it has text, append the URL with a space
+                    if finalContent.isEmpty {
+                        finalContent = externalURL
+                    } else if !finalContent.contains(externalURL) {
+                        finalContent += " \(externalURL)"
+                    }
+                    logger.info("[Bluesky] Added external URL to post content: \(externalURL)")
+                }
+
                 // Create regular post
                 let newPost = Post(
                     id: uri,
-                    content: text,
+                    content: finalContent,
                     authorName: authorName,
                     authorUsername: authorUsername,
                     authorProfilePictureURL: authorAvatarURL,

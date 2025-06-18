@@ -101,9 +101,9 @@ struct ParentPostPreview: View {
                     .opacity(isPressed ? 0.7 : 1.0)
             }
 
-            // Post content with conditional line limit and refined styling
+            // Post content with no line limit to show full content
             post.contentView(
-                lineLimit: post.content.count > maxCharacters ? 8 : nil,
+                lineLimit: nil,  // No line limit - show full content
                 showLinkPreview: false,
                 font: .callout  // Explicitly set font for parent post text
             )

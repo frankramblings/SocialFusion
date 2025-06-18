@@ -128,7 +128,7 @@ private struct StabilizedLinkLoadingView: View {
             Rectangle()
                 .fill(shimmerGradient)
                 .frame(maxWidth: .infinity)
-                .frame(height: 130)
+                .frame(height: 80)
                 .clipShape(
                     UnevenRoundedRectangle(
                         cornerRadii: .init(
@@ -214,7 +214,7 @@ private struct StabilizedLinkContentView: View {
                 // Image on top (Ivory style) - full width, edge to edge
                 imageSection
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 100, maxHeight: 160)
+                    .frame(minHeight: 80, maxHeight: 100)
 
                 // Text content below image (Ivory style)
                 textSection
@@ -249,7 +249,7 @@ private struct StabilizedLinkContentView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity)
-                        .frame(maxHeight: 160)
+                        .frame(maxHeight: 100)
                         .clipped()
                         .clipShape(
                             UnevenRoundedRectangle(

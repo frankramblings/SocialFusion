@@ -701,7 +701,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
                     {
                         return AnyView(YouTubeVideoPreview(url: link, videoID: videoID))
                     } else {
-                        return AnyView(StabilizedLinkPreview(url: link, idealHeight: 200))
+                        return AnyView(StabilizedLinkPreview(url: link, idealHeight: 140))
                     }
                 }
             }

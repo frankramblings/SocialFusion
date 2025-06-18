@@ -86,7 +86,7 @@ struct PostDetailView: View {
                                         YouTubeVideoPreview(url: url, videoID: videoID, idealHeight: 250)
                                     } else {
                                         // Regular link preview with stable height
-                                        StabilizedLinkPreview(url: url, idealHeight: 200)
+                                        StabilizedLinkPreview(url: url, idealHeight: 140)
                                     }
                                 }
                             }

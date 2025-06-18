@@ -257,7 +257,7 @@ extension Post {
         }
 
         ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
-            StabilizedLinkPreview(url: url, idealHeight: 200)
+            StabilizedLinkPreview(url: url, idealHeight: 140)
                 .padding(.top, 8)
                 .onAppear {
                     print("🔗   Creating StabilizedLinkPreview for: \(url)")
