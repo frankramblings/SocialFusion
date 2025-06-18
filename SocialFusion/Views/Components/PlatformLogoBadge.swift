@@ -36,7 +36,6 @@ struct PlatformLogoBadge: View {
                 Circle()
                     .fill(.clear)
                     .background(.regularMaterial, in: Circle())
-                    .opacity(0.85)
             }
             .frame(width: size, height: size)
             .shadow(color: .black.opacity(shadowEnabled ? 0.15 : 0), radius: 2, x: 0, y: 1)

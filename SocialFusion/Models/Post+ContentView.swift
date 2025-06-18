@@ -119,18 +119,31 @@ extension Post {
         onQuotePostTap: ((Post) -> Void)? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            EmojiTextApp(
-                htmlString: HTMLString(raw: content),
-                customEmoji: customEmoji,
-                font: font,
-                foregroundColor: .primary,
-                lineLimit: lineLimit,
-                mentions: mentions,
-                tags: tags
-            )
-            .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+            // Use different text rendering based on platform
+            if platform == .mastodon {
+                // Mastodon: Use EmojiTextApp for HTML content with existing links
+                EmojiTextApp(
+                    htmlString: HTMLString(raw: content),
+                    customEmoji: customEmoji,
+                    font: font,
+                    foregroundColor: .primary,
+                    lineLimit: lineLimit,
+                    mentions: mentions,
+                    tags: tags
+                )
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                // Bluesky: Use createTextWithLinks for plain text with URL detection
+                Text(createTextWithLinks(from: content))
+                    .font(font)
+                    .foregroundColor(.primary)
+                    .lineLimit(lineLimit)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             // Always show quote posts, but respect showLinkPreview for other content
             quotePostViews(onQuotePostTap: onQuotePostTap)
@@ -227,61 +240,72 @@ extension Post {
 
     @ViewBuilder
     private var regularLinkPreviewsOnly: some View {
-        let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
-        let allLinks = URLService.shared.extractLinks(from: plainText)
-        let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
-        let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
-        let regularLinks = allLinks.filter {
-            !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
-        }
-        let firstYouTubeLink = youtubeLinks.first
-
-        // Show first YouTube video as inline player
-        if let firstYouTubeLink = firstYouTubeLink,
-            let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
-        {
-            YouTubeVideoPreview(
-                url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
-            )
-            .padding(.top, 8)
-            .onAppear {
-                print("🔗   Showing YouTube video: \(firstYouTubeLink)")
+        // Don't show link previews if the post has media attachments
+        // This matches the behavior of Ivory, Bluesky, and other social apps
+        if self.attachments.isEmpty {
+            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let allLinks = URLService.shared.extractLinks(from: plainText)
+            let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
+            let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
+            let regularLinks = allLinks.filter {
+                !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
             }
-        }
+            let firstYouTubeLink = youtubeLinks.first
 
-        // Show remaining links as previews (limit to first 2 for performance)
-        // Exclude social media links and YouTube links as they're handled separately
-        let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
-        let previewLinks = regularLinks.filter { link in
-            !excludedLinks.contains(link)
-        }
-
-        ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
-            StabilizedLinkPreview(url: url, idealHeight: 140)
+            // Show first YouTube video as inline player
+            if let firstYouTubeLink = firstYouTubeLink,
+                let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
+            {
+                YouTubeVideoPreview(
+                    url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
+                )
                 .padding(.top, 8)
                 .onAppear {
-                    print("🔗   Creating StabilizedLinkPreview for: \(url)")
+                    print("🔗   Showing YouTube video: \(firstYouTubeLink)")
                 }
-        }
-        .onAppear {
-            // Debug logging for link detection
-            print("🔗 [regularLinkPreviewsOnly] Post \(self.id) link analysis:")
-            print("🔗   Platform: \(self.platform)")
-            print("🔗   Content length: \(self.content.count)")
-            print("🔗   Plain text length: \(plainText.count)")
-            print("🔗   Content preview: '\(self.content.prefix(200))'")
-            print("🔗   Plain text preview: '\(plainText.prefix(200))'")
-            print("🔗   All links found: \(allLinks.count)")
-            for (index, link) in allLinks.enumerated() {
-                print("🔗     [\(index)] \(link.absoluteString)")
             }
-            print("🔗   Social media links: \(socialMediaLinks.count)")
-            print("🔗   YouTube links: \(youtubeLinks.count)")
-            print("🔗   Regular links: \(regularLinks.count)")
-            print("🔗   Preview links after filtering: \(previewLinks.count)")
-            for (index, link) in previewLinks.enumerated() {
-                print("🔗     Preview [\(index)] \(link.absoluteString)")
+
+            // Show remaining links as previews (limit to first 2 for performance)
+            // Exclude social media links and YouTube links as they're handled separately
+            let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
+            let previewLinks = regularLinks.filter { link in
+                !excludedLinks.contains(link)
             }
+
+            ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
+                StabilizedLinkPreview(url: url, idealHeight: 200)
+                    .padding(.top, 8)
+                    .onAppear {
+                        print("🔗   Creating StabilizedLinkPreview for: \(url)")
+                    }
+            }
+            .onAppear {
+                // Debug logging for link detection
+                print("🔗 [regularLinkPreviewsOnly] Post \(self.id) link analysis:")
+                print("🔗   Platform: \(self.platform)")
+                print("🔗   Content length: \(self.content.count)")
+                print("🔗   Plain text length: \(plainText.count)")
+                print("🔗   Content preview: '\(self.content.prefix(200))'")
+                print("🔗   Plain text preview: '\(plainText.prefix(200))'")
+                print("🔗   All links found: \(allLinks.count)")
+                for (index, link) in allLinks.enumerated() {
+                    print("🔗     [\(index)] \(link.absoluteString)")
+                }
+                print("🔗   Social media links: \(socialMediaLinks.count)")
+                print("🔗   YouTube links: \(youtubeLinks.count)")
+                print("🔗   Regular links: \(regularLinks.count)")
+                print("🔗   Preview links after filtering: \(previewLinks.count)")
+                for (index, link) in previewLinks.enumerated() {
+                    print("🔗     Preview [\(index)] \(link.absoluteString)")
+                }
+            }
+        } else {
+            EmptyView()
+                .onAppear {
+                    print(
+                        "🔗 [regularLinkPreviewsOnly] Post \(self.id) has \(self.attachments.count) attachments - suppressing link previews"
+                    )
+                }
         }
     }
 

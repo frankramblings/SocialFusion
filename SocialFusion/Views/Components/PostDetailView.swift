@@ -2,14 +2,6 @@ import Foundation
 import SwiftUI
 import UIKit
 
-// MARK: - Scroll Offset Preference Key
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 /// A refined post detail view following Mail.app's unified layout styling
 struct PostDetailNavigationView: View {
     @ObservedObject var viewModel: PostViewModel
@@ -379,7 +371,8 @@ struct PostDetailNavigationView: View {
             // Profile image with clean styling
             PostAuthorImageView(
                 authorProfilePictureURL: post.authorProfilePictureURL,
-                platform: post.platform
+                platform: post.platform,
+                authorName: post.authorName
             )
             .frame(width: 48, height: 48)
 

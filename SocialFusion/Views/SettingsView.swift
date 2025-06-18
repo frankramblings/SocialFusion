@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var showingAbout = false
     @State private var showingPrivacyPolicy = false
     @State private var showingTermsOfService = false
+    @State private var showingDebugOptions = false
 
     var body: some View {
         NavigationView {
@@ -73,6 +74,15 @@ struct SettingsView: View {
                     }
                 }
 
+                #if DEBUG
+                    Section(header: Text("Debug")) {
+                        Button("Profile Image Diagnostics") {
+                            showingDebugOptions = true
+                        }
+                        .foregroundColor(.primary)
+                    }
+                #endif
+
                 Section {
                     Button(action: {
                         // Log out action
@@ -82,7 +92,7 @@ struct SettingsView: View {
                     }
                 }
             }
-
+            .navigationTitle("Settings")
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingAbout) {
@@ -93,6 +103,18 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingTermsOfService) {
                 WebContentView(title: "Terms of Service", content: termsOfServiceContent)
+            }
+            .sheet(isPresented: $showingDebugOptions) {
+                NavigationView {
+                    ProfileImageDebugView()
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarTrailing) {
+                                Button("Done") {
+                                    showingDebugOptions = false
+                                }
+                            }
+                        }
+                }
             }
         }
     }
@@ -281,3 +303,169 @@ let privacyPolicyContent = """
 
     Last modified: January 1, 2024
     """
+
+// Simple integrated debug view for profile images
+struct ProfileImageDebugView: View {
+    @State private var cacheStats: String = "Loading..."
+    @State private var testResults: String = "Ready to test"
+    @State private var liveMonitoringActive: Bool = false
+
+    var body: some View {
+        Form {
+            Section("Image Cache") {
+                Button("Clear Image Cache") {
+                    ImageCache.shared.clearCache()
+                    cacheStats = "Cache cleared"
+                    print("🗑️ [Debug] Cleared image cache")
+                }
+
+                Button("Show Cache Stats") {
+                    let stats = ImageCache.shared.getCacheInfo()
+                    cacheStats = "Memory: \(stats.memoryCount) items, Disk: \(stats.diskSize) bytes"
+                    print("📊 [Debug] Cache stats: \(cacheStats)")
+                }
+
+                Text(cacheStats)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Section("Profile Image Testing") {
+                Button("Test Profile Image Loading") {
+                    Task {
+                        await testProfileImageLoading()
+                    }
+                }
+
+                Button("Monitor Live Profile Loads") {
+                    startLiveProfileMonitoring()
+                }
+
+                if let profileStats = getProfileImageStats() {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Profile Image Stats:")
+                            .font(.headline)
+                        Text("Total loads: \(profileStats["total_loads"] ?? 0)")
+                        Text(
+                            "Success rate: \(String(format: "%.1f%%", (profileStats["success_rate"] as? Double ?? 0.0) * 100))"
+                        )
+                        Text(
+                            "Avg load time: \(String(format: "%.2fs", profileStats["avg_load_time"] as? Double ?? 0.0))"
+                        )
+
+                        if let recentFailures = profileStats["recent_failures"] as? [String],
+                            !recentFailures.isEmpty
+                        {
+                            Text("Recent failures:")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                            ForEach(recentFailures.prefix(3), id: \.self) { failure in
+                                Text("• \(failure)")
+                                    .font(.caption2)
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                    .font(.caption)
+                    .padding(.vertical, 4)
+                }
+
+                if liveMonitoringActive {
+                    Text("🔴 Live monitoring active")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .padding(.vertical, 2)
+                }
+            }
+        }
+        .navigationTitle("Profile Image Debug")
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            let stats = ImageCache.shared.getCacheInfo()
+            cacheStats = "Memory: \(stats.memoryCount) items, Disk: \(stats.diskSize) bytes"
+        }
+    }
+
+    @MainActor
+    private func testProfileImageLoading() async {
+        testResults = "Testing profile image loading..."
+
+        // Test URLs from different platforms
+        let testURLs = [
+            "https://cdn.bsky.app/img/avatar/plain/did:plc:ewrirxeyw2neruusvce6pjif/bafkreia63tbca42zazhy7a7oau6oxl3fgfbggvf3yh3qs4ony4hge3oa4i@jpeg",
+            "https://ramblings.social/system/accounts/avatars/113/617/938/735/996/406/original/e4dad69f2b79e320.png",
+        ]
+
+        var results: [String] = []
+
+        for urlString in testURLs {
+            if let url = URL(string: urlString) {
+                let startTime = Date()
+                do {
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    let loadTime = Date().timeIntervalSince(startTime)
+                    let success = !data.isEmpty
+                    results.append(
+                        "✅ \(url.host ?? "unknown"): \(String(format: "%.2f", loadTime))s")
+                    print(
+                        "🧪 [Debug] Test load \(urlString.suffix(30)): \(success ? "✅" : "❌") (\(String(format: "%.2f", loadTime))s)"
+                    )
+                } catch {
+                    let loadTime = Date().timeIntervalSince(startTime)
+                    results.append(
+                        "❌ \(url.host ?? "unknown"): Error (\(String(format: "%.2f", loadTime))s)")
+                    print("🧪 [Debug] Test load \(urlString.suffix(30)): ❌ Error: \(error)")
+                }
+            }
+        }
+
+        testResults = results.joined(separator: "\n")
+    }
+
+    private func startLiveProfileMonitoring() {
+        liveMonitoringActive = true
+
+        // Subscribe to profile image loading notifications
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ProfileImageLoadAttempt"),
+            object: nil,
+            queue: .main
+        ) { notification in
+            if let userInfo = notification.userInfo,
+                let url = userInfo["url"] as? String,
+                let success = userInfo["success"] as? Bool,
+                let loadTime = userInfo["loadTime"] as? Double
+            {
+
+                let status = success ? "✅" : "❌"
+                print(
+                    "🔴 [Live Monitor] \(status) \(url.suffix(30)) (\(String(format: "%.2f", loadTime))s)"
+                )
+            }
+        }
+
+        // Auto-disable after 5 minutes to avoid log spam
+        DispatchQueue.main.asyncAfter(deadline: .now() + 300) {
+            self.liveMonitoringActive = false
+            NotificationCenter.default.removeObserver(
+                self, name: NSNotification.Name("ProfileImageLoadAttempt"), object: nil)
+            print("🔴 [Live Monitor] Auto-disabled after 5 minutes")
+        }
+
+        print("🔴 [Live Monitor] Started - will track all profile image loads for 5 minutes")
+    }
+
+    private func getProfileImageStats() -> [String: Any]? {
+        // This would integrate with MonitoringService if available
+        // For now, return mock data to show the UI structure
+        return [
+            "total_loads": 42,
+            "success_rate": 0.857,  // 85.7%
+            "avg_load_time": 0.34,
+            "recent_failures": [
+                "cdn.bsky.app/invalid.jpg",
+                "mastodon.social/timeout.png",
+            ],
+        ]
+    }
+}

@@ -29,7 +29,8 @@ struct PostDetailView: View {
                         HStack(spacing: 12) {
                             PostAuthorImageView(
                                 authorProfilePictureURL: post.authorProfilePictureURL,
-                                platform: post.platform
+                                platform: post.platform,
+                                authorName: post.authorName
                             )
                             .frame(width: 48, height: 48)
                             .clipShape(Circle())
@@ -483,7 +484,8 @@ struct ReplyView: View {
             HStack(spacing: 10) {
                 PostAuthorImageView(
                     authorProfilePictureURL: reply.authorProfilePictureURL,
-                    platform: reply.platform
+                    platform: reply.platform,
+                    authorName: reply.authorName
                 )
                 .frame(width: 36, height: 36)
                 .clipShape(Circle())

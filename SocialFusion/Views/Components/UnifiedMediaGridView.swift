@@ -106,9 +106,9 @@ private struct SingleImageView: View {
                 case .success(let image):
                     image
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: 500)
-                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .onAppear {
                             print(
                                 "✅ [SingleImageView] Successfully loaded image from: \(String(describing: stableURL))"
@@ -119,6 +119,7 @@ private struct SingleImageView: View {
                         .fill(Color.gray.opacity(0.15))
                         .frame(maxWidth: .infinity)
                         .frame(height: 280)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             VStack(spacing: 8) {
                                 Image(systemName: "photo")
@@ -139,6 +140,7 @@ private struct SingleImageView: View {
                         .fill(Color.gray.opacity(0.1))
                         .frame(maxWidth: .infinity)
                         .frame(height: 280)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             ProgressView()
                                 .scaleEffect(1.2)
@@ -152,8 +154,6 @@ private struct SingleImageView: View {
                     EmptyView()
                 }
             }
-            .cornerRadius(12)
-            .clipped()
             .onTapGesture {
                 onTap()
             }
@@ -240,11 +240,12 @@ private struct GridImageView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: gridSize, height: gridSize)
-                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 case .failure(_):
                     Rectangle()
                         .fill(Color.gray.opacity(0.15))
                         .frame(width: gridSize, height: gridSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.title2)
@@ -254,6 +255,7 @@ private struct GridImageView: View {
                     Rectangle()
                         .fill(Color.gray.opacity(0.08))
                         .frame(width: gridSize, height: gridSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             ProgressView()
                                 .scaleEffect(1.0)
@@ -262,8 +264,6 @@ private struct GridImageView: View {
                     EmptyView()
                 }
             }
-            .cornerRadius(12)
-            .clipped()
             .onTapGesture {
                 onTap(attachment)
             }
@@ -282,7 +282,7 @@ private struct GridImageView: View {
                 Rectangle()
                     .fill(Color.black.opacity(0.7))
                     .frame(width: gridSize, height: gridSize)
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         Text("+\(extraCount)")
                             .font(.title2)

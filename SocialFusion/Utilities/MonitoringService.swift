@@ -25,6 +25,7 @@ final class MonitoringService {
     private var responseTimes: [String: [TimeInterval]] = [:]
     private var timer: Timer?
     private var cancellables = Set<AnyCancellable>()
+    private var events: [[String: Any]] = []
 
     private init() {
         setupMonitoring()
@@ -80,6 +81,57 @@ final class MonitoringService {
         averageResponseTime = 0
         memoryUsage = 0
         cpuUsage = 0
+    }
+
+    /// Monitor profile image loading performance
+    @MainActor
+    public func trackProfileImageLoad(
+        url: String, platform: SocialPlatform, success: Bool, loadTime: TimeInterval? = nil
+    ) {
+        let event =
+            [
+                "type": "profile_image_load",
+                "url": url,
+                "platform": platform.rawValue,
+                "success": success,
+                "load_time": loadTime ?? 0.0,
+                "timestamp": Date().timeIntervalSince1970,
+            ] as [String: Any]
+
+        events.append(event)
+
+        if success {
+            print(
+                "✅ [MonitoringService] Profile image loaded: \(platform.rawValue) in \(loadTime ?? 0.0)s"
+            )
+        } else {
+            print("❌ [MonitoringService] Profile image failed: \(platform.rawValue) - \(url)")
+        }
+
+        // Keep only recent events
+        if events.count > 200 {
+            events.removeFirst(50)
+        }
+    }
+
+    /// Get profile image loading statistics
+    @MainActor
+    public func getProfileImageStats() -> [String: Any] {
+        let profileEvents = events.filter { ($0["type"] as? String) == "profile_image_load" }
+        let successCount = profileEvents.filter { ($0["success"] as? Bool) == true }.count
+        let failureCount = profileEvents.filter { ($0["success"] as? Bool) == false }.count
+        let avgLoadTime =
+            profileEvents.compactMap { $0["load_time"] as? TimeInterval }.reduce(0, +)
+            / Double(max(1, profileEvents.count))
+
+        return [
+            "total_loads": profileEvents.count,
+            "successes": successCount,
+            "failures": failureCount,
+            "success_rate": successCount > 0
+                ? Double(successCount) / Double(profileEvents.count) : 0.0,
+            "avg_load_time": avgLoadTime,
+        ]
     }
 
     // MARK: - Private Methods

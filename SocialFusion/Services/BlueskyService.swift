@@ -1196,10 +1196,21 @@ class BlueskyService {
                 // Extract mentions and hashtags
                 var mentions: [String] = []
                 var tags: [String] = []
+                var fullTextWithLinks = text  // Start with original text
 
                 if let facets = record["facets"] as? [[String: Any]] {
+                    // Track URL replacements to avoid truncated links
+                    var urlReplacements: [(range: NSRange, fullURL: String)] = []
+
                     for facet in facets {
-                        if let features = facet["features"] as? [[String: Any]] {
+                        if let features = facet["features"] as? [[String: Any]],
+                            let index = facet["index"] as? [String: Any],
+                            let byteStart = index["byteStart"] as? Int,
+                            let byteEnd = index["byteEnd"] as? Int
+                        {
+
+                            let range = NSRange(location: byteStart, length: byteEnd - byteStart)
+
                             for feature in features {
                                 if let type = feature["$type"] as? String {
                                     if type == "app.bsky.richtext.facet#mention" {
@@ -1210,8 +1221,39 @@ class BlueskyService {
                                         if let tag = feature["tag"] as? String {
                                             tags.append(tag)
                                         }
+                                    } else if type == "app.bsky.richtext.facet#link" {
+                                        if let fullURL = feature["uri"] as? String {
+                                            // Store this URL replacement for later processing
+                                            urlReplacements.append((range: range, fullURL: fullURL))
+                                            logger.info(
+                                                "[Bluesky] Found full URL in facet: \(fullURL) at range \(byteStart)-\(byteEnd)"
+                                            )
+                                        }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // Apply URL replacements to fix truncated links
+                    // Sort by start position in reverse order to avoid range shifting
+                    urlReplacements.sort { $0.range.location > $1.range.location }
+
+                    for replacement in urlReplacements {
+                        let nsText = fullTextWithLinks as NSString
+                        if replacement.range.location >= 0
+                            && NSMaxRange(replacement.range) <= nsText.length
+                        {
+                            let originalText = nsText.substring(with: replacement.range)
+                            // Only replace if the original text appears truncated (contains ellipsis or is shorter)
+                            if originalText.contains("...")
+                                || originalText.count < replacement.fullURL.count
+                            {
+                                fullTextWithLinks = nsText.replacingCharacters(
+                                    in: replacement.range, with: replacement.fullURL)
+                                logger.info(
+                                    "[Bluesky] Replaced truncated URL '\(originalText)' with full URL '\(replacement.fullURL)'"
+                                )
                             }
                         }
                     }
@@ -1250,7 +1292,7 @@ class BlueskyService {
 
                         originalPost = Post(
                             id: uri,
-                            content: text,
+                            content: fullTextWithLinks,
                             authorName: authorName,
                             authorUsername: authorUsername,
                             authorProfilePictureURL: authorAvatarURL,
@@ -1578,7 +1620,7 @@ class BlueskyService {
                 }
 
                 // Add external embed URL to content for link detection
-                var finalContent = text
+                var finalContent = fullTextWithLinks
                 if let externalURL = externalEmbedURL {
                     // If the post has no text content, add the URL
                     // If it has text, append the URL with a space
@@ -1631,11 +1673,11 @@ class BlueskyService {
                 }
 
                 logger.info(
-                    "[Bluesky] Parsed post: id=\(uri), cid=\(cid ?? "nil"), content=\(text.prefix(40))"
+                    "[Bluesky] Parsed post: id=\(uri), cid=\(cid ?? "nil"), content=\(fullTextWithLinks.prefix(40))"
                 )
 
                 // Debug logging for potentially problematic posts
-                if text.isEmpty && originalPost == nil {
+                if fullTextWithLinks.isEmpty && originalPost == nil {
                     logger.warning(
                         "[Bluesky] Found post with empty content and no originalPost: id=\(uri), author=\(authorUsername)"
                     )

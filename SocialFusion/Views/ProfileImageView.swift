@@ -18,35 +18,28 @@ struct ProfileImageView: View {
 
             // Profile image or initial
             if let imageURL = account.profileImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 30, height: 30)
-                            .clipShape(Circle())
-                    case .failure(_):
-                        // Show initial on error
-                        InitialView(account: account)
-                    case .empty:
-                        // Show loading placeholder
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 30, height: 30)
-                            .overlay(
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                            )
-                    @unknown default:
-                        InitialView(account: account)
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 30, height: 30)
+                        .clipShape(Circle())
+                } placeholder: {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 30, height: 30)
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(0.6)
+                        )
                 }
                 .frame(width: 30, height: 30)
                 .clipShape(Circle())
                 .id(imageURL.absoluteString)
                 .onAppear {
-                    print("Refreshing ProfileImageView for account: \(account.username)")
+                    print(
+                        "👁️ [ProfileImageView] Profile image appeared for account: \(account.username)"
+                    )
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
                     notification in
@@ -61,7 +54,9 @@ struct ProfileImageView: View {
                         }
 
                     if shouldRefresh {
-                        print("Received profile image update for \(account.username)")
+                        print(
+                            "🔄 [ProfileImageView] Received profile image update for \(account.username)"
+                        )
                         refreshTrigger.toggle()
                     }
                 }
