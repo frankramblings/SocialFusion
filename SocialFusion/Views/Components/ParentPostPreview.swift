@@ -105,7 +105,8 @@ struct ParentPostPreview: View {
             post.contentView(
                 lineLimit: nil,  // No line limit - show full content
                 showLinkPreview: false,
-                font: .callout  // Explicitly set font for parent post text
+                font: .callout,  // Explicitly set font for parent post text
+                allowTruncation: false  // Parent posts should show full content
             )
             .padding(.leading, 6)
             .padding(.trailing, 8)

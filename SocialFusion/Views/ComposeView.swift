@@ -706,9 +706,9 @@ struct PlatformToggleButton: View {
     private func getPlatformColor() -> Color {
         switch platform {
         case .mastodon:
-            return Color("PrimaryColor")
+            return Color("AppPrimaryColor")
         case .bluesky:
-            return Color("SecondaryColor")
+            return Color("AppSecondaryColor")
         }
     }
 

@@ -97,8 +97,12 @@ class URLService {
 
                 print("🔍 [URLService] Processing URL: \(url.absoluteString)")
 
+                // Clean up the URL to remove trailing punctuation like "-", ".", etc.
+                let cleanedURL = cleanURLFromTrailingPunctuation(url)
+                print("🔍 [URLService] Cleaned URL: \(cleanedURL.absoluteString)")
+
                 // Validate and filter the URL
-                let validatedURL = validateURL(url)
+                let validatedURL = validateURL(cleanedURL)
                 print("🔍 [URLService] Validated URL: \(validatedURL.absoluteString)")
 
                 // Only allow HTTP/HTTPS
@@ -128,6 +132,25 @@ class URLService {
 
             return results
         }
+    }
+
+    /// Clean URLs by removing trailing punctuation that shouldn't be part of the URL
+    private func cleanURLFromTrailingPunctuation(_ url: URL) -> URL {
+        let urlString = url.absoluteString
+
+        // Define characters that shouldn't be at the end of URLs
+        let trailingPunctuation = CharacterSet(charactersIn: ".,;:!?-()[]{}\"'")
+
+        // Remove trailing punctuation
+        var cleanedString = urlString
+        while !cleanedString.isEmpty
+            && cleanedString.last?.unicodeScalars.allSatisfy(trailingPunctuation.contains) == true
+        {
+            cleanedString.removeLast()
+        }
+
+        // Return cleaned URL or original if cleaning failed
+        return URL(string: cleanedString) ?? url
     }
 
     /// Remove hashtags from text to improve link detection
@@ -280,9 +303,9 @@ class URLService {
 
         // Check if it matches Mastodon post URL pattern: /@username/postID
         let path = url.path
-        let components = path.split(separator: "/")
+        let components = path.split(separator: "/").map(String.init)
 
-        // For Mastodon URLs like /@username/postID, we expect exactly 2 components
+        // For Mastodon URLs like /@username/postID, we need at least 2 components
         // Don't treat profile-only URLs (just /@username) as post URLs
         if path.contains("/@") && components.count < 2 {
             return false
@@ -292,8 +315,8 @@ class URLService {
         if components.count >= 2 {
             let lastComponent = components.last!
             let isNumericID = lastComponent.allSatisfy { $0.isNumber }
-            // Also ensure the first component starts with @
-            let hasUsernamePattern = components.first?.hasPrefix("@") == true
+            // Find component that starts with @ (should be the username)
+            let hasUsernamePattern = components.contains { $0.hasPrefix("@") }
             return isMastodonInstance && isNumericID && hasUsernamePattern
         }
 

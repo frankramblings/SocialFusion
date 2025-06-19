@@ -131,7 +131,8 @@ struct PostLinkTestView: View {
                             post.contentView(
                                 lineLimit: nil,
                                 showLinkPreview: true,
-                                font: .body
+                                font: .body,
+                                allowTruncation: false
                             )
                         }
                         .padding()
@@ -141,6 +142,23 @@ struct PostLinkTestView: View {
                 }
                 .padding()
             }
+        }
+    }
+}
+
+struct TestPlayground: View {
+    @EnvironmentObject var serviceManager: SocialServiceManager
+
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 20) {
+                    PostLinkTestView()
+                    LinkTestPlayground()
+                }
+                .padding()
+            }
+            .navigationTitle("Test Playground")
         }
     }
 }

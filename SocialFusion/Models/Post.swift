@@ -948,3 +948,33 @@ extension Post: Hashable {
         hasher.combine(id)
     }
 }
+
+// MARK: - Thread Context
+
+/// Represents a post's thread context with ancestors (parent posts) and descendants (replies)
+struct ThreadContext {
+    /// Posts that come before this post in the thread (ancestors/parents)
+    let ancestors: [Post]
+    
+    /// Posts that come after this post in the thread (replies/descendants)  
+    let descendants: [Post]
+    
+    /// Initialize a thread context
+    /// - Parameters:
+    ///   - ancestors: Parent posts in chronological order (oldest first)
+    ///   - descendants: Reply posts in chronological order (newest first)
+    init(ancestors: [Post] = [], descendants: [Post] = []) {
+        self.ancestors = ancestors
+        self.descendants = descendants
+    }
+    
+    /// Total number of posts in the thread context
+    var totalContextPosts: Int {
+        return ancestors.count + descendants.count
+    }
+    
+    /// Whether this thread has any context (parents or replies)
+    var hasContext: Bool {
+        return !ancestors.isEmpty || !descendants.isEmpty
+    }
+}

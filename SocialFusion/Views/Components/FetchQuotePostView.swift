@@ -98,14 +98,30 @@ public struct QuotedPostView: View {
 
     private var postContent: some View {
         let lineLimit = post.content.count > maxCharacters ? 4 : nil
-        return post.contentView(lineLimit: lineLimit, showLinkPreview: false)
-            .font(.callout)
-            .padding(.horizontal, 4)
+        return post.contentView(
+            lineLimit: lineLimit, showLinkPreview: false, allowTruncation: false
+        )
+        .font(.callout)
+        .padding(.horizontal, 4)
     }
 
     private var postAttachment: some View {
-        PostAttachmentView(attachment: post.attachments[0])
-            .padding(.top, 4)
+        UnifiedMediaGridView(
+            attachments: post.attachments,
+            maxHeight: 220
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.top, 4)
+        .onAppear {
+            print(
+                "🖼️ [QuotedPostView] Displaying \(post.attachments.count) attachments for quoted post: \(post.id)"
+            )
+            for (index, attachment) in post.attachments.enumerated() {
+                print(
+                    "🖼️ [QuotedPostView] Attachment \(index): \(attachment.url) (type: \(attachment.type))"
+                )
+            }
+        }
     }
 
     private var backgroundStyle: some View {

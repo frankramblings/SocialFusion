@@ -29,7 +29,7 @@ extension Post {
     }
 
     /// Creates an AttributedString with links for URLs and hashtags
-    private func createTextWithLinks(from text: String) -> AttributedString {
+    fileprivate func createTextWithLinks(from text: String) -> AttributedString {
         var attributedString = AttributedString(text)
 
         // Apply default styling that's guaranteed to be visible
@@ -116,48 +116,33 @@ extension Post {
         lineLimit: Int? = nil,
         showLinkPreview: Bool = true,
         font: Font = .body,
-        onQuotePostTap: ((Post) -> Void)? = nil
+        onQuotePostTap: ((Post) -> Void)? = nil,
+        allowTruncation: Bool = true
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Use different text rendering based on platform
-            if platform == .mastodon {
-                // Mastodon: Use EmojiTextApp for HTML content with existing links
-                EmojiTextApp(
-                    htmlString: HTMLString(raw: content),
-                    customEmoji: customEmoji,
-                    font: font,
-                    foregroundColor: .primary,
-                    lineLimit: lineLimit,
-                    mentions: mentions,
-                    tags: tags
-                )
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            } else {
-                // Bluesky: Use createTextWithLinks for plain text with URL detection
-                Text(createTextWithLinks(from: content))
-                    .font(font)
-                    .foregroundColor(.primary)
-                    .lineLimit(lineLimit)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            // Always show quote posts, but respect showLinkPreview for other content
-            quotePostViews(onQuotePostTap: onQuotePostTap)
-
-            if showLinkPreview {
-                regularLinkPreviewsOnly
-            }
+            ExpandableTextView(
+                content: content,
+                platform: platform,
+                customEmoji: customEmoji,
+                mentions: mentions,
+                tags: tags,
+                font: font,
+                lineLimit: lineLimit,
+                showLinkPreview: showLinkPreview,
+                onQuotePostTap: onQuotePostTap,
+                allowTruncation: allowTruncation,
+                createTextWithLinksCallback: { text in
+                    self.createTextWithLinks(from: text)
+                },
+                post: self
+            )
         }
     }
 
     // MARK: - Private Views
 
     @ViewBuilder
-    private func quotePostViews(onQuotePostTap: ((Post) -> Void)? = nil) -> some View {
+    fileprivate func quotePostViews(onQuotePostTap: ((Post) -> Void)? = nil) -> some View {
         // 1. First check if we have a fully hydrated quoted post
         if let quotedPost = quotedPost {
             QuotedPostView(post: quotedPost) {
@@ -166,6 +151,17 @@ extension Post {
                 }
             }
             .padding(.top, 8)
+            .onAppear {
+                print("🔗 [Post+ContentView] Displaying hydrated quoted post: \(quotedPost.id)")
+                print("🔗 [Post+ContentView] Quoted post content: \(quotedPost.content.prefix(100))")
+                print(
+                    "🔗 [Post+ContentView] Quoted post attachments: \(quotedPost.attachments.count)")
+                for (index, attachment) in quotedPost.attachments.enumerated() {
+                    print(
+                        "🔗 [Post+ContentView] Quote attachment \(index): \(attachment.url) (type: \(attachment.type))"
+                    )
+                }
+            }
         }
         // 2. If no hydrated quote but have quote metadata, fetch it
         else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
@@ -174,6 +170,14 @@ extension Post {
                 onQuotePostTap: onQuotePostTap
             )
             .padding(.top, 8)
+            .onAppear {
+                print("🔗 [Post+ContentView] Using FetchQuotePostView for URL: \(quotedPostURL)")
+                print("🔗 [Post+ContentView] Parent post ID: \(self.id)")
+                print("🔗 [Post+ContentView] quotedPostUri: \(self.quotedPostUri ?? "nil")")
+                print(
+                    "🔗 [Post+ContentView] quotedPostAuthorHandle: \(self.quotedPostAuthorHandle ?? "nil")"
+                )
+            }
         }
         // 3. Check for social media links that should be displayed as quotes
         else {
@@ -239,7 +243,7 @@ extension Post {
     }
 
     @ViewBuilder
-    private var regularLinkPreviewsOnly: some View {
+    fileprivate var regularLinkPreviewsOnly: some View {
         // Don't show link previews if the post has media attachments
         // This matches the behavior of Ivory, Bluesky, and other social apps
         if self.attachments.isEmpty {
@@ -804,6 +808,96 @@ struct YouTubeWebView: UIViewRepresentable {
         ) {
             print("YouTube WebView failed to load: \(error.localizedDescription)")
             parent.isPlaying = false
+        }
+    }
+}
+
+// MARK: - Expandable Text View
+
+struct ExpandableTextView: View {
+    let content: String
+    let platform: SocialPlatform
+    let customEmoji: [String: URL]?
+    let mentions: [String]?
+    let tags: [String]?
+    let font: Font
+    let lineLimit: Int?
+    let showLinkPreview: Bool
+    let onQuotePostTap: ((Post) -> Void)?
+    let allowTruncation: Bool
+    let createTextWithLinksCallback: (String) -> AttributedString
+    let post: Post
+
+    @State private var isExpanded: Bool = false
+
+    private var shouldTruncate: Bool {
+        // Never truncate if allowTruncation is false (anchor post)
+        guard allowTruncation else { return false }
+
+        let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+        return plainText.count > 500
+    }
+
+    private var displayContent: String {
+        if shouldTruncate && !isExpanded {
+            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let truncatedText = String(plainText.prefix(500))
+            return platform == .mastodon ? truncatedText : truncatedText
+        }
+        return content
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Use different text rendering based on platform
+            if platform == .mastodon {
+                // Mastodon: Use EmojiTextApp for HTML content with existing links
+                EmojiTextApp(
+                    htmlString: HTMLString(raw: displayContent),
+                    customEmoji: customEmoji ?? [:],
+                    font: font,
+                    foregroundColor: .primary,
+                    lineLimit: shouldTruncate && !isExpanded ? nil : lineLimit,
+                    mentions: mentions ?? [],
+                    tags: tags ?? []
+                )
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                // Bluesky: Use createTextWithLinks for plain text with URL detection
+                Text(createTextWithLinksCallback(displayContent))
+                    .font(font)
+                    .foregroundColor(.primary)
+                    .lineLimit(shouldTruncate && !isExpanded ? nil : lineLimit)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Show More button
+            if shouldTruncate && !isExpanded {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded = true
+                    }
+                }) {
+                    Text("SHOW MORE")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.blue)
+                        .textCase(.uppercase)
+                        .tracking(0.3)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Always show quote posts, but respect showLinkPreview for other content
+            post.quotePostViews(onQuotePostTap: onQuotePostTap)
+
+            if showLinkPreview {
+                post.regularLinkPreviewsOnly
+            }
         }
     }
 }

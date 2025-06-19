@@ -315,7 +315,7 @@ struct ContentView: View {
                 }
                 .tag(3)
             }
-            .accentColor(Color("PrimaryColor"))
+            .accentColor(Color("AppPrimaryColor"))
             .toolbarBackground(.ultraThinMaterial, for: .tabBar)
             .toolbarBackground(.visible, for: .tabBar)
             .onAppear {
@@ -1032,7 +1032,7 @@ struct AccountPickerSheet: View {
                         HStack {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 22))
-                                .foregroundColor(Color("PrimaryColor"))
+                                .foregroundColor(Color("AppPrimaryColor"))
 
                             Text("Add Account")
                                 .font(.headline)
@@ -1171,9 +1171,9 @@ struct PlatformBadge: View {
     private func getPlatformColor() -> Color {
         switch platform {
         case .mastodon:
-            return Color("PrimaryColor")
+            return Color("AppPrimaryColor")
         case .bluesky:
-            return Color("SecondaryColor")
+            return Color("AppSecondaryColor")
         }
     }
 

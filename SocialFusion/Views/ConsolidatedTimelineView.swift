@@ -28,7 +28,7 @@ struct ConsolidatedTimelineView: View {
             .background(
                 NavigationLink(
                     destination: navigationEnvironment.selectedPost.map { post in
-                        PostDetailNavigationView(
+                        PostDetailView(
                             viewModel: PostViewModel(
                                 post: post, serviceManager: serviceManager),
                             focusReplyComposer: false
@@ -38,7 +38,7 @@ struct ConsolidatedTimelineView: View {
                     },
                     isActive: Binding(
                         get: { navigationEnvironment.selectedPost != nil },
-                        set: { if !$0 { navigationEnvironment.selectedPost = nil } }
+                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
                     ),
                     label: { EmptyView() }
                 )

@@ -1645,4 +1645,77 @@ public final class SocialServiceManager: ObservableObject {
         print("🔄 SocialServiceManager: forceRefreshTimeline called")
         await ensureTimelineRefresh(force: true)
     }
+
+    // MARK: - Thread Context Loading
+
+    /// Fetch thread context for a post (ancestors and descendants)
+    func fetchThreadContext(for post: Post) async throws -> ThreadContext {
+        print(
+            "📊 SocialServiceManager: fetchThreadContext called for post \(post.id) on \(post.platform)"
+        )
+
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                print("❌ SocialServiceManager: No Mastodon account available for thread loading")
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            print(
+                "📊 SocialServiceManager: Using Mastodon account \(account.username) for thread loading"
+            )
+            return try await fetchMastodonThreadContext(
+                postId: post.platformSpecificId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                print("❌ SocialServiceManager: No Bluesky account available for thread loading")
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            print(
+                "📊 SocialServiceManager: Using Bluesky account \(account.username) for thread loading"
+            )
+            return try await fetchBlueskyThreadContext(
+                postId: post.platformSpecificId, account: account)
+        }
+    }
+
+    /// Fetch Mastodon thread context using the context API
+    private func fetchMastodonThreadContext(postId: String, account: SocialAccount) async throws
+        -> ThreadContext
+    {
+        return try await mastodonService.fetchStatusContext(statusId: postId, account: account)
+    }
+
+    /// Fetch Bluesky thread context using the getPostThread API
+    private func fetchBlueskyThreadContext(postId: String, account: SocialAccount) async throws
+        -> ThreadContext
+    {
+        return try await blueskyService.fetchPostThreadContext(postId: postId, account: account)
+    }
+
+    /// Efficiently load thread context with intelligent caching and deduplication
+    func loadThreadContextIntelligently(
+        for post: Post, existingParents: [Post] = [], existingReplies: [Post] = []
+    ) async throws -> ThreadContext {
+        let context = try await fetchThreadContext(for: post)
+
+        // Deduplicate against existing posts to avoid redundant data
+        let existingParentIds = Set(existingParents.map { $0.platformSpecificId })
+        let existingReplyIds = Set(existingReplies.map { $0.platformSpecificId })
+
+        let newParents = context.ancestors.filter {
+            !existingParentIds.contains($0.platformSpecificId)
+        }
+        let newReplies = context.descendants.filter {
+            !existingReplyIds.contains($0.platformSpecificId)
+        }
+
+        print(
+            "📊 SocialServiceManager: Thread context loaded - \(newParents.count) new parents, \(newReplies.count) new replies"
+        )
+
+        return ThreadContext(
+            ancestors: existingParents + newParents,
+            descendants: existingReplies + newReplies
+        )
+    }
 }

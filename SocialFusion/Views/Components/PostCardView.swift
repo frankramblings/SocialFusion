@@ -173,7 +173,8 @@ struct PostCardView: View {
                 font: .body,
                 onQuotePostTap: { quotedPost in
                     onParentPostTap(quotedPost)  // Navigate to the quoted post
-                }
+                },
+                allowTruncation: false  // Timeline posts are not truncated
             )
             .padding(.horizontal, 8)  // Reduced from 12 to give more space for text
             .padding(.top, 4)

@@ -884,7 +884,7 @@ class BlueskyService {
 
             // Parse the post data
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                throw NetworkError.decodingError
+                throw ServiceError.apiError("Failed to parse response")
             }
 
             // The response format from getPostThread contains a thread object with the post
@@ -1415,13 +1415,18 @@ class BlueskyService {
 
                             // Parse quoted post attachments if present
                             var quotedAttachments: [Post.Attachment] = []
+
+                            // First try to get embed from the quoted value
                             if let quotedEmbed = quotedValue["embed"] as? [String: Any] {
                                 logger.info(
-                                    "[Bluesky] Processing quoted post embed: \(quotedEmbed.keys.joined(separator: ", "))"
+                                    "[Bluesky] 🖼️ Processing quoted post embed in value: \(quotedEmbed.keys.joined(separator: ", "))"
                                 )
 
-                                // Handle images array format in quoted post
+                                // Parse images directly from quoted embed
                                 if let images = quotedEmbed["images"] as? [[String: Any]] {
+                                    logger.info(
+                                        "[Bluesky] 🖼️ Found \(images.count) images in quoted post embed"
+                                    )
                                     for image in images {
                                         if let fullsize = image["fullsize"] as? String,
                                             !fullsize.isEmpty,
@@ -1432,22 +1437,37 @@ class BlueskyService {
                                                 Post.Attachment(
                                                     url: fullsize, type: .image, altText: alt))
                                             logger.debug(
-                                                "[Bluesky] Parsed quoted post image: \(fullsize)")
+                                                "[Bluesky] 🖼️ Parsed quoted post image: \(fullsize)")
                                         }
                                     }
                                 }
-                                // Handle other media formats in quoted post
-                                else if let media = quotedEmbed["media"] as? [String: Any],
-                                    let mediaType = media["$type"] as? String,
-                                    mediaType.contains("image"),
-                                    let imgUrl = media["image"] as? [String: Any],
-                                    let url = imgUrl["url"] as? String, !url.isEmpty,
-                                    URL(string: url) != nil
-                                {
-                                    let alt = media["alt"] as? String ?? "Image"
-                                    quotedAttachments.append(
-                                        Post.Attachment(url: url, type: .image, altText: alt))
-                                    logger.debug("[Bluesky] Parsed quoted post media: \(url)")
+                            }
+
+                            // Also check if there's an embed directly in the record (fallback)
+                            if quotedAttachments.isEmpty,
+                                let recordEmbed = record["embed"] as? [String: Any]
+                            {
+                                logger.info(
+                                    "[Bluesky] 🖼️ Processing quoted post embed in record: \(recordEmbed.keys.joined(separator: ", "))"
+                                )
+
+                                // Parse images directly from record embed
+                                if let images = recordEmbed["images"] as? [[String: Any]] {
+                                    logger.info(
+                                        "[Bluesky] 🖼️ Found \(images.count) images in record embed")
+                                    for image in images {
+                                        if let fullsize = image["fullsize"] as? String,
+                                            !fullsize.isEmpty,
+                                            URL(string: fullsize) != nil
+                                        {
+                                            let alt = image["alt"] as? String ?? "Image"
+                                            quotedAttachments.append(
+                                                Post.Attachment(
+                                                    url: fullsize, type: .image, altText: alt))
+                                            logger.debug(
+                                                "[Bluesky] 🖼️ Parsed quoted post image: \(fullsize)")
+                                        }
+                                    }
                                 }
                             }
 
@@ -2381,6 +2401,200 @@ class BlueskyService {
         // Fetch the created reply to return it
         return try await getPost(uri: uri, account: account)
     }
+
+    // MARK: - Thread Context Methods
+
+    /// Fetch thread context (ancestors and descendants) from Bluesky using getPostThread
+    /// - Parameters:
+    ///   - postId: The AT-URI of the post to get thread context for
+    ///   - account: The account to use for authentication
+    /// - Returns: ThreadContext containing ancestors and descendants
+    func fetchPostThreadContext(postId: String, account: SocialAccount) async throws
+        -> ThreadContext
+    {
+        guard let token = account.getAccessToken() else {
+            logger.error("No access token available for Bluesky account: \(account.username)")
+            throw ServiceError.unauthorized("No access token available")
+        }
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        let apiURL = "https://\(serverURLString)/xrpc/app.bsky.feed.getPostThread"
+
+        var components = URLComponents(string: apiURL)
+        components?.queryItems = [
+            URLQueryItem(name: "uri", value: postId),
+            URLQueryItem(name: "depth", value: "10"),  // Fetch up to 10 levels of replies
+        ]
+
+        guard let url = components?.url else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL or post ID")
+        }
+
+        logger.info("Fetching Bluesky thread context from: \(url.absoluteString)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30.0
+
+        do {
+            // Check if token is expired and needs refresh
+            if account.isTokenExpired, account.refreshToken != nil {
+                logger.info("Refreshing expired Bluesky token for thread context")
+                do {
+                    let (newAccessToken, newRefreshToken) = try await refreshSession(for: account)
+                    account.saveAccessToken(newAccessToken)
+                    account.saveRefreshToken(newRefreshToken)
+                    request.setValue(
+                        "Bearer \(newAccessToken)", forHTTPHeaderField: "Authorization")
+                } catch {
+                    logger.error("Failed to refresh Bluesky token: \(error.localizedDescription)")
+                }
+            }
+
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw ServiceError.networkError(
+                    underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+            }
+
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw ServiceError.unauthorized("Authentication failed or expired")
+            }
+
+            if httpResponse.statusCode != 200 {
+                throw ServiceError.apiError(
+                    "Server returned status code \(httpResponse.statusCode)")
+            }
+
+            // Parse the response
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let thread = json["thread"] as? [String: Any]
+            else {
+                logger.error("Missing thread in Bluesky response")
+                return ThreadContext()  // Return empty context
+            }
+
+            // Extract thread structure
+            var ancestors: [Post] = []
+            var descendants: [Post] = []
+
+            // Process parent/ancestor posts
+            if let parent = thread["parent"] as? [String: Any] {
+                ancestors.append(contentsOf: extractAncestors(from: parent, account: account))
+            }
+
+            // Process reply/descendant posts
+            if let replies = thread["replies"] as? [[String: Any]] {
+                descendants.append(contentsOf: extractDescendants(from: replies, account: account))
+            }
+
+            logger.info(
+                "Successfully fetched Bluesky thread context: \(ancestors.count) ancestors, \(descendants.count) descendants"
+            )
+
+            return ThreadContext(ancestors: ancestors, descendants: descendants)
+
+        } catch {
+            logger.error("Error fetching Bluesky thread context: \(error.localizedDescription)")
+            throw ServiceError.timelineError(underlying: error)
+        }
+    }
+
+    /// Recursively extract ancestor posts from thread parent structure
+    private func extractAncestors(from parent: [String: Any], account: SocialAccount) -> [Post] {
+        var ancestors: [Post] = []
+
+        // First, get the parent post if it exists
+        if let post = parent["post"] as? [String: Any] {
+            if let convertedPost = convertBlueskyThreadPostToPost(post, account: account) {
+                ancestors.append(convertedPost)
+            }
+        }
+
+        // Recursively get ancestors of this parent
+        if let grandParent = parent["parent"] as? [String: Any] {
+            ancestors.insert(
+                contentsOf: extractAncestors(from: grandParent, account: account), at: 0)
+        }
+
+        return ancestors
+    }
+
+    /// Recursively extract descendant posts from thread replies structure
+    private func extractDescendants(from replies: [[String: Any]], account: SocialAccount) -> [Post]
+    {
+        var descendants: [Post] = []
+
+        for reply in replies {
+            // Get the reply post
+            if let post = reply["post"] as? [String: Any] {
+                if let convertedPost = convertBlueskyThreadPostToPost(post, account: account) {
+                    descendants.append(convertedPost)
+                }
+            }
+
+            // Recursively get nested replies
+            if let nestedReplies = reply["replies"] as? [[String: Any]] {
+                descendants.append(
+                    contentsOf: extractDescendants(from: nestedReplies, account: account))
+            }
+        }
+
+        return descendants
+    }
+
+    /// Convert a Bluesky thread post to our Post model (simplified version of the main converter)
+    private func convertBlueskyThreadPostToPost(_ post: [String: Any], account: SocialAccount)
+        -> Post?
+    {
+        guard let uri = post["uri"] as? String,
+            let record = post["record"] as? [String: Any],
+            let text = record["text"] as? String,
+            let createdAt = record["createdAt"] as? String,
+            let author = post["author"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        let authorName =
+            author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
+        let authorUsername = author["handle"] as? String ?? "unknown"
+        let authorAvatarURL = author["avatar"] as? String ?? ""
+
+        // Extract basic interaction counts
+        let likeCount = post["likeCount"] as? Int ?? 0
+        let repostCount = post["repostCount"] as? Int ?? 0
+        let replyCount = post["replyCount"] as? Int ?? 0
+
+        let createdDate = ISO8601DateFormatter().date(from: createdAt) ?? Date()
+
+        return Post(
+            id: uri,
+            content: text,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            authorProfilePictureURL: authorAvatarURL,
+            createdAt: createdDate,
+            platform: .bluesky,
+            originalURL:
+                "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
+            attachments: [],  // Simplified - can be enhanced later
+            mentions: [],
+            tags: [],
+            likeCount: likeCount,
+            repostCount: repostCount,
+            replyCount: replyCount,
+            platformSpecificId: uri,
+            cid: post["cid"] as? String
+        )
+    }
+
 }
 
 extension URL {

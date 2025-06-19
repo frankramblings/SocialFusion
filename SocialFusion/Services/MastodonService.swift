@@ -2064,6 +2064,85 @@ public class MastodonService {
         let accounts = SocialServiceManager.shared.mastodonAccounts
         return accounts.first
     }
+
+    // MARK: - Thread Context Methods
+
+    /// Fetch status context (thread ancestors and descendants) from Mastodon
+    /// - Parameters:
+    ///   - statusId: The ID of the status to get context for
+    ///   - account: The account to use for authentication
+    /// - Returns: ThreadContext containing ancestors and descendants
+    func fetchStatusContext(statusId: String, account: SocialAccount) async throws -> ThreadContext
+    {
+        guard let serverURLString = account.serverURL else {
+            logger.error("No server URL for Mastodon account")
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "No server URL"])
+        }
+
+        let serverUrl = formatServerURL(serverURLString.absoluteString)
+
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/context") else {
+            logger.error(
+                "Invalid server URL or status ID for context: \(serverUrl)/api/v1/statuses/\(statusId)/context"
+            )
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or status ID"])
+        }
+
+        logger.info("Fetching Mastodon context for status \(statusId) from \(serverUrl)")
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200
+            else {
+                if let errorMessage = String(data: data, encoding: .utf8) {
+                    logger.error(
+                        "Context error response (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorMessage)"
+                    )
+                }
+                throw NSError(
+                    domain: "MastodonService",
+                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status context"])
+            }
+
+            // Parse the context response
+            let contextResponse = try JSONDecoder().decode(MastodonStatusContext.self, from: data)
+
+            // Convert Mastodon statuses to Post objects
+            let ancestors = contextResponse.ancestors.compactMap { status in
+                convertMastodonStatusToPost(status, account: account)
+            }
+
+            let descendants = contextResponse.descendants.compactMap { status in
+                convertMastodonStatusToPost(status, account: account)
+            }
+
+            logger.info(
+                "Successfully fetched context: \(ancestors.count) ancestors, \(descendants.count) descendants"
+            )
+
+            return ThreadContext(ancestors: ancestors, descendants: descendants)
+        } catch {
+            logger.error("Error fetching status context: \(error.localizedDescription)")
+            throw error
+        }
+    }
+}
+
+// MARK: - Mastodon Status Context Models
+
+/// Mastodon API response for status context
+private struct MastodonStatusContext: Codable {
+    let ancestors: [MastodonStatus]
+    let descendants: [MastodonStatus]
 }
 
 // Define notification names if not already defined elsewhere
