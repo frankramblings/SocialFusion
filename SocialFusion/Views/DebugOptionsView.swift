@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 struct DebugOptionsView: View {
@@ -50,6 +51,42 @@ struct DebugOptionsView: View {
                 }
                 .foregroundColor(.red)
             }
+
+            Section("Profile Image Diagnostics") {
+                Button("Clear Image Cache") {
+                    ImageCache.shared.clearCache()
+                    print("🗑️ [Debug] Cleared image cache")
+                }
+
+                Button("Show Cache Stats") {
+                    let stats = ImageCache.shared.getCacheInfo()
+                    print(
+                        "📊 [Debug] Cache stats - Memory count: \(stats.memoryCount), Disk size: \(stats.diskSize) bytes"
+                    )
+                }
+
+                Button("Test Profile Image Loading") {
+                    Task {
+                        await testProfileImageLoading()
+                    }
+                }
+
+                if let profileStats = getProfileImageStats() {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Profile Image Stats:")
+                            .font(.headline)
+                        Text("Total loads: \(profileStats["total_loads"] ?? 0)")
+                        Text(
+                            "Success rate: \(String(format: "%.1f%%", (profileStats["success_rate"] as? Double ?? 0.0) * 100))"
+                        )
+                        Text(
+                            "Avg load time: \(String(format: "%.2fs", profileStats["avg_load_time"] as? Double ?? 0.0))"
+                        )
+                    }
+                    .font(.caption)
+                    .padding(.vertical, 4)
+                }
+            }
         }
         .navigationTitle("Debug Options")
         .navigationBarTitleDisplayMode(.inline)
@@ -58,6 +95,52 @@ struct DebugOptionsView: View {
         } message: {
             Text("Please force close and relaunch the app to enter testing mode.")
         }
+    }
+
+    @MainActor
+    private func testProfileImageLoading() async {
+        print("🧪 [Debug] Testing profile image loading...")
+
+        let testURLs = [
+            "https://cdn.bsky.app/img/avatar/plain/did:plc:ewrirxeyw2neruusvce6pjif/bafkreia63tbca42zazhy7a7oau6oxl3fgfbggvf3yh3qs4ony4hge3oa4i@jpeg",
+            "https://ramblings.social/system/accounts/avatars/113/617/938/735/996/406/original/e4dad69f2b79e320.png",
+            "https://invalid-url-test.com/avatar.jpg",
+        ]
+
+        for urlString in testURLs {
+            if let url = URL(string: urlString) {
+                let startTime = Date()
+
+                let publisher = ImageCache.shared.loadImage(from: url)
+                let image = await withCheckedContinuation { continuation in
+                    var cancellable: AnyCancellable?
+                    cancellable =
+                        publisher
+                        .sink { result in
+                            continuation.resume(returning: result)
+                            cancellable?.cancel()
+                        }
+                }
+
+                let loadTime = Date().timeIntervalSince(startTime)
+                let success = image != nil
+
+                await MonitoringService.shared.trackProfileImageLoad(
+                    url: urlString,
+                    platform: urlString.contains("bsky") ? .bluesky : .mastodon,
+                    success: success,
+                    loadTime: loadTime
+                )
+
+                print(
+                    "🧪 [Debug] Test load \(urlString.suffix(30)): \(success ? "✅" : "❌") (\(String(format: "%.2f", loadTime))s)"
+                )
+            }
+        }
+    }
+
+    private func getProfileImageStats() -> [String: Any]? {
+        return MonitoringService.shared.getProfileImageStats()
     }
 }
 

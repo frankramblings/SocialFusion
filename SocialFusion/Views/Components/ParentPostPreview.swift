@@ -58,10 +58,22 @@ struct ParentPostPreview: View {
                     )
                     .scaleEffect(isPressed ? 0.95 : 1.0)
 
-                    // Platform indicator with subtle animation
-                    PlatformDot(platform: post.platform, size: 10)
-                        .offset(x: 2, y: 2)
-                        .scaleEffect(isPressed ? 0.9 : 1.0)
+                    // Platform indicator with enhanced visibility and subtle animation
+                    PlatformDot(
+                        platform: post.platform, size: 16, useLogo: true  // Increased from 14 to 16 for better visibility
+                    )
+                    .background(
+                        Circle()
+                            .fill(Color(.systemBackground))
+                            .frame(width: 20, height: 20)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                    )
+                    .offset(x: 3, y: 3)
+                    .scaleEffect(isPressed ? 0.9 : 1.0)
                 }
                 .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
 
@@ -89,11 +101,12 @@ struct ParentPostPreview: View {
                     .opacity(isPressed ? 0.7 : 1.0)
             }
 
-            // Post content with conditional line limit and refined styling
+            // Post content with no line limit to show full content
             post.contentView(
-                lineLimit: post.content.count > maxCharacters ? 8 : nil,
+                lineLimit: nil,  // No line limit - show full content
                 showLinkPreview: false,
-                font: .callout  // Explicitly set font for parent post text
+                font: .callout,  // Explicitly set font for parent post text
+                allowTruncation: false  // Parent posts should show full content
             )
             .padding(.leading, 6)
             .padding(.trailing, 8)

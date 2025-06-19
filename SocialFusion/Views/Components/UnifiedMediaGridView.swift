@@ -3,6 +3,7 @@ import SwiftUI
 private class MediaSelectionModel: ObservableObject {
     @Published var selectedAttachment: Post.Attachment? = nil
     @Published var showFullscreen: Bool = false
+    @Published var showAltTextInitially: Bool = false
 }
 
 struct UnifiedMediaGridView: View {
@@ -20,6 +21,12 @@ struct UnifiedMediaGridView: View {
                     attachment: attachments[0],
                     onTap: {
                         selection.selectedAttachment = attachments[0]
+                        selection.showAltTextInitially = false
+                        selection.showFullscreen = true
+                    },
+                    onAltTap: { att in
+                        selection.selectedAttachment = att
+                        selection.showAltTextInitially = true
                         selection.showFullscreen = true
                     }
                 )
@@ -28,6 +35,12 @@ struct UnifiedMediaGridView: View {
                     attachments: attachments,
                     onTap: { att in
                         selection.selectedAttachment = att
+                        selection.showAltTextInitially = false
+                        selection.showFullscreen = true
+                    },
+                    onAltTap: { att in
+                        selection.selectedAttachment = att
+                        selection.showAltTextInitially = true
                         selection.showFullscreen = true
                     }
                 )
@@ -36,6 +49,12 @@ struct UnifiedMediaGridView: View {
                     attachments: Array(attachments.prefix(4)),
                     onTap: { att in
                         selection.selectedAttachment = att
+                        selection.showAltTextInitially = false
+                        selection.showFullscreen = true
+                    },
+                    onAltTap: { att in
+                        selection.selectedAttachment = att
+                        selection.showAltTextInitially = true
                         selection.showFullscreen = true
                     },
                     extraCount: attachments.count - 4
@@ -44,9 +63,17 @@ struct UnifiedMediaGridView: View {
         }
         .sheet(isPresented: $selection.showFullscreen) {
             if let selected = selection.selectedAttachment {
-                FullscreenMediaView(media: selected, allMedia: attachments)
+                FullscreenMediaView(
+                    media: selected, allMedia: attachments,
+                    showAltTextInitially: selection.showAltTextInitially)
             } else {
                 Color.black  // fallback
+            }
+        }
+        .onChange(of: selection.showFullscreen) { isPresented in
+            if !isPresented {
+                // Reset alt text flag when sheet is dismissed
+                selection.showAltTextInitially = false
             }
         }
     }
@@ -55,28 +82,33 @@ struct UnifiedMediaGridView: View {
 private struct SingleImageView: View {
     let attachment: Post.Attachment
     let onTap: () -> Void
+    let onAltTap: ((Post.Attachment) -> Void)?
 
     // Capture stable URL at init time
     private let stableURL: URL?
 
-    init(attachment: Post.Attachment, onTap: @escaping () -> Void) {
+    init(
+        attachment: Post.Attachment, onTap: @escaping () -> Void,
+        onAltTap: ((Post.Attachment) -> Void)? = nil
+    ) {
         self.attachment = attachment
         self.onTap = onTap
+        self.onAltTap = onAltTap
         self.stableURL = URL(string: attachment.url)
         print("🖼️ [SingleImageView] Loading image URL: \(attachment.url)")
         print("🖼️ [SingleImageView] Parsed URL: \(String(describing: stableURL))")
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .bottomTrailing) {
             AsyncImage(url: stableURL) { phase in
                 switch phase {
                 case .success(let image):
                     image
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
+                        .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: 500)
-                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .onAppear {
                             print(
                                 "✅ [SingleImageView] Successfully loaded image from: \(String(describing: stableURL))"
@@ -87,6 +119,7 @@ private struct SingleImageView: View {
                         .fill(Color.gray.opacity(0.15))
                         .frame(maxWidth: .infinity)
                         .frame(height: 280)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             VStack(spacing: 8) {
                                 Image(systemName: "photo")
@@ -107,6 +140,7 @@ private struct SingleImageView: View {
                         .fill(Color.gray.opacity(0.1))
                         .frame(maxWidth: .infinity)
                         .frame(height: 280)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .overlay(
                             ProgressView()
                                 .scaleEffect(1.2)
@@ -120,16 +154,17 @@ private struct SingleImageView: View {
                     EmptyView()
                 }
             }
-            .cornerRadius(12)
-            .clipped()
             .onTapGesture {
                 onTap()
             }
 
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()
-                    .padding(.top, 8)
-                    .padding(.leading, 8)
+                    .padding(.bottom, 8)
+                    .padding(.trailing, 8)
+                    .onTapGesture {
+                        onAltTap?(attachment)
+                    }
             }
         }
     }
@@ -138,20 +173,37 @@ private struct SingleImageView: View {
 private struct MultiImageGridView: View {
     let attachments: [Post.Attachment]
     let onTap: (Post.Attachment) -> Void
+    let onAltTap: ((Post.Attachment) -> Void)?
     var extraCount: Int = 0
     private let gridSize: CGFloat = 150
     private let spacing: CGFloat = 6
 
     var body: some View {
-        let columns = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
-        LazyVGrid(columns: columns, spacing: spacing) {
-            ForEach(attachments.prefix(4)) { att in
-                GridImageView(
-                    attachment: att, gridSize: gridSize, onTap: onTap, extraCount: extraCount,
-                    isLast: att.id == attachments.prefix(4).last?.id)
+        HStack {
+            Spacer()
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: spacing),
+                    GridItem(.flexible()),
+                ],
+                spacing: spacing
+            ) {
+                ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
+                    GridImageView(
+                        attachment: attachment,
+                        gridSize: gridSize,
+                        onTap: onTap,
+                        extraCount: extraCount,
+                        isLast: attachment.id == attachments.last?.id,
+                        onAltTap: onAltTap
+                    )
+                }
             }
+            .frame(width: gridSize * 2 + spacing)
+
+            Spacer()
         }
-        .frame(height: attachments.count <= 2 ? gridSize : gridSize * 2 + spacing)
     }
 }
 
@@ -161,24 +213,26 @@ private struct GridImageView: View {
     let onTap: (Post.Attachment) -> Void
     let extraCount: Int
     let isLast: Bool
+    let onAltTap: ((Post.Attachment) -> Void)?
 
     // Capture stable URL at init time
     private let stableURL: URL?
 
     init(
         attachment: Post.Attachment, gridSize: CGFloat, onTap: @escaping (Post.Attachment) -> Void,
-        extraCount: Int, isLast: Bool
+        extraCount: Int, isLast: Bool, onAltTap: ((Post.Attachment) -> Void)? = nil
     ) {
         self.attachment = attachment
         self.gridSize = gridSize
         self.onTap = onTap
         self.extraCount = extraCount
         self.isLast = isLast
+        self.onAltTap = onAltTap
         self.stableURL = URL(string: attachment.url)
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .bottomTrailing) {
             AsyncImage(url: stableURL) { phase in
                 switch phase {
                 case .success(let image):
@@ -186,11 +240,12 @@ private struct GridImageView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(width: gridSize, height: gridSize)
-                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 case .failure(_):
                     Rectangle()
                         .fill(Color.gray.opacity(0.15))
                         .frame(width: gridSize, height: gridSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             Image(systemName: "photo")
                                 .font(.title2)
@@ -200,6 +255,7 @@ private struct GridImageView: View {
                     Rectangle()
                         .fill(Color.gray.opacity(0.08))
                         .frame(width: gridSize, height: gridSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             ProgressView()
                                 .scaleEffect(1.0)
@@ -208,16 +264,17 @@ private struct GridImageView: View {
                     EmptyView()
                 }
             }
-            .cornerRadius(12)
-            .clipped()
             .onTapGesture {
                 onTap(attachment)
             }
 
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()
-                    .padding(.top, 4)
-                    .padding(.leading, 4)
+                    .padding(.bottom, 4)
+                    .padding(.trailing, 4)
+                    .onTapGesture {
+                        onAltTap?(attachment)
+                    }
             }
 
             // Show "+X more" overlay on the last item if there are extra items
@@ -225,7 +282,7 @@ private struct GridImageView: View {
                 Rectangle()
                     .fill(Color.black.opacity(0.7))
                     .frame(width: gridSize, height: gridSize)
-                    .cornerRadius(12)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .overlay(
                         Text("+\(extraCount)")
                             .font(.title2)
@@ -240,20 +297,15 @@ private struct GridImageView: View {
 // Helper badge for alt text indication
 private struct GlassyAltBadge: View {
     var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "text.bubble")
-                .font(.caption2)
-                .foregroundColor(.white)
-
-            Text("ALT")
-                .font(.caption2)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(.ultraThinMaterial, in: Capsule())
-        .environment(\.colorScheme, .dark)  // Force dark appearance for glass effect
+        Text("ALT")
+            .font(.caption2)
+            .fontWeight(.medium)
+            .foregroundColor(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(.ultraThinMaterial, in: Capsule())
+            .environment(\.colorScheme, .dark)  // Force dark appearance for glass effect
+            .scaleEffect(1.1)  // 10% larger
     }
 }
 

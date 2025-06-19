@@ -196,9 +196,6 @@ struct AddAccountView: View {
                             } else {
                                 HStack {
                                     Spacer()
-                                    Image(systemName: "cloud.fill")
-                                        .font(.system(size: 18, weight: .semibold))
-                                        .foregroundColor(.white)
                                     Text("Sign in with Bluesky")
                                         .fontWeight(.semibold)
                                         .foregroundColor(.white)
@@ -216,7 +213,7 @@ struct AddAccountView: View {
                     }
                 }
             }
-            .navigationTitle("Add \(selectedPlatform.rawValue.capitalized) Account")
+
             .navigationBarBackButtonHidden(true)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -559,7 +556,7 @@ struct PlatformButton: View {
 
                     HStack(spacing: 8) {
                         // Use system symbols for platform icons
-                        Image(systemName: platform == .mastodon ? "message.fill" : "cloud.fill")
+                        Image(systemName: "person.crop.circle")
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundColor(isSelected ? .white : platformColor(for: platform))
 
@@ -574,15 +571,6 @@ struct PlatformButton: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
-    }
-
-    private func getLogoSystemName(for platform: SocialPlatform) -> String {
-        switch platform {
-        case .mastodon:
-            return "message.fill"
-        case .bluesky:
-            return "cloud.fill"
-        }
     }
 
     // Get platform color for a specific platform

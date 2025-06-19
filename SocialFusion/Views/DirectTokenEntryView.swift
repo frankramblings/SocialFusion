@@ -65,7 +65,7 @@ struct DirectTokenEntryView: View {
                 }
             }
         }
-        .navigationTitle("Add with Access Token")
+
     }
 
     private var isFormValid: Bool {

@@ -1710,23 +1710,46 @@ public class MastodonService {
         return convertToGenericPosts(statuses: statuses)
     }
 
-    // Try to fetch the profile image data
-    private func updateProfileImage(for account: SocialAccount) async {
+    /// Update profile image for a Mastodon account
+    public func updateProfileImage(for account: SocialAccount) async {
         do {
-            guard let serverStr = account.serverURL?.absoluteString
-            else {
-                print("No server URL found for account")
+            guard let serverURL = account.serverURL else {
+                print("❌ No server URL found for Mastodon account: \(account.username)")
                 return
             }
 
-            let endpoint = "https://\(serverStr)/api/v1/accounts/verify_credentials"
-            var request = URLRequest(url: URL(string: endpoint)!)
+            print("🔄 Fetching Mastodon profile for \(account.username) from server: \(serverURL)")
 
-            if let accessToken = account.getAccessToken() {
-                request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            // Build the endpoint URL properly
+            let endpoint = serverURL.appendingPathComponent("api/v1/accounts/verify_credentials")
+            var request = URLRequest(url: endpoint)
+
+            guard let accessToken = account.getAccessToken() else {
+                print("❌ No access token found for Mastodon account: \(account.username)")
+                return
             }
 
-            let (data, _) = try await URLSession.shared.data(for: request)
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+            print("🔐 Using access token for \(account.username): \(accessToken.prefix(10))...")
+
+            print("🌐 Making Mastodon API request to: \(endpoint)")
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            // Check HTTP response status
+            if let httpResponse = response as? HTTPURLResponse {
+                print(
+                    "📡 Mastodon API response status for \(account.username): \(httpResponse.statusCode)"
+                )
+                if httpResponse.statusCode != 200 {
+                    print(
+                        "❌ Mastodon API returned error status \(httpResponse.statusCode) for \(account.username)"
+                    )
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("❌ Response body: \(responseString)")
+                    }
+                    return
+                }
+            }
             let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
 
             print(
@@ -1764,7 +1787,16 @@ public class MastodonService {
                 )
             }
         } catch {
-            print("Error fetching Mastodon profile: \(error)")
+            print("❌ Error fetching Mastodon profile for \(account.username): \(error)")
+
+            // More detailed error logging
+            if let urlError = error as? URLError {
+                print(
+                    "❌ URLError code: \(urlError.code.rawValue), description: \(urlError.localizedDescription)"
+                )
+            } else if let decodingError = error as? DecodingError {
+                print("❌ JSON decoding error: \(decodingError)")
+            }
         }
     }
 
@@ -1806,7 +1838,7 @@ public class MastodonService {
             // Post notification about the profile image update
             DispatchQueue.main.async {
                 NotificationCenter.default.post(
-                    name: Notification.Name("AccountProfileImageUpdated"),
+                    name: .profileImageUpdated,
                     object: nil,
                     userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
                 )
@@ -2032,6 +2064,85 @@ public class MastodonService {
         let accounts = SocialServiceManager.shared.mastodonAccounts
         return accounts.first
     }
+
+    // MARK: - Thread Context Methods
+
+    /// Fetch status context (thread ancestors and descendants) from Mastodon
+    /// - Parameters:
+    ///   - statusId: The ID of the status to get context for
+    ///   - account: The account to use for authentication
+    /// - Returns: ThreadContext containing ancestors and descendants
+    func fetchStatusContext(statusId: String, account: SocialAccount) async throws -> ThreadContext
+    {
+        guard let serverURLString = account.serverURL else {
+            logger.error("No server URL for Mastodon account")
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "No server URL"])
+        }
+
+        let serverUrl = formatServerURL(serverURLString.absoluteString)
+
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/context") else {
+            logger.error(
+                "Invalid server URL or status ID for context: \(serverUrl)/api/v1/statuses/\(statusId)/context"
+            )
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or status ID"])
+        }
+
+        logger.info("Fetching Mastodon context for status \(statusId) from \(serverUrl)")
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+
+        do {
+            let (data, response) = try await session.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200
+            else {
+                if let errorMessage = String(data: data, encoding: .utf8) {
+                    logger.error(
+                        "Context error response (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorMessage)"
+                    )
+                }
+                throw NSError(
+                    domain: "MastodonService",
+                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status context"])
+            }
+
+            // Parse the context response
+            let contextResponse = try JSONDecoder().decode(MastodonStatusContext.self, from: data)
+
+            // Convert Mastodon statuses to Post objects
+            let ancestors = contextResponse.ancestors.compactMap { status in
+                convertMastodonStatusToPost(status, account: account)
+            }
+
+            let descendants = contextResponse.descendants.compactMap { status in
+                convertMastodonStatusToPost(status, account: account)
+            }
+
+            logger.info(
+                "Successfully fetched context: \(ancestors.count) ancestors, \(descendants.count) descendants"
+            )
+
+            return ThreadContext(ancestors: ancestors, descendants: descendants)
+        } catch {
+            logger.error("Error fetching status context: \(error.localizedDescription)")
+            throw error
+        }
+    }
+}
+
+// MARK: - Mastodon Status Context Models
+
+/// Mastodon API response for status context
+private struct MastodonStatusContext: Codable {
+    let ancestors: [MastodonStatus]
+    let descendants: [MastodonStatus]
 }
 
 // Define notification names if not already defined elsewhere

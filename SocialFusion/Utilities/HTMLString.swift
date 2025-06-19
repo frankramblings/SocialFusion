@@ -33,10 +33,23 @@ public class HTMLString {
 
     /// Returns the first URL found in the raw HTML string
     public var extractFirstURL: URL? {
+        print("🔍 [HTMLString] Extracting first URL from HTML content length: \(raw.count)")
+        print("🔍 [HTMLString] HTML preview: '\(raw.prefix(200))'")
+
         let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
         let matches = detector?.matches(
             in: raw, options: [], range: NSRange(location: 0, length: raw.utf16.count))
-        return matches?.compactMap { $0.url }.first
+
+        print("🔍 [HTMLString] Found \(matches?.count ?? 0) potential URLs")
+
+        let firstURL = matches?.compactMap { $0.url }.first
+        if let url = firstURL {
+            print("🔍 [HTMLString] First URL found: \(url.absoluteString)")
+        } else {
+            print("🔍 [HTMLString] No URLs found in HTML content")
+        }
+
+        return firstURL
     }
 
     /// Returns an AttributedString representation of the HTML
@@ -114,6 +127,9 @@ public struct EmojiTextApp: View {
         )
         Text(attributed)
             .lineLimit(lineLimit)
+            .textSelection(.enabled)
+            .allowsTightening(false)
+            .environment(\.layoutDirection, .leftToRight)
     }
 
     // Build AttributedString with robust mention/tag/web link handling

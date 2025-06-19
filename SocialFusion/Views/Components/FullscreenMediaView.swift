@@ -4,6 +4,7 @@ import SwiftUI
 struct FullscreenMediaView: View {
     let media: Post.Attachment
     let allMedia: [Post.Attachment]
+    let showAltTextInitially: Bool
 
     @State private var currentScale: CGFloat = 1.0
     @State private var previousScale: CGFloat = 1.0
@@ -14,9 +15,10 @@ struct FullscreenMediaView: View {
     @State private var showAltText: Bool = false
     @Environment(\.dismiss) private var dismiss
 
-    init(media: Post.Attachment, allMedia: [Post.Attachment]) {
+    init(media: Post.Attachment, allMedia: [Post.Attachment], showAltTextInitially: Bool = false) {
         self.media = media
         self.allMedia = allMedia
+        self.showAltTextInitially = showAltTextInitially
 
         // Find the index of the current media in the array
         if let index = allMedia.firstIndex(where: { $0.id == media.id }) {
@@ -24,6 +26,9 @@ struct FullscreenMediaView: View {
         } else {
             _currentIndex = State(initialValue: 0)
         }
+
+        // Initialize showAltText based on parameter
+        _showAltText = State(initialValue: showAltTextInitially)
     }
 
     var body: some View {
@@ -49,38 +54,6 @@ struct FullscreenMediaView: View {
                                 )
                                 .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
                                 .accessibilityLabel(attachment.altText ?? "Image")
-                                .gesture(
-                                    MagnificationGesture()
-                                        .onChanged { value in
-                                            if attachment.id == allMedia[currentIndex].id {
-                                                let delta = value / previousScale
-                                                previousScale = value
-                                                currentScale = min(
-                                                    max(currentScale * delta, 1.0), 5.0)
-                                            }
-                                        }
-                                        .onEnded { _ in
-                                            previousScale = 1.0
-                                        }
-                                )
-                                .gesture(
-                                    DragGesture()
-                                        .onChanged { value in
-                                            if attachment.id == allMedia[currentIndex].id
-                                                && currentScale > 1.0
-                                            {
-                                                currentOffset = CGSize(
-                                                    width: previousOffset.width
-                                                        + value.translation.width,
-                                                    height: previousOffset.height
-                                                        + value.translation.height
-                                                )
-                                            }
-                                        }
-                                        .onEnded { _ in
-                                            previousOffset = currentOffset
-                                        }
-                                )
                                 .onTapGesture(count: 2) {
                                     // Double tap to zoom in/out
                                     withAnimation {
@@ -103,7 +76,7 @@ struct FullscreenMediaView: View {
                         .tag(index)
                     }
                 }
-                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
+                .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
 
                 // Overlays (X, alt text, sharrow)
                 if overlaysVisible {
@@ -111,24 +84,6 @@ struct FullscreenMediaView: View {
                         // Top overlay: Close button and ALT/info button
                         HStack {
                             Spacer()
-                            // ALT/info button (shows if alt text exists)
-                            if let altText = allMedia[currentIndex].altText, !altText.isEmpty {
-                                Button(action: {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        showAltText.toggle()
-                                    }
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                }) {
-                                    Image(systemName: "info.circle.fill")
-                                        .font(.title2)
-                                        .foregroundColor(showAltText ? .yellow : .white)
-                                        .padding(10)
-                                }
-                                .buttonStyle(GlassyButtonStyle())
-                                .accessibilityLabel("Show image description")
-                                .accessibilityHint("Toggles the alt text overlay")
-                                .padding(.trailing, 4)
-                            }
                             Button(action: { dismiss() }) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 18, weight: .bold))
@@ -142,34 +97,68 @@ struct FullscreenMediaView: View {
                         .padding(.top, 12)
                         .padding(.trailing, 8)
                         Spacer()
-                        // Bottom overlay: Alt text (if toggled) and share button
-                        HStack(alignment: .bottom) {
-                            VStack(alignment: .leading, spacing: 0) {
-                                if showAltText, let altText = allMedia[currentIndex].altText,
-                                    !altText.isEmpty
-                                {
+                        // Bottom overlay: Alt text, info button (left), share button (right), and page dots
+                        VStack(spacing: 16) {
+                            // Alt text if toggled
+                            if showAltText, let altText = allMedia[currentIndex].altText,
+                                !altText.isEmpty
+                            {
+                                HStack {
                                     Text(altText)
-                                        .font(.body)
+                                        .font(.callout)
+                                        .fontWeight(.medium)
                                         .foregroundColor(.white)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 12)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 16)
                                         .background(
-                                            LinearGradient(
-                                                gradient: Gradient(colors: [
-                                                    Color.black.opacity(0.85),
-                                                    Color.black.opacity(0.0),
-                                                ]),
-                                                startPoint: .bottom, endPoint: .top
-                                            )
+                                            RoundedRectangle(cornerRadius: 16)
+                                                .fill(Color.black.opacity(0.92))
+                                                .overlay(
+                                                    RoundedRectangle(cornerRadius: 16)
+                                                        .stroke(
+                                                            Color.white.opacity(0.15), lineWidth: 1)
+                                                )
                                         )
-                                        .cornerRadius(16)
-                                        .padding(.bottom, 12)
-                                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                                        .shadow(
+                                            color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4
+                                        )
                                         .accessibilityLabel("Image description: \(altText)")
+                                    Spacer()
                                 }
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
-                            Spacer()
-                            VStack {
+
+                            // Button row
+                            HStack(alignment: .bottom) {
+                                // Info button (lower left) - only show if alt text exists
+                                if let altText = allMedia[currentIndex].altText, !altText.isEmpty {
+                                    Button(action: {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            showAltText.toggle()
+                                        }
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    }) {
+                                        Text("ALT")
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(showAltText ? .black : .white)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 3)
+                                            .background(
+                                                showAltText
+                                                    ? Color.yellow : Color.white.opacity(0.2),
+                                                in: Capsule()
+                                            )
+                                            .padding(10)
+                                    }
+                                    .buttonStyle(GlassyButtonStyle())
+                                    .accessibilityLabel("Show image description")
+                                    .accessibilityHint("Toggles the alt text overlay")
+                                }
+
+                                Spacer()
+
+                                // Share button (lower right)
                                 Button(action: {
                                     // Share the image URL
                                     if let url = URL(string: allMedia[currentIndex].url) {
@@ -192,7 +181,24 @@ struct FullscreenMediaView: View {
                                 }
                                 .buttonStyle(GlassyButtonStyle())
                                 .accessibilityLabel("Share image")
-                                .padding(.bottom, 8)
+                            }
+
+                            // Page indicator dots (only if multiple images)
+                            if allMedia.count > 1 {
+                                HStack(spacing: 8) {
+                                    ForEach(0..<allMedia.count, id: \.self) { idx in
+                                        Circle()
+                                            .fill(
+                                                idx == currentIndex
+                                                    ? Color.white : Color.white.opacity(0.3)
+                                            )
+                                            .frame(width: 7, height: 7)
+                                    }
+                                }
+                                .padding(8)
+                                .background(.ultraThinMaterial)
+                                .clipShape(Capsule())
+                                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
                             }
                         }
                         .padding(.horizontal, 16)
@@ -202,39 +208,11 @@ struct FullscreenMediaView: View {
                     .animation(.easeInOut(duration: 0.2), value: overlaysVisible)
                 }
 
-                // Page indicator dots (only if multiple images)
-                if allMedia.count > 1 {
-                    VStack {
-                        Spacer()
-                        HStack(spacing: 8) {
-                            ForEach(0..<allMedia.count, id: \.self) { idx in
-                                Circle()
-                                    .fill(
-                                        idx == currentIndex ? Color.white : Color.white.opacity(0.3)
-                                    )
-                                    .frame(width: 7, height: 7)
-                            }
-                        }
-                        .padding(8)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
-                        .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
-                        .padding(.bottom, 18)
-                    }
-                }
             }
         }
         .ignoresSafeArea()
         .statusBar(hidden: true)
-        .gesture(
-            DragGesture()
-                .onEnded { value in
-                    if value.translation.height > 100 || value.predictedEndTranslation.height > 200
-                    {
-                        withAnimation { dismiss() }
-                    }
-                }
-        )
+
     }
 
     private func mediaView(for attachment: Post.Attachment) -> some View {
@@ -323,6 +301,7 @@ struct FullscreenMediaView_Previews: PreviewProvider {
             ),
         ]
 
-        FullscreenMediaView(media: sampleMedia[0], allMedia: sampleMedia)
+        FullscreenMediaView(
+            media: sampleMedia[0], allMedia: sampleMedia, showAltTextInitially: false)
     }
 }

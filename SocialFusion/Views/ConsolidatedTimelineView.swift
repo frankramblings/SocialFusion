@@ -7,6 +7,9 @@ struct ConsolidatedTimelineView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var isRefreshing = false
+    @State private var scrollVelocity: CGFloat = 0
+    @State private var lastScrollTime = Date()
+    @State private var scrollCancellationTimer: Timer?
 
     init(serviceManager: SocialServiceManager? = nil) {
         // Handle the main actor isolation issue by creating controller on main thread
@@ -25,7 +28,7 @@ struct ConsolidatedTimelineView: View {
             .background(
                 NavigationLink(
                     destination: navigationEnvironment.selectedPost.map { post in
-                        PostDetailNavigationView(
+                        PostDetailView(
                             viewModel: PostViewModel(
                                 post: post, serviceManager: serviceManager),
                             focusReplyComposer: false
@@ -35,7 +38,7 @@ struct ConsolidatedTimelineView: View {
                     },
                     isActive: Binding(
                         get: { navigationEnvironment.selectedPost != nil },
-                        set: { if !$0 { navigationEnvironment.selectedPost = nil } }
+                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
                     ),
                     label: { EmptyView() }
                 )
@@ -90,41 +93,56 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var timelineView: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
-                    postCard(for: post)
-                        .onAppear {
-                            // Trigger infinite scroll when approaching the end
-                            if shouldLoadMorePosts(currentIndex: index) {
-                                Task {
-                                    await loadMorePosts()
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
+                        postCard(for: post)
+                            .onAppear {
+                                // Trigger infinite scroll when approaching the end
+                                if shouldLoadMorePosts(currentIndex: index) {
+                                    Task {
+                                        await loadMorePosts()
+                                    }
                                 }
                             }
-                        }
 
-                    // Divider between posts
-                    if post.id != controller.posts.last?.id {
-                        Divider()
-                            .padding(.horizontal, 16)
+                        // Divider between posts
+                        if post.id != controller.posts.last?.id {
+                            Divider()
+                                .padding(.horizontal, 16)
+                        }
+                    }
+
+                    // Loading indicator at the bottom when fetching more posts
+                    if serviceManager.isLoadingNextPage {
+                        infiniteScrollLoadingView
+                            .padding(.vertical, 20)
+                    }
+
+                    // End of timeline indicator
+                    if !serviceManager.hasNextPage && !controller.posts.isEmpty {
+                        endOfTimelineView
+                            .padding(.vertical, 20)
                     }
                 }
-
-                // Loading indicator at the bottom when fetching more posts
-                if serviceManager.isLoadingNextPage {
-                    infiniteScrollLoadingView
-                        .padding(.vertical, 20)
-                }
-
-                // End of timeline indicator
-                if !serviceManager.hasNextPage && !controller.posts.isEmpty {
-                    endOfTimelineView
-                        .padding(.vertical, 20)
-                }
+                .background(
+                    // Invisible GeometryReader to detect scroll changes
+                    GeometryReader { geometry in
+                        Color.clear
+                            .preference(
+                                key: ScrollOffsetPreferenceKey.self,
+                                value: geometry.frame(in: .named("scrollView")).origin.y)
+                    }
+                )
             }
-        }
-        .refreshable {
-            await refreshTimeline()
+            .coordinateSpace(name: "scrollView")
+            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                handleScrollChange(offset: offset)
+            }
+            .refreshable {
+                await refreshTimeline()
+            }
         }
     }
 
@@ -220,6 +238,49 @@ struct ConsolidatedTimelineView: View {
         print("🔄 ConsolidatedTimelineView: Loading more posts...")
         await serviceManager.fetchNextPage()
         print("🔄 ConsolidatedTimelineView: Finished loading more posts")
+    }
+
+    /// Handle scroll change detection for smart image loading optimization
+    private func handleScrollChange(offset: CGFloat) {
+        let now = Date()
+        let timeDelta = now.timeIntervalSince(lastScrollTime)
+
+        // Calculate scroll velocity (points per second)
+        if timeDelta > 0 {
+            let offsetDelta = abs(offset - scrollVelocity)
+            let velocity = offsetDelta / timeDelta
+
+            // Fast scrolling threshold (adjust based on testing)
+            let fastScrollThreshold: CGFloat = 500  // points per second
+
+            if velocity > fastScrollThreshold {
+                // Fast scrolling detected - cancel low priority image requests
+                ImageCache.shared.cancelLowPriorityRequests()
+                print(
+                    "🏃‍♂️ [ScrollDetection] Fast scroll detected (velocity: \(Int(velocity)) pts/s) - cancelling low priority requests"
+                )
+
+                // Cancel existing timer and create new one
+                scrollCancellationTimer?.invalidate()
+                scrollCancellationTimer = Timer.scheduledTimer(
+                    withTimeInterval: 0.5, repeats: false
+                ) { _ in
+                    print("📷 [ScrollDetection] Scroll slowed down - resuming normal image loading")
+                }
+            }
+        }
+
+        scrollVelocity = offset
+        lastScrollTime = now
+    }
+}
+
+/// PreferenceKey for scroll offset detection
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

@@ -136,8 +136,7 @@ struct AccountPickerView: View {
                 }
             }
             .listStyle(InsetGroupedListStyle())
-            .navigationTitle("Accounts")
-            .navigationBarTitleDisplayMode(.inline)
+
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
@@ -280,7 +279,7 @@ struct AddAccountView: View {
                     .disabled(isLoading || !isFormValid)
                 }
             }
-            .navigationTitle("Add Account")
+
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Cancel") {

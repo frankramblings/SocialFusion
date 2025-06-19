@@ -18,32 +18,45 @@ struct ProfileImageView: View {
 
             // Profile image or initial
             if let imageURL = account.profileImageURL {
-                AsyncImage(url: imageURL) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: 30, height: 30)
-                            .clipShape(Circle())
-                    } else if phase.error != nil {
-                        // Show initial on error
-                        InitialView(account: account)
-                    } else {
-                        // Show loading placeholder
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 30, height: 30)
-                    }
+                CachedAsyncImage(url: imageURL) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 30, height: 30)
+                        .clipShape(Circle())
+                } placeholder: {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 30, height: 30)
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(0.6)
+                        )
                 }
                 .frame(width: 30, height: 30)
                 .clipShape(Circle())
+                .id(imageURL.absoluteString)
                 .onAppear {
-                    print("Refreshing ProfileImageView for account: \(account.username)")
+                    print(
+                        "👁️ [ProfileImageView] Profile image appeared for account: \(account.username)"
+                    )
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
                     notification in
-                    if let accountId = notification.object as? String, accountId == account.id {
-                        print("Received profile image update for \(account.username)")
+                    // Check if this notification is for this specific account
+                    let shouldRefresh =
+                        if let updatedAccount = notification.object as? SocialAccount {
+                            updatedAccount.id == account.id
+                        } else if let accountId = notification.userInfo?["accountId"] as? String {
+                            accountId == account.id
+                        } else {
+                            false
+                        }
+
+                    if shouldRefresh {
+                        print(
+                            "🔄 [ProfileImageView] Received profile image update for \(account.username)"
+                        )
                         refreshTrigger.toggle()
                     }
                 }

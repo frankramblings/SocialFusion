@@ -3,13 +3,16 @@ import SwiftUI
 /// A compact view of a quoted post - styled like ParentPostPreview
 public struct QuotePostView: View {
     public let post: Post
+    public var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
 
     // Maximum characters before content is trimmed
     private let maxCharacters = 300
 
-    public init(post: Post) {
+    public init(post: Post, onTap: (() -> Void)? = nil) {
         self.post = post
+        self.onTap = onTap
     }
 
     public var body: some View {
@@ -31,7 +34,16 @@ public struct QuotePostView: View {
         )
         .shadow(
             color: colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05),
-            radius: 1, y: 1)
+            radius: 1, y: 1
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let onTap = onTap {
+                onTap()
+            } else {
+                navigationEnvironment.navigateToPost(post)
+            }
+        }
     }
 
     // MARK: - View Components
@@ -60,8 +72,25 @@ public struct QuotePostView: View {
                     .stroke(Color(.systemBackground), lineWidth: 1)
             )
 
-            PlatformDot(platform: post.platform, size: 10)
-                .offset(x: 2, y: 2)
+            PlatformDot(
+                platform: post.platform, size: 16, useLogo: true  // Increased from 14 to 16 for better visibility
+            )
+            .background(
+                Circle()
+                    .fill(Color(.systemBackground))
+                    .frame(width: 20, height: 20)
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                colorScheme == .dark
+                                    ? Color.white.opacity(0.2) : Color.black.opacity(0.1),
+                                lineWidth: 0.5)
+                    )
+                    .shadow(
+                        color: .black.opacity(colorScheme == .dark ? 0.3 : 0.15), radius: 2, x: 0,
+                        y: 1)
+            )
+            .offset(x: 3, y: 3)
         }
         .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
     }
@@ -86,20 +115,30 @@ public struct QuotePostView: View {
 
     private var postContent: some View {
         let lineLimit = post.content.count > maxCharacters ? 4 : nil
-        return post.contentView(lineLimit: lineLimit, showLinkPreview: false)
-            .font(.callout)
-            .padding(.horizontal, 4)
+        return post.contentView(
+            lineLimit: lineLimit, showLinkPreview: false, allowTruncation: false
+        )
+        .font(.callout)
+        .padding(.horizontal, 4)
     }
 
     private var postMedia: some View {
-        StabilizedAsyncImage(
-            url: URL(string: post.attachments[0].url),
-            idealHeight: 220,
-            contentMode: .fill,
-            cornerRadius: 14
+        UnifiedMediaGridView(
+            attachments: post.attachments,
+            maxHeight: 220
         )
-        .frame(maxWidth: .infinity, maxHeight: 220)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
+        .onAppear {
+            print(
+                "🖼️ [QuotePostView] Displaying \(post.attachments.count) attachments for quoted post: \(post.id)"
+            )
+            for (index, attachment) in post.attachments.enumerated() {
+                print(
+                    "🖼️ [QuotePostView] Attachment \(index): \(attachment.url) (type: \(attachment.type))"
+                )
+            }
+        }
     }
 
     private var errorMediaView: some View {

@@ -17,6 +17,9 @@ struct StabilizedLinkPreview: View {
     init(url: URL, idealHeight: CGFloat = 200) {
         self.url = url
         self.idealHeight = idealHeight
+        print(
+            "🎯 [StabilizedLinkPreview] Created for URL: \(url.absoluteString) with height: \(idealHeight)"
+        )
     }
 
     var body: some View {
@@ -24,9 +27,11 @@ struct StabilizedLinkPreview: View {
             .frame(maxWidth: .infinity)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
             .onAppear {
+                print("🎯 [StabilizedLinkPreview] onAppear for URL: \(url.absoluteString)")
                 loadMetadata()
             }
             .onDisappear {
+                print("🎯 [StabilizedLinkPreview] onDisappear for URL: \(url.absoluteString)")
                 MetadataProviderManager.shared.cancelProvider(for: url)
             }
     }
@@ -48,29 +53,51 @@ struct StabilizedLinkPreview: View {
 
     private func loadMetadata() {
         guard retryCount <= maxRetries else {
+            print("🎯 [StabilizedLinkPreview] Max retries exceeded for URL: \(url.absoluteString)")
             isLoading = false
             loadingFailed = true
             return
         }
 
+        print(
+            "🎯 [StabilizedLinkPreview] Starting metadata load for URL: \(url.absoluteString) (attempt \(retryCount + 1))"
+        )
         isLoading = true
 
         MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
             DispatchQueue.main.async {
                 if let error = error {
-                    print("Error fetching link metadata for \(url): \(error)")
+                    print(
+                        "🎯 [StabilizedLinkPreview] Error fetching metadata for \(self.url): \(error)"
+                    )
 
-                    if retryCount < maxRetries && isTransientError(error) {
-                        retryCount += 1
+                    if self.retryCount < self.maxRetries && self.isTransientError(error) {
+                        self.retryCount += 1
+                        print(
+                            "🎯 [StabilizedLinkPreview] Will retry after delay for URL: \(self.url.absoluteString)"
+                        )
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            loadMetadata()
+                            self.loadMetadata()
                         }
                         return
                     }
 
-                    isLoading = false
-                    loadingFailed = true
+                    print(
+                        "🎯 [StabilizedLinkPreview] Failed to load metadata for URL: \(self.url.absoluteString)"
+                    )
+                    self.isLoading = false
+                    self.loadingFailed = true
                     return
+                }
+
+                print(
+                    "🎯 [StabilizedLinkPreview] Successfully loaded metadata for URL: \(self.url.absoluteString)"
+                )
+                if let metadata = metadata {
+                    print("🎯 [StabilizedLinkPreview] Metadata title: \(metadata.title ?? "nil")")
+                    print(
+                        "🎯 [StabilizedLinkPreview] Metadata URL: \(metadata.url?.absoluteString ?? "nil")"
+                    )
                 }
 
                 self.metadata = metadata
@@ -101,7 +128,7 @@ private struct StabilizedLinkLoadingView: View {
             Rectangle()
                 .fill(shimmerGradient)
                 .frame(maxWidth: .infinity)
-                .frame(height: 130)
+                .frame(height: 120)
                 .clipShape(
                     UnevenRoundedRectangle(
                         cornerRadii: .init(
@@ -187,7 +214,7 @@ private struct StabilizedLinkContentView: View {
                 // Image on top (Ivory style) - full width, edge to edge
                 imageSection
                     .frame(maxWidth: .infinity)
-                    .frame(minHeight: 100, maxHeight: 160)
+                    .frame(minHeight: 120, maxHeight: 180)
 
                 // Text content below image (Ivory style)
                 textSection
@@ -222,7 +249,7 @@ private struct StabilizedLinkContentView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity)
-                        .frame(maxHeight: 160)
+                        .frame(maxHeight: 180)
                         .clipped()
                         .clipShape(
                             UnevenRoundedRectangle(
@@ -400,7 +427,7 @@ private struct StabilizedLinkFallbackView: View {
                 Rectangle()
                     .fill(Color.gray.opacity(0.15))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 130)
+                    .frame(height: 150)
                     .clipShape(
                         UnevenRoundedRectangle(
                             cornerRadii: .init(
@@ -423,12 +450,14 @@ private struct StabilizedLinkFallbackView: View {
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .foregroundColor(.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Text("External Link")
+                    // Show more of the URL path for better context
+                    Text(url.path.isEmpty ? "External Link" : url.path)
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, 12)

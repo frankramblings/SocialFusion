@@ -205,7 +205,7 @@ public final class SocialServiceManager: ObservableObject {
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleProfileImageUpdate),
-            name: Notification.Name("AccountProfileImageUpdated"),
+            name: .profileImageUpdated,
             object: nil
         )
     }
@@ -273,7 +273,11 @@ public final class SocialServiceManager: ObservableObject {
 
         // MIGRATION: Check for and migrate old DID-based Bluesky accounts
         migrateOldBlueskyAccounts()
+
         print("🔧 SocialServiceManager: loadAccounts() completed")
+
+        // PROFILE REFRESH: Update profile images for all loaded accounts (after method is defined)
+        refreshAccountProfiles()
     }
 
     /// Save accounts to UserDefaults
@@ -297,6 +301,42 @@ public final class SocialServiceManager: ObservableObject {
         // Separate accounts by platform
         mastodonAccounts = accounts.filter { $0.platform == .mastodon }
         blueskyAccounts = accounts.filter { $0.platform == .bluesky }
+    }
+
+    /// Refresh profile information for all accounts
+    private func refreshAccountProfiles() {
+        print("🔄 SocialServiceManager: Refreshing profile images for all accounts...")
+
+        Task {
+            for account in accounts {
+                do {
+                    switch account.platform {
+                    case .mastodon:
+                        await mastodonService.updateProfileImage(for: account)
+                    case .bluesky:
+                        try await blueskyService.updateProfileInfo(for: account)
+                    }
+                    print("✅ Refreshed profile for \(account.username) (\(account.platform))")
+                } catch {
+                    print("⚠️ Failed to refresh profile for \(account.username): \(error)")
+                }
+
+                // Small delay to avoid overwhelming the APIs
+                try? await Task.sleep(nanoseconds: 250_000_000)  // 0.25 seconds
+            }
+
+            // Save updated accounts
+            await MainActor.run {
+                saveAccounts()
+                print("💾 Saved accounts after profile refresh")
+            }
+        }
+    }
+
+    /// Public method to manually refresh profile images for all accounts
+    @MainActor
+    public func refreshAllProfileImages() async {
+        refreshAccountProfiles()
     }
 
     /// Get accounts to fetch based on current selection
@@ -1604,5 +1644,78 @@ public final class SocialServiceManager: ObservableObject {
     func forceRefreshTimeline() async {
         print("🔄 SocialServiceManager: forceRefreshTimeline called")
         await ensureTimelineRefresh(force: true)
+    }
+
+    // MARK: - Thread Context Loading
+
+    /// Fetch thread context for a post (ancestors and descendants)
+    func fetchThreadContext(for post: Post) async throws -> ThreadContext {
+        print(
+            "📊 SocialServiceManager: fetchThreadContext called for post \(post.id) on \(post.platform)"
+        )
+
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                print("❌ SocialServiceManager: No Mastodon account available for thread loading")
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            print(
+                "📊 SocialServiceManager: Using Mastodon account \(account.username) for thread loading"
+            )
+            return try await fetchMastodonThreadContext(
+                postId: post.platformSpecificId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                print("❌ SocialServiceManager: No Bluesky account available for thread loading")
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            print(
+                "📊 SocialServiceManager: Using Bluesky account \(account.username) for thread loading"
+            )
+            return try await fetchBlueskyThreadContext(
+                postId: post.platformSpecificId, account: account)
+        }
+    }
+
+    /// Fetch Mastodon thread context using the context API
+    private func fetchMastodonThreadContext(postId: String, account: SocialAccount) async throws
+        -> ThreadContext
+    {
+        return try await mastodonService.fetchStatusContext(statusId: postId, account: account)
+    }
+
+    /// Fetch Bluesky thread context using the getPostThread API
+    private func fetchBlueskyThreadContext(postId: String, account: SocialAccount) async throws
+        -> ThreadContext
+    {
+        return try await blueskyService.fetchPostThreadContext(postId: postId, account: account)
+    }
+
+    /// Efficiently load thread context with intelligent caching and deduplication
+    func loadThreadContextIntelligently(
+        for post: Post, existingParents: [Post] = [], existingReplies: [Post] = []
+    ) async throws -> ThreadContext {
+        let context = try await fetchThreadContext(for: post)
+
+        // Deduplicate against existing posts to avoid redundant data
+        let existingParentIds = Set(existingParents.map { $0.platformSpecificId })
+        let existingReplyIds = Set(existingReplies.map { $0.platformSpecificId })
+
+        let newParents = context.ancestors.filter {
+            !existingParentIds.contains($0.platformSpecificId)
+        }
+        let newReplies = context.descendants.filter {
+            !existingReplyIds.contains($0.platformSpecificId)
+        }
+
+        print(
+            "📊 SocialServiceManager: Thread context loaded - \(newParents.count) new parents, \(newReplies.count) new replies"
+        )
+
+        return ThreadContext(
+            ancestors: existingParents + newParents,
+            descendants: existingReplies + newReplies
+        )
     }
 }

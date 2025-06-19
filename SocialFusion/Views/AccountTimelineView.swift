@@ -25,12 +25,9 @@ struct AccountTimelineView: View {
                     .scaleEffect(1.5)
             } else if posts.isEmpty {
                 VStack(spacing: 20) {
-                    Image(
-                        systemName: account.platform == .mastodon
-                            ? "bubble.left.fill" : "cloud.fill"
-                    )
-                    .font(.system(size: 60))
-                    .foregroundColor(Color(account.platform.color))
+                    Image(systemName: "person.crop.circle")
+                        .font(.system(size: 60))
+                        .foregroundColor(Color(account.platform.color))
 
                     Text("No posts to display")
                         .font(.headline)

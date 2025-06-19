@@ -31,7 +31,8 @@ struct PostAuthorView: View {
                 PostAuthorImageView(
                     authorProfilePictureURL: stableAuthorImageURL,
                     platform: stablePlatform,
-                    size: 44
+                    size: 44,
+                    authorName: stableAuthorName
                 )
             }
             .buttonStyle(PlainButtonStyle())
@@ -67,9 +68,6 @@ struct PostAuthorView: View {
             }
 
             Spacer()
-
-            // Platform badge
-            PlatformBadge(platform: stablePlatform)
         }
     }
 

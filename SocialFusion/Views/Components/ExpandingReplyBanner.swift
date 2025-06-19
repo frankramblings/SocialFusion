@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 // Simple PostParentCache for ExpandingReplyBanner
@@ -33,7 +34,7 @@ class PostParentCache: ObservableObject {
         guard !fetching.contains(id) else { return }
         fetching.insert(id)
 
-        Task {
+        _ = Task {
             do {
                 let post: Post?
 
@@ -75,10 +76,24 @@ struct ExpandingReplyBanner: View {
     @State private var parent: Post? = nil
     @State private var fetchAttempted = false
 
-    // Smooth animation state
+    // Enhanced animation state management
     @State private var isPressed = false
-    @State private var contentHeight: CGFloat = 0
     @State private var showContent = false
+    @State private var contentHeight: CGFloat = 0
+    @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
+
+    // Apple-style animation timing curves
+    private var expandAnimation: Animation {
+        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
+    }
+
+    private var collapseAnimation: Animation {
+        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
+    }
+
+    private var chevronAnimation: Animation {
+        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+    }
 
     private var displayUsername: String {
         if let parent = parent {
@@ -106,24 +121,32 @@ struct ExpandingReplyBanner: View {
         }
     }
 
-    // Ultra-smooth liquid glass animation
-    private var fluidAnimation: Animation {
-        .easeInOut(duration: 0.5)
+    // Liquid glass morphing state based on banner state
+    private var liquidGlassMorphingState: MorphingState {
+        if isPressed {
+            return .pressed
+        } else if isExpanded {
+            return .expanded
+        } else {
+            return .idle
+        }
     }
 
-    private var chevronAnimation: Animation {
-        .easeInOut(duration: 0.5)
+    // Liquid glass variant based on expansion state
+    private var liquidGlassVariant: LiquidGlassVariant {
+        return isExpanded ? .morphing : .regular
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Banner row with refined interaction feedback
+            // Banner row with liquid glass effects
             Button(action: handleBannerTap) {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.turn.up.left")
                         .font(.caption)
                         .foregroundColor(platformColor)
                         .scaleEffect(isPressed ? 0.95 : 1.0)
+                        .animation(.easeInOut(duration: 0.1), value: isPressed)
 
                     Text("Replying to @\(displayUsername)")
                         .font(.caption)
@@ -143,6 +166,7 @@ struct ExpandingReplyBanner: View {
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
                         .scaleEffect(isPressed ? 0.9 : 1.0)
                         .animation(chevronAnimation, value: isExpanded)
+                        .animation(.easeInOut(duration: 0.1), value: isPressed)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -154,63 +178,88 @@ struct ExpandingReplyBanner: View {
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    withAnimation(.easeInOut(duration: 0.1)) {
+                    withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.6)) {
                         isPressed = pressing
+                    }
+                    // Add haptic feedback for better interaction
+                    if pressing {
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                        impactFeedback.impactOccurred()
                     }
                 }, perform: {}
             )
-            .zIndex(1)  // Ensure banner is above content for tap handling
 
-            // Content with smooth height animation
-            contentView
-                .background(Color(.systemGray6))  // Opaque background to prevent transparency
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear
-                            .onAppear {
-                                DispatchQueue.main.async {
-                                    contentHeight = geometry.size.height
-                                }
-                            }
-                            .onChange(of: geometry.size.height) { newHeight in
-                                DispatchQueue.main.async {
-                                    contentHeight = newHeight
-                                }
-                            }
+            // Parent post preview - always present, height controlled
+            Group {
+                if let parent = parent, !parent.isPlaceholder {
+                    // Real parent post content
+                    ParentPostPreview(post: parent) {
+                        onParentPostTap?(parent)
                     }
-                )
-                .frame(height: showContent ? contentHeight : 0)
-                .clipped()
-                .animation(fluidAnimation, value: showContent)
-                .allowsHitTesting(showContent && isExpanded)  // Only allow content interaction when fully expanded
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                } else if shouldShowLoadingState {
+                    // Skeleton loading state
+                    ParentPostSkeleton()
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                } else if fetchAttempted && parent == nil {
+                    // Error state
+                    VStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.orange)
+                            .font(.title2)
+                        Text("Unable to load parent post")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.vertical, 12)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .opacity(showContent ? 1 : 0)
+            .scaleEffect(showContent ? 1 : 0.98, anchor: .top)
+            .frame(height: isExpanded ? nil : 0)
+            .clipped()
+            .background(
+                // Simplified content background matching main container
+                Color(.systemBackground).opacity(0.01)
+            )
         }
         .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isExpanded ? Color(.systemGray6) : Color(.systemBackground))
+            // Background that matches boost banner in closed state, morphs to expanded state
+            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
+                .fill(
+                    isExpanded
+                        ? AnyShapeStyle(.ultraThinMaterial)
+                        : AnyShapeStyle(Color(.systemBackground))
+                )
+                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
                 .stroke(
-                    Color.secondary.opacity(isExpanded ? 0.15 : 0.2),
+                    Color.secondary.opacity(isExpanded ? 0.12 : 0.2),
                     lineWidth: isExpanded ? 0.5 : 1
                 )
+                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
         .shadow(
-            color: isExpanded ? Color.black.opacity(0.04) : Color.clear,
-            radius: isExpanded ? 2 : 0,
+            color: isExpanded ? Color.black.opacity(0.06) : Color.black.opacity(0.02),
+            radius: isExpanded ? 4 : 1,
             x: 0,
-            y: isExpanded ? 1 : 0
+            y: isExpanded ? 2 : 0.5
         )
-        .animation(fluidAnimation, value: isExpanded)
-        .onReceive(parentCache.$cache) { cache in
-            guard let parentId = parentId else { return }
-            let newParent = cache[parentId]
-            if parent !== newParent {
-                parent = newParent
-                // Reset content height when parent changes to trigger recalculation
-                contentHeight = 0
-            }
-        }
+        .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
+        // Apply liquid glass effects to the entire banner
+        .advancedLiquidGlass(
+            variant: liquidGlassVariant,
+            intensity: isExpanded ? 0.9 : 0.7,
+            morphingState: liquidGlassMorphingState
+        )
+        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
+        .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         .onAppear {
             // Set initial parent from cache immediately
             if let parentId = parentId {
@@ -221,77 +270,18 @@ struct ExpandingReplyBanner: View {
                     triggerBackgroundPreload(parentId: parentId)
                 }
             }
-
-            // Initialize showContent state
-            showContent = isExpanded
+        }
+        .onReceive(parentCache.$cache) { cache in
+            // Simple parent update - no complex state synchronization
+            if let parentId = parentId {
+                parent = cache[parentId]
+            }
         }
         .onChange(of: isExpanded) { newValue in
-            withAnimation(fluidAnimation) {
-                showContent = newValue
+            // Ensure showContent state stays synchronized with expansion
+            if !newValue {
+                showContent = false
             }
-        }
-    }
-
-    // Content view - rendered when needed
-    @ViewBuilder
-    private var contentView: some View {
-        if let parent = parent, !parent.isPlaceholder {
-            // Real parent post content
-            ParentPostPreview(post: parent) {
-                onParentPostTap?(parent)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-        } else if shouldShowLoadingState {
-            // Skeleton loading state
-            ParentPostSkeleton()
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-        } else if fetchAttempted && parent == nil {
-            // Error state
-            VStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundColor(.orange)
-                    .font(.title2)
-                Text("Unable to load parent post")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity)
-        } else {
-            // Placeholder content
-            VStack(spacing: 8) {
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 36, height: 36)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.3))
-                            .frame(width: 120, height: 14)
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.gray.opacity(0.2))
-                            .frame(width: 80, height: 12)
-                    }
-
-                    Spacer()
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.2))
-                        .frame(height: 14)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.15))
-                        .frame(width: 200, height: 14)
-                }
-                .padding(.leading, 4)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
         }
     }
 
@@ -301,14 +291,29 @@ struct ExpandingReplyBanner: View {
         impactFeedback.prepare()
         impactFeedback.impactOccurred()
 
-        // Toggle expansion state
-        isExpanded.toggle()
+        // Toggle expansion state with Apple-style animation
+        withAnimation(isExpanded ? collapseAnimation : expandAnimation) {
+            isExpanded.toggle()
+        }
+
+        // Manage content appearance with staggered timing
+        if isExpanded {
+            // When expanding, show content after a delay
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showContent = true
+                }
+            }
+        } else {
+            // When collapsing, hide content immediately
+            withAnimation(.easeOut(duration: 0.2)) {
+                showContent = false
+            }
+        }
 
         // Start fetching when expanded
-        if isExpanded, let parentId = parentId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                triggerParentFetch(parentId: parentId)
-            }
+        if !isExpanded, let parentId = parentId {
+            triggerParentFetch(parentId: parentId)
         }
 
         onBannerTap?()
@@ -342,16 +347,21 @@ struct ExpandingReplyBanner: View {
     }
 }
 
-// Refined skeleton loading state without opacity animations
+// Enhanced skeleton loading state with liquid glass shimmer effects
 struct ParentPostSkeleton: View {
     @State private var shimmerOffset: CGFloat = -200
+    @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
-                // Avatar skeleton with shimmer effect
+                // Avatar skeleton with liquid glass shimmer effect
                 Circle()
-                    .fill(Color.gray.opacity(0.25))
+                    .fill(Color(.systemBackground))
+                    .overlay(
+                        Circle()
+                            .fill(.ultraThinMaterial)
+                    )
                     .frame(width: 36, height: 36)
                     .overlay(
                         Circle()
@@ -359,7 +369,7 @@ struct ParentPostSkeleton: View {
                                 LinearGradient(
                                     colors: [
                                         Color.clear,
-                                        Color.white.opacity(0.3),
+                                        Color.white.opacity(0.4),
                                         Color.clear,
                                     ],
                                     startPoint: .leading,
@@ -369,40 +379,78 @@ struct ParentPostSkeleton: View {
                             .offset(x: shimmerOffset)
                             .clipped()
                     )
+                    .advancedLiquidGlass(
+                        variant: .clear, intensity: 0.6, morphingState: .transitioning)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    // Username skeleton
+                    // Username skeleton with liquid glass
                     RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.gray.opacity(0.25))
+                        .fill(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.ultraThinMaterial)
+                        )
                         .frame(width: 85, height: 14)
+                        .advancedLiquidGlass(
+                            variant: .clear, intensity: 0.5, morphingState: .transitioning)
 
-                    // Handle skeleton
+                    // Handle skeleton with liquid glass
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.gray.opacity(0.15))
+                        .fill(Color(.systemBackground))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(.ultraThinMaterial)
+                        )
                         .frame(width: 65, height: 11)
+                        .advancedLiquidGlass(
+                            variant: .clear, intensity: 0.4, morphingState: .transitioning)
                 }
 
                 Spacer()
 
-                // Time skeleton
+                // Time skeleton with liquid glass
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.15))
+                    .fill(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.ultraThinMaterial)
+                    )
                     .frame(width: 35, height: 11)
+                    .advancedLiquidGlass(
+                        variant: .clear, intensity: 0.4, morphingState: .transitioning)
             }
 
-            // Content skeleton with varied widths
+            // Content skeleton with varied widths and liquid glass effects
             VStack(alignment: .leading, spacing: 6) {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.25))
+                    .fill(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.ultraThinMaterial)
+                    )
                     .frame(height: 14)
+                    .advancedLiquidGlass(
+                        variant: .clear, intensity: 0.5, morphingState: .transitioning)
 
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.ultraThinMaterial)
+                    )
                     .frame(width: 220, height: 14)
+                    .advancedLiquidGlass(
+                        variant: .clear, intensity: 0.4, morphingState: .transitioning)
 
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.gray.opacity(0.15))
+                    .fill(Color(.systemBackground))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.ultraThinMaterial)
+                    )
                     .frame(width: 160, height: 14)
+                    .advancedLiquidGlass(
+                        variant: .clear, intensity: 0.3, morphingState: .transitioning)
             }
             .padding(.leading, 4)
         }
@@ -438,6 +486,7 @@ struct ExpandingReplyBanner_Previews: PreviewProvider {
             )
         }
         .padding()
+        .enableLiquidGlass()
         .previewLayout(.sizeThatFits)
     }
 }

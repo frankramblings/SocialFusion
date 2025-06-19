@@ -11,9 +11,11 @@
 		2EE845AC73F6E96035D64073 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28473D186DFB59778DF996BE /* Post.swift */; };
 		4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712CCA659FBD7CD190A2972D /* KeychainHelper.swift */; };
 		5011EBC72DF0E79900F74F53 /* ExpandingReplyBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */; };
+		501CCAF92E01EAA3000ACD05 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 501CCAF82E01EAA3000ACD05 /* AppIcon.icon */; };
 		5031715E2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */; };
 		503171602DE6AEB700E1C528 /* PostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715F2DE6AEB700E1C528 /* PostStore.swift */; };
 		5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */; };
+		505C34052E00BB9800551A64 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 505C34042E00BB9800551A64 /* CachedAsyncImage.swift */; };
 		5067F5CE2DF23D5B00373A5B /* QuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */; };
 		50782E742DF8CA4F0064B61D /* TimelineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E732DF8CA4F0064B61D /* TimelineState.swift */; };
 		50782E782DF8CB320064B61D /* TimelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E762DF8CB320064B61D /* TimelineConfiguration.swift */; };
@@ -51,6 +53,7 @@
 		50E288832DDC1DF200E1B621 /* RobotsTxtChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288752DDC1DF200E1B621 /* RobotsTxtChecker.swift */; };
 		50E288852DDEC59300E1B621 /* UnifiedMediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */; };
 		50E288D82DDED2DB00E1B621 /* TimelineEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */; };
+		50F023092E00A56E0066AB73 /* PlatformLogoBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50F023082E00A56E0066AB73 /* PlatformLogoBadge.swift */; };
 		50FAF00A2DF086EA0072F099 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FAF0092DF086EA0072F099 /* AppVersionManager.swift */; };
 		50FAF00C2DF087F20072F099 /* LaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FAF00B2DF087F20072F099 /* LaunchAnimationView.swift */; };
 		50FAF00E2DF08F060072F099 /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FAF00D2DF08F060072F099 /* DateParser.swift */; };
@@ -91,9 +94,11 @@
 		28473D186DFB59778DF996BE /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
 		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandingReplyBanner.swift; sourceTree = "<group>"; };
+		501CCAF82E01EAA3000ACD05 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionTimelineDebug.swift; sourceTree = "<group>"; };
 		5031715F2DE6AEB700E1C528 /* PostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostStore.swift; sourceTree = "<group>"; };
 		5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
+		505C34042E00BB9800551A64 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotePostView.swift; sourceTree = "<group>"; };
 		5067F5CF2DF23D7600373A5B /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
 		50782E732DF8CA4F0064B61D /* TimelineState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineState.swift; sourceTree = "<group>"; };
@@ -132,6 +137,7 @@
 		50E288792DDC1DF200E1B621 /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
 		50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineEntry.swift; sourceTree = "<group>"; };
+		50F023082E00A56E0066AB73 /* PlatformLogoBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformLogoBadge.swift; sourceTree = "<group>"; };
 		50FAF0092DF086EA0072F099 /* AppVersionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionManager.swift; sourceTree = "<group>"; };
 		50FAF00B2DF087F20072F099 /* LaunchAnimationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAnimationView.swift; sourceTree = "<group>"; };
 		50FAF00D2DF08F060072F099 /* DateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateParser.swift; sourceTree = "<group>"; };
@@ -211,6 +217,8 @@
 				5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */,
 				50A05CB32DFE832300D0A21D /* LiquidGlassComponents.swift */,
 				50A05CB42DFE832300D0A21D /* LiquidGlassConfiguration.swift */,
+				50F023082E00A56E0066AB73 /* PlatformLogoBadge.swift */,
+				505C34042E00BB9800551A64 /* CachedAsyncImage.swift */,
 				50A05CB72DFE8DFA00D0A21D /* PostNavigationEnvironment.swift */,
 				5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */,
 				50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */,
@@ -249,6 +257,7 @@
 			children = (
 				50782E772DF8CB320064B61D /* State */,
 				EA9048F6309F63324484C491 /* Assets.xcassets */,
+				501CCAF82E01EAA3000ACD05 /* AppIcon.icon */,
 				255ADE201981E507154D54E5 /* ContentView.swift */,
 				99C1C4E32A3FA8F9376B6552 /* Info.plist */,
 				6B99202C32522904104EA1A6 /* SocialFusionApp.swift */,
@@ -358,7 +367,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1640;
+				LastUpgradeCheck = 2600;
 			};
 			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -386,6 +395,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5B75ACFBB0193B6FAEB26D76 /* Assets.xcassets in Resources */,
+				501CCAF92E01EAA3000ACD05 /* AppIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +452,7 @@
 				50E2887C2DDC1DF200E1B621 /* ErrorHandler.swift in Sources */,
 				50E2887D2DDC1DF200E1B621 /* URLService.swift in Sources */,
 				50E2887E2DDC1DF200E1B621 /* HTMLFormatter.swift in Sources */,
+				505C34052E00BB9800551A64 /* CachedAsyncImage.swift in Sources */,
 				50E2887F2DDC1DF200E1B621 /* TimeFormatters.swift in Sources */,
 				50E288802DDC1DF200E1B621 /* TokenManager.swift in Sources */,
 				50E288812DDC1DF200E1B621 /* Utilities.swift in Sources */,
@@ -453,6 +464,7 @@
 				50FAF00E2DF08F060072F099 /* DateParser.swift in Sources */,
 				50782E742DF8CA4F0064B61D /* TimelineState.swift in Sources */,
 				5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */,
+				50F023092E00A56E0066AB73 /* PlatformLogoBadge.swift in Sources */,
 				GHI789GHI7890123456GHI78 /* PostCardView.swift in Sources */,
 				JKL012JKL0123456789JKL01 /* BoostBanner.swift in Sources */,
 				YZA345YZA3456789012YZA34 /* PostAuthorView.swift in Sources */,
@@ -550,6 +562,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -616,6 +629,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;

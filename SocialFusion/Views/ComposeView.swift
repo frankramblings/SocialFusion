@@ -48,17 +48,20 @@ struct ReplyContextHeader: View {
                 // Author info
                 HStack(spacing: 8) {
                     let stableImageURL = URL(string: post.authorProfilePictureURL)
-                    AsyncImage(url: stableImageURL) { image in
+                    CachedAsyncImage(url: stableImageURL) { image in
                         image
                             .resizable()
                             .scaledToFill()
                     } placeholder: {
                         Circle()
                             .fill(Color.gray.opacity(0.3))
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                            )
                     }
                     .frame(width: 32, height: 32)
                     .clipShape(Circle())
-                    .id(stableImageURL?.absoluteString ?? "no-url")
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(post.authorName)
@@ -377,11 +380,6 @@ struct ComposeView: View {
         return "What's on your mind?"
     }
 
-    // Navigation title based on context
-    private var navigationTitle: String {
-        return replyingTo != nil ? "Reply" : "New Post"
-    }
-
     init(replyingTo: Post? = nil) {
         self.replyingTo = replyingTo
         // Initialize with the default visibility from user preferences
@@ -544,8 +542,7 @@ struct ComposeView: View {
                     alignment: .top
                 )
             }
-            .navigationTitle(navigationTitle)
-            .navigationBarTitleDisplayMode(.inline)
+
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .keyboardAdaptive()
@@ -709,9 +706,9 @@ struct PlatformToggleButton: View {
     private func getPlatformColor() -> Color {
         switch platform {
         case .mastodon:
-            return Color("PrimaryColor")
+            return Color("AppPrimaryColor")
         case .bluesky:
-            return Color("SecondaryColor")
+            return Color("AppSecondaryColor")
         }
     }
 
@@ -865,8 +862,7 @@ struct ImagePicker: View {
                 }
                 .padding()
             }
-            .navigationTitle("Select Photos")
-            .navigationBarTitleDisplayMode(.inline)
+
         }
     }
 
