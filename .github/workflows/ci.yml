@@ -1,4 +1,4 @@
-name: CI
+  name: CI
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
     
     - name: Download and install Swift 6.0.0
       run: |
-        curl -O https://download.swift.org/swift-6.0.0-release/xcode/swift-6.0.0-RELEASE/swift-6.0.0-RELEASE-osx.pkg
+        curl -L -O https://download.swift.org/swift-6.0.0-release/xcode/swift-6.0.0-RELEASE/swift-6.0.0-RELEASE-osx.pkg
         sudo installer -pkg swift-6.0.0-RELEASE-osx.pkg -target /
         swift --version # Should show 6.0.0
     
