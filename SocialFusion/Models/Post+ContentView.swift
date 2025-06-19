@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UIKit  // Required for NSAttributedString
+import WebKit
 
 // Use the shared HTMLString and EmojiTextApp from Utilities/HTMLString.swift
 
@@ -111,9 +112,12 @@ extension Post {
 
     /// Renders post content, handling Mastodon HTML & custom emoji.
     @ViewBuilder
-    public func contentView(lineLimit: Int? = nil, showLinkPreview: Bool = true, font: Font = .body)
-        -> some View
-    {
+    public func contentView(
+        lineLimit: Int? = nil,
+        showLinkPreview: Bool = true,
+        font: Font = .body,
+        onQuotePostTap: ((Post) -> Void)? = nil
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             EmojiTextApp(
                 htmlString: HTMLString(raw: content),
@@ -127,166 +131,133 @@ extension Post {
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
 
-            // --- Quote Post Logic (Priority Order) ---
+            // Always show quote posts, but respect showLinkPreview for other content
+            quotePostViews(onQuotePostTap: onQuotePostTap)
+
             if showLinkPreview {
-                // 1. First check if we have a fully hydrated quoted post
-                if let quotedPost = quotedPost {
-                    QuotedPostView(post: quotedPost)
-                        .padding(.top, 4)
-                }
-                // 2. If no hydrated quote but have quote metadata, fetch it
-                else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
-                    FetchQuotePostView(url: quotedPostURL)
-                        .padding(.top, 4)
-                }
-                // 3. Otherwise, check for post links in content and fetch the first one
-                else {
-                    let htmlString = HTMLString(raw: content)
-                    let allLinks = extractAllLinks(from: htmlString.plainText)
-                    let postLinks = allLinks.filter {
-                        isSocialMediaPostURL($0) && !isHashtagOrMentionURL($0)
-                    }
-                    if let firstPostLink = postLinks.first {
-                        FetchQuotePostView(url: firstPostLink)
-                            .padding(.top, 4)
-                    }
-
-                    // 4. Render all other links as regular link previews
-                    let previewLinks = allLinks.filter { url in
-                        !isHashtagOrMentionURL(url) && !postLinks.contains(url)
-                    }
-                    ForEach(previewLinks, id: \.absoluteString) { url in
-                        LinkPreview(url: url)
-                            .padding(.top, 4)
-                    }
-                }
+                regularLinkPreviewsOnly
             }
         }
     }
 
-    /// Helper method to determine if a URL is a hashtag or mention
-    private func isHashtagOrMentionURL(_ url: URL) -> Bool {
-        // Check for our custom socialfusion scheme for hashtags and mentions
-        if url.scheme == "socialfusion" {
-            return url.host == "tag" || url.host == "user"
+    // MARK: - Private Views
+
+    @ViewBuilder
+    private func quotePostViews(onQuotePostTap: ((Post) -> Void)? = nil) -> some View {
+        // 1. First check if we have a fully hydrated quoted post
+        if let quotedPost = quotedPost {
+            QuotedPostView(post: quotedPost)
+                .padding(.top, 8)
         }
-
-        // Check for URLs that are just fragment identifiers
-        let urlString = url.absoluteString.lowercased()
-        if urlString.hasPrefix("#") || urlString.hasPrefix("@") {
-            return true
-        }
-
-        // Check for Mastodon/Bluesky profile URLs
-        // Examples:
-        // - https://instance.social/@username
-        // - https://instance.social/users/username
-        // - https://bsky.app/profile/username
-        let path = url.path.lowercased()
-        if path.hasPrefix("/@") || path.hasPrefix("/users/") || path.hasPrefix("/profile/") {
-            return true
-        }
-
-        // Check for Mastodon-style hashtag URLs
-        if url.pathComponents.contains("tags") || url.pathComponents.contains("tag")
-            || url.path.contains("/hashtag/")
-        {
-            return true
-        }
-
-        // Additional check for hashtag domains that might be mistakenly treated as URLs
-        if let host = url.host?.lowercased() {
-            let commonHashtagWords = [
-                "workingclass", "laborhistory", "genocide", "dictatorship",
-                "humanrights", "freespeech", "uprising", "actuallyautistic",
-                "germany", "gaza", "mastodon",
-            ]
-            for word in commonHashtagWords {
-                if host == word || host.hasPrefix(word + ".") {
-                    return true
-                }
-            }
-        }
-        return false
-    }
-
-    /// Helper method to determine if a URL is a social media post
-    private func isSocialMediaPostURL(_ url: URL) -> Bool {
-        let urlString = url.absoluteString.lowercased()
-        let path = url.path
-
-        // Check for Bluesky post URLs (must have both profile and post components)
-        if urlString.contains("bsky.app") || urlString.contains("bsky.social") {
-            // Must contain both profile and post in the path: /profile/{username}/post/{postId}
-            let hasProfileAndPost = path.contains("/profile/") && path.contains("/post/")
-
-            // Don't treat it as a post URL if it's just a profile
-            if path.contains("/profile/") && !path.contains("/post/") {
-                return false
-            }
-
-            return hasProfileAndPost
-        }
-
-        // Check for Mastodon post URLs - this requires a numeric ID at the end
-        if url.host?.contains(".social") == true || url.host?.contains("mastodon") == true
-            || url.host?.contains("mas.to") == true
-        {
-            // Must match pattern: /@username/numeric_status_id or /users/username/statuses/numeric_id
-            let components = path.split(separator: "/")
-
-            // Don't treat it as a post URL if it's just a profile
-            if path.contains("/@") && components.count < 3 {
-                return false
-            }
-
-            // Check if last component is numeric (status ID)
-            if components.count >= 3 {
-                // Last component should be a numeric ID
-                let lastComponent = components.last!
-                return lastComponent.allSatisfy { $0.isNumber }
-            }
-        }
-
-        return false
-    }
-
-    // Helper to extract all links from text (preserves hashtag filtering)
-    private func extractAllLinks(from text: String) -> [URL] {
-        let hashtagRegex = try? NSRegularExpression(pattern: "#\\w+", options: [])
-        var processedText = text
-        if let regex = hashtagRegex {
-            processedText = regex.stringByReplacingMatches(
-                in: processedText,
-                options: [],
-                range: NSRange(location: 0, length: processedText.utf16.count),
-                withTemplate: ""
+        // 2. If no hydrated quote but have quote metadata, fetch it
+        else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
+            FetchQuotePostView(
+                url: quotedPostURL,
+                onQuotePostTap: onQuotePostTap
             )
+            .padding(.top, 8)
         }
-        let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
-        let matches =
-            detector?.matches(
-                in: processedText,
-                options: [],
-                range: NSRange(location: 0, length: processedText.utf16.count)
-            ) ?? []
-        // Gather mention and tag URLs from the API (if available)
-        let mentionURLs = mentions.compactMap { URL(string: $0) }
-        let tagURLs = tags.compactMap { URL(string: $0) }
-        return matches.compactMap { match in
-            guard let url = match.url else { return nil }
-            // Only allow http/https
-            guard url.scheme == "http" || url.scheme == "https" else { return nil }
-            // Exclude if this URL matches any mention or tag from the API
-            if mentionURLs.contains(url) || tagURLs.contains(url) {
-                return nil
+        // 3. Check for social media links that should be displayed as quotes
+        else {
+            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let allLinks = URLService.shared.extractLinks(from: plainText)
+            let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
+
+            if let firstSocialLink = socialMediaLinks.first {
+                FetchQuotePostView(
+                    url: firstSocialLink,
+                    onQuotePostTap: onQuotePostTap
+                )
+                .padding(.top, 8)
+                .onAppear {
+                    print(
+                        "🔗 [Post+ContentView] Displaying social media link as quote: \(firstSocialLink)"
+                    )
+                }
+            } else {
+                // Debug: Check if we have quote metadata but no URL
+                EmptyView()
+                    .onAppear {
+                        // Enhanced debug logging for all posts
+                        print(
+                            "🔗 [Post+ContentView] DEBUG: Post \(self.id) - platform: \(self.platform)"
+                        )
+                        print(
+                            "🔗 [Post+ContentView] DEBUG: quotedPost: \(self.quotedPost != nil ? "YES" : "NO")"
+                        )
+                        print(
+                            "🔗 [Post+ContentView] DEBUG: quotedPostUri: \(self.quotedPostUri ?? "nil")"
+                        )
+                        print(
+                            "🔗 [Post+ContentView] DEBUG: quotedPostAuthorHandle: \(self.quotedPostAuthorHandle ?? "nil")"
+                        )
+                        print(
+                            "🔗 [Post+ContentView] DEBUG: content preview: \(self.content.prefix(100))"
+                        )
+                        print("🔗 [Post+ContentView] DEBUG: allLinks count: \(allLinks.count)")
+                        print(
+                            "🔗 [Post+ContentView] DEBUG: socialMediaLinks count: \(socialMediaLinks.count)"
+                        )
+
+                        // Debug logging for quote metadata issues (console only)
+                        if self.platform == .bluesky {
+                            if let uri = self.quotedPostUri,
+                                let handle = self.quotedPostAuthorHandle
+                            {
+                                print(
+                                    "🔗 [Post+ContentView] DEBUG: Have quote metadata but no URL - uri: \(uri), handle: \(handle)"
+                                )
+                            } else if self.quotedPostUri != nil
+                                || self.quotedPostAuthorHandle != nil
+                            {
+                                print(
+                                    "🔗 [Post+ContentView] DEBUG: Partial quote metadata - uri: \(self.quotedPostUri ?? "nil"), handle: \(self.quotedPostAuthorHandle ?? "nil")"
+                                )
+                            }
+                        }
+                    }
             }
-            // Exclude handles, hashtags, and any mention/profile/hashtag URL
-            if isHashtagOrMentionURL(url) {
-                return nil
-            }
-            return url
         }
+    }
+
+    @ViewBuilder
+    private var regularLinkPreviewsOnly: some View {
+        let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+        let allLinks = URLService.shared.extractLinks(from: plainText)
+        let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
+        let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
+        let regularLinks = allLinks.filter {
+            !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
+        }
+        let firstYouTubeLink = youtubeLinks.first
+
+        // Show first YouTube video as inline player
+        if let firstYouTubeLink = firstYouTubeLink,
+            let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
+        {
+            YouTubeVideoPreview(
+                url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
+            )
+            .padding(.top, 8)
+        }
+
+        // Show remaining links as previews (limit to first 2 for performance)
+        // Exclude social media links and YouTube links as they're handled separately
+        let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
+        let previewLinks = regularLinks.filter { link in
+            !excludedLinks.contains(link)
+        }
+
+        ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
+            StabilizedLinkPreview(url: url, idealHeight: 200)
+                .padding(.top, 8)
+        }
+    }
+
+    @ViewBuilder
+    private var linkAndQuotePostViews: some View {
+        // This method is now deprecated in favor of the separated approach above
+        EmptyView()
     }
 }
 
@@ -298,9 +269,486 @@ private protocol BlueskyQuotedPostProvider {
 // MARK: - Bluesky Quoted Post Provider Implementation
 extension Post: BlueskyQuotedPostProvider {
     var quotedPostURL: URL? {
-        guard platform == .bluesky, let uri = quotedPostUri, let handle = quotedPostAuthorHandle
-        else { return nil }
+        guard platform == .bluesky,
+            let uri = quotedPostUri,
+            let handle = quotedPostAuthorHandle
+        else {
+            if platform == .bluesky {
+                print(
+                    "🔗 [BlueskyQuotedPostProvider] Missing quote data - uri: \(quotedPostUri ?? "nil"), handle: \(quotedPostAuthorHandle ?? "nil")"
+                )
+            }
+            return nil
+        }
+
         let postId = uri.split(separator: "/").last ?? ""
-        return URL(string: "https://bsky.app/profile/\(handle)/post/\(postId)")
+        let urlString = "https://bsky.app/profile/\(handle)/post/\(postId)"
+        print("🔗 [BlueskyQuotedPostProvider] Generated quote URL: \(urlString)")
+        return URL(string: urlString)
+    }
+}
+
+// MARK: - YouTube Video Preview Component
+
+/// A component that displays YouTube videos as playable inline previews with enhanced UX
+struct YouTubeVideoPreview: View {
+    let url: URL
+    let videoID: String
+    let idealHeight: CGFloat
+    let fullScreenHeight: CGFloat
+
+    @State private var thumbnailURL: URL?
+    @State private var isPlaying = false
+    @State private var showWebView = false
+    @State private var videoTitle: String?
+    @State private var channelName: String?
+    @State private var duration: String?
+    @State private var viewCount: String?
+    @State private var isLoadingMetadata = true
+    @State private var thumbnailLoadFailed = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    init(url: URL, videoID: String, idealHeight: CGFloat = 200, fullScreenHeight: CGFloat = 300) {
+        self.url = url
+        self.videoID = videoID
+        self.idealHeight = idealHeight
+        self.fullScreenHeight = fullScreenHeight
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if showWebView {
+                ZStack(alignment: .topTrailing) {
+                    YouTubeWebView(videoID: videoID, isPlaying: $isPlaying)
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                        .frame(height: idealHeight)
+                        .cornerRadius(12)
+                        .clipped()
+
+                    // Enhanced close button
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            showWebView = false
+                            isPlaying = false
+                        }
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 32, height: 32)
+
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                    .padding(12)
+                }
+                .animation(.easeInOut(duration: 0.3), value: showWebView)
+            } else {
+                enhancedThumbnailView
+                    .frame(height: idealHeight)
+                    .cornerRadius(12)
+                    .onTapGesture {
+                        playVideo()
+                    }
+            }
+        }
+        .onAppear {
+            loadVideoData()
+        }
+    }
+
+    // MARK: - Enhanced Views
+
+    private var enhancedThumbnailView: some View {
+        ZStack {
+            // Background thumbnail
+            Group {
+                if let thumbnailURL = thumbnailURL, !thumbnailLoadFailed {
+                    AsyncImage(url: thumbnailURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                        case .failure(_):
+                            fallbackThumbnail
+                                .onAppear { thumbnailLoadFailed = true }
+                        case .empty:
+                            loadingThumbnail
+                        @unknown default:
+                            fallbackThumbnail
+                        }
+                    }
+                } else {
+                    fallbackThumbnail
+                }
+            }
+            .clipped()
+
+            // Gradient overlay for better text readability
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.0),
+                    Color.black.opacity(0.3),
+                    Color.black.opacity(0.6),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // Content overlay
+            VStack {
+                Spacer()
+
+                // Video info overlay
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        // YouTube logo
+                        Image(systemName: "play.rectangle.fill")
+                            .foregroundColor(.red)
+                            .font(.caption)
+
+                        Text("YouTube")
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+
+                        Spacer()
+
+                        // Duration badge
+                        if let duration = duration {
+                            Text(duration)
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(.black.opacity(0.7))
+                                .cornerRadius(4)
+                        }
+                    }
+
+                    // Video title
+                    if let title = videoTitle {
+                        Text(title)
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    } else if isLoadingMetadata {
+                        HStack {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                                .tint(.white)
+                            Text("Loading video info...")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                    }
+
+                    // Channel and view count
+                    HStack {
+                        if let channelName = channelName {
+                            Text(channelName)
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+
+                        if let viewCount = viewCount {
+                            Text("•")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.7))
+
+                            Text(viewCount)
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.9))
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+            }
+
+            // Play button overlay
+            Button(action: playVideo) {
+                ZStack {
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 60, height: 60)
+
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .offset(x: 2)  // Slight offset to center the play icon visually
+                }
+            }
+            .scaleEffect(isPlaying ? 0.8 : 1.0)
+            .opacity(isPlaying ? 0.7 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isPlaying)
+
+            // Action buttons overlay (top-right)
+            VStack {
+                HStack {
+                    Spacer()
+
+                    Menu {
+                        Button(action: openInYouTube) {
+                            Label("Open in YouTube", systemImage: "arrow.up.right.square")
+                        }
+
+                        Button(action: shareVideo) {
+                            Label("Share Video", systemImage: "square.and.arrow.up")
+                        }
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(.ultraThinMaterial)
+                                .frame(width: 32, height: 32)
+
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.primary)
+                        }
+                    }
+                }
+                .padding(12)
+
+                Spacer()
+            }
+        }
+        .background(Color.gray.opacity(0.2))
+    }
+
+    private var loadingThumbnail: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.gray.opacity(0.2))
+
+            VStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(1.2)
+
+                Text("Loading video...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var fallbackThumbnail: some View {
+        ZStack {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.red.opacity(0.3), Color.red.opacity(0.1)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            VStack(spacing: 8) {
+                Image(systemName: "play.rectangle")
+                    .font(.system(size: 40))
+                    .foregroundColor(.red)
+
+                Text("YouTube Video")
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                if let title = videoTitle {
+                    Text(title)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+            }
+        }
+    }
+
+    // MARK: - Enhanced Functions
+
+    private func loadVideoData() {
+        // Load high-quality thumbnail
+        thumbnailURL =
+            URLService.shared.getYouTubeThumbnailURL(videoID: videoID, quality: .maxres)
+            ?? URLService.shared.getYouTubeThumbnailURL(videoID: videoID, quality: .high)
+
+        // Load enhanced video metadata
+        loadEnhancedVideoMetadata()
+    }
+
+    private func loadEnhancedVideoMetadata() {
+        // Use YouTube oEmbed API to get comprehensive video info
+        let oEmbedURL = "https://www.youtube.com/oembed?url=\(url.absoluteString)&format=json"
+
+        guard let apiURL = URL(string: oEmbedURL) else { return }
+
+        URLSession.shared.dataTask(with: apiURL) { data, response, error in
+            DispatchQueue.main.async {
+                isLoadingMetadata = false
+
+                guard let data = data,
+                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else {
+                    // Fallback metadata
+                    videoTitle = "YouTube Video"
+                    channelName = "YouTube"
+                    return
+                }
+
+                videoTitle = json["title"] as? String ?? "YouTube Video"
+                channelName = json["author_name"] as? String ?? "YouTube"
+
+                // Extract duration from thumbnail URL if available
+                if let thumbnailUrl = json["thumbnail_url"] as? String {
+                    // Sometimes duration info is embedded in the response
+                    duration = extractDurationFromMetadata(json)
+                }
+            }
+        }.resume()
+    }
+
+    private func extractDurationFromMetadata(_ json: [String: Any]) -> String? {
+        // This is a simplified duration extraction
+        // In a real app, you might want to use YouTube Data API for more detailed info
+        return nil  // Placeholder - would need YouTube Data API key for accurate duration
+    }
+
+    private func playVideo() {
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showWebView = true
+            isPlaying = true
+        }
+    }
+
+    private func openInYouTube() {
+        // Try to open in YouTube app first, then fallback to web
+        let youtubeAppURL = URL(string: "youtube://watch?v=\(videoID)")
+
+        if let youtubeAppURL = youtubeAppURL, UIApplication.shared.canOpenURL(youtubeAppURL) {
+            UIApplication.shared.open(youtubeAppURL)
+        } else {
+            UIApplication.shared.open(url)
+        }
+    }
+
+    private func shareVideo() {
+        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let window = windowScene.windows.first,
+            let rootVC = window.rootViewController
+        {
+
+            // For iPad, set up popover presentation
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = window
+                popover.sourceRect = CGRect(
+                    x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                popover.permittedArrowDirections = []
+            }
+
+            rootVC.present(activityVC, animated: true)
+        }
+    }
+}
+
+/// Enhanced WebView for playing YouTube videos inline
+struct YouTubeWebView: UIViewRepresentable {
+    let videoID: String
+    @Binding var isPlaying: Bool
+
+    func makeUIView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+
+        // Enhanced configuration for better performance
+        configuration.preferences.javaScriptEnabled = true
+        configuration.allowsAirPlayForMediaPlayback = true
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
+        webView.navigationDelegate = context.coordinator
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.isOpaque = false
+        webView.backgroundColor = UIColor.clear
+
+        return webView
+    }
+
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        guard webView.url == nil else { return }
+
+        let embedHTML = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+                <style>
+                    body { 
+                        margin: 0; 
+                        padding: 0; 
+                        background: #000; 
+                        overflow: hidden;
+                    }
+                    .video-container { 
+                        position: relative; 
+                        width: 100%; 
+                        height: 100vh; 
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    iframe { 
+                        width: 100%; 
+                        height: 100%; 
+                        border: none; 
+                        border-radius: 12px;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="video-container">
+                    <iframe 
+                        src="https://www.youtube.com/embed/\(videoID)?autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1&showinfo=0&fs=1"
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                        allowfullscreen>
+                    </iframe>
+                </div>
+            </body>
+            </html>
+            """
+
+        webView.loadHTMLString(embedHTML, baseURL: nil)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, WKNavigationDelegate {
+        let parent: YouTubeWebView
+
+        init(_ parent: YouTubeWebView) {
+            self.parent = parent
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            parent.isPlaying = true
+        }
+
+        func webView(
+            _ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error
+        ) {
+            print("YouTube WebView failed to load: \(error.localizedDescription)")
+            parent.isPlaying = false
+        }
     }
 }

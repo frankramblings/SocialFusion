@@ -17,7 +17,7 @@ struct AccountPickerView: View {
                         selectedAccountId = nil
                         serviceManager.selectedAccountIds = ["all"]
                         Task {
-                            await serviceManager.refreshTimeline(force: true)
+                            await serviceManager.refreshTimeline(force: false)
                         }
                         isPresented = false
                     }) {
@@ -156,6 +156,13 @@ struct AccountPickerView: View {
                 AddAccountView()
                     .environmentObject(serviceManager)
             }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: Notification.Name("shouldRepresentAddAccount"))
+            ) { notification in
+                // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
+                // Account management will be handled through normal UI flow instead
+            }
         }
     }
 
@@ -165,7 +172,7 @@ struct AccountPickerView: View {
             selectedAccountId = account.id
             serviceManager.selectedAccountIds = [account.id]
             Task {
-                await serviceManager.refreshTimeline(force: true)
+                await serviceManager.refreshTimeline(force: false)
             }
             isPresented = false
         }) {

@@ -3,10 +3,11 @@ import Foundation
 import SwiftUI
 
 /// A ViewModel for managing a single post
+@MainActor
 public class PostViewModel: ObservableObject {
-    // MARK: - Published Properties
+    // MARK: - Properties
 
-    @Published public var post: Post
+    public var post: Post
     @Published public var isLiked: Bool
     @Published public var isReposted: Bool
     @Published public var likeCount: Int
@@ -14,12 +15,16 @@ public class PostViewModel: ObservableObject {
     @Published public var replyCount: Int
     @Published public var isLoading: Bool = false
     @Published public var error: Error?
-    @Published public var quotedPostViewModel: PostViewModel?
+    public var quotedPostViewModel: PostViewModel?
+
+    // State change callback for UI updates
+    public var onStateChange: (() -> Void)?
 
     // MARK: - Private Properties
 
     private let serviceManager: SocialServiceManager
     private var cancellables = Set<AnyCancellable>()
+    private let serialQueue = DispatchQueue(label: "PostViewModel.serial", qos: .userInitiated)
 
     // MARK: - Initialization
 
@@ -40,68 +45,123 @@ public class PostViewModel: ObservableObject {
                 post: quotedPost, serviceManager: serviceManager)
         }
 
-        // Set up observers for post changes
-        setupObservers()
+        // Removed setupObservers() to prevent AttributeGraph cycles
+        // State updates are now handled directly in the action methods
+    }
+
+    deinit {
+        cancellables.removeAll()
+        quotedPostViewModel = nil
     }
 
     // MARK: - Public Methods
 
     /// Toggle like/unlike the post
     public func like() {
-        guard !isLoading else { return }
+        guard !isLoading else {
+            print("[PostViewModel] ⚠️ Like operation already in progress for post \(post.id)")
+            return
+        }
 
+        print(
+            "[PostViewModel] 🔄 Like button tapped for post \(post.id), current isLiked: \(isLiked), platform: \(post.platform)"
+        )
+
+        // Store original values for potential revert
+        let originalLiked = isLiked
+        let originalCount = likeCount
+
+        // Optimistic UI update
+        isLiked.toggle()
+        likeCount += isLiked ? 1 : -1
         isLoading = true
         error = nil
 
         Task {
             do {
                 let updatedPost: Post
-                if isLiked {
+                if originalLiked {
+                    print("[PostViewModel] 👎 Attempting to UNLIKE post \(post.id)")
                     updatedPost = try await serviceManager.unlikePost(post)
                 } else {
+                    print("[PostViewModel] 👍 Attempting to LIKE post \(post.id)")
                     updatedPost = try await serviceManager.likePost(post)
                 }
-                await MainActor.run {
-                    self.post = updatedPost
-                    self.isLiked = updatedPost.isLiked
-                    self.likeCount = updatedPost.likeCount
-                    self.isLoading = false
-                }
+
+                print(
+                    "[PostViewModel] ✅ Like/unlike completed for post \(post.id), new isLiked: \(updatedPost.isLiked), new likeCount: \(updatedPost.likeCount)"
+                )
+
+                // Update with server response
+                self.post = updatedPost
+                self.isLiked = updatedPost.isLiked
+                self.likeCount = updatedPost.likeCount
+                self.replyCount = updatedPost.replyCount
+                self.isLoading = false
+
             } catch {
-                await MainActor.run {
-                    self.error = error
-                    self.isLoading = false
-                }
+                print("[PostViewModel] ❌ Like/unlike failed for post \(post.id): \(error)")
+
+                // Revert optimistic update
+                self.isLiked = originalLiked
+                self.likeCount = originalCount
+                self.error = error
+                self.isLoading = false
             }
         }
     }
 
     /// Toggle repost/unrepost the post
     public func repost() {
-        guard !isLoading else { return }
+        guard !isLoading else {
+            print("[PostViewModel] ⚠️ Repost operation already in progress for post \(post.id)")
+            return
+        }
 
+        print(
+            "[PostViewModel] 🔄 Repost button tapped for post \(post.id), current isReposted: \(isReposted), platform: \(post.platform)"
+        )
+
+        // Store original values for potential revert
+        let originalReposted = isReposted
+        let originalCount = repostCount
+
+        // Optimistic UI update
+        isReposted.toggle()
+        repostCount += isReposted ? 1 : -1
         isLoading = true
         error = nil
 
         Task {
             do {
                 let updatedPost: Post
-                if isReposted {
+                if originalReposted {
+                    print("[PostViewModel] 🔄 Attempting to UNREPOST post \(post.id)")
                     updatedPost = try await serviceManager.unrepostPost(post)
                 } else {
+                    print("[PostViewModel] 🔄 Attempting to REPOST post \(post.id)")
                     updatedPost = try await serviceManager.repostPost(post)
                 }
-                await MainActor.run {
-                    self.post = updatedPost
-                    self.isReposted = updatedPost.isReposted
-                    self.repostCount = updatedPost.repostCount
-                    self.isLoading = false
-                }
+
+                print(
+                    "[PostViewModel] ✅ Repost/unrepost completed for post \(post.id), new isReposted: \(updatedPost.isReposted), new repostCount: \(updatedPost.repostCount)"
+                )
+
+                // Update with server response
+                self.post = updatedPost
+                self.isReposted = updatedPost.isReposted
+                self.repostCount = updatedPost.repostCount
+                self.replyCount = updatedPost.replyCount
+                self.isLoading = false
+
             } catch {
-                await MainActor.run {
-                    self.error = error
-                    self.isLoading = false
-                }
+                print("[PostViewModel] ❌ Repost/unrepost failed for post \(post.id): \(error)")
+
+                // Revert optimistic update
+                self.isReposted = originalReposted
+                self.repostCount = originalCount
+                self.error = error
+                self.isLoading = false
             }
         }
     }
@@ -115,16 +175,12 @@ public class PostViewModel: ObservableObject {
 
         do {
             let reply = try await serviceManager.replyToPost(post, content: content)
-            await MainActor.run {
-                self.replyCount += 1
-                self.isLoading = false
-            }
+            self.replyCount += 1
+            self.isLoading = false
             return reply
         } catch {
-            await MainActor.run {
-                self.error = error
-                self.isLoading = false
-            }
+            self.error = error
+            self.isLoading = false
             throw error
         }
     }
@@ -134,7 +190,7 @@ public class PostViewModel: ObservableObject {
         // Create the share sheet with the post URL
         guard let url = URL(string: post.originalURL) else { return }
 
-        DispatchQueue.main.async {
+        Task { @MainActor in
             let activityViewController = UIActivityViewController(
                 activityItems: [url],
                 applicationActivities: nil
@@ -167,27 +223,9 @@ public class PostViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
-    private func setupObservers() {
-        // Observe post changes
-        $post
-            .sink { [weak self] updatedPost in
-                self?.isLiked = updatedPost.isLiked
-                self?.isReposted = updatedPost.isReposted
-                self?.likeCount = updatedPost.likeCount
-                self?.repostCount = updatedPost.repostCount
-                self?.replyCount = updatedPost.replyCount
-
-                // Update quoted post view model if needed
-                if let quotedPost = updatedPost.quotedPost {
-                    self?.quotedPostViewModel = PostViewModel(
-                        post: quotedPost,
-                        serviceManager: self?.serviceManager ?? SocialServiceManager.shared)
-                } else {
-                    self?.quotedPostViewModel = nil
-                }
-            }
-            .store(in: &cancellables)
-    }
+    // Removed setupObservers method to prevent AttributeGraph cycles
+    // The observer was creating feedback loops by modifying @Published properties
+    // in response to other @Published property changes
 
     // MARK: - Computed Properties
 }

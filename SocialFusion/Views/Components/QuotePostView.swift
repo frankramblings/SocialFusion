@@ -47,19 +47,23 @@ public struct QuotePostView: View {
 
     private var authorAvatar: some View {
         ZStack(alignment: .bottomTrailing) {
-            AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                if let image = phase.image {
-                    image.resizable()
-                } else {
-                    Circle().fill(Color.gray.opacity(0.3))
-                }
-            }
+            StabilizedAsyncImage(
+                url: URL(string: post.authorProfilePictureURL),
+                idealHeight: 36,
+                aspectRatio: 1.0,
+                contentMode: .fill,
+                cornerRadius: 18
+            )
             .frame(width: 36, height: 36)
-            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color(.systemBackground), lineWidth: 1)
+            )
 
             PlatformDot(platform: post.platform, size: 10)
                 .offset(x: 2, y: 2)
         }
+        .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
     }
 
     private var authorInfo: some View {
@@ -88,20 +92,13 @@ public struct QuotePostView: View {
     }
 
     private var postMedia: some View {
-        AsyncImage(url: URL(string: post.attachments[0].url)) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, maxHeight: 220)
-                    .cornerRadius(14)
-                    .clipped()
-            } else if phase.error != nil {
-                errorMediaView
-            } else {
-                loadingMediaView
-            }
-        }
+        StabilizedAsyncImage(
+            url: URL(string: post.attachments[0].url),
+            idealHeight: 220,
+            contentMode: .fill,
+            cornerRadius: 14
+        )
+        .frame(maxWidth: .infinity, maxHeight: 220)
         .padding(.top, 4)
     }
 
@@ -174,6 +171,5 @@ public struct QuotePostView: View {
         mentions: [],
         tags: []
     )
-    let serviceManager = SocialServiceManager()
     return QuotePostView(post: samplePost)
 }

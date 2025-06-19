@@ -7,15 +7,14 @@ struct PostAvatar: View {
     let size: CGFloat
 
     var body: some View {
-        AsyncImage(url: URL(string: imageURL)) { image in
-            image
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-        } placeholder: {
-            placeholderView
-        }
+        StabilizedAsyncImage(
+            url: URL(string: imageURL),
+            idealHeight: size,
+            aspectRatio: 1.0,
+            contentMode: .fill,
+            cornerRadius: size / 2
+        )
         .frame(width: size, height: size)
-        .clipShape(Circle())
         .overlay(
             Circle()
                 .stroke(platformColor, lineWidth: 2)

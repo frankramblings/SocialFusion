@@ -1,127 +1,196 @@
 import SwiftUI
 
+/// Custom button style that provides scale feedback when pressed
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 /// ActionBar component for social media post interactions
 struct ActionBar: View {
-    let isLiked: Bool
-    let isReposted: Bool
-    let likeCount: Int
-    let repostCount: Int
-    let replyCount: Int
+    @ObservedObject var post: Post
     let onAction: (PostAction) -> Void
+    let onOpenInBrowser: () -> Void
+    let onCopyLink: () -> Void
+    let onReport: () -> Void
 
-    // Consistent spacing between action buttons
-    private let buttonSpacing: CGFloat = 32
     // Icon size for better visibility
     private let iconSize: CGFloat = 18
 
     var body: some View {
-        HStack(spacing: buttonSpacing) {
+        HStack {
             // Reply button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.reply)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "bubble.left")
                         .font(.system(size: iconSize))
                         .foregroundColor(.secondary)
-                        .accessibilityLabel("Reply")
-                    if replyCount > 0 {
-                        Text("\(replyCount)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("0")
+                    if post.replyCount > 0 {
+                        Text("\(post.replyCount)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel("Reply")
+
+            Spacer()
 
             // Repost button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.repost)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.2.squarepath")
                         .font(.system(size: iconSize))
-                        .foregroundColor(isReposted ? .green : .secondary)
-                        .accessibilityLabel(isReposted ? "Undo Repost" : "Repost")
-                    if repostCount > 0 {
-                        Text("\(repostCount)")
+                        .foregroundColor(post.isReposted ? .green : .secondary)
+                        .scaleEffect(post.isReposted ? 1.1 : 1.0)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.6), value: post.isReposted)
+                    if post.repostCount > 0 {
+                        Text("\(post.repostCount)")
                             .font(.caption)
-                            .foregroundColor(isReposted ? .green : .secondary)
-                    } else {
-                        Text("0")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(post.isReposted ? .green : .secondary)
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel(isReposted ? "Undo Repost" : "Repost")
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
+
+            Spacer()
+
+            // Quote button
+            Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
+                onAction(.quote)
+            } label: {
+                Image(systemName: "quote.bubble")
+                    .font(.system(size: iconSize))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Quote Post")
+
+            Spacer()
 
             // Like button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.like)
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
+                    Image(systemName: post.isLiked ? "heart.fill" : "heart")
                         .font(.system(size: iconSize))
-                        .foregroundColor(isLiked ? .red : .secondary)
-                        .accessibilityLabel(isLiked ? "Unlike" : "Like")
-                    if likeCount > 0 {
-                        Text("\(likeCount)")
+                        .foregroundColor(post.isLiked ? .red : .secondary)
+                        .scaleEffect(post.isLiked ? 1.1 : 1.0)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.6), value: post.isLiked)
+                    if post.likeCount > 0 {
+                        Text("\(post.likeCount)")
                             .font(.caption)
-                            .foregroundColor(isLiked ? .red : .secondary)
-                    } else {
-                        Text("0")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(post.isLiked ? .red : .secondary)
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel(isLiked ? "Unlike" : "Like")
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
 
             Spacer()
 
             // Share button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.share)
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
-                    .accessibilityLabel("Share")
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Share")
+
+            Spacer()
+
+            // Menu button (three dots)
+            Menu {
+                // Platform-specific actions
+                if post.platform == .bluesky {
+                    Button(action: {}) {
+                        Label("Follow", systemImage: "person.badge.plus")
+                    }
+                    Button(action: {}) {
+                        Label("Mute", systemImage: "speaker.slash")
+                    }
+                    Button(action: {}) {
+                        Label("Block", systemImage: "hand.raised")
+                    }
+                } else if post.platform == .mastodon {
+                    Button(action: {}) {
+                        Label("Follow", systemImage: "person.badge.plus")
+                    }
+                    Button(action: {}) {
+                        Label("Mute", systemImage: "speaker.slash")
+                    }
+                    Button(action: {}) {
+                        Label("Block", systemImage: "hand.raised")
+                    }
+                    Button(action: {}) {
+                        Label("Add to Lists", systemImage: "list.bullet")
+                    }
+                }
+
+                Divider()
+
+                // Common actions
+                Button(action: onOpenInBrowser) {
+                    Label("Open in Browser", systemImage: "arrow.up.right.square")
+                }
+                Button(action: onCopyLink) {
+                    Label("Copy Link", systemImage: "link")
+                }
+                Button(action: { onAction(.share) }) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+
+                Divider()
+
+                Button(role: .destructive, action: onReport) {
+                    Label("Report", systemImage: "exclamationmark.triangle")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: iconSize))
+                    .foregroundColor(.secondary)
             }
             .buttonStyle(PlainButtonStyle())
-            .accessibilityLabel("Share")
+            .accessibilityLabel("More options")
         }
-        .padding(.vertical, 4)
-    }
-}
-
-// Convenience initializer for ActionBar that takes a Post
-extension ActionBar {
-    init(post: Post, onAction: @escaping (PostAction) -> Void) {
-        self.isLiked = post.isLiked
-        self.isReposted = post.isReposted
-        self.likeCount = post.likeCount
-        self.repostCount = post.repostCount
-        self.replyCount = 0  // Post doesn't include replyCount yet
-        self.onAction = onAction
-    }
-
-    // Convenience initializer for ActionBar that takes a PostViewModel
-    init(viewModel: PostViewModel, onAction: @escaping (PostAction) -> Void) {
-        self.isLiked = viewModel.isLiked
-        self.isReposted = viewModel.isReposted
-        self.likeCount = viewModel.likeCount
-        self.repostCount = viewModel.repostCount
-        self.replyCount = 0
-        self.onAction = onAction
+        .padding(.vertical, 2)
+        .padding(.horizontal, 16)
     }
 }
 
@@ -129,53 +198,88 @@ extension ActionBar {
 struct ObservableActionBar: View {
     @ObservedObject var viewModel: PostViewModel
     let onAction: (PostAction) -> Void
+    let onOpenInBrowser: () -> Void
+    let onCopyLink: () -> Void
+    let onReport: () -> Void
 
     var body: some View {
         ActionBar(
-            isLiked: viewModel.isLiked,
-            isReposted: viewModel.isReposted,
-            likeCount: viewModel.likeCount,
-            repostCount: viewModel.repostCount,
-            replyCount: 0,
-            onAction: onAction
+            post: viewModel.post,
+            onAction: onAction,
+            onOpenInBrowser: onOpenInBrowser,
+            onCopyLink: onCopyLink,
+            onReport: onReport
         )
     }
 }
 
 #Preview("Normal State") {
+    let samplePost = Post(
+        id: "1",
+        content: "Sample post content",
+        authorName: "Test User",
+        authorUsername: "testuser",
+        authorProfilePictureURL: "",
+        createdAt: Date(),
+        platform: .mastodon,
+        originalURL: "",
+        attachments: []
+    )
+
     ActionBar(
-        isLiked: false,
-        isReposted: false,
-        likeCount: 5,
-        repostCount: 2,
-        replyCount: 1,
-        onAction: { _ in }
+        post: samplePost,
+        onAction: { _ in },
+        onOpenInBrowser: {},
+        onCopyLink: {},
+        onReport: {}
     )
     .padding()
     .background(Color.black)
 }
 
 #Preview("Active State") {
+    let samplePost = Post(
+        id: "2",
+        content: "Sample post content",
+        authorName: "Test User",
+        authorUsername: "testuser",
+        authorProfilePictureURL: "",
+        createdAt: Date(),
+        platform: .bluesky,
+        originalURL: "",
+        attachments: []
+    )
+
     ActionBar(
-        isLiked: true,
-        isReposted: true,
-        likeCount: 5,
-        repostCount: 2,
-        replyCount: 1,
-        onAction: { _ in }
+        post: samplePost,
+        onAction: { _ in },
+        onOpenInBrowser: {},
+        onCopyLink: {},
+        onReport: {}
     )
     .padding()
     .background(Color.black)
 }
 
 #Preview("No Counts") {
+    let samplePost = Post(
+        id: "3",
+        content: "Sample post content",
+        authorName: "Test User",
+        authorUsername: "testuser",
+        authorProfilePictureURL: "",
+        createdAt: Date(),
+        platform: .mastodon,
+        originalURL: "",
+        attachments: []
+    )
+
     ActionBar(
-        isLiked: false,
-        isReposted: false,
-        likeCount: 0,
-        repostCount: 0,
-        replyCount: 0,
-        onAction: { _ in }
+        post: samplePost,
+        onAction: { _ in },
+        onOpenInBrowser: {},
+        onCopyLink: {},
+        onReport: {}
     )
     .padding()
     .background(Color.black)

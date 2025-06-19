@@ -19,9 +19,8 @@ public final class AppVersionManager: ObservableObject {
             let currentBuild = getCurrentBuildNumber()
         else {
             // If we can't get version info, don't show animation
-            DispatchQueue.main.async {
-                self.shouldShowLaunchAnimation = false
-            }
+            // Direct assignment to avoid AttributeGraph cycles
+            self.shouldShowLaunchAnimation = false
             return
         }
 
@@ -36,9 +35,8 @@ public final class AppVersionManager: ObservableObject {
         let isVersionUpdate = lastVersion != currentVersion
         let isBuildUpdate = lastBuild != currentBuild
 
-        DispatchQueue.main.async {
-            self.shouldShowLaunchAnimation = isFirstLaunch || isVersionUpdate || isBuildUpdate
-        }
+        // Direct assignment to avoid AttributeGraph cycles
+        self.shouldShowLaunchAnimation = isFirstLaunch || isVersionUpdate || isBuildUpdate
 
         // Update stored version/build
         userDefaults.set(currentVersion, forKey: lastVersionKey)

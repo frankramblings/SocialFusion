@@ -1,12 +1,21 @@
+import Foundation
 import Logging
 
 /// A log handler that stores logs in memory for testing and debugging purposes.
-public final class InMemoryLogHandler: LogHandler {
+public final class InMemoryLogHandler: LogHandler, @unchecked Sendable {
     /// The log entries stored by this handler.
-    public private(set) let entries: [LogEntry] = []
+    private var _entries: [LogEntry] = []
+    private let lock = NSLock()
+
+    /// Thread-safe access to log entries.
+    public var entries: [LogEntry] {
+        lock.lock()
+        defer { lock.unlock() }
+        return _entries
+    }
 
     /// A log entry containing the message and metadata.
-    public struct LogEntry {
+    public struct LogEntry: Sendable {
         /// The log level of the entry.
         public let level: Logger.Level
         /// The message of the entry.
@@ -51,7 +60,9 @@ public final class InMemoryLogHandler: LogHandler {
             function: function,
             line: line
         )
-        entries.append(entry)
+        lock.lock()
+        _entries.append(entry)
+        lock.unlock()
     }
 
     /// Returns the metadata value for the specified key.
@@ -62,16 +73,18 @@ public final class InMemoryLogHandler: LogHandler {
 
     /// Clears all stored log entries.
     public func clear() {
-        entries.removeAll()
+        lock.lock()
+        _entries.removeAll()
+        lock.unlock()
     }
 
     /// Returns all log entries with the specified level.
     public func entries(withLevel level: Logger.Level) -> [LogEntry] {
-        entries.filter { $0.level == level }
+        return entries.filter { $0.level == level }
     }
 
     /// Returns all log entries containing the specified message.
     public func entries(containing message: String) -> [LogEntry] {
-        entries.filter { $0.message.description.contains(message) }
+        return entries.filter { $0.message.description.contains(message) }
     }
 }

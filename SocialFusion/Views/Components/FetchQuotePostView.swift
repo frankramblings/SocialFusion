@@ -3,101 +3,194 @@ import SwiftUI
 /// A compact view of a quoted post - styled like ParentPostPreview
 public struct QuotedPostView: View {
     public let post: Post
+    public var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     // Maximum characters before content is trimmed
     private let maxCharacters = 300
 
-    public init(post: Post) {
+    public init(post: Post, onTap: (() -> Void)? = nil) {
         self.post = post
+        self.onTap = onTap
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             // Author row
-            HStack {
-                // Author avatar with platform indicator
-                ZStack(alignment: .bottomTrailing) {
-                    // Avatar
-                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                        if let image = phase.image {
-                            image.resizable()
-                        } else {
-                            Circle().fill(Color.gray.opacity(0.3))
-                        }
-                    }
-                    .frame(width: 36, height: 36)
-                    .clipShape(Circle())
-
-                    // Platform indicator
-                    PlatformDot(platform: post.platform, size: 10)
-                        .offset(x: 2, y: 2)
-                }
-
-                // Author info
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(post.authorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-
-                    Text("@\(post.authorUsername)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-
-                Spacer()
-
-                // Time ago
-                RelativeTimeView(date: post.createdAt)
-            }
+            authorHeader
 
             // Post content
-            let lineLimit = post.content.count > maxCharacters ? 4 : nil
-            post.contentView(lineLimit: lineLimit, showLinkPreview: false)
-                .font(.callout)
-                .padding(.horizontal, 4)
+            postContent
 
-            // If post has media, show first attachment
+            // Attachments (if any)
             if !post.attachments.isEmpty {
-                PostAttachmentView(attachment: post.attachments[0])
-                    .padding(.top, 4)
+                postAttachment
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 10)
-        .background(colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(
-                    colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.08),
-                    lineWidth: 0.5)
-        )
-        .shadow(
-            color: colorScheme == .dark ? Color.white.opacity(0.03) : Color.black.opacity(0.02),
-            radius: 0.5, x: 0, y: 0
-        )
-        .shadow(
-            color: colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05),
-            radius: 1, y: 1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 12)
+        .background(backgroundStyle)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(borderOverlay)
+        .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
+    }
+
+    // MARK: - View Components
+
+    private var authorHeader: some View {
+        HStack(spacing: 8) {
+            // Author avatar with platform indicator
+            ZStack(alignment: .bottomTrailing) {
+                let stableImageURL = URL(string: post.authorProfilePictureURL)
+                AsyncImage(url: stableImageURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable()
+                    case .failure(_), .empty:
+                        Circle().fill(Color.gray.opacity(0.3))
+                    @unknown default:
+                        Circle().fill(Color.gray.opacity(0.3))
+                    }
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(Circle())
+                .id(stableImageURL?.absoluteString ?? "no-url")
+
+                PlatformDot(platform: post.platform, size: 8)
+                    .offset(x: 1, y: 1)
+            }
+
+            // Author info
+            VStack(alignment: .leading, spacing: 1) {
+                Text(post.authorName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .lineLimit(1)
+
+                Text("@\(post.authorUsername)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Time ago
+            RelativeTimeView(date: post.createdAt)
+        }
+    }
+
+    private var postContent: some View {
+        let lineLimit = post.content.count > maxCharacters ? 4 : nil
+        return post.contentView(lineLimit: lineLimit, showLinkPreview: false)
+            .font(.callout)
+            .padding(.horizontal, 4)
+    }
+
+    private var postAttachment: some View {
+        PostAttachmentView(attachment: post.attachments[0])
+            .padding(.top, 4)
+    }
+
+    private var backgroundStyle: some View {
+        colorScheme == .dark
+            ? Color.white.opacity(0.08)
+            : Color.black.opacity(0.04)
+    }
+
+    private var borderOverlay: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .stroke(
+                colorScheme == .dark
+                    ? Color.white.opacity(0.15)
+                    : Color.black.opacity(0.1),
+                lineWidth: 0.5
+            )
+    }
+
+    private var shadowColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.02)
+            : Color.black.opacity(0.05)
     }
 }
 
-/// Fetches and displays a quoted post from a URL
+/// Fetches and displays a quoted post from a URL with improved stability
 struct FetchQuotePostView: View {
     let url: URL
+    var onQuotePostTap: ((Post) -> Void)? = nil
     @State private var quotedPost: Post? = nil
     @State private var isLoading = true
     @State private var error: Error? = nil
+    @State private var retryCount = 0
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @Environment(\.colorScheme) private var colorScheme
 
-    private var isProbablyBluesky: Bool {
-        return url.absoluteString.contains("bsky.app") || url.absoluteString.contains("bsky.social")
-    }
+    private let maxRetries = 2
 
     private var platform: SocialPlatform {
-        return isProbablyBluesky ? .bluesky : .mastodon
+        if url.absoluteString.contains("bsky.app") || url.absoluteString.contains("bsky.social") {
+            return .bluesky
+        }
+        return .mastodon
+    }
+
+    var body: some View {
+        Group {
+            if let post = quotedPost, hasMeaningfulContent(post) {
+                QuotedPostView(post: post) {
+                    print("🔗 [FetchQuotePostView] Quote post tapped: \(post.id)")
+                    if let onQuotePostTap = onQuotePostTap {
+                        print("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
+                        onQuotePostTap(post)
+                    } else {
+                        print("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
+                        navigationEnvironment.navigateToPost(post)
+                    }
+                }
+            } else if isLoading {
+                LoadingQuoteView(platform: platform)
+            } else if let error = error {
+                // Show error state with retry option
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.orange)
+                        Text("Failed to load quote")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("Retry") {
+                            Task {
+                                await fetchPost()
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+            } else {
+                // Fallback to regular link preview if we can't fetch the post
+                LinkPreview(url: url)
+            }
+        }
+        .onAppear {
+            print("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
+            Task {
+                await fetchPost()
+            }
+        }
     }
 
     // Helper to determine if a post has meaningful content
@@ -108,91 +201,228 @@ struct FetchQuotePostView: View {
         return hasText || hasMedia || hasAuthor
     }
 
-    var body: some View {
-        VStack {
-            if let post = quotedPost, hasMeaningfulContent(post) {
-                QuotedPostView(post: post)
-            } else if isLoading {
-                LoadingQuoteView(platform: platform)
-            } else if error != nil {
-                // Fallback to regular link preview if we can't fetch the post
-                LinkPreview(url: url)
+    private func fetchPost() async {
+        guard retryCount <= maxRetries else {
+            print("🔗 [FetchQuotePostView] Max retries exceeded for URL: \(url)")
+            await MainActor.run {
+                isLoading = false
+                error = NSError(
+                    domain: "FetchQuotePostView",
+                    code: -1,
+                    userInfo: [NSLocalizedDescriptionKey: "Maximum retries exceeded"]
+                )
             }
+            return
         }
-        .onAppear {
-            Task {
-                await fetchPost()
+
+        print(
+            "🔗 [FetchQuotePostView] Fetching \(platform) post (attempt \(retryCount + 1)): \(url)")
+        await MainActor.run {
+            isLoading = true
+        }
+
+        do {
+            let post = try await fetchPostForPlatform()
+            await MainActor.run {
+                if let post = post {
+                    print(
+                        "🔗 [FetchQuotePostView] Successfully fetched post: \(post.content.prefix(50))"
+                    )
+                    self.quotedPost = post
+                } else {
+                    print("🔗 [FetchQuotePostView] Fetched nil post for URL: \(url)")
+                }
+                self.isLoading = false
+                self.error = nil
+            }
+        } catch {
+            print("🔗 [FetchQuotePostView] Error fetching \(platform) post: \(error)")
+
+            await MainActor.run {
+                self.error = error
+
+                // Retry for transient errors
+                if retryCount < maxRetries && isTransientError(error) {
+                    print("🔗 [FetchQuotePostView] Retrying in 1 second...")
+                    retryCount += 1
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
+                        await fetchPost()
+                    }
+                } else {
+                    print("🔗 [FetchQuotePostView] Giving up after \(retryCount + 1) attempts")
+                    self.isLoading = false
+                }
             }
         }
     }
 
-    private func fetchPost() async {
-        // Extract post ID from URL based on platform
-        if isProbablyBluesky {
-            // Extract Bluesky post ID
-            let components = url.path.split(separator: "/")
-            if components.count >= 4, components[components.count - 2] == "post" {
-                let postID = String(components[components.count - 1])
-
-                do {
-                    if let account = serviceManager.accounts.first(where: {
-                        $0.platform == .bluesky
-                    }) {
-                        quotedPost = try await serviceManager.fetchBlueskyPostByID(postID)
-                        isLoading = false
-                    } else {
-                        isLoading = false
-                        error = NSError(
-                            domain: "FetchQuotePostView", code: 2,
-                            userInfo: [NSLocalizedDescriptionKey: "No Bluesky account available"])
-                    }
-                } catch {
-                    self.error = error
-                    isLoading = false
-                    print("Error fetching Bluesky post: \(error)")
-                }
-            } else {
-                isLoading = false
-                error = NSError(
-                    domain: "FetchQuotePostView", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid post URL"])
-            }
-        } else {
-            // Extract Mastodon post ID
-            let components = url.path.split(separator: "/")
-            if components.count >= 2 {
-                let postID = String(components[components.count - 1])
-
-                // Find a Mastodon account to use
-                if let account = serviceManager.accounts.first(where: { $0.platform == .mastodon })
-                {
-                    do {
-                        quotedPost = try await serviceManager.fetchMastodonStatus(
-                            id: postID, account: account)
-                        isLoading = false
-                    } catch {
-                        self.error = error
-                        isLoading = false
-                        print("Error fetching Mastodon post: \(error)")
-                    }
-                } else {
-                    isLoading = false
-                    error = NSError(
-                        domain: "FetchQuotePostView", code: 2,
-                        userInfo: [NSLocalizedDescriptionKey: "No Mastodon account available"])
-                }
-            } else {
-                isLoading = false
-                error = NSError(
-                    domain: "FetchQuotePostView", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "Invalid post URL"])
-            }
+    private func fetchPostForPlatform() async throws -> Post? {
+        switch platform {
+        case .bluesky:
+            return try await fetchBlueskyPost()
+        case .mastodon:
+            return try await fetchMastodonPost()
         }
+    }
+
+    private func fetchBlueskyPost() async throws -> Post? {
+        let components = url.path.split(separator: "/")
+        guard components.count >= 4,
+            components[components.count - 2] == "post"
+        else {
+            throw NSError(
+                domain: "FetchQuotePostView",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid Bluesky post URL format"]
+            )
+        }
+
+        let postID = String(components[components.count - 1])
+
+        guard let account = serviceManager.accounts.first(where: { $0.platform == .bluesky }) else {
+            throw NSError(
+                domain: "FetchQuotePostView",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "No Bluesky account available"]
+            )
+        }
+
+        return try await serviceManager.fetchBlueskyPostByID(postID)
+    }
+
+    private func fetchMastodonPost() async throws -> Post? {
+        let components = url.path.split(separator: "/")
+        guard components.count >= 2 else {
+            throw NSError(
+                domain: "FetchQuotePostView",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid Mastodon post URL format"]
+            )
+        }
+
+        let postID = String(components[components.count - 1])
+
+        guard let account = serviceManager.accounts.first(where: { $0.platform == .mastodon })
+        else {
+            throw NSError(
+                domain: "FetchQuotePostView",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "No Mastodon account available"]
+            )
+        }
+
+        return try await serviceManager.fetchMastodonStatus(id: postID, account: account)
+    }
+
+    private func isTransientError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        // Network errors that might be worth retrying
+        return nsError.domain == NSURLErrorDomain
+            && (nsError.code == NSURLErrorTimedOut
+                || nsError.code == NSURLErrorNetworkConnectionLost
+                || nsError.code == NSURLErrorNotConnectedToInternet)
+    }
+}
+
+/// Improved loading view for quote posts
+struct LoadingQuoteView: View {
+    let platform: SocialPlatform
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            // Author placeholder
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Circle()
+                            .fill(platformColor.opacity(0.3))
+                            .frame(width: 8, height: 8)
+                            .offset(x: 10, y: 10)
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 80, height: 12)
+                        .cornerRadius(4)
+
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .frame(width: 60, height: 10)
+                        .cornerRadius(4)
+                }
+
+                Spacer()
+
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 40, height: 10)
+                    .cornerRadius(4)
+            }
+
+            // Content placeholder
+            VStack(alignment: .leading, spacing: 4) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                    .cornerRadius(4)
+
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(maxWidth: 200)
+                    .frame(height: 12)
+                    .cornerRadius(4)
+            }
+            .padding(.horizontal, 4)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 12)
+        .background(backgroundStyle)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(borderOverlay)
+        .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
+        .redacted(reason: .placeholder)
+    }
+
+    private var platformColor: Color {
+        switch platform {
+        case .bluesky:
+            return .blue
+        case .mastodon:
+            return .purple
+        }
+    }
+
+    private var backgroundStyle: some View {
+        colorScheme == .dark
+            ? Color.white.opacity(0.08)
+            : Color.black.opacity(0.04)
+    }
+
+    private var borderOverlay: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .stroke(
+                colorScheme == .dark
+                    ? Color.white.opacity(0.15)
+                    : Color.black.opacity(0.1),
+                lineWidth: 0.5
+            )
+    }
+
+    private var shadowColor: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.02)
+            : Color.black.opacity(0.05)
     }
 }
 
 /// Helper to display relative time
-private struct RelativeTimeView: View {
+struct RelativeTimeView: View {
     let date: Date
 
     var body: some View {
@@ -204,7 +434,10 @@ private struct RelativeTimeView: View {
     private func formatRelativeTime(from date: Date) -> String {
         let now = Date()
         let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: date, to: now)
+            [.year, .month, .day, .hour, .minute, .second],
+            from: date,
+            to: now
+        )
 
         if let year = components.year, year > 0 {
             return "\(year)y"
@@ -227,7 +460,8 @@ private struct PostAttachmentView: View {
     let attachment: Post.Attachment
 
     var body: some View {
-        AsyncImage(url: URL(string: attachment.url)) { phase in
+        let stableImageURL = URL(string: attachment.url)
+        AsyncImage(url: stableImageURL) { phase in
             if let image = phase.image {
                 image
                     .resizable()
@@ -254,48 +488,29 @@ private struct PostAttachmentView: View {
                     )
             }
         }
+        .id(stableImageURL?.absoluteString ?? "no-url")
     }
 }
 
-/// Loading state that matches the style of ParentPostPreview
-private struct LoadingQuoteView: View {
-    let platform: SocialPlatform
-    @Environment(\.colorScheme) private var colorScheme
+#Preview {
+    let samplePost = Post(
+        id: "preview-1",
+        content: "This is a sample quoted post with some longer content to test the display",
+        authorName: "John Doe",
+        authorUsername: "johndoe",
+        authorProfilePictureURL: "",
+        createdAt: Date(),
+        platform: .mastodon,
+        originalURL: "",
+        attachments: [],
+        mentions: [],
+        tags: []
+    )
 
-    private var platformColor: Color {
-        switch platform {
-        case .bluesky:
-            return Color(red: 0, green: 122 / 255, blue: 255 / 255)
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        }
+    return VStack(spacing: 16) {
+        QuotedPostView(post: samplePost)
+        LoadingQuoteView(platform: .bluesky)
+        LoadingQuoteView(platform: .mastodon)
     }
-
-    var body: some View {
-        VStack(alignment: .center, spacing: 8) {
-            ProgressView()
-                .scaleEffect(0.8)
-                .tint(platformColor)
-
-            Text("Loading post...")
-                .font(.caption)
-                .foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
-        .padding(.horizontal, 8)
-        .background(colorScheme == .dark ? Color.white.opacity(0.07) : Color.black.opacity(0.03))
-        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(
-                    colorScheme == .dark ? Color.white.opacity(0.15) : Color.black.opacity(0.08),
-                    lineWidth: 0.5)
-        )
-        .shadow(
-            color: colorScheme == .dark ? Color.white.opacity(0.05) : Color.black.opacity(0.05),
-            radius: 1, y: 1)
-    }
+    .padding()
 }
-
-// We use hardcoded values instead of the Color extension methods that are defined in PostCardView.swift

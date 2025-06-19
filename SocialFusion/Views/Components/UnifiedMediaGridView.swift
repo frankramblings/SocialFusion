@@ -11,14 +11,6 @@ struct UnifiedMediaGridView: View {
     @StateObject private var selection = MediaSelectionModel()
 
     var body: some View {
-        // DEBUG: Print attachments info
-        let _ = {
-            print("UnifiedMediaGridView: attachments.count = \(attachments.count)")
-            for att in attachments {
-                print("  - url: \(att.url), type: \(att.type), alt: \(att.altText ?? "nil")")
-            }
-            return 0
-        }()
         Group {
             switch attachments.count {
             case 0:
@@ -51,14 +43,10 @@ struct UnifiedMediaGridView: View {
             }
         }
         .sheet(isPresented: $selection.showFullscreen) {
-            SheetDebugWrapper(
-                selectedAttachment: selection.selectedAttachment, attachments: attachments
-            ) {
-                if let selected = selection.selectedAttachment {
-                    AnyView(FullscreenMediaView(media: selected, allMedia: attachments))
-                } else {
-                    AnyView(Color.black)  // fallback
-                }
+            if let selected = selection.selectedAttachment {
+                FullscreenMediaView(media: selected, allMedia: attachments)
+            } else {
+                Color.black  // fallback
             }
         }
     }
@@ -67,36 +55,81 @@ struct UnifiedMediaGridView: View {
 private struct SingleImageView: View {
     let attachment: Post.Attachment
     let onTap: () -> Void
+
+    // Capture stable URL at init time
+    private let stableURL: URL?
+
+    init(attachment: Post.Attachment, onTap: @escaping () -> Void) {
+        self.attachment = attachment
+        self.onTap = onTap
+        self.stableURL = URL(string: attachment.url)
+        print("🖼️ [SingleImageView] Loading image URL: \(attachment.url)")
+        print("🖼️ [SingleImageView] Parsed URL: \(String(describing: stableURL))")
+    }
+
     var body: some View {
         ZStack(alignment: .topLeading) {
-            AsyncImage(url: URL(string: attachment.url)) { phase in
-                if let image = phase.image {
+            AsyncImage(url: stableURL) { phase in
+                switch phase {
+                case .success(let image):
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                        .onTapGesture {
-                            print("Tapped attachment: \(attachment.url)")
-                            onTap()
+                        .frame(maxWidth: .infinity, maxHeight: 500)
+                        .clipped()
+                        .onAppear {
+                            print(
+                                "✅ [SingleImageView] Successfully loaded image from: \(String(describing: stableURL))"
+                            )
                         }
-                } else if phase.error != nil {
-                    Color.gray
-                        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 400)
-                        .overlay(Image(systemName: "exclamationmark.triangle").font(.largeTitle))
-                } else {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 180, maxHeight: 400)
+                case .failure(let error):
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 280)
+                        .overlay(
+                            VStack(spacing: 8) {
+                                Image(systemName: "photo")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                                Text("Image unavailable")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        )
+                        .onAppear {
+                            print(
+                                "❌ [SingleImageView] Failed to load image from: \(String(describing: stableURL)) - Error: \(error)"
+                            )
+                        }
+                case .empty:
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 280)
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(1.2)
+                        )
+                        .onAppear {
+                            print(
+                                "⏳ [SingleImageView] Loading image from: \(String(describing: stableURL))"
+                            )
+                        }
+                @unknown default:
+                    EmptyView()
                 }
             }
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(
-                    Color.white.opacity(0.12), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.10), radius: 8, x: 0, y: 2)
+            .cornerRadius(12)
+            .clipped()
+            .onTapGesture {
+                onTap()
+            }
+
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()
+                    .padding(.top, 8)
+                    .padding(.leading, 8)
             }
         }
     }
@@ -106,102 +139,123 @@ private struct MultiImageGridView: View {
     let attachments: [Post.Attachment]
     let onTap: (Post.Attachment) -> Void
     var extraCount: Int = 0
-    private let gridSize: CGFloat = 120
-    private let spacing: CGFloat = 4
+    private let gridSize: CGFloat = 150
+    private let spacing: CGFloat = 6
 
     var body: some View {
-        let columns = [GridItem(.flexible()), GridItem(.flexible())]
+        let columns = [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)]
         LazyVGrid(columns: columns, spacing: spacing) {
             ForEach(attachments.prefix(4)) { att in
-                ZStack(alignment: .topLeading) {
-                    AsyncImage(url: URL(string: att.url)) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: gridSize)
-                                .frame(maxWidth: .infinity)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(
-                                        Color.secondary.opacity(0.12), lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.08), radius: 4, x: 0, y: 1)
-                                .clipped()
-                                .onTapGesture {
-                                    print("Tapped attachment: \(att.url)")
-                                    onTap(att)
-                                }
-                        } else if phase.error != nil {
-                            Color.gray
-                                .frame(height: gridSize)
-                                .frame(maxWidth: .infinity)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                                .overlay(Image(systemName: "exclamationmark.triangle").font(.title))
-                        } else {
-                            ProgressView()
-                                .frame(height: gridSize)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                    if let alt = att.altText, !alt.isEmpty {
-                        GlassyAltBadge()
-                    }
-                }
-            }
-            if extraCount > 0 {
-                ZStack {
-                    Color.black.opacity(0.5)
-                        .frame(height: gridSize)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    Text("+\(extraCount)")
-                        .font(.title)
-                        .foregroundColor(.white)
-                }
+                GridImageView(
+                    attachment: att, gridSize: gridSize, onTap: onTap, extraCount: extraCount,
+                    isLast: att.id == attachments.prefix(4).last?.id)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(height: attachments.count <= 2 ? gridSize : gridSize * 2 + spacing)
     }
 }
 
-private struct GlassyAltBadge: View {
-    var body: some View {
-        Text("ALT")
-            .font(.caption2).bold()
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(.ultraThinMaterial)
-            .foregroundColor(.white)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .shadow(color: Color.black.opacity(0.10), radius: 2, x: 0, y: 1)
-            .padding(8)
+private struct GridImageView: View {
+    let attachment: Post.Attachment
+    let gridSize: CGFloat
+    let onTap: (Post.Attachment) -> Void
+    let extraCount: Int
+    let isLast: Bool
+
+    // Capture stable URL at init time
+    private let stableURL: URL?
+
+    init(
+        attachment: Post.Attachment, gridSize: CGFloat, onTap: @escaping (Post.Attachment) -> Void,
+        extraCount: Int, isLast: Bool
+    ) {
+        self.attachment = attachment
+        self.gridSize = gridSize
+        self.onTap = onTap
+        self.extraCount = extraCount
+        self.isLast = isLast
+        self.stableURL = URL(string: attachment.url)
     }
-}
-
-private struct SheetDebugWrapper<Content: View>: View {
-    let selectedAttachment: Post.Attachment?
-    let attachments: [Post.Attachment]
-    let content: () -> Content
 
     var body: some View {
-        content()
-            .onAppear {
-                print(
-                    "Sheet is being presented. selectedAttachment: \(String(describing: selectedAttachment)), attachments.count: \(attachments.count)"
-                )
-                if let selected = selectedAttachment {
-                    print(
-                        "Presenting FullscreenMediaView with selected.url=\(selected.url), attachments.count=\(attachments.count)"
-                    )
-                } else {
-                    print("Sheet presented but selectedAttachment is nil")
+        ZStack(alignment: .topLeading) {
+            AsyncImage(url: stableURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: gridSize, height: gridSize)
+                        .clipped()
+                case .failure(_):
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(width: gridSize, height: gridSize)
+                        .overlay(
+                            Image(systemName: "photo")
+                                .font(.title2)
+                                .foregroundColor(.secondary)
+                        )
+                case .empty:
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.08))
+                        .frame(width: gridSize, height: gridSize)
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(1.0)
+                        )
+                @unknown default:
+                    EmptyView()
                 }
             }
+            .cornerRadius(12)
+            .clipped()
+            .onTapGesture {
+                onTap(attachment)
+            }
+
+            if let alt = attachment.altText, !alt.isEmpty {
+                GlassyAltBadge()
+                    .padding(.top, 4)
+                    .padding(.leading, 4)
+            }
+
+            // Show "+X more" overlay on the last item if there are extra items
+            if extraCount > 0 && isLast {
+                Rectangle()
+                    .fill(Color.black.opacity(0.7))
+                    .frame(width: gridSize, height: gridSize)
+                    .cornerRadius(12)
+                    .overlay(
+                        Text("+\(extraCount)")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                    )
+            }
+        }
     }
 }
+
+// Helper badge for alt text indication
+private struct GlassyAltBadge: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "text.bubble")
+                .font(.caption2)
+                .foregroundColor(.white)
+
+            Text("ALT")
+                .font(.caption2)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(.ultraThinMaterial, in: Capsule())
+        .environment(\.colorScheme, .dark)  // Force dark appearance for glass effect
+    }
+}
+
+// Extension to make Post.Attachment identifiable if it's not already
+// (Remove this since Post.Attachment already conforms to Identifiable in the main model)

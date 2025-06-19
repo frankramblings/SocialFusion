@@ -8,10 +8,18 @@ struct PostRepostButton: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            // Add haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+
+            onTap()
+        }) {
             HStack(spacing: 4) {
                 Image(systemName: isReposted ? "arrow.2.squarepath.fill" : "arrow.2.squarepath")
                     .foregroundColor(isReposted ? platformColor : .secondary)
+                    .scaleEffect(isReposted ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isReposted)
 
                 if repostCount > 0 {
                     Text(formatCount(repostCount))
@@ -20,7 +28,7 @@ struct PostRepostButton: View {
                 }
             }
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(ScaleButtonStyle())
     }
 
     private var platformColor: Color {

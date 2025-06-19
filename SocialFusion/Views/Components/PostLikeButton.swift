@@ -8,10 +8,18 @@ struct PostLikeButton: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            // Add haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+
+            onTap()
+        }) {
             HStack(spacing: 4) {
                 Image(systemName: isLiked ? "heart.fill" : "heart")
                     .foregroundColor(isLiked ? .red : .secondary)
+                    .scaleEffect(isLiked ? 1.1 : 1.0)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isLiked)
 
                 if likeCount > 0 {
                     Text(formatCount(likeCount))
@@ -20,7 +28,7 @@ struct PostLikeButton: View {
                 }
             }
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(ScaleButtonStyle())
     }
 
     private func formatCount(_ count: Int) -> String {

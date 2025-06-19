@@ -31,21 +31,24 @@ public class MastodonService {
 
     // MARK: - Authentication Utilities
 
-    /// Creates an authenticated request with a valid access token
-    /// - Parameters:
-    ///   - url: The URL for the request
-    ///   - method: The HTTP method
-    ///   - account: The account to authenticate as
-    /// - Returns: A URLRequest with the Authorization header set
-    private func createAuthenticatedRequest(url: URL, method: String, account: SocialAccount)
-        async throws -> URLRequest
-    {
+    /// Creates an authenticated request with automatic token refresh
+    private func createAuthenticatedRequest(
+        url: URL,
+        method: String,
+        account: SocialAccount,
+        body: Data? = nil
+    ) async throws -> URLRequest {
+        // Get a valid access token (automatically refreshes if needed)
+        let accessToken = try await account.getValidAccessToken()
+
         var request = URLRequest(url: url)
         request.httpMethod = method
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
-        // Ensure we have a valid token, refreshing if necessary
-        let token = try await account.getValidAccessToken()
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let body = body {
+            request.httpBody = body
+        }
 
         return request
     }
@@ -328,6 +331,52 @@ public class MastodonService {
         return try JSONDecoder().decode(MastodonToken.self, from: data)
     }
 
+    /// Minimal token refresh method that works without client credentials
+    /// Some Mastodon instances allow refresh without client credentials
+    private func refreshMastodonTokenMinimal(
+        server: String,
+        refreshToken: String
+    ) async throws -> MastodonToken {
+        // Ensure server has the scheme
+        let serverUrl = formatServerURL(server)
+
+        guard let url = URL(string: "\(serverUrl)/oauth/token") else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Minimal parameters - some instances support this
+        let parameters: [String: Any] = [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+            "scope": "read write follow push",
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to refresh token - may need re-authentication"
+                ])
+        }
+
+        return try JSONDecoder().decode(MastodonToken.self, from: data)
+    }
+
     /// Simplified method to refresh access token for an account
     /// Returns only the new access token and handles all the internal details
     public func refreshAccessToken(for account: SocialAccount) async throws -> String {
@@ -336,27 +385,46 @@ public class MastodonService {
         }
 
         guard let refreshToken = account.refreshToken else {
+            logger.warning(
+                "No refresh token available for account \(account.username). Cannot refresh - user needs to re-authenticate."
+            )
             throw TokenError.noRefreshToken
         }
 
         do {
-            // For now we'll pass empty credentials as we're transitioning away from KeychainManager
-            let clientId = "placeholder-client-id"  // This will be replaced with proper implementation
-            let clientSecret = "placeholder-client-secret"  // This will be replaced with proper implementation
+            // Get client credentials for this account
+            let (clientId, clientSecret) = account.getClientCredentials()
 
-            let token = try await refreshMastodonToken(
-                server: serverURL.absoluteString,
-                clientId: clientId,
-                clientSecret: clientSecret,
-                refreshToken: refreshToken
-            )
+            let token: MastodonToken
+
+            if let clientId = clientId, let clientSecret = clientSecret {
+                // Use full refresh with client credentials
+                logger.info(
+                    "Refreshing Mastodon token with client credentials for \(account.username)")
+                token = try await refreshMastodonToken(
+                    server: serverURL.absoluteString,
+                    clientId: clientId,
+                    clientSecret: clientSecret,
+                    refreshToken: refreshToken
+                )
+            } else {
+                // Fall back to minimal refresh without client credentials
+                logger.warning(
+                    "No client credentials found for \(account.username), trying minimal refresh")
+                token = try await refreshMastodonTokenMinimal(
+                    server: serverURL.absoluteString,
+                    refreshToken: refreshToken
+                )
+            }
 
             account.saveAccessToken(token.accessToken)
             if let newRefreshToken = token.refreshToken {
                 account.saveRefreshToken(newRefreshToken)
             }
 
-            let expiresIn = token.expiresIn ?? (7 * 24 * 60 * 60)
+            // Use server-provided expiration or fallback to 30 days (more realistic than 7 days)
+            // Many Mastodon instances provide tokens that last weeks or months
+            let expiresIn = token.expiresIn ?? (30 * 24 * 60 * 60)
             account.saveTokenExpirationDate(Date().addingTimeInterval(TimeInterval(expiresIn)))
 
             return token.accessToken
@@ -430,65 +498,35 @@ public class MastodonService {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+
+            // Try to decode error response for better error messages
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
                 throw errorResponse
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to verify credentials"])
-        }
 
-        let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
-
-        // Create and return a new SocialAccount with the verified information
-        let verifiedAccount = SocialAccount(
-            id: mastodonAccount.id,
-            username: mastodonAccount.username,
-            displayName: mastodonAccount.displayName,
-            serverURL: serverUrl,
-            platform: .mastodon,
-            profileImageURL: URL(string: mastodonAccount.avatar),
-            platformSpecificId: mastodonAccount.id
-        )
-
-        // Make sure to explicitly set the access token on the verified account
-        verifiedAccount.accessToken = accessToken
-
-        // Post notification about the profile image update if we have an avatar URL
-        print(
-            "Raw avatar field from Mastodon API for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
-        )
-
-        if mastodonAccount.avatar.isEmpty {
-            print("⚠️ Empty avatar field returned from Mastodon API for \(mastodonAccount.username)")
-        } else if let avatarURL = URL(string: mastodonAccount.avatar) {
-            print(
-                "✅ Successfully parsed Mastodon avatar URL for \(mastodonAccount.username): \(avatarURL)"
-            )
-
-            // Ensure UI updates happen on the main thread
-            // Store a copy of the required values to avoid Sendable issues
-            let accountId = verifiedAccount.id
-            DispatchQueue.main.async {
-                // Use a captured local copy of verifiedAccount to avoid Sendable warning
-                verifiedAccount.profileImageURL = avatarURL
-                print(
-                    "✅ Updated Mastodon account \(mastodonAccount.username) with profile image URL")
-
-                // Post notification about the profile image update
-                NotificationCenter.default.post(
-                    name: .profileImageUpdated,
-                    object: nil,
-                    userInfo: ["accountId": accountId, "profileImageURL": avatarURL]
-                )
+            // Provide more specific error messages based on status code
+            let errorMessage: String
+            switch statusCode {
+            case 401:
+                errorMessage = "Invalid access token. Please check your credentials."
+            case 403:
+                errorMessage = "Access forbidden. Your token may not have the required permissions."
+            case 404:
+                errorMessage = "Server not found. Please check the server URL."
+            case 422:
+                errorMessage = "Invalid request format. Please check your server URL."
+            default:
+                errorMessage = "Failed to verify credentials (HTTP \(statusCode))"
             }
-        } else {
-            print(
-                "❌ Failed to create valid URL from avatar field for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
-            )
+
+            throw NSError(
+                domain: "MastodonService",
+                code: statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage])
         }
 
-        return mastodonAccount
+        return try JSONDecoder().decode(MastodonAccount.self, from: data)
     }
 
     /// Verify credentials using a SocialAccount (automatically handles token refreshing)
@@ -595,9 +633,10 @@ public class MastodonService {
         // Save the access token securely
         verifiedAccount.saveAccessToken(accessToken)
 
-        // Set a default expiration time (24 hours) if none provided
+        // Set a more realistic default expiration time (30 days) if none provided
+        // Most Mastodon instances provide tokens that last weeks or months
         if verifiedAccount.tokenExpirationDate == nil {
-            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(24 * 60 * 60))
+            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
         print("Successfully verified Mastodon account: \(mastodonAccount.username)")
@@ -666,9 +705,10 @@ public class MastodonService {
         // Save the access token securely
         verifiedAccount.saveAccessToken(accessToken)
 
-        // Set a default expiration time (24 hours) if none provided
+        // Set a more realistic default expiration time (30 days) if none provided
+        // Most Mastodon instances provide tokens that last weeks or months
         if verifiedAccount.tokenExpirationDate == nil {
-            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(24 * 60 * 60))
+            verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
         print("Successfully verified Mastodon account: \(mastodonAccount.username)")
@@ -1030,34 +1070,98 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to like the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
+        print(
+            "[Mastodon] Attempting to like post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
+        )
+        print("[Mastodon] Using statusId: \(statusId)")
+
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/favourite") else {
+            print(
+                "[Mastodon] Failed to create URL: \(serverUrl)/api/v1/statuses/\(statusId)/favourite"
+            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
         }
 
+        print("[Mastodon] Like URL: \(url.absoluteString)")
+
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                throw errorResponse
+        if let httpResponse = response as? HTTPURLResponse {
+            print("[Mastodon] Like response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("[Mastodon] Like error response: \(responseBody)")
+                }
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to like post"])
         }
 
-        let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("[Mastodon] Invalid HTTP response received")
+            throw NSError(
+                domain: "MastodonService",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            print("[Mastodon] HTTP error status: \(httpResponse.statusCode)")
+
+            // Try to decode server error response
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                print("[Mastodon] Server error: \(errorResponse.error)")
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
+            }
+
+            // If we can't decode the error, provide a generic message
+            let errorMessage = "Failed to like post (HTTP \(httpResponse.statusCode))"
+            print("[Mastodon] \(errorMessage)")
+            throw NSError(
+                domain: "MastodonService",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
+
+        // Try to decode the successful response
+        do {
+            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+            print("[Mastodon] Successfully liked post: \(status.id)")
+            return convertMastodonStatusToPost(status, account: account)
+        } catch {
+            print("[Mastodon] Failed to decode like response: \(error)")
+            if let responseBody = String(data: data, encoding: .utf8) {
+                print("[Mastodon] Response body: \(responseBody)")
+            }
+            throw NSError(
+                domain: "MastodonService",
+                code: 500,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to decode like response: \(error.localizedDescription)"
+                ])
+        }
     }
 
     /// Unlike a post
@@ -1065,34 +1169,98 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to unlike the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
+        print(
+            "[Mastodon] Attempting to unlike post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
+        )
+        print("[Mastodon] Using statusId: \(statusId)")
+
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unfavourite") else {
+            print(
+                "[Mastodon] Failed to create URL: \(serverUrl)/api/v1/statuses/\(statusId)/unfavourite"
+            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
         }
 
+        print("[Mastodon] Unlike URL: \(url.absoluteString)")
+
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                throw errorResponse
+        if let httpResponse = response as? HTTPURLResponse {
+            print("[Mastodon] Unlike response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("[Mastodon] Unlike error response: \(responseBody)")
+                }
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to unlike post"])
         }
 
-        let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("[Mastodon] Invalid HTTP response received for unlike")
+            throw NSError(
+                domain: "MastodonService",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            print("[Mastodon] HTTP error status for unlike: \(httpResponse.statusCode)")
+
+            // Try to decode server error response
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                print("[Mastodon] Server error for unlike: \(errorResponse.error)")
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
+            }
+
+            // If we can't decode the error, provide a generic message
+            let errorMessage = "Failed to unlike post (HTTP \(httpResponse.statusCode))"
+            print("[Mastodon] \(errorMessage)")
+            throw NSError(
+                domain: "MastodonService",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: errorMessage])
+        }
+
+        // Try to decode the successful response
+        do {
+            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+            print("[Mastodon] Successfully unliked post: \(status.id)")
+            return convertMastodonStatusToPost(status, account: account)
+        } catch {
+            print("[Mastodon] Failed to decode unlike response: \(error)")
+            if let responseBody = String(data: data, encoding: .utf8) {
+                print("[Mastodon] Response body: \(responseBody)")
+            }
+            throw NSError(
+                domain: "MastodonService",
+                code: 500,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to decode unlike response: \(error.localizedDescription)"
+                ])
+        }
     }
 
     /// Repost (reblog) a post on Mastodon
@@ -1100,13 +1268,30 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to repost the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
+        print(
+            "[Mastodon] Attempting to repost post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
+        )
+        print("[Mastodon] Using statusId: \(statusId)")
+
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/reblog") else {
+            print(
+                "[Mastodon] Failed to create reblog URL: \(serverUrl)/api/v1/statuses/\(statusId)/reblog"
+            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1116,6 +1301,15 @@ public class MastodonService {
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
+
+        if let httpResponse = response as? HTTPURLResponse {
+            print("[Mastodon] Repost response status: \(httpResponse.statusCode)")
+            if httpResponse.statusCode != 200 {
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    print("[Mastodon] Repost error response: \(responseBody)")
+                }
+            }
+        }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
@@ -1135,10 +1329,19 @@ public class MastodonService {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        // Extract status ID from the post's originalURL if available
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // For boost posts, we need to unrepost the original post, not the wrapper
+        let targetPost = post.originalPost ?? post
+
+        // Use platformSpecificId as the primary source for status ID
+        // Only fall back to URL extraction if platformSpecificId is not a valid number
+        var statusId = targetPost.platformSpecificId
+
+        // Validate that platformSpecificId looks like a Mastodon status ID (numeric)
+        if !statusId.allSatisfy({ $0.isNumber }) {
+            // If platformSpecificId doesn't look like a status ID, try URL extraction
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+            }
         }
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unreblog") else {
@@ -1258,7 +1461,10 @@ public class MastodonService {
                 isLiked: reblog.favourited ?? false,
                 likeCount: reblog.favouritesCount,
                 repostCount: reblog.reblogsCount,
-                platformSpecificId: reblog.id
+                replyCount: reblog.repliesCount,  // Add reply count
+                platformSpecificId: reblog.id,
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil
             )
 
             // Create the boost/reblog wrapper post
@@ -1279,8 +1485,11 @@ public class MastodonService {
                 isLiked: status.favourited ?? false,
                 likeCount: status.favouritesCount,
                 repostCount: status.reblogsCount,
+                replyCount: status.repliesCount,  // Add reply count
                 boostedBy: status.account.displayName.isEmpty
-                    ? status.account.acct : status.account.displayName
+                    ? status.account.acct : status.account.displayName,
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil
             )
 
             return boostPost
@@ -1342,7 +1551,12 @@ public class MastodonService {
                 authorProfilePictureURL: "",  // We don't have the avatar URL yet
                 createdAt: createdDate.addingTimeInterval(-60),  // Estimate 1 minute earlier
                 platform: .mastodon,
-                originalURL: ""
+                originalURL: "",
+                parent: nil,
+                inReplyToID: nil,
+                inReplyToUsername: replyToUsername,  // Set the reply username in parent post too
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil
             )
 
             // Log what we're using for the parent post
@@ -1366,9 +1580,17 @@ public class MastodonService {
             isLiked: status.favourited ?? false,
             likeCount: status.favouritesCount,
             repostCount: status.reblogsCount,
+            replyCount: status.repliesCount,  // Add reply count
             parent: parentPost,
             inReplyToID: status.inReplyToId,
-            inReplyToUsername: replyToUsername
+            inReplyToUsername: replyToUsername,
+            blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+            blueskyRepostRecordURI: nil
+        )
+
+        // DEBUG: Print interaction counts for debugging
+        print(
+            "📊 [MastodonService] Post \(status.id.prefix(10)) - likes: \(status.favouritesCount), reposts: \(status.reblogsCount), replies: \(status.repliesCount)"
         )
 
         return post
@@ -1574,12 +1796,21 @@ public class MastodonService {
 
         // Store credentials
         account.saveAccessToken(accessToken)
-        account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+        account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))  // 30 days
 
         // Try to fetch the actual profile image
         if let avatarURL = URL(string: userInfo.avatar) {
             account.profileImageURL = avatarURL
             print("Updated Mastodon profile image URL: \(avatarURL.absoluteString)")
+
+            // Post notification about the profile image update
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(
+                    name: Notification.Name("AccountProfileImageUpdated"),
+                    object: nil,
+                    userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
+                )
+            }
         }
 
         return account

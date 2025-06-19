@@ -5,6 +5,9 @@ struct BoostBanner: View {
     let handle: String
     let platform: SocialPlatform
 
+    // Animation state for subtle interactions
+    @State private var isPressed = false
+
     private var platformColor: Color {
         switch platform {
         case .mastodon:
@@ -15,17 +18,33 @@ struct BoostBanner: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 6) {
             Image(systemName: "repeat")
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(platformColor)
+                .scaleEffect(isPressed ? 0.95 : 1.0)
             Text("\(handle) boosted")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
-        .font(.caption2)
-        .foregroundColor(.secondary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Capsule().fill(platformColor.opacity(0.12)))
-        .overlay(Capsule().stroke(platformColor, lineWidth: 0.5))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+        )
+        .scaleEffect(isPressed ? 0.98 : 1.0)
+        .opacity(isPressed ? 0.8 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isPressed)
+        .contentShape(Rectangle())
+        .onLongPressGesture(
+            minimumDuration: 0, maximumDistance: .infinity,
+            pressing: { pressing in
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    isPressed = pressing
+                }
+            }, perform: {})
     }
 }

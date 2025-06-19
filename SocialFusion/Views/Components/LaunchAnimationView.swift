@@ -15,9 +15,9 @@ struct LaunchAnimationView: View {
     private var halfWidth: CGFloat { circleSize / 2 }
 
     // MARK: – Colours
-    private let purple = Color(red: 0.54, green: 0.39, blue: 1.00)   // #8A63FF
-    private let blue   = Color(red: 0.00, green: 0.59, blue: 1.00)   // #0096FF
-    private let lensCyan = Color(red: 0.11, green: 0.91, blue: 1.00) // #1EE7FF
+    private let purple = Color(red: 0.54, green: 0.39, blue: 1.00)  // #8A63FF
+    private let blue = Color(red: 0.00, green: 0.59, blue: 1.00)  // #0096FF
+    private let lensCyan = Color(red: 0.11, green: 0.91, blue: 1.00)  // #1EE7FF
     private let lensOutlineWidth: CGFloat = 2
 
     // MARK: – Timing
@@ -49,7 +49,7 @@ struct LaunchAnimationView: View {
                                 .stroke(blue, lineWidth: 1)
                                 .opacity(0.9)
                         )
-                        .offset(x: fused ?  halfWidth / 2 :  (halfWidth + startGap))
+                        .offset(x: fused ? halfWidth / 2 : (halfWidth + startGap))
 
                     // Lens: solid core, radial glow, and outline
                     ZStack {
@@ -59,7 +59,9 @@ struct LaunchAnimationView: View {
                         Circle()
                             .fill(
                                 RadialGradient(
-                                    gradient: Gradient(colors: [Color.white.opacity(0.8), lensCyan.opacity(0.0)]),
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.8), lensCyan.opacity(0.0),
+                                    ]),
                                     center: .center,
                                     startRadius: 0,
                                     endRadius: circleSize * 0.35
@@ -87,10 +89,10 @@ struct LaunchAnimationView: View {
         }
         .onAppear {
             withAnimation(anim) {
-                fused = true            // circles and text converge over 0.6 s
+                fused = true  // circles and text converge over 0.6 s
                 textSpacing = 0
             }
-            // Wait until the circles are ~50 % overlapped, then trigger the reaction
+            // Wait until the circles are ~50 % overlapped, then trigger the reaction
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 withAnimation(.easeOut(duration: 0.12)) {
                     bloomScale = 1.4
@@ -104,7 +106,8 @@ struct LaunchAnimationView: View {
                     }
                 }
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            // Allow more time for the complete animation sequence including the settle phase
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 onFinished()
             }
         }
@@ -113,12 +116,12 @@ struct LaunchAnimationView: View {
 }
 
 #if DEBUG
-struct LaunchAnimationView_Previews: PreviewProvider {
-    static var previews: some View {
-        LaunchAnimationView()
-            .environment(\.colorScheme, .light)
-        LaunchAnimationView()
-            .environment(\.colorScheme, .dark)
+    struct LaunchAnimationView_Previews: PreviewProvider {
+        static var previews: some View {
+            LaunchAnimationView()
+                .environment(\.colorScheme, .light)
+            LaunchAnimationView()
+                .environment(\.colorScheme, .dark)
+        }
     }
-}
 #endif

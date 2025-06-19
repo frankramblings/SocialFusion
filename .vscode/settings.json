@@ -4,9 +4,9 @@
             "**/*.swift"
         ]
     },
-    "triggerTaskOnSave.on": false,
+    "triggerTaskOnSave.on": true,
     "triggerTaskOnSave.showNotifications": false,
-    "triggerTaskOnSave.restart": false,
+    "triggerTaskOnSave.restart": true,
     "triggerTaskOnSave.delay": 1000,
     "triggerTaskOnSave.resultIndicatorResetTimeout": 5,
     "workbench.colorCustomizations": {},

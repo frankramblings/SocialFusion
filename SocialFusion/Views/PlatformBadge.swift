@@ -4,12 +4,12 @@ import SwiftUI
 struct PlatformBadge: View {
     let platform: SocialPlatform
 
-    private func getLogoName(for platform: SocialPlatform) -> String {
+    private func getLogoSystemName(for platform: SocialPlatform) -> String {
         switch platform {
         case .mastodon:
-            return "MastodonLogo"
+            return "message.fill"
         case .bluesky:
-            return "BlueskyLogo"
+            return "cloud.fill"
         }
     }
 
@@ -26,11 +26,8 @@ struct PlatformBadge: View {
         ZStack {
             // Remove the white circle background
             // Just show the platform logo with a slight shadow for visibility
-            Image(getLogoName(for: platform))
-                .resizable()
-                .renderingMode(.template)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 16, height: 16)
+            Image(systemName: getLogoSystemName(for: platform))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(getPlatformColor())
                 .shadow(color: Color.black.opacity(0.4), radius: 1.5, x: 0, y: 0)
         }

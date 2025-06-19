@@ -4,7 +4,7 @@ import SwiftUI
 import os.log
 
 /// Represents the states a timeline view can be in
-public enum TimelineState {
+public enum ViewModelState {
     case idle
     case loading
     case loaded([Post])
@@ -42,10 +42,15 @@ public enum TimelineState {
 }
 
 /// A ViewModel for managing timeline data and state
-public class TimelineViewModel: ObservableObject {
+public final class TimelineViewModel: ObservableObject {
     // MARK: - Published Properties
 
-    @Published public var state: TimelineState = .idle
+    @Published public private(set) var state: ViewModelState = .idle
+    @Published public private(set) var posts: [Post] = []
+    @Published public private(set) var isLoading = false
+    @Published public private(set) var error: Error?
+    @Published public private(set) var isRateLimited = false
+    @Published public private(set) var retryAfter: TimeInterval = 0
     @Published public var isRefreshing: Bool = false
     @Published public var lastRefreshDate: Date?
     @Published var postIDs: [String] = []
@@ -56,28 +61,56 @@ public class TimelineViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private let logger = Logger(subsystem: "com.socialfusion", category: "TimelineViewModel")
-    private let socialServiceManager = SocialServiceManager.shared
+    private let socialServiceManager: SocialServiceManager
+    private var cancellables = Set<AnyCancellable>()
+    private let serialQueue = DispatchQueue(label: "TimelineViewModel.serial", qos: .userInitiated)
     private var refreshTask: Task<Void, Never>?
     private var rateLimitTimer: Timer?
     private var rateLimitSecondsRemaining: TimeInterval = 0
 
-    // Cancellables for Combine subscriptions
-    private var cancellables = Set<AnyCancellable>()
+    // Global refresh lock - shared with SocialServiceManager to prevent ALL refresh spam
+    private static var globalRefreshLock = false
+    private static var globalRefreshLockTime: Date = Date.distantPast
 
     // MARK: - Initialization
 
     public init(accounts: [SocialAccount]) {
         self.accounts = accounts
-        setupObservers()
+        self.socialServiceManager = SocialServiceManager.shared
+        // PHASE 3+: Removed setupObservers() to prevent AttributeGraph cycles
+        // State updates will be handled through normal data flow instead
     }
 
     // MARK: - Public Methods
 
     /// Refresh the timeline for a specific account
     public func refreshTimeline(for account: SocialAccount) {
+        let now = Date()
+
+        // GLOBAL LOCK: Block refresh attempts if one is already in progress
+        if Self.globalRefreshLock {
+            // Check if lock is stale (older than 10 seconds)
+            if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
+                Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Stale refresh lock reset")
+            } else {
+                // Lock is active - BLOCK this attempt completely
+                return
+            }
+        }
+
+        // Set global lock immediately to block other attempts
+        Self.globalRefreshLock = true
+        Self.globalRefreshLockTime = now
+
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self = self else {
+                Self.globalRefreshLock = false
+                return
+            }
+
+            defer { Self.globalRefreshLock = false }
 
             await MainActor.run {
                 self.isRefreshing = true
@@ -111,40 +144,108 @@ public class TimelineViewModel: ObservableObject {
 
     /// Refresh the unified timeline for multiple accounts
     public func refreshUnifiedTimeline() {
-        // Prevent multiple simultaneous refreshes
-        guard refreshTask == nil || refreshTask?.isCancelled == true else {
-            logger.info("Timeline refresh already in progress, skipping")
-            return
+        let now = Date()
+
+        print("🔄 TimelineViewModel: refreshUnifiedTimeline called")
+        print("🔄 TimelineViewModel: accounts count: \(self.accounts.count)")
+        print("🔄 TimelineViewModel: globalRefreshLock: \(Self.globalRefreshLock)")
+
+        // GLOBAL LOCK: Block refresh attempts if one is already in progress
+        if Self.globalRefreshLock {
+            let lockAge = now.timeIntervalSince(Self.globalRefreshLockTime)
+            print("🔄 TimelineViewModel: Global lock active, age: \(lockAge) seconds")
+
+            // Check if lock is stale (older than 10 seconds)
+            if lockAge > 10.0 {
+                Self.globalRefreshLock = false
+                print(
+                    "🔓 TimelineViewModel: Stale unified refresh lock reset after \(lockAge) seconds"
+                )
+            } else {
+                // Lock is active - BLOCK this attempt completely
+                print(
+                    "🚫 TimelineViewModel: Refresh blocked by active global lock (age: \(lockAge)s)")
+                return
+            }
         }
 
+        // Set global lock immediately to block other attempts
+        Self.globalRefreshLock = true
+        Self.globalRefreshLockTime = now
+        print("🔒 TimelineViewModel: Global refresh lock acquired")
+
+        // Cancel any existing refresh task
         refreshTask?.cancel()
+
+        // Start the new refresh task
         refreshTask = Task { [weak self] in
-            guard let self = self else { return }
+            guard let self = self else {
+                Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Global lock released (self deallocated)")
+                return
+            }
+
+            defer {
+                Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Global refresh lock released")
+            }
+
+            print("🔄 TimelineViewModel: Starting timeline refresh task")
+
+            // Show loading state
             await MainActor.run {
-                self.isRefreshing = true
+                self.isLoading = true
                 if case .idle = self.state {
                     self.state = .loading
                 }
+                print("🔄 TimelineViewModel: Loading state set")
             }
+
             do {
-                let posts = try await self.socialServiceManager.refreshTimeline(
-                    accounts: self.accounts)
+                print(
+                    "🔄 TimelineViewModel: Calling socialServiceManager.refreshTimeline with \(self.accounts.count) accounts"
+                )
+
+                // Fetch unified timeline from service manager using self.accounts
+                let posts = try await socialServiceManager.refreshTimeline(accounts: self.accounts)
+
+                print("🔄 TimelineViewModel: Received \(posts.count) posts from service manager")
+
+                // Update UI on main thread
                 await MainActor.run {
-                    self.lastRefreshDate = Date()
-                    self.isRefreshing = false
+                    print(
+                        "🔄 TimelineViewModel: About to update posts array with \(posts.count) posts"
+                    )
+                    print(
+                        "🔄 TimelineViewModel: Current posts count before update: \(self.posts.count)"
+                    )
+
+                    self.posts = posts
+                    self.isLoading = false
+
+                    print(
+                        "🔄 TimelineViewModel: Posts array updated - new count: \(self.posts.count)")
+
                     if posts.isEmpty {
                         self.state = .empty
+                        print("🔄 TimelineViewModel: State set to empty (no posts)")
                     } else {
                         self.state = .loaded(posts)
-                        // Queue background hydration without immediate state updates
-                        self.hydratePostRelationshipsInBackground(posts: posts)
+                        print("🔄 TimelineViewModel: State set to loaded with \(posts.count) posts")
+
+                        // Log first few posts for debugging
+                        for (index, post) in posts.prefix(3).enumerated() {
+                            print("🔄   Post \(index): \(post.id) - \(post.content.prefix(50))...")
+                        }
                     }
+
                     self.logger.info(
                         "Unified timeline refreshed for \(self.accounts.count) accounts")
                 }
             } catch {
+                print("❌ TimelineViewModel: Error refreshing timeline: \(error)")
                 await MainActor.run {
-                    self.isRefreshing = false
+                    self.isLoading = false
                     self.state = .error(error)
                 }
             }
@@ -201,19 +302,6 @@ public class TimelineViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
-    private func setupObservers() {
-        // Listen for account changes or other relevant notifications
-        NotificationCenter.default.publisher(for: .accountProfileImageUpdated)
-            .receive(on: RunLoop.main)  // Ensure on main thread
-            .sink { [weak self] _ in
-                // Refresh posts if needed when account profile images update
-                if case .loaded(let posts) = self?.state, !posts.isEmpty {
-                    self?.objectWillChange.send()
-                }
-            }
-            .store(in: &cancellables)
-    }
-
     private func handleError(_ error: Error) {
         logger.error("Timeline error: \(error.localizedDescription, privacy: .public)")
 
@@ -261,7 +349,7 @@ public class TimelineViewModel: ObservableObject {
                 self.rateLimitTimer = nil
 
                 // Reset state to idle so user can try again
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self.state = .idle
                 }
             }
@@ -364,16 +452,20 @@ public class TimelineViewModel: ObservableObject {
 
         // Apply all updates in a single state change
         await MainActor.run {
-            if case .loaded(var currentPosts) = self.state, !hydratedPosts.isEmpty {
-                for i in 0..<currentPosts.count {
-                    if let parent = hydratedPosts[currentPosts[i].id] {
-                        currentPosts[i].parent = parent
-                        if currentPosts[i].inReplyToUsername?.isEmpty != false {
-                            currentPosts[i].inReplyToUsername = parent.authorUsername
+            if case .loaded(let currentPosts) = self.state, !hydratedPosts.isEmpty {
+                // Use immutable update pattern to prevent AttributeGraph cycles
+                let updatedPosts = currentPosts.map { existingPost in
+                    if let parent = hydratedPosts[existingPost.id] {
+                        var newPost = existingPost
+                        newPost.parent = parent
+                        if newPost.inReplyToUsername?.isEmpty != false {
+                            newPost.inReplyToUsername = parent.authorUsername
                         }
+                        return newPost
                     }
+                    return existingPost
                 }
-                self.state = .loaded(currentPosts)
+                self.state = .loaded(updatedPosts)
                 self.logger.info("Batch updated \(hydratedPosts.count) parent posts")
             }
         }
@@ -425,13 +517,17 @@ public class TimelineViewModel: ObservableObject {
 
         // Apply all updates in a single state change
         await MainActor.run {
-            if case .loaded(var currentPosts) = self.state, !hydratedPosts.isEmpty {
-                for i in 0..<currentPosts.count {
-                    if let original = hydratedPosts[currentPosts[i].id] {
-                        currentPosts[i].originalPost = original
+            if case .loaded(let currentPosts) = self.state, !hydratedPosts.isEmpty {
+                // Use immutable update pattern to prevent AttributeGraph cycles
+                let updatedPosts = currentPosts.map { existingPost in
+                    if let original = hydratedPosts[existingPost.id] {
+                        var newPost = existingPost
+                        newPost.originalPost = original
+                        return newPost
                     }
+                    return existingPost
                 }
-                self.state = .loaded(currentPosts)
+                self.state = .loaded(updatedPosts)
                 self.logger.info("Batch updated \(hydratedPosts.count) original posts")
             }
         }

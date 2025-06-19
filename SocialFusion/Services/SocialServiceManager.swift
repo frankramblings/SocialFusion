@@ -29,6 +29,8 @@ public enum ServiceError: Error, LocalizedError {
     case emptyResponse
     case dataFormatError(String)
     case unknown(String)
+    case timeout(String)
+    case authenticationExpired(String)
 
     public var errorDescription: String? {
         switch self {
@@ -64,6 +66,10 @@ public enum ServiceError: Error, LocalizedError {
             return "Data format error: \(reason)"
         case .unknown(let reason):
             return "Unknown error: \(reason)"
+        case .timeout(let reason):
+            return "Request timed out: \(reason)"
+        case .authenticationExpired(let reason):
+            return "Authentication expired: \(reason)"
         }
     }
 }
@@ -84,9 +90,9 @@ struct RateLimitInfo {
     }
 }
 
-/// Manages the social services and accounts
+/// Manages social media accounts and services
 @MainActor
-final class SocialServiceManager: ObservableObject {
+public final class SocialServiceManager: ObservableObject {
     static let shared = SocialServiceManager()
 
     @Published var accounts: [SocialAccount] = []
@@ -94,7 +100,11 @@ final class SocialServiceManager: ObservableObject {
     @Published var error: Error?
 
     // Selected account IDs (Set to store unique IDs)
-    @Published var selectedAccountIds: Set<String> = []
+    @Published var selectedAccountIds: Set<String> = [] {
+        didSet {
+            print("🔧 SocialServiceManager: selectedAccountIds changed to: \(selectedAccountIds)")
+        }
+    }
 
     // Filtered account lists
     @Published var mastodonAccounts: [SocialAccount] = []
@@ -104,6 +114,20 @@ final class SocialServiceManager: ObservableObject {
     @Published var unifiedTimeline: [Post] = []
     @Published var isLoadingTimeline: Bool = false
     @Published var timelineError: Error?
+    private var lastTimelineUpdate: Date = Date.distantPast
+
+    // Strong refresh control with circuit breaker pattern
+    private var isRefreshInProgress: Bool = false
+    private var lastRefreshAttempt: Date = Date.distantPast
+    private var consecutiveFailures: Int = 0
+    private let maxConsecutiveFailures: Int = 3
+    private var isCircuitBreakerOpen: Bool = false
+    private var circuitBreakerOpenTime: Date?
+    private let circuitBreakerResetInterval: TimeInterval = 300  // 5 minutes
+
+    // Global refresh lock to prevent multiple simultaneous refreshes from ANY source
+    private static var globalRefreshLock = false
+    private static var globalRefreshLockTime: Date = Date.distantPast
 
     // Pagination state
     @Published var isLoadingNextPage: Bool = false
@@ -121,25 +145,67 @@ final class SocialServiceManager: ObservableObject {
     // Track in-progress parent fetches to avoid redundant network calls
     private var parentFetchInProgress: Set<String> = []
 
+    // Automatic token refresh service
+    public var automaticTokenRefreshService: AutomaticTokenRefreshService?
+
     // MARK: - Initialization
 
     // Make initializer public so it can be used in SocialFusionApp
     public init() {
+        print("🔧 SocialServiceManager: Starting initialization...")
+
         // Load saved accounts first
         loadAccounts()
+
+        // Initialize automatic token refresh service after main initialization
+        self.automaticTokenRefreshService = AutomaticTokenRefreshService(socialServiceManager: self)
+
+        print("🔧 SocialServiceManager: After loadAccounts() - accounts.count = \(accounts.count)")
+        print("🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count)")
+        print("🔧 SocialServiceManager: Bluesky accounts: \(blueskyAccounts.count)")
 
         // Initialize selectedAccountIds based on whether accounts exist
         if !accounts.isEmpty {
             selectedAccountIds = ["all"]  // Default to "all" if accounts exist
+            print(
+                "🔧 SocialServiceManager: Initialized selectedAccountIds to 'all' with \(accounts.count) accounts"
+            )
+            print(
+                "🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count), Bluesky accounts: \(blueskyAccounts.count)"
+            )
+
+            // List all accounts for debugging
+            for (index, account) in accounts.enumerated() {
+                print(
+                    "🔧 SocialServiceManager: Account \(index): \(account.username) (\(account.platform)) - ID: \(account.id)"
+                )
+            }
         } else {
-            selectedAccountIds = []  // Empty if no accounts exist
+            selectedAccountIds = []  // No accounts available
+            print("🔧 SocialServiceManager: No accounts found - selectedAccountIds set to empty")
         }
+
+        print("🔧 SocialServiceManager: Initialization completed")
+        print("🔧 SocialServiceManager: Final selectedAccountIds = \(selectedAccountIds)")
+        print("🔧 SocialServiceManager: Final accounts count = \(accounts.count)")
+        print("🔧 SocialServiceManager: Final unifiedTimeline count = \(unifiedTimeline.count)")
+
+        // Note: Timeline refresh will be handled by UI lifecycle events
+        // This ensures reliable refresh when the user actually opens the app
 
         // Register for app termination notification to save accounts
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(saveAccountsBeforeTermination),
             name: UIApplication.willTerminateNotification,
+            object: nil
+        )
+
+        // Register for profile image update notifications to save accounts
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleProfileImageUpdate),
+            name: Notification.Name("AccountProfileImageUpdated"),
             object: nil
         )
     }
@@ -152,18 +218,28 @@ final class SocialServiceManager: ObservableObject {
         saveAccounts()
     }
 
+    @objc private func handleProfileImageUpdate(_ notification: Notification) {
+        // Save accounts when profile images are updated to persist the new URLs
+        saveAccounts()
+        print("💾 [SocialServiceManager] Saved accounts after profile image update")
+    }
+
     // MARK: - Account Management
 
     /// Load saved accounts from UserDefaults
     private func loadAccounts() {
         let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
         logger.info("Loading saved accounts")
+        print("🔧 SocialServiceManager: loadAccounts() called")
 
         guard let data = UserDefaults.standard.data(forKey: "savedAccounts") else {
             logger.info("No saved accounts found")
+            print("🔧 SocialServiceManager: No saved accounts data found in UserDefaults")
             updateAccountLists()
             return
         }
+
+        print("🔧 SocialServiceManager: Found saved accounts data, attempting to decode...")
 
         do {
             let decoder = JSONDecoder()
@@ -171,19 +247,33 @@ final class SocialServiceManager: ObservableObject {
             accounts = decodedAccounts
 
             logger.info("Successfully loaded \(decodedAccounts.count) accounts")
+            print("🔧 SocialServiceManager: Successfully decoded \(decodedAccounts.count) accounts")
 
             // Load tokens for each account from keychain
-            for account in accounts {
+            for (index, account) in accounts.enumerated() {
+                print(
+                    "🔧 SocialServiceManager: Loading tokens for account \(index): \(account.username) (\(account.platform))"
+                )
                 account.loadTokensFromKeychain()
                 logger.debug("Loaded tokens for account: \(account.username, privacy: .public)")
             }
         } catch {
             logger.error(
                 "Failed to decode saved accounts: \(error.localizedDescription, privacy: .public)")
+            print(
+                "🔧 SocialServiceManager: Failed to decode saved accounts: \(error.localizedDescription)"
+            )
         }
 
         // After loading accounts, separate them by platform
         updateAccountLists()
+        print(
+            "🔧 SocialServiceManager: Updated account lists - Mastodon: \(mastodonAccounts.count), Bluesky: \(blueskyAccounts.count)"
+        )
+
+        // MIGRATION: Check for and migrate old DID-based Bluesky accounts
+        migrateOldBlueskyAccounts()
+        print("🔧 SocialServiceManager: loadAccounts() completed")
     }
 
     /// Save accounts to UserDefaults
@@ -209,8 +299,52 @@ final class SocialServiceManager: ObservableObject {
         blueskyAccounts = accounts.filter { $0.platform == .bluesky }
     }
 
+    /// Get accounts to fetch based on current selection
+    private func getAccountsToFetch() -> [SocialAccount] {
+        print("🔧 SocialServiceManager: getAccountsToFetch() called")
+        print("🔧 SocialServiceManager: selectedAccountIds = \(selectedAccountIds)")
+        print("🔧 SocialServiceManager: total accounts = \(accounts.count)")
+
+        let accountsToFetch: [SocialAccount]
+        if selectedAccountIds.contains("all") {
+            accountsToFetch = accounts
+            print("🔧 SocialServiceManager: Using ALL accounts (\(accounts.count))")
+        } else {
+            accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
+            print("🔧 SocialServiceManager: Using filtered accounts (\(accountsToFetch.count))")
+        }
+
+        for (index, account) in accountsToFetch.enumerated() {
+            print(
+                "🔧 SocialServiceManager: Account \(index): \(account.username) (\(account.platform)) - ID: \(account.id)"
+            )
+        }
+
+        return accountsToFetch
+    }
+
+    /// Force reload accounts for debugging
+    @MainActor
+    func forceReloadAccounts() async {
+        print("🔄 SocialServiceManager: Force reloading accounts...")
+        loadAccounts()
+        print("🔄 SocialServiceManager: Force reload completed")
+        print("🔄 Total accounts: \(accounts.count)")
+        print("🔄 Mastodon accounts: \(mastodonAccounts.count)")
+        print("🔄 Bluesky accounts: \(blueskyAccounts.count)")
+        print("🔄 Selected account IDs: \(selectedAccountIds)")
+
+        // Also trigger a timeline refresh
+        do {
+            try await refreshTimeline(force: true)
+        } catch {
+            print("🔄 Error refreshing timeline after force reload: \(error)")
+        }
+    }
+
     /// Add a new account
     func addAccount(_ account: SocialAccount) {
+
         accounts.append(account)
         // Save to UserDefaults
         saveAccounts()
@@ -221,6 +355,25 @@ final class SocialServiceManager: ObservableObject {
         // If this is the first account, set selectedAccountIds to "all"
         if accounts.count == 1 {
             selectedAccountIds = ["all"]
+            print(
+                "📊 [SocialServiceManager] First account added, setting selectedAccountIds to 'all'")
+        } else {
+            // If "all" is already selected, keep it
+            if selectedAccountIds.contains("all") {
+                // Keep "all" selected
+            } else {
+                // Add the new account to selectedAccountIds or switch to "all"
+                selectedAccountIds.insert(account.id)
+            }
+        }
+
+        // Automatically refresh timeline after adding account
+        Task {
+            do {
+                try await refreshTimeline(force: true)
+            } catch {
+                // Error is already logged by the timeline refresh method
+            }
         }
     }
 
@@ -246,18 +399,8 @@ final class SocialServiceManager: ObservableObject {
     func addMastodonAccountWithToken(serverURL: String, accessToken: String) async throws
         -> SocialAccount
     {
-        // Format the server URL properly
-        let serverUrlString = serverURL.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let formattedURL =
-            serverUrlString.hasPrefix("http") ? serverUrlString : "https://\(serverUrlString)"
-
-        guard let url = URL(string: formattedURL) else {
-            throw ServiceError.invalidInput(reason: "Invalid server URL")
-        }
-
-        // Use the MastodonService to authenticate with the token
         let account = try await mastodonService.authenticateWithToken(
-            server: url,
+            server: URL(string: serverURL)!,
             accessToken: accessToken
         )
 
@@ -267,6 +410,50 @@ final class SocialServiceManager: ObservableObject {
         }
 
         return account
+    }
+
+    /// Add a Mastodon account using OAuth credentials (proper flow with refresh token)
+    func addMastodonAccountWithOAuth(credentials: OAuthCredentials) async throws -> SocialAccount {
+        // Create account from OAuth credentials
+        let account = SocialAccount(
+            id: credentials.accountId,
+            username: credentials.username,
+            displayName: credentials.displayName,
+            serverURL: credentials.serverURL,
+            platform: .mastodon,
+            accessToken: credentials.accessToken,
+            platformSpecificId: credentials.accountId
+        )
+
+        // Store all the necessary tokens and credentials
+        account.saveAccessToken(credentials.accessToken)
+        if let refreshToken = credentials.refreshToken {
+            account.saveRefreshToken(refreshToken)
+        }
+        account.saveClientCredentials(
+            clientId: credentials.clientId, clientSecret: credentials.clientSecret)
+
+        // Set token expiration
+        if let expiresAt = credentials.expiresAt {
+            account.saveTokenExpirationDate(expiresAt)
+        } else {
+            // Default to 30 days if no expiration provided (more realistic than 24 hours)
+            account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
+        }
+
+        // Add the account to our collection
+        await MainActor.run {
+            addAccount(account)
+        }
+
+        return account
+    }
+
+    /// Helper to extract server URL from account ID (for Mastodon)
+    private func extractServerURL(from accountId: String) -> String {
+        // For now, we'll need to store this separately or derive it
+        // This is a limitation - we should pass server URL in credentials
+        return "https://mastodon.social"  // Placeholder - should be improved
     }
 
     /// Add a Bluesky account
@@ -296,224 +483,259 @@ final class SocialServiceManager: ObservableObject {
     // MARK: - Timeline
 
     /// Fetch posts for a specific account
-    private func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
-        // Based on the platform, use the appropriate service
-        switch account.platform {
-        case .mastodon:
-            let result = try await mastodonService.fetchHomeTimeline(for: account)
-            // Store pagination token for this account
-            if let token = result.pagination.nextPageToken {
-                paginationTokens[account.id] = token
+    func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
+        print(
+            "🔄 SocialServiceManager: fetchPostsForAccount called for \(account.username) (\(account.platform))"
+        )
+
+        do {
+            let posts: [Post]
+            switch account.platform {
+            case .mastodon:
+                print("🔄 SocialServiceManager: Fetching Mastodon timeline for \(account.username)")
+                let result = try await mastodonService.fetchHomeTimeline(for: account)
+                posts = result.posts
+                print("🔄 SocialServiceManager: Mastodon fetch completed - \(posts.count) posts")
+            case .bluesky:
+                print("🔄 SocialServiceManager: Fetching Bluesky timeline for \(account.username)")
+                let result = try await blueskyService.fetchTimeline(for: account)
+                posts = result.posts
+                print("🔄 SocialServiceManager: Bluesky fetch completed - \(posts.count) posts")
             }
-            return result.posts
-        case .bluesky:
-            let result = try await blueskyService.fetchTimeline(for: account)
-            // Store pagination token for this account
-            if let token = result.pagination.nextPageToken {
-                paginationTokens[account.id] = token
-            }
-            return result.posts
+            return posts
+        } catch {
+            print(
+                "❌ SocialServiceManager: fetchPostsForAccount failed for \(account.username): \(error.localizedDescription)"
+            )
+            throw error
         }
     }
 
     /// Refresh timeline, with option to force refresh
     func refreshTimeline(force: Bool = false) async throws {
-        resetPagination()
-        try await fetchTimeline()
+        print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
+
+        let now = Date()
+
+        // Allow initial load to bypass restrictions if timeline is completely empty
+        let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
+        let shouldBypassRestrictions = force || isInitialLoad
+
+        print(
+            "🔄 SocialServiceManager: isInitialLoad = \(isInitialLoad), shouldBypassRestrictions = \(shouldBypassRestrictions)"
+        )
+        print(
+            "🔄 SocialServiceManager: unifiedTimeline.count = \(unifiedTimeline.count), isLoadingTimeline = \(isLoadingTimeline)"
+        )
+
+        // AGGRESSIVE GLOBAL LOCK: Block all refresh attempts from ANY source if one is in progress
+        // BUT allow initial loads to proceed
+        if Self.globalRefreshLock && !shouldBypassRestrictions {
+            // Check if lock is stale (older than 10 seconds)
+            if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
+                Self.globalRefreshLock = false
+                print("🔓 SocialServiceManager: Stale refresh lock reset")
+            } else {
+                // Lock is active - BLOCK this attempt completely (unless it's initial load)
+                print("🔒 SocialServiceManager: Refresh blocked by global lock (not initial load)")
+                return
+            }
+        }
+
+        // Set global lock immediately to block other attempts
+        Self.globalRefreshLock = true
+        Self.globalRefreshLockTime = now
+
+        defer {
+            Self.globalRefreshLock = false
+        }
+
+        // Circuit breaker: if too many failures, temporarily stop all requests
+        // BUT allow initial loads to proceed
+        if isCircuitBreakerOpen && !shouldBypassRestrictions {
+            if let openTime = circuitBreakerOpenTime,
+                now.timeIntervalSince(openTime) > circuitBreakerResetInterval
+            {
+                // Reset circuit breaker
+                isCircuitBreakerOpen = false
+                circuitBreakerOpenTime = nil
+                consecutiveFailures = 0
+                print("🔄 SocialServiceManager: Circuit breaker reset - resuming requests")
+            } else {
+                // Circuit breaker is still open - block all requests (unless initial load)
+                print(
+                    "🚫 SocialServiceManager: Refresh blocked by circuit breaker (not initial load)")
+                return
+            }
+        }
+
+        // Rate limiting - minimum time between attempts
+        // BUT allow initial loads to proceed with reduced restrictions
+        let minimumInterval = shouldBypassRestrictions ? 1.0 : 3.0
+        guard
+            shouldBypassRestrictions || now.timeIntervalSince(lastRefreshAttempt) > minimumInterval
+        else {
+            print("🕐 SocialServiceManager: Refresh blocked by rate limiting")
+            return
+        }
+
+        // Additional check: if we're already loading or refreshing, abort (unless forced or initial)
+        guard shouldBypassRestrictions || (!isLoadingTimeline && !isRefreshInProgress) else {
+            print("🔄 SocialServiceManager: Refresh blocked - already in progress")
+            return
+        }
+
+        if isInitialLoad {
+            print("🚀 SocialServiceManager: Initial load detected - bypassing restrictions")
+        }
+
+        isRefreshInProgress = true
+        lastRefreshAttempt = now
+
+        defer { isRefreshInProgress = false }
+
+        do {
+            try await fetchTimeline()
+            // Reset failure count on success
+            consecutiveFailures = 0
+            print("✅ SocialServiceManager: Timeline refresh completed successfully")
+        } catch {
+            consecutiveFailures += 1
+            print("❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)")
+
+            if consecutiveFailures >= maxConsecutiveFailures {
+                isCircuitBreakerOpen = true
+                circuitBreakerOpenTime = now
+                print(
+                    "🚫 SocialServiceManager: Circuit breaker opened after \(consecutiveFailures) failures"
+                )
+            }
+
+            throw error
+        }
     }
 
     /// Refresh timeline for specific accounts
     func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
-        print("📊 SocialServiceManager: Starting refreshTimeline for \(accounts.count) accounts")
-        resetPagination()
-        var allPosts: [Post] = []
-        var postIds = Set<String>()  // For deduplication by stableId
+        print(
+            "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts"
+        )
 
-        // Fetch posts from each account and combine
+        // Drastically reduce logging spam
+        if accounts.isEmpty {
+            print("🔄 SocialServiceManager: No accounts provided, returning empty array")
+            return []
+        }
+
+        print("🔄 SocialServiceManager: Accounts to fetch from:")
         for account in accounts {
-            do {
-                print(
-                    "📊 SocialServiceManager: Fetching posts for \(account.username) (\(account.platform))"
-                )
-                let posts = try await fetchPostsForAccount(account)
-                print(
-                    "📊 SocialServiceManager: Retrieved \(posts.count) posts from \(account.username)"
-                )
-
-                // Deduplicate posts by stableId before adding
-                let newPosts = posts.filter { post in
-                    let shouldInclude = !postIds.contains(post.stableId)
-                    if shouldInclude {
-                        postIds.insert(post.stableId)
-                    }
-                    return shouldInclude
-                }
-                print(
-                    "📊 SocialServiceManager: After deduplication: \(newPosts.count) unique posts from \(account.username)"
-                )
-                allPosts.append(contentsOf: newPosts)
-            } catch {
-                print(
-                    "❌ SocialServiceManager: Error fetching posts for \(account.username): \(error)"
-                )
-                // Continue with other accounts even if one fails
-            }
+            print("🔄   - \(account.username) (\(account.platform)) - ID: \(account.id)")
         }
 
-        print("📊 SocialServiceManager: Total collected posts before processing: \(allPosts.count)")
+        var allPosts: [Post] = []
 
-        // Patch: Ensure all posts have unique IDs, especially for boosts/reposts
-        let uniquePosts = allPosts.map { post -> Post in
-            if let original = post.originalPost {
-                // Synthesize a unique id for the boost/repost wrapper
-                let boostId = "boost-\(post.authorUsername)-\(original.id)"
-                // Only patch if the id is not already unique
-                if post.id == original.id {
-                    // Create a copy with the new id
-                    let patched = post.copy(with: boostId)
-                    patched.originalPost = original  // preserve reference
-                    return patched
-                }
-            }
-            return post
-        }
-        let sortedPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
-
-        // Hydrate parent posts for replies
-        for post in sortedPosts {
-            if let parent = post.parent, parent.content == "..." {
-                // Schedule hydration for Mastodon or Bluesky
-                Task {
-                    print(
-                        "[Hydration] Triggering parent fetch for post id=\(post.id), parent id=\(parent.id), platform=\(post.platform)"
-                    )
-                    if post.platform == .mastodon, let parentId = post.inReplyToID,
-                        let account = mastodonAccounts.first
-                    {
-                        if let cached = mastodonPostCache[parentId]?.post {
+        // Use TaskGroup for concurrent fetching but limit concurrency
+        await withTaskGroup(of: [Post].self) { group in
+            for account in accounts {
+                group.addTask {
+                    do {
+                        print("🔄 SocialServiceManager: Starting fetch for \(account.username)")
+                        let posts = try await self.fetchPostsForAccount(account)
+                        print(
+                            "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
+                        )
+                        return posts
+                    } catch {
+                        // Only log serious errors, not cancellations
+                        if !(error is CancellationError) {
                             print(
-                                "[Hydration] Using cached Mastodon parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
+                                "❌ Error fetching \(account.username): \(error.localizedDescription)"
                             )
-                            post.parent = cached
-                            post.inReplyToUsername = cached.authorUsername
-                        } else {
-                            do {
-                                let realParentOpt = try await self.fetchMastodonStatus(
-                                    id: parentId, account: account)
-                                if let realParent = realParentOpt {
-                                    print(
-                                        "[Hydration] Fetched Mastodon parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
-                                    )
-                                    mastodonPostCache[parentId] = (realParent, Date())
-                                    post.parent = realParent
-                                    post.inReplyToUsername = realParent.authorUsername
-                                } else {
-                                    print(
-                                        "[Hydration] Fetched Mastodon parent for id=\(parentId): result was nil"
-                                    )
-                                }
-                            } catch {
-                                print(
-                                    "[Hydration] Failed to fetch Mastodon parent for id=\(parentId): \(error)"
-                                )
-                            }
                         }
-                    } else if post.platform == .bluesky, let parentId = post.inReplyToID {
-                        if let cached = blueskyPostCache[parentId] {
-                            print(
-                                "[Hydration] Using cached Bluesky parent for id=\(parentId): username=\(cached.authorUsername), content=\(cached.content.prefix(20))..."
-                            )
-                            post.parent = cached
-                            post.inReplyToUsername = cached.authorUsername
-                        } else {
-                            do {
-                                let realParentOpt = try await self.fetchBlueskyPostByID(parentId)
-                                if let realParent = realParentOpt {
-                                    print(
-                                        "[Hydration] Fetched Bluesky parent for id=\(parentId): username=\(realParent.authorUsername), content=\(realParent.content.prefix(20))..."
-                                    )
-                                    blueskyPostCache[parentId] = realParent
-                                    post.parent = realParent
-                                    post.inReplyToUsername = realParent.authorUsername
-                                } else {
-                                    print(
-                                        "[Hydration] Fetched Bluesky parent for id=\(parentId): result was nil"
-                                    )
-                                }
-                            } catch {
-                                print(
-                                    "[Hydration] Failed to fetch Bluesky parent for id=\(parentId): \(error)"
-                                )
-                            }
-                        }
+                        return []
                     }
                 }
             }
-        }
 
-        // Update unified timeline on main thread
-        DispatchQueue.main.async {
-            self.unifiedTimeline = sortedPosts
-            self.isLoadingTimeline = false
-            // Wire up timeline debug singleton for Bluesky
-            if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
-                debug.setBlueskyPosts(sortedPosts.filter { $0.platform == .bluesky })
+            for await posts in group {
+                allPosts.append(contentsOf: posts)
             }
         }
 
-        return sortedPosts
+        print("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
+        return allPosts
     }
 
     /// Fetch the unified timeline for all accounts
     private func fetchTimeline() async throws {
-        // Check if we're already loading
-        guard !isLoadingTimeline else {
-            return
+        print("🔄 SocialServiceManager: fetchTimeline() called")
+
+        // Check if we're already loading or if too many rapid requests
+        let now = Date()
+        let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
+
+        // Allow initial loads to proceed even if refresh is in progress
+        guard !isLoadingTimeline && (!isRefreshInProgress || isInitialLoad) else {
+            print(
+                "🔄 SocialServiceManager: Already loading or refreshing - aborting (isInitialLoad: \(isInitialLoad))"
+            )
+            return  // Silent return - avoid spam
         }
-        // Update loading state on main thread
+
+        // Prevent rapid successive refreshes (minimum 2 seconds between attempts)
+        // But allow initial loads to bypass this restriction
+        guard now.timeIntervalSince(lastRefreshAttempt) > 2.0 || isInitialLoad else {
+            print(
+                "🔄 SocialServiceManager: Too soon since last attempt - aborting (isInitialLoad: \(isInitialLoad))"
+            )
+            return  // Silent return - avoid spam
+        }
+
+        lastRefreshAttempt = now
+        isRefreshInProgress = true
+        defer { isRefreshInProgress = false }
+
+        // Only log important info, not spam
+        let accountsToFetch = getAccountsToFetch()
+        print(
+            "🔄 SocialServiceManager: Fetching timeline for \(accountsToFetch.count) accounts (isInitialLoad: \(isInitialLoad))"
+        )
+
+        for (index, account) in accountsToFetch.enumerated() {
+            print(
+                "🔄 SocialServiceManager: Account \(index): \(account.username) (\(account.platform))"
+            )
+        }
+
+        // Reset loading state
         await MainActor.run {
             isLoadingTimeline = true
             timelineError = nil
         }
 
-        do {
-            // Determine which accounts to fetch based on selection
-            var accountsToFetch: [SocialAccount] = []
-
-            print("🔧 SocialServiceManager: Total accounts available: \(accounts.count)")
-            print("🔧 SocialServiceManager: Selected account IDs: \(selectedAccountIds)")
-
-            if selectedAccountIds.contains("all") {
-                // Fetch from all accounts
-                accountsToFetch = accounts
-                print("🔧 SocialServiceManager: Fetching from all \(accounts.count) accounts")
-            } else {
-                // Fetch only from selected accounts
-                accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
-                print(
-                    "🔧 SocialServiceManager: Fetching from \(accountsToFetch.count) selected accounts"
-                )
-            }
-
-            guard !accountsToFetch.isEmpty else {
-                print("🔧 SocialServiceManager: No accounts to fetch from!")
-                await MainActor.run {
-                    isLoadingTimeline = false
-                }
-                return
-            }
-
-            // Use our other method to fetch and process the posts
-            let _ = try await refreshTimeline(accounts: accountsToFetch)
-
-            await MainActor.run {
+        defer {
+            Task { @MainActor in
                 isLoadingTimeline = false
+            }
+        }
+
+        do {
+            let collectedPosts = try await refreshTimeline(accounts: accountsToFetch)
+            print("🔄 SocialServiceManager: Collected \(collectedPosts.count) posts from accounts")
+
+            // Process and update timeline
+            let sortedPosts = collectedPosts.sorted { $0.createdAt > $1.createdAt }
+            print("🔄 SocialServiceManager: Sorted posts, updating timeline...")
+
+            // Update UI on main thread with proper delay to prevent rapid updates
+            Task { @MainActor in
+                // Add additional delay to prevent rapid updates
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
+                await self.safelyUpdateTimeline(sortedPosts)
+                print("🔄 SocialServiceManager: Timeline updated with \(sortedPosts.count) posts")
             }
         } catch {
-            await MainActor.run {
-                timelineError = error
-                isLoadingTimeline = false
-            }
+            print("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
             throw error
         }
     }
@@ -534,8 +756,8 @@ final class SocialServiceManager: ObservableObject {
             let posts = try await mastodonService.fetchTrendingPosts()
             self.unifiedTimeline = posts
         } catch {
-            // If that fails, use sample posts
-            self.unifiedTimeline = Post.samplePosts
+            // If API call fails, show empty timeline and let the error handling in the UI deal with it
+            self.unifiedTimeline = []
             self.error = error
         }
     }
@@ -726,10 +948,8 @@ final class SocialServiceManager: ObservableObject {
                 }
             }
 
-            // Use sample posts if no real posts available
-            if posts.isEmpty {
-                posts = Post.samplePosts
-            }
+            // Don't fall back to sample posts - if API calls fail, show empty timeline
+            // posts.isEmpty is okay - we'll show the proper empty state in the UI
 
             await MainActor.run {
                 isLoading = false
@@ -791,7 +1011,25 @@ final class SocialServiceManager: ObservableObject {
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.replyToPost(post, content: content, account: account)
+            do {
+                return try await mastodonService.replyToPost(
+                    post, content: content, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -800,14 +1038,31 @@ final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Like a post (Mastodon or Bluesky)
+    /// Like a post
     func likePost(_ post: Post) async throws -> Post {
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.likePost(post, account: account)
+            do {
+                return try await mastodonService.likePost(post, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -816,14 +1071,31 @@ final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Unlike a post (Mastodon or Bluesky)
+    /// Unlike a post
     func unlikePost(_ post: Post) async throws -> Post {
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.unlikePost(post, account: account)
+            do {
+                return try await mastodonService.unlikePost(post, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -839,7 +1111,24 @@ final class SocialServiceManager: ObservableObject {
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.repostPost(post, account: account)
+            do {
+                return try await mastodonService.repostPost(post, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -855,7 +1144,24 @@ final class SocialServiceManager: ObservableObject {
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            return try await mastodonService.unrepostPost(post, account: account)
+            do {
+                return try await mastodonService.unrepostPost(post, account: account)
+            } catch {
+                // If it's an authentication error, show a helpful message
+                if error.localizedDescription.contains("noRefreshToken")
+                    || error.localizedDescription.contains("Token expired")
+                    || error.localizedDescription.contains("No refresh token available")
+                {
+                    print(
+                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
+                    )
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                    )
+                } else {
+                    throw error
+                }
+            }
         case .bluesky:
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
@@ -864,4 +1170,439 @@ final class SocialServiceManager: ObservableObject {
         }
     }
 
+    // MARK: - Post Creation
+
+    /// Create a new post on selected platforms
+    /// - Parameters:
+    ///   - content: The text content of the post
+    ///   - platforms: Set of platforms to post to
+    ///   - mediaAttachments: Optional media attachments as Data arrays
+    ///   - visibility: Post visibility (public, unlisted, followers_only)
+    /// - Returns: Array of created posts (one per platform)
+    func createPost(
+        content: String,
+        platforms: Set<SocialPlatform>,
+        mediaAttachments: [Data] = [],
+        visibility: String = "public"
+    ) async throws -> [Post] {
+        guard !platforms.isEmpty else {
+            throw ServiceError.noPlatformsSelected
+        }
+
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ServiceError.invalidContent(reason: "Post content cannot be empty")
+        }
+
+        var createdPosts: [Post] = []
+        var errors: [Error] = []
+
+        // Post to each selected platform
+        for platform in platforms {
+            do {
+                let post = try await createPost(
+                    content: content,
+                    platform: platform,
+                    mediaAttachments: mediaAttachments,
+                    visibility: visibility
+                )
+                createdPosts.append(post)
+            } catch {
+                errors.append(error)
+                print("Failed to post to \(platform): \(error.localizedDescription)")
+            }
+        }
+
+        // If no posts were created successfully, throw the first error
+        if createdPosts.isEmpty && !errors.isEmpty {
+            throw ServiceError.postFailed(
+                reason: "Failed to post to any platform: \(errors.first!.localizedDescription)")
+        }
+
+        // If some posts failed but at least one succeeded, log warnings but don't throw
+        if !errors.isEmpty {
+            print(
+                "Warning: Posted successfully to \(createdPosts.count) platforms, but \(errors.count) failed"
+            )
+        }
+
+        return createdPosts
+    }
+
+    /// Create a post on a specific platform
+    private func createPost(
+        content: String,
+        platform: SocialPlatform,
+        mediaAttachments: [Data] = [],
+        visibility: String = "public"
+    ) async throws -> Post {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            return try await mastodonService.createPost(
+                content: content,
+                mediaAttachments: mediaAttachments,
+                visibility: visibility,
+                account: account
+            )
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            // For now, Bluesky doesn't support media attachments in our implementation
+            // We'll implement a basic text post
+            return try await createBlueskyPost(content: content, account: account)
+        }
+    }
+
+    /// Create a Bluesky post (temporary implementation until BlueskyService.createPost is added)
+    private func createBlueskyPost(content: String, account: SocialAccount) async throws -> Post {
+        guard let accessToken = account.getAccessToken() else {
+            throw ServiceError.unauthorized("No access token available for Bluesky account")
+        }
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: Any] = [
+            "repo": account.platformSpecificId,  // Use DID instead of stable ID
+            "collection": "app.bsky.feed.post",
+            "record": [
+                "text": content,
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+                "$type": "app.bsky.feed.post",
+            ],
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.networkError(
+                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw ServiceError.postFailed(
+                reason: "Bluesky API error (\(httpResponse.statusCode)): \(errorMessage)")
+        }
+
+        // Parse the response to get the created post URI
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw ServiceError.postFailed(reason: "Invalid response from Bluesky API")
+        }
+
+        // Create a Post object from the successful creation
+        // Note: This is a minimal implementation - in a real app you'd fetch the full post data
+        return Post(
+            id: uri,
+            content: content,
+            authorName: account.displayName ?? account.username,
+            authorUsername: account.username,
+            authorProfilePictureURL: account.profileImageURL?.absoluteString ?? "",
+            createdAt: Date(),
+            platform: .bluesky,
+            originalURL: "",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            platformSpecificId: uri
+        )
+    }
+
+    /// Create a quote post
+    func createQuotePost(content: String, quotedPost: Post, platforms: Set<SocialPlatform>)
+        async throws -> [Post]
+    {
+        var createdPosts: [Post] = []
+
+        for platform in platforms {
+            switch platform {
+            case .bluesky:
+                if let account = blueskyAccounts.first {
+                    let post = try await createBlueskyQuotePost(
+                        content: content, quotedPost: quotedPost, account: account)
+                    createdPosts.append(post)
+                }
+            case .mastodon:
+                if let account = mastodonAccounts.first {
+                    // For Mastodon, include the quoted post URL in the content
+                    let quotedContent = "\(content)\n\n\(quotedPost.originalURL)"
+                    let post = try await mastodonService.createPost(
+                        content: quotedContent, account: account)
+                    createdPosts.append(post)
+                }
+            }
+        }
+
+        return createdPosts
+    }
+
+    /// Create a Bluesky quote post with proper embed
+    private func createBlueskyQuotePost(content: String, quotedPost: Post, account: SocialAccount)
+        async throws -> Post
+    {
+        guard let accessToken = account.getAccessToken() else {
+            throw ServiceError.unauthorized("No access token available for Bluesky account")
+        }
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Create the quote post embed
+        let embed: [String: Any] = [
+            "$type": "app.bsky.embed.record",
+            "record": [
+                "uri": quotedPost.quotedPostUri ?? quotedPost.platformSpecificId,
+                "cid": quotedPost.cid ?? "",
+            ],
+        ]
+
+        let body: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.feed.post",
+            "record": [
+                "text": content,
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+                "$type": "app.bsky.feed.post",
+                "embed": embed,
+            ],
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.networkError(
+                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw ServiceError.postFailed(
+                reason: "Bluesky quote post API error (\(httpResponse.statusCode)): \(errorMessage)"
+            )
+        }
+
+        // Parse the response to get the created post URI
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw ServiceError.postFailed(reason: "Invalid response from Bluesky quote post API")
+        }
+
+        // Create a Post object from the successful creation
+        return Post(
+            id: uri,
+            content: content,
+            authorName: account.displayName ?? account.username,
+            authorUsername: account.username,
+            authorProfilePictureURL: account.profileImageURL?.absoluteString ?? "",
+            createdAt: Date(),
+            platform: .bluesky,
+            originalURL: "",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            platformSpecificId: uri,
+            quotedPostUri: quotedPost.quotedPostUri ?? quotedPost.platformSpecificId,
+            quotedPostAuthorHandle: quotedPost.quotedPostAuthorHandle ?? quotedPost.authorUsername,
+            quotedPost: quotedPost
+        )
+    }
+
+    @MainActor
+    private func safelyUpdateTimeline(_ posts: [Post]) {
+        let now = Date()
+        let isInitialLoad = unifiedTimeline.isEmpty
+
+        // Allow initial loads to bypass debounce, but still debounce subsequent updates
+        if !isInitialLoad {
+            // Increase debounce time to 1 second to prevent rapid updates
+            guard now.timeIntervalSince(lastTimelineUpdate) > 1.0 else {
+                print("🔄 SocialServiceManager: Update blocked by debounce (not initial load)")
+                return
+            }
+        } else {
+            print("🔄 SocialServiceManager: Initial load detected - bypassing debounce")
+        }
+
+        lastTimelineUpdate = now
+
+        // Direct update on main actor - no additional dispatch needed
+        print("🔄 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
+        self.unifiedTimeline = posts
+        self.isLoadingTimeline = false
+        print(
+            "✅ SocialServiceManager: unifiedTimeline updated - new count: \(self.unifiedTimeline.count)"
+        )
+
+        // Wire up timeline debug singleton for Bluesky
+        if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
+            debug.setBlueskyPosts(posts.filter { $0.platform == .bluesky })
+        }
+
+        print("🔄 SocialServiceManager: Timeline updated with \(posts.count) posts")
+    }
+
+    @MainActor
+    private func safelyUpdateLoadingState(_ isLoading: Bool, error: Error? = nil) {
+        self.isLoadingTimeline = isLoading
+        if let error = error {
+            self.timelineError = error
+        } else if !isLoading {
+            self.timelineError = nil
+        }
+    }
+
+    // MARK: - Migration Logic
+
+    private func migrateOldBlueskyAccounts() {
+        // Check for Bluesky accounts that might have DID-based IDs
+        var accountsToMigrate: [SocialAccount] = []
+        var migratedAccounts: [SocialAccount] = []
+
+        for account in accounts where account.platform == .bluesky {
+            // Check if this account has a DID-based ID (starts with "did:")
+            if account.id.hasPrefix("did:") {
+                print(
+                    "🔄 [Migration] Found old DID-based Bluesky account: \(account.username) with ID: \(account.id)"
+                )
+                accountsToMigrate.append(account)
+
+                // Create new stable ID
+                let serverString = account.serverURL?.absoluteString ?? "bsky.social"
+                let serverHostname: String
+                if let url = URL(string: serverString), let host = url.host {
+                    serverHostname = host
+                } else {
+                    let cleanedServer = serverString.replacingOccurrences(of: "https://", with: "")
+                        .replacingOccurrences(of: "http://", with: "")
+                    serverHostname =
+                        cleanedServer.components(separatedBy: "/").first ?? "bsky.social"
+                }
+                let stableId = "bluesky-\(account.username)-\(serverHostname)"
+
+                // Create migrated account with new ID but same data
+                let migratedAccount = SocialAccount(
+                    id: stableId,
+                    username: account.username,
+                    displayName: account.displayName ?? account.username,
+                    serverURL: account.serverURL?.absoluteString ?? "bsky.social",
+                    platform: .bluesky,
+                    profileImageURL: account.profileImageURL,
+                    platformSpecificId: account.id  // Store old DID as platformSpecificId
+                )
+
+                // Copy over token information
+                if let accessToken = account.getAccessToken() {
+                    migratedAccount.saveAccessToken(accessToken)
+                }
+                if let refreshToken = account.getRefreshToken() {
+                    migratedAccount.saveRefreshToken(refreshToken)
+                }
+                if let expirationDate = account.tokenExpirationDate {
+                    migratedAccount.saveTokenExpirationDate(expirationDate)
+                }
+
+                migratedAccounts.append(migratedAccount)
+
+                print(
+                    "🔄 [Migration] Migrated account \(account.username) from ID: \(account.id) to ID: \(stableId)"
+                )
+            }
+        }
+
+        // Replace old accounts with migrated ones
+        if !accountsToMigrate.isEmpty {
+
+            // Remove old accounts
+            for oldAccount in accountsToMigrate {
+                accounts.removeAll { $0.id == oldAccount.id }
+                // Clean up old token storage
+                oldAccount.clearTokens()
+            }
+
+            // Add migrated accounts
+            accounts.append(contentsOf: migratedAccounts)
+
+            // Save updated accounts
+            saveAccounts()
+            updateAccountLists()
+
+            print(
+                "✅ [Migration] Successfully migrated \(migratedAccounts.count) Bluesky accounts to new stable ID format"
+            )
+        }
+    }
+
+    // MARK: - Reliable Refresh Methods
+
+    /// Ensures timeline is refreshed when app becomes active or user navigates to timeline
+    /// This is the primary method that should be called from UI lifecycle events
+    func ensureTimelineRefresh(force: Bool = false) async {
+        print("🔄 SocialServiceManager: ensureTimelineRefresh called (force: \(force))")
+
+        // Simple check: if timeline is empty or force is true, refresh
+        let shouldRefresh = force || unifiedTimeline.isEmpty || shouldRefreshBasedOnTime()
+
+        if shouldRefresh {
+            print("🔄 SocialServiceManager: Timeline needs refresh - proceeding")
+            do {
+                try await refreshTimeline(force: true)
+                print("✅ SocialServiceManager: Timeline refresh completed successfully")
+            } catch {
+                print(
+                    "❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)"
+                )
+            }
+        } else {
+            print("🔄 SocialServiceManager: Timeline is fresh, no refresh needed")
+        }
+    }
+
+    /// Check if timeline should be refreshed based on time elapsed
+    private func shouldRefreshBasedOnTime() -> Bool {
+        let now = Date()
+        let timeSinceLastRefresh = now.timeIntervalSince(lastRefreshAttempt)
+
+        // Refresh if more than 5 minutes have passed since last refresh
+        return timeSinceLastRefresh > 300
+    }
+
+    /// Force refresh timeline regardless of current state - for pull-to-refresh
+    func forceRefreshTimeline() async {
+        print("🔄 SocialServiceManager: forceRefreshTimeline called")
+        await ensureTimelineRefresh(force: true)
+    }
 }

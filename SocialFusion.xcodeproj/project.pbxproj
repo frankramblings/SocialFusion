@@ -15,8 +15,20 @@
 		503171602DE6AEB700E1C528 /* PostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715F2DE6AEB700E1C528 /* PostStore.swift */; };
 		5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */; };
 		5067F5CE2DF23D5B00373A5B /* QuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */; };
-		5067F5D02DF23D7600373A5B /* UnifiedMediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5067F5CF2DF23D7600373A5B /* UnifiedMediaGridView.swift */; };
-
+		50782E742DF8CA4F0064B61D /* TimelineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E732DF8CA4F0064B61D /* TimelineState.swift */; };
+		50782E782DF8CB320064B61D /* TimelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E762DF8CB320064B61D /* TimelineConfiguration.swift */; };
+		50782E792DF8CB320064B61D /* SmartPositionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E752DF8CB320064B61D /* SmartPositionManager.swift */; };
+		50782E872DFA064A0064B61D /* GradualMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E832DFA064A0064B61D /* GradualMigrationManager.swift */; };
+		50782E882DFA064A0064B61D /* TimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E852DFA064A0064B61D /* TimelineController.swift */; };
+		50782E892DFA064A0064B61D /* MigrationTestController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E842DFA064A0064B61D /* MigrationTestController.swift */; };
+		50782E8B2DFA12ED0064B61D /* ReliableScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E8A2DFA12ED0064B61D /* ReliableScrollView.swift */; };
+		50A05CB52DFE832300D0A21D /* LiquidGlassConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A05CB42DFE832300D0A21D /* LiquidGlassConfiguration.swift */; };
+		50A05CB62DFE832300D0A21D /* LiquidGlassComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A05CB32DFE832300D0A21D /* LiquidGlassComponents.swift */; };
+		50A05CB82DFE8DFA00D0A21D /* PostNavigationEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A05CB72DFE8DFA00D0A21D /* PostNavigationEnvironment.swift */; };
+		50A05CBA2DFF7E2E00D0A21D /* AutomaticTokenRefreshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A05CB92DFF7E2E00D0A21D /* AutomaticTokenRefreshService.swift */; };
+		50A229422DFB1CE400C1C1BF /* StabilizedLinkPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A229412DFB1CE400C1C1BF /* StabilizedLinkPreview.swift */; };
+		50A229432DFB1CE400C1C1BF /* StabilizedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50A229402DFB1CE400C1C1BF /* StabilizedAsyncImage.swift */; };
+		50B76CE52DF7258B0034FC17 /* OAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEDCBA987654321FEDCBA987 /* OAuthManager.swift */; };
 		50CDC8182DD7CC5500144E13 /* Post+ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */; };
 		50CDC8352DD7CDDD00144E13 /* PlatformDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */; };
 		50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50CDC82F2DD7CDDD00144E13 /* MediaGridView.swift */; };
@@ -48,26 +60,28 @@
 		86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */; };
 		8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */; };
 		8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CB1916907991EF4A109883 /* SocialAccount.swift */; };
+		ABC456ABC4567890123ABC45 /* PostRepostButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = IJK789IJK7890123456IJK78 /* PostRepostButton.swift */; };
+		BCD678BCD6789012345BCD67 /* PostContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = PQR901PQR9012345678PQR90 /* PostContent.swift */; };
 		C707093DC30F2A021B42DF23 /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A16665C419E79A3564DF6E /* AccountsView.swift */; };
 		CD35F1063863DA1C608F3743 /* BlueskyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */; };
+		CON456CON4567890123CON45 /* ConsolidatedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CON123CON1234567890CON12 /* ConsolidatedTimelineView.swift */; };
 		DE91F47C006A959509F64E0D /* BlueskyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B838B741234EAE29B1817EBB /* BlueskyModels.swift */; };
+		DEF789DEF7890123456DEF78 /* PostLikeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = LMN012LMN0123456789LMN01 /* PostLikeButton.swift */; };
 		EF81248BA79EBA60C432C031 /* SocialServiceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */; };
+		EFG901EFG9012345678EFG90 /* PostActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = STU234STU2345678901STU23 /* PostActionBar.swift */; };
 		F0FEE97841E1BFE76F092DCF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255ADE201981E507154D54E5 /* ContentView.swift */; };
 		F2B3CD86D065126B32D48F84 /* SocialFusionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B99202C32522904104EA1A6 /* SocialFusionApp.swift */; };
 		FA9BFC76BC04492F9D12FD68 /* MastodonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA61806327EC6FFD9AE8BD96 /* MastodonService.swift */; };
+		GHI012GHI0123456789GHI01 /* PostShareButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = OPQ345OPQ3456789012OPQ34 /* PostShareButton.swift */; };
 		GHI789GHI7890123456GHI78 /* PostCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC123ABC1234567890ABC12 /* PostCardView.swift */; };
-		JKL012JKL0123456789JKL01 /* BoostBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF456DEF4567890123DEF45 /* BoostBanner.swift */; };
-		YZA345YZA3456789012YZA34 /* PostAuthorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MNO678MNO6789012345MNO67 /* PostAuthorView.swift */; };
-		BCD678BCD6789012345BCD67 /* PostContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = PQR901PQR9012345678PQR90 /* PostContent.swift */; };
-		EFG901EFG9012345678EFG90 /* PostActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = STU234STU2345678901STU23 /* PostActionBar.swift */; };
 		HIJ234HIJ2345678901HIJ23 /* PostMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = VWX567VWX5678901234VWX56 /* PostMenu.swift */; };
+		JKL012JKL0123456789JKL01 /* BoostBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEF456DEF4567890123DEF45 /* BoostBanner.swift */; };
 		RST567RST5678901234RST56 /* PostAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = ZAB890ZAB8901234567ZAB89 /* PostAvatar.swift */; };
+		UNI456UNI4567890123UNI45 /* UnifiedTimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = UNI123UNI1234567890UNI12 /* UnifiedTimelineController.swift */; };
+		UVW345UVW3456789012UVW34 /* TimelineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = RST678RST6789012345RST67 /* TimelineCard.swift */; };
 		UVW890UVW8901234567UVW89 /* PostPlatformBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDE123CDE1234567890CDE12 /* PostPlatformBadge.swift */; };
 		XYZ123XYZ1234567890XYZ12 /* PostReplyButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FGH456FGH4567890123FGH45 /* PostReplyButton.swift */; };
-		ABC456ABC4567890123ABC45 /* PostRepostButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = IJK789IJK7890123456IJK78 /* PostRepostButton.swift */; };
-		DEF789DEF7890123456DEF78 /* PostLikeButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = LMN012LMN0123456789LMN01 /* PostLikeButton.swift */; };
-		GHI012GHI0123456789GHI01 /* PostShareButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = OPQ345OPQ3456789012OPQ34 /* PostShareButton.swift */; };
-		UVW345UVW3456789012UVW34 /* TimelineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = RST678RST6789012345RST67 /* TimelineCard.swift */; };
+		YZA345YZA3456789012YZA34 /* PostAuthorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = MNO678MNO6789012345MNO67 /* PostAuthorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -82,7 +96,20 @@
 		5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
 		5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotePostView.swift; sourceTree = "<group>"; };
 		5067F5CF2DF23D7600373A5B /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
-
+		50782E732DF8CA4F0064B61D /* TimelineState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineState.swift; sourceTree = "<group>"; };
+		50782E752DF8CB320064B61D /* SmartPositionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPositionManager.swift; sourceTree = "<group>"; };
+		50782E762DF8CB320064B61D /* TimelineConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineConfiguration.swift; sourceTree = "<group>"; };
+		50782E7A2DF912D70064B61D /* SocialFusion.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; name = SocialFusion.entitlements; path = SocialFusion/SocialFusion.entitlements; sourceTree = "<group>"; };
+		50782E832DFA064A0064B61D /* GradualMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradualMigrationManager.swift; sourceTree = "<group>"; };
+		50782E842DFA064A0064B61D /* MigrationTestController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationTestController.swift; sourceTree = "<group>"; };
+		50782E852DFA064A0064B61D /* TimelineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineController.swift; sourceTree = "<group>"; };
+		50782E8A2DFA12ED0064B61D /* ReliableScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliableScrollView.swift; sourceTree = "<group>"; };
+		50A05CB32DFE832300D0A21D /* LiquidGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassComponents.swift; sourceTree = "<group>"; };
+		50A05CB42DFE832300D0A21D /* LiquidGlassConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassConfiguration.swift; sourceTree = "<group>"; };
+		50A05CB72DFE8DFA00D0A21D /* PostNavigationEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostNavigationEnvironment.swift; sourceTree = "<group>"; };
+		50A05CB92DFF7E2E00D0A21D /* AutomaticTokenRefreshService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutomaticTokenRefreshService.swift; sourceTree = "<group>"; };
+		50A229402DFB1CE400C1C1BF /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
+		50A229412DFB1CE400C1C1BF /* StabilizedLinkPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedLinkPreview.swift; sourceTree = "<group>"; };
 		50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Post+ContentView.swift"; sourceTree = "<group>"; };
 		50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionBar.swift; sourceTree = "<group>"; };
 		50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FetchQuotePostView.swift; sourceTree = "<group>"; };
@@ -114,33 +141,36 @@
 		89CB1916907991EF4A109883 /* SocialAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialAccount.swift; sourceTree = "<group>"; };
 		99C1C4E32A3FA8F9376B6552 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedTimelineView.swift; sourceTree = "<group>"; };
+		ABC123ABC1234567890ABC12 /* PostCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCardView.swift; sourceTree = "<group>"; };
 		B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposeView.swift; sourceTree = "<group>"; };
 		B838B741234EAE29B1817EBB /* BlueskyModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyModels.swift; sourceTree = "<group>"; };
 		BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyService.swift; sourceTree = "<group>"; };
 		C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonModels.swift; sourceTree = "<group>"; };
 		CA61806327EC6FFD9AE8BD96 /* MastodonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonService.swift; sourceTree = "<group>"; };
+		CDE123CDE1234567890CDE12 /* PostPlatformBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostPlatformBadge.swift; sourceTree = "<group>"; };
+		CON123CON1234567890CON12 /* ConsolidatedTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsolidatedTimelineView.swift; sourceTree = "<group>"; };
 		DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		DEF456DEF4567890123DEF45 /* BoostBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoostBanner.swift; sourceTree = "<group>"; };
 		EA9048F6309F63324484C491 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FEDCBA987654321FEDCBA987 /* OAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthManager.swift; sourceTree = "<group>"; };
-		ABC123ABC1234567890ABC12 /* PostCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCardView.swift; sourceTree = "<group>"; };
-		DEF456DEF4567890123DEF45 /* BoostBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoostBanner.swift; sourceTree = "<group>"; };
-		MNO678MNO6789012345MNO67 /* PostAuthorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAuthorView.swift; sourceTree = "<group>"; };
-		PQR901PQR9012345678PQR90 /* PostContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostContent.swift; sourceTree = "<group>"; };
-		STU234STU2345678901STU23 /* PostActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionBar.swift; sourceTree = "<group>"; };
-		VWX567VWX5678901234VWX56 /* PostMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenu.swift; sourceTree = "<group>"; };
-		ZAB890ZAB8901234567ZAB89 /* PostAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAvatar.swift; sourceTree = "<group>"; };
-		CDE123CDE1234567890CDE12 /* PostPlatformBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostPlatformBadge.swift; sourceTree = "<group>"; };
 		FGH456FGH4567890123FGH45 /* PostReplyButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostReplyButton.swift; sourceTree = "<group>"; };
 		IJK789IJK7890123456IJK78 /* PostRepostButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostRepostButton.swift; sourceTree = "<group>"; };
 		LMN012LMN0123456789LMN01 /* PostLikeButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLikeButton.swift; sourceTree = "<group>"; };
+		MNO678MNO6789012345MNO67 /* PostAuthorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAuthorView.swift; sourceTree = "<group>"; };
 		OPQ345OPQ3456789012OPQ34 /* PostShareButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostShareButton.swift; sourceTree = "<group>"; };
+		PQR901PQR9012345678PQR90 /* PostContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostContent.swift; sourceTree = "<group>"; };
 		RST678RST6789012345RST67 /* TimelineCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineCard.swift; sourceTree = "<group>"; };
+		STU234STU2345678901STU23 /* PostActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionBar.swift; sourceTree = "<group>"; };
+		UNI123UNI1234567890UNI12 /* UnifiedTimelineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedTimelineController.swift; sourceTree = "<group>"; };
+		VWX567VWX5678901234VWX56 /* PostMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenu.swift; sourceTree = "<group>"; };
+		ZAB890ZAB8901234567ZAB89 /* PostAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAvatar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		4383FFA39CCDB6E82979FB67 = {
 			isa = PBXGroup;
 			children = (
+				50782E7A2DF912D70064B61D /* SocialFusion.entitlements */,
 				54837CBDE79934170735E9E2 /* SocialFusion */,
 				A2991A82CF7626115148BD35 /* Products */,
 			);
@@ -154,11 +184,34 @@
 			path = ViewModels;
 			sourceTree = SOURCE_ROOT;
 		};
+		50782E772DF8CB320064B61D /* State */ = {
+			isa = PBXGroup;
+			children = (
+				50782E752DF8CB320064B61D /* SmartPositionManager.swift */,
+				50782E762DF8CB320064B61D /* TimelineConfiguration.swift */,
+			);
+			path = State;
+			sourceTree = "<group>";
+		};
+		50782E862DFA064A0064B61D /* Controllers */ = {
+			isa = PBXGroup;
+			children = (
+				50782E832DFA064A0064B61D /* GradualMigrationManager.swift */,
+				50782E842DFA064A0064B61D /* MigrationTestController.swift */,
+				50782E852DFA064A0064B61D /* TimelineController.swift */,
+				UNI123UNI1234567890UNI12 /* UnifiedTimelineController.swift */,
+			);
+			path = Controllers;
+			sourceTree = "<group>";
+		};
 		50CDC8342DD7CDDD00144E13 /* Components */ = {
 			isa = PBXGroup;
 			children = (
 				5067F5CF2DF23D7600373A5B /* UnifiedMediaGridView.swift */,
 				5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */,
+				50A05CB32DFE832300D0A21D /* LiquidGlassComponents.swift */,
+				50A05CB42DFE832300D0A21D /* LiquidGlassConfiguration.swift */,
+				50A05CB72DFE8DFA00D0A21D /* PostNavigationEnvironment.swift */,
 				5011EBC62DF0E79900F74F53 /* ExpandingReplyBanner.swift */,
 				50E288842DDEC59300E1B621 /* UnifiedMediaGridView.swift */,
 				50CDC82B2DD7CDDD00144E13 /* ActionBar.swift */,
@@ -166,7 +219,10 @@
 				50CDC82C2DD7CDDD00144E13 /* FetchQuotePostView.swift */,
 				50CDC82D2DD7CDDD00144E13 /* FullscreenMediaView.swift */,
 				50CDC82E2DD7CDDD00144E13 /* LinkPreview.swift */,
+				50782E8A2DFA12ED0064B61D /* ReliableScrollView.swift */,
 				50CDC82F2DD7CDDD00144E13 /* MediaGridView.swift */,
+				50A229402DFB1CE400C1C1BF /* StabilizedAsyncImage.swift */,
+				50A229412DFB1CE400C1C1BF /* StabilizedLinkPreview.swift */,
 				50CDC8302DD7CDDD00144E13 /* ParentPostPreview.swift */,
 				50CDC8312DD7CDDD00144E13 /* PlatformDot.swift */,
 				50CDC8322DD7CDDD00144E13 /* PostAuthorImageView.swift */,
@@ -191,6 +247,7 @@
 		54837CBDE79934170735E9E2 /* SocialFusion */ = {
 			isa = PBXGroup;
 			children = (
+				50782E772DF8CB320064B61D /* State */,
 				EA9048F6309F63324484C491 /* Assets.xcassets */,
 				255ADE201981E507154D54E5 /* ContentView.swift */,
 				99C1C4E32A3FA8F9376B6552 /* Info.plist */,
@@ -200,6 +257,7 @@
 				727B1B574815555A62D7B65C /* Utilities */,
 				761AB201F57C7300D7B363FD /* Views */,
 				5031716D2DE6B02100E1C528 /* ViewModels */,
+				50782E862DFA064A0064B61D /* Controllers */,
 			);
 			path = SocialFusion;
 			sourceTree = "<group>";
@@ -232,7 +290,7 @@
 				50CDC8342DD7CDDD00144E13 /* Components */,
 				17A16665C419E79A3564DF6E /* AccountsView.swift */,
 				B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */,
-
+				CON123CON1234567890CON12 /* ConsolidatedTimelineView.swift */,
 				DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */,
 				A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */,
 				1F67A8C32BAE1F2B00C99A3C /* AddAccountView.swift */,
@@ -251,6 +309,7 @@
 		D200DF008D07D922EF2AAC59 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				50A05CB92DFF7E2E00D0A21D /* AutomaticTokenRefreshService.swift */,
 				BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */,
 				CA61806327EC6FFD9AE8BD96 /* MastodonService.swift */,
 				73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */,
@@ -262,6 +321,7 @@
 		EBD592315432A61E41FB3ED9 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				50782E732DF8CA4F0064B61D /* TimelineState.swift */,
 				50E288D72DDED2DB00E1B621 /* TimelineEntry.swift */,
 				50CDC8172DD7CC5500144E13 /* Post+ContentView.swift */,
 				B838B741234EAE29B1817EBB /* BlueskyModels.swift */,
@@ -339,7 +399,6 @@
 				C707093DC30F2A021B42DF23 /* AccountsView.swift in Sources */,
 				1F67A8C42BAE1F2B00C99A3C /* AddAccountView.swift in Sources */,
 				50FAF00A2DF086EA0072F099 /* AppVersionManager.swift in Sources */,
-				5067F5D02DF23D7600373A5B /* UnifiedMediaGridView.swift in Sources */,
 				5067F5CE2DF23D5B00373A5B /* QuotePostView.swift in Sources */,
 				DE91F47C006A959509F64E0D /* BlueskyModels.swift in Sources */,
 				CD35F1063863DA1C608F3743 /* BlueskyService.swift in Sources */,
@@ -349,20 +408,30 @@
 				4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */,
 				50CDC8352DD7CDDD00144E13 /* PlatformDot.swift in Sources */,
 				50E288852DDEC59300E1B621 /* UnifiedMediaGridView.swift in Sources */,
+				50782E8B2DFA12ED0064B61D /* ReliableScrollView.swift in Sources */,
+				50A05CBA2DFF7E2E00D0A21D /* AutomaticTokenRefreshService.swift in Sources */,
 				50CDC8362DD7CDDD00144E13 /* MediaGridView.swift in Sources */,
 				50CDC8372DD7CDDD00144E13 /* LinkPreview.swift in Sources */,
 				5011EBC72DF0E79900F74F53 /* ExpandingReplyBanner.swift in Sources */,
 				50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */,
 				503171602DE6AEB700E1C528 /* PostStore.swift in Sources */,
+				50A05CB52DFE832300D0A21D /* LiquidGlassConfiguration.swift in Sources */,
+				50A05CB62DFE832300D0A21D /* LiquidGlassComponents.swift in Sources */,
+				50A229422DFB1CE400C1C1BF /* StabilizedLinkPreview.swift in Sources */,
+				50A05CB82DFE8DFA00D0A21D /* PostNavigationEnvironment.swift in Sources */,
+				50A229432DFB1CE400C1C1BF /* StabilizedAsyncImage.swift in Sources */,
 				50CDC8392DD7CDDD00144E13 /* PostDetailView.swift in Sources */,
 				50CDC83A2DD7CDDD00144E13 /* ActionBar.swift in Sources */,
 				50CDC83B2DD7CDDD00144E13 /* ParentPostPreview.swift in Sources */,
 				50CDC83C2DD7CDDD00144E13 /* FullscreenMediaView.swift in Sources */,
 				50CDC83D2DD7CDDD00144E13 /* PostAuthorImageView.swift in Sources */,
 				5E637C35B390A08E5B597340 /* MastodonModels.swift in Sources */,
-
 				5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */,
+				50B76CE52DF7258B0034FC17 /* OAuthManager.swift in Sources */,
 				FA9BFC76BC04492F9D12FD68 /* MastodonService.swift in Sources */,
+				50782E872DFA064A0064B61D /* GradualMigrationManager.swift in Sources */,
+				50782E882DFA064A0064B61D /* TimelineController.swift in Sources */,
+				50782E892DFA064A0064B61D /* MigrationTestController.swift in Sources */,
 				2EE845AC73F6E96035D64073 /* Post.swift in Sources */,
 				86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */,
 				50E288D82DDED2DB00E1B621 /* TimelineEntry.swift in Sources */,
@@ -382,12 +451,15 @@
 				50FAF00C2DF087F20072F099 /* LaunchAnimationView.swift in Sources */,
 				EF81248BA79EBA60C432C031 /* SocialServiceManager.swift in Sources */,
 				50FAF00E2DF08F060072F099 /* DateParser.swift in Sources */,
+				50782E742DF8CA4F0064B61D /* TimelineState.swift in Sources */,
 				5CA3F836848627B964BADFEE /* UnifiedTimelineView.swift in Sources */,
 				GHI789GHI7890123456GHI78 /* PostCardView.swift in Sources */,
 				JKL012JKL0123456789JKL01 /* BoostBanner.swift in Sources */,
 				YZA345YZA3456789012YZA34 /* PostAuthorView.swift in Sources */,
 				BCD678BCD6789012345BCD67 /* PostContent.swift in Sources */,
 				EFG901EFG9012345678EFG90 /* PostActionBar.swift in Sources */,
+				50782E782DF8CB320064B61D /* TimelineConfiguration.swift in Sources */,
+				50782E792DF8CB320064B61D /* SmartPositionManager.swift in Sources */,
 				HIJ234HIJ2345678901HIJ23 /* PostMenu.swift in Sources */,
 				RST567RST5678901234RST56 /* PostAvatar.swift in Sources */,
 				UVW890UVW8901234567UVW89 /* PostPlatformBadge.swift in Sources */,
@@ -396,6 +468,8 @@
 				DEF789DEF7890123456DEF78 /* PostLikeButton.swift in Sources */,
 				GHI012GHI0123456789GHI01 /* PostShareButton.swift in Sources */,
 				UVW345UVW3456789012UVW34 /* TimelineCard.swift in Sources */,
+				CON456CON4567890123CON45 /* ConsolidatedTimelineView.swift in Sources */,
+				UNI456UNI4567890123UNI45 /* UnifiedTimelineController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -406,10 +480,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SocialFusion/SocialFusion.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SocialFusion;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -550,10 +626,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SocialFusion/SocialFusion.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SocialFusion;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
