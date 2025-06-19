@@ -83,9 +83,13 @@ struct PostDetailView: View {
                                     {
                                         // Show as quote post if it's a social media post URL
                                         FetchQuotePostView(url: url)
+                                    } else if URLServiceWrapper.shared.isYouTubeURL(url),
+                                              let videoID = URLServiceWrapper.shared.extractYouTubeVideoID(from: url) {
+                                        // Show YouTube videos as inline players
+                                        YouTubeVideoPreview(url: url, videoID: videoID, idealHeight: 250)
                                     } else {
-                                        // Regular link preview
-                                        LinkPreview(url: url)
+                                        // Regular link preview with stable height
+                                        StabilizedLinkPreview(url: url, idealHeight: 200)
                                     }
                                 }
                             }
@@ -96,10 +100,10 @@ struct PostDetailView: View {
                         if !post.attachments.isEmpty {
                             UnifiedMediaGridView(
                                 attachments: post.attachments,
-                                maxHeight: 220
+                                maxHeight: 300
                             )
-                            .padding(.horizontal)
-                            .padding(.bottom, 8)  // Add bottom padding
+                            .padding(.horizontal, 8)
+                            .padding(.bottom, 6)
                         }
 
                         // Stats row (likes, reposts)

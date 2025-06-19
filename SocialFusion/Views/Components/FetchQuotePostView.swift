@@ -3,13 +3,15 @@ import SwiftUI
 /// A compact view of a quoted post - styled like ParentPostPreview
 public struct QuotedPostView: View {
     public let post: Post
+    public var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
 
     // Maximum characters before content is trimmed
     private let maxCharacters = 300
 
-    public init(post: Post) {
+    public init(post: Post, onTap: (() -> Void)? = nil) {
         self.post = post
+        self.onTap = onTap
     }
 
     public var body: some View {
@@ -31,6 +33,10 @@ public struct QuotedPostView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(borderOverlay)
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onTap?()
+        }
     }
 
     // MARK: - View Components
@@ -39,7 +45,8 @@ public struct QuotedPostView: View {
         HStack(spacing: 8) {
             // Author avatar with platform indicator
             ZStack(alignment: .bottomTrailing) {
-                AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
+                let stableImageURL = URL(string: post.authorProfilePictureURL)
+                AsyncImage(url: stableImageURL) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable()
@@ -51,6 +58,7 @@ public struct QuotedPostView: View {
                 }
                 .frame(width: 32, height: 32)
                 .clipShape(Circle())
+                .id(stableImageURL?.absoluteString ?? "no-url")
 
                 PlatformDot(platform: post.platform, size: 8)
                     .offset(x: 1, y: 1)
@@ -114,11 +122,13 @@ public struct QuotedPostView: View {
 /// Fetches and displays a quoted post from a URL with improved stability
 struct FetchQuotePostView: View {
     let url: URL
+    var onQuotePostTap: ((Post) -> Void)? = nil
     @State private var quotedPost: Post? = nil
     @State private var isLoading = true
     @State private var error: Error? = nil
     @State private var retryCount = 0
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @Environment(\.colorScheme) private var colorScheme
 
     private let maxRetries = 2
@@ -133,15 +143,50 @@ struct FetchQuotePostView: View {
     var body: some View {
         Group {
             if let post = quotedPost, hasMeaningfulContent(post) {
-                QuotedPostView(post: post)
+                QuotedPostView(post: post) {
+                    print("🔗 [FetchQuotePostView] Quote post tapped: \(post.id)")
+                    if let onQuotePostTap = onQuotePostTap {
+                        print("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
+                        onQuotePostTap(post)
+                    } else {
+                        print("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
+                        navigationEnvironment.navigateToPost(post)
+                    }
+                }
             } else if isLoading {
                 LoadingQuoteView(platform: platform)
+            } else if let error = error {
+                // Show error state with retry option
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.orange)
+                        Text("Failed to load quote")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("Retry") {
+                            Task {
+                                await fetchPost()
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(
+                        colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
             } else {
                 // Fallback to regular link preview if we can't fetch the post
                 LinkPreview(url: url)
             }
         }
         .onAppear {
+            print("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
             Task {
                 await fetchPost()
             }
@@ -158,6 +203,7 @@ struct FetchQuotePostView: View {
 
     private func fetchPost() async {
         guard retryCount <= maxRetries else {
+            print("🔗 [FetchQuotePostView] Max retries exceeded for URL: \(url)")
             await MainActor.run {
                 isLoading = false
                 error = NSError(
@@ -169,6 +215,8 @@ struct FetchQuotePostView: View {
             return
         }
 
+        print(
+            "🔗 [FetchQuotePostView] Fetching \(platform) post (attempt \(retryCount + 1)): \(url)")
         await MainActor.run {
             isLoading = true
         }
@@ -176,24 +224,33 @@ struct FetchQuotePostView: View {
         do {
             let post = try await fetchPostForPlatform()
             await MainActor.run {
-                self.quotedPost = post
+                if let post = post {
+                    print(
+                        "🔗 [FetchQuotePostView] Successfully fetched post: \(post.content.prefix(50))"
+                    )
+                    self.quotedPost = post
+                } else {
+                    print("🔗 [FetchQuotePostView] Fetched nil post for URL: \(url)")
+                }
                 self.isLoading = false
                 self.error = nil
             }
         } catch {
-            print("Error fetching \(platform) post: \(error)")
+            print("🔗 [FetchQuotePostView] Error fetching \(platform) post: \(error)")
 
             await MainActor.run {
                 self.error = error
 
                 // Retry for transient errors
                 if retryCount < maxRetries && isTransientError(error) {
+                    print("🔗 [FetchQuotePostView] Retrying in 1 second...")
                     retryCount += 1
                     Task {
                         try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
                         await fetchPost()
                     }
                 } else {
+                    print("🔗 [FetchQuotePostView] Giving up after \(retryCount + 1) attempts")
                     self.isLoading = false
                 }
             }
@@ -403,7 +460,8 @@ private struct PostAttachmentView: View {
     let attachment: Post.Attachment
 
     var body: some View {
-        AsyncImage(url: URL(string: attachment.url)) { phase in
+        let stableImageURL = URL(string: attachment.url)
+        AsyncImage(url: stableImageURL) { phase in
             if let image = phase.image {
                 image
                     .resizable()
@@ -430,6 +488,7 @@ private struct PostAttachmentView: View {
                     )
             }
         }
+        .id(stableImageURL?.absoluteString ?? "no-url")
     }
 }
 

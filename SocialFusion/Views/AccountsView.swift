@@ -5,7 +5,7 @@ struct AccountsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
-    @State private var showDebugInfo = false
+
     @State private var accountToDelete: SocialAccount? = nil
     @State private var showDeleteConfirmation = false
     @State private var showingAddTokenView = false
@@ -13,6 +13,7 @@ struct AccountsView: View {
     @State private var tokenAccessToken = ""
     @State private var isTokenLoading = false
     @State private var tokenErrorMessage: String? = nil
+    @State private var showDebugInfo = false
 
     var body: some View {
         NavigationView {
@@ -47,65 +48,20 @@ struct AccountsView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
 
-                // Debug info (hidden by default)
-                if showDebugInfo {
-                    Section(header: Text("Debug Info")) {
-                        Text("Mastodon Accounts: \(serviceManager.mastodonAccounts.count)")
-                        Text("Bluesky Accounts: \(serviceManager.blueskyAccounts.count)")
-                        Text(
-                            "Selected IDs: \(serviceManager.selectedAccountIds.joined(separator: ", "))"
-                        )
-
-                        Button("Print Debug Info") {
-                            print("=== DEBUGGING ACCOUNT STATE ===")
-                            print(
-                                "Total accounts in serviceManager.accounts: \(serviceManager.accounts.count)"
-                            )
-                            print("Mastodon accounts: \(serviceManager.mastodonAccounts.count)")
-                            print("Bluesky accounts: \(serviceManager.blueskyAccounts.count)")
-                            print("Selected account IDs: \(serviceManager.selectedAccountIds)")
-
-                            print("\nAccount Details:")
-                            for account in serviceManager.accounts {
-                                print(
-                                    "- \(account.username) (\(account.platform)) - ID: \(account.id)"
-                                )
-                                let hasToken = account.getAccessToken() != nil
-                                print("  Has Token: \(hasToken)")
-                            }
-
-                            // Check UserDefaults data
-                            if let data = UserDefaults.standard.data(forKey: "savedAccounts") {
-                                print(
-                                    "\nUserDefaults savedAccounts data exists: \(data.count) bytes")
-                                if let accounts = try? JSONDecoder().decode(
-                                    [SocialAccount].self, from: data)
-                                {
-                                    print("Decoded \(accounts.count) accounts from UserDefaults:")
-                                    for account in accounts {
-                                        print(
-                                            "- \(account.username) (\(account.platform)) - ID: \(account.id)"
-                                        )
-                                    }
-                                } else {
-                                    print("Failed to decode accounts from UserDefaults data")
-                                }
-                            } else {
-                                print("\nNo savedAccounts data found in UserDefaults")
-                            }
-                            print("=== END DEBUG INFO ===")
+                // Accounts needing re-authentication section
+                if let tokenRefreshService = serviceManager.automaticTokenRefreshService,
+                    !tokenRefreshService.accountsNeedingReauth.isEmpty
+                {
+                    Section(
+                        header: HStack {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                            Text("Authentication Required")
+                                .foregroundColor(.orange)
                         }
-
-                        Button("Force Reload Accounts") {
-                            print("=== FORCING ACCOUNT RELOAD ===")
-                            // Trigger account reload
-                            Task { @MainActor in
-                                await serviceManager.forceReloadAccounts()
-                            }
-                        }
-
-                        Button("Toggle Debug") {
-                            showDebugInfo.toggle()
+                    ) {
+                        ForEach(tokenRefreshService.accountsNeedingReauth) { account in
+                            reauthenticationRow(account, tokenRefreshService: tokenRefreshService)
                         }
                     }
                 }
@@ -194,6 +150,8 @@ struct AccountsView: View {
                 }
             }
             .navigationTitle("Accounts")
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showingAddAccount) {
                 AddAccountView()
                     .environmentObject(serviceManager)
@@ -263,6 +221,8 @@ struct AccountsView: View {
                         }
                     }
                     .navigationTitle("Add with Access Token")
+                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button("Cancel") {
@@ -499,6 +459,103 @@ struct AccountsView: View {
                 }
             }
         }
+    }
+
+    // Row for accounts needing re-authentication
+    private func reauthenticationRow(
+        _ account: SocialAccount, tokenRefreshService: AutomaticTokenRefreshService
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                if account.platform.usesSFSymbol {
+                    Image(systemName: account.platform.sfSymbol)
+                        .foregroundColor(platformColor(for: account.platform))
+                        .font(.system(size: 24))
+                        .frame(width: 32, height: 32)
+                } else {
+                    Image(account.platform.icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .foregroundColor(platformColor(for: account.platform))
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 28, height: 28)
+                        .padding(2)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.displayName ?? account.username)
+                        .font(.headline)
+                        .foregroundColor(.primary)
+
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.orange)
+                    .font(.system(size: 20))
+            }
+
+            // Guidance text
+            Text(tokenRefreshService.getTokenRefreshGuidance(for: account))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Action buttons
+            HStack(spacing: 12) {
+                Button(action: {
+                    // Remove the account
+                    Task {
+                        await serviceManager.removeAccount(account)
+                        tokenRefreshService.clearReauthNotification(for: account)
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "trash")
+                            .font(.system(size: 12))
+                        Text("Remove")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.red)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .background(Color.red.opacity(0.1))
+                    .cornerRadius(6)
+                }
+
+                Button(action: {
+                    // Show add account flow for this platform
+                    selectedPlatform = account.platform
+                    showingAddAccount = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 12))
+                        Text("Re-add Account")
+                            .font(.system(size: 12))
+                    }
+                    .foregroundColor(.blue)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(6)
+                }
+
+                Spacer()
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(Color.orange.opacity(0.05))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        )
     }
 }
 

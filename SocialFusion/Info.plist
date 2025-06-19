@@ -101,6 +101,86 @@
 			</dict>
 		</dict>
 	</dict>
+	
+	<!-- Timeline State Configuration -->
+	<key>SocialFusionTimelineConfiguration</key>
+	<dict>
+		<!-- Position Persistence Settings -->
+		<key>PositionPersistence</key>
+		<dict>
+			<key>Enabled</key>
+			<true/>
+			<key>SmartRestoration</key>
+			<true/>
+			<key>MaxHistorySize</key>
+			<integer>10</integer>
+			<key>AutoSaveInterval</key>
+			<integer>5</integer>
+			<key>CrossSessionSync</key>
+			<true/>
+			<key>iCloudSyncEnabled</key>
+			<true/>
+			<key>FallbackStrategy</key>
+			<string>NearestContent</string>
+		</dict>
+		
+		<!-- Unread Tracking Settings -->
+		<key>UnreadTracking</key>
+		<dict>
+			<key>Enabled</key>
+			<true/>
+			<key>ReadOnViewport</key>
+			<true/>
+			<key>ViewportThreshold</key>
+			<real>0.5</real>
+			<key>ReadDelay</key>
+			<real>1.0</real>
+			<key>MaxUnreadHistory</key>
+			<integer>1000</integer>
+			<key>PersistAcrossLaunches</key>
+			<true/>
+		</dict>
+		
+		<!-- Timeline Cache Settings -->
+		<key>TimelineCache</key>
+		<dict>
+			<key>MaxCacheSize</key>
+			<integer>500</integer>
+			<key>CacheExpiration</key>
+			<integer>86400</integer>
+			<key>SmartCacheEviction</key>
+			<true/>
+			<key>OfflineMode</key>
+			<true/>
+		</dict>
+		
+		<!-- Performance Settings -->
+		<key>Performance</key>
+		<dict>
+			<key>LazyLoadingEnabled</key>
+			<true/>
+			<key>ScrollBufferSize</key>
+			<integer>20</integer>
+			<key>RenderAheadCount</key>
+			<integer>5</integer>
+			<key>MemoryWarningThreshold</key>
+			<real>0.8</real>
+		</dict>
+		
+		<!-- Debug & Logging -->
+		<key>Debug</key>
+		<dict>
+			<key>TimelineLogging</key>
+			<true/>
+			<key>PositionLogging</key>
+			<true/>
+			<key>PerformanceLogging</key>
+			<false/>
+			<key>VerboseMode</key>
+			<true/>
+		</dict>
+	</dict>
+	
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

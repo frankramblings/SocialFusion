@@ -25,6 +25,7 @@ struct PostCardView: View {
     let onCopyLink: () -> Void
     let onReport: () -> Void
     let onPostTap: () -> Void
+    let onParentPostTap: (Post) -> Void
 
     // Optional boost information
     let boostedBy: String?
@@ -49,7 +50,7 @@ struct PostCardView: View {
     // Determine which post to display: use original for boosts, otherwise self.post
     private var displayPost: Post {
         // For boosts, use the original post for display content
-        if let boostedBy = boostedBy, let original = post.originalPost {
+        if boostedBy != nil, let original = post.originalPost {
             return original
         }
         return post
@@ -60,6 +61,7 @@ struct PostCardView: View {
         entry: TimelineEntry,
         viewModel: PostViewModel? = nil,
         onPostTap: @escaping () -> Void = {},
+        onParentPostTap: @escaping (Post) -> Void = { _ in },
         onReply: @escaping () -> Void = {},
         onRepost: @escaping () -> Void = {},
         onLike: @escaping () -> Void = {},
@@ -82,6 +84,7 @@ struct PostCardView: View {
         self.onCopyLink = {}
         self.onReport = {}
         self.onPostTap = onPostTap
+        self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
 
         // Extract boost information from TimelineEntry
@@ -111,6 +114,7 @@ struct PostCardView: View {
         onCopyLink: @escaping () -> Void,
         onReport: @escaping () -> Void,
         onPostTap: @escaping () -> Void,
+        onParentPostTap: @escaping (Post) -> Void = { _ in },
         viewModel: PostViewModel? = nil
     ) {
         self.post = post
@@ -130,6 +134,7 @@ struct PostCardView: View {
         self.onCopyLink = onCopyLink
         self.onReport = onReport
         self.onPostTap = onPostTap
+        self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
         self.boostedBy = nil
     }
@@ -150,7 +155,10 @@ struct PostCardView: View {
                     network: displayPost.platform,
                     parentId: displayPost.inReplyToID,
                     isExpanded: $expansionState.isExpanded,
-                    onBannerTap: { bannerWasTapped = true }
+                    onBannerTap: { bannerWasTapped = true },
+                    onParentPostTap: { parentPost in
+                        onParentPostTap(parentPost)  // Navigate to the parent post
+                    }
                 )
                 .padding(.horizontal, 12)  // Apple standard: 12pt for content - match boost banner alignment
                 .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
@@ -163,64 +171,49 @@ struct PostCardView: View {
             )
             .padding(.horizontal, 12)  // Apple standard: 12pt content padding
 
-            // Content section with link previews
-            displayPost.contentView(lineLimit: nil, showLinkPreview: true, font: .body)
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 4)  // Slight separation from author
+            // Content section - show quote posts always, but disable other link previews when media is present (Ivory style)
+            displayPost.contentView(
+                lineLimit: nil,
+                showLinkPreview: displayPost.attachments.isEmpty,  // Ivory style for regular links
+                font: .body,
+                onQuotePostTap: { quotedPost in
+                    onParentPostTap(quotedPost)  // Navigate to the quoted post
+                }
+            )
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
 
             // Media section
             if !displayPost.attachments.isEmpty {
                 UnifiedMediaGridView(attachments: displayPost.attachments)
-                    .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                    .padding(.top, 8)  // Apple standard: 8pt spacing from content
+                    .padding(.horizontal, 4)
+                    .padding(.top, 6)
             }
 
             // Action bar (using the working ActionBar)
-            if let viewModel = viewModel {
-                ObservableActionBar(
-                    viewModel: viewModel,
-                    onAction: { action in
-                        switch action {
-                        case .reply:
-                            onReply()
-                        case .repost:
-                            // Use viewModel for repost to get proper state updates
-                            Task { await viewModel.repost() }
-                        case .like:
-                            // Use viewModel for like to get proper state updates
-                            Task { await viewModel.like() }
-                        case .share:
-                            viewModel.share()
-                        }
-                    },
-                    onOpenInBrowser: onOpenInBrowser,
-                    onCopyLink: onCopyLink,
-                    onReport: onReport
-                )
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 6)  // Apple standard: 6pt separation from content
-            } else {
-                ActionBar(
-                    post: displayPost,
-                    onAction: { action in
-                        switch action {
-                        case .reply:
-                            onReply()
-                        case .repost:
-                            onRepost()
-                        case .like:
-                            onLike()
-                        case .share:
-                            onShare()
-                        }
-                    },
-                    onOpenInBrowser: onOpenInBrowser,
-                    onCopyLink: onCopyLink,
-                    onReport: onReport
-                )
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 6)  // Apple standard: 6pt separation from content
-            }
+            ActionBar(
+                post: displayPost,
+                onAction: { action in
+                    switch action {
+                    case .reply:
+                        onReply()
+                    case .repost:
+                        onRepost()
+                    case .like:
+                        onLike()
+                    case .share:
+                        onShare()
+                    case .quote:
+                        // TODO: Implement quote post functionality
+                        print("🔗 Quote action triggered for post: \(displayPost.id)")
+                    }
+                },
+                onOpenInBrowser: onOpenInBrowser,
+                onCopyLink: onCopyLink,
+                onReport: onReport
+            )
+            .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+            .padding(.top, 6)  // Apple standard: 6pt separation from content
         }
         .padding(.horizontal, 16)  // Apple standard: 16pt container padding
         .padding(.vertical, 12)  // Apple standard: 12pt container padding

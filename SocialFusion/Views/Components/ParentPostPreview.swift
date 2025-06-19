@@ -6,6 +6,9 @@ struct ParentPostPreview: View {
     let post: Post
     var onTap: (() -> Void)? = nil
 
+    // Animation state for smooth interactions
+    @State private var isPressed = false
+
     // Maximum characters before content is trimmed
     private let maxCharacters = 500
 
@@ -36,88 +39,235 @@ struct ParentPostPreview: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
                 // Author avatar with platform indicator
                 ZStack(alignment: .bottomTrailing) {
                     // Author avatar with proper frame constraints
-                    AsyncImage(url: URL(string: post.authorProfilePictureURL)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        case .failure(_):
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    Image(systemName: "person.fill")
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 16))
-                                )
-                        case .empty:
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                                .overlay(
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                )
-                        @unknown default:
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
-                        }
-                    }
+                    StabilizedAsyncImage(
+                        url: URL(string: post.authorProfilePictureURL),
+                        idealHeight: 36,
+                        aspectRatio: 1.0,
+                        contentMode: .fill,
+                        cornerRadius: 18
+                    )
                     .frame(width: 36, height: 36)
-                    .clipShape(Circle())
                     .overlay(
                         Circle()
-                            .stroke(Color(.systemBackground), lineWidth: 1)
+                            .stroke(Color(.systemBackground), lineWidth: 1.5)
                     )
+                    .scaleEffect(isPressed ? 0.95 : 1.0)
 
-                    // Platform indicator
+                    // Platform indicator with subtle animation
                     PlatformDot(platform: post.platform, size: 10)
                         .offset(x: 2, y: 2)
+                        .scaleEffect(isPressed ? 0.9 : 1.0)
                 }
                 .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
 
-                // Author info
-                VStack(alignment: .leading, spacing: 0) {
+                // Author info with refined typography
+                VStack(alignment: .leading, spacing: 2) {
                     Text(post.authorName)
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
 
                     Text("@\(post.authorUsername)")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
+                .opacity(isPressed ? 0.8 : 1.0)
 
                 Spacer()
 
-                // Time ago
+                // Time ago with refined styling
                 Text(formatRelativeTime(from: post.createdAt))
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .opacity(isPressed ? 0.7 : 1.0)
             }
 
-            // Post content with conditional line limit
+            // Post content with conditional line limit and refined styling
             post.contentView(
                 lineLimit: post.content.count > maxCharacters ? 8 : nil,
                 showLinkPreview: false,
                 font: .callout  // Explicitly set font for parent post text
             )
-            .padding(.leading, 4)
+            .padding(.leading, 6)
             .padding(.trailing, 8)
+            .opacity(isPressed ? 0.85 : 1.0)
+
+            // Media attachments if present
+            if !post.attachments.isEmpty {
+                ParentPostMediaView(attachments: post.attachments)
+                    .padding(.leading, 6)
+                    .padding(.trailing, 8)
+                    .padding(.top, 6)
+                    .opacity(isPressed ? 0.85 : 1.0)
+            }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 6)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(Rectangle())
-        .onTapGesture {
-            if let onTap = onTap {
-                onTap()
+        .scaleEffect(isPressed ? 0.98 : 1.0)
+        .animation(.easeInOut(duration: 0.1), value: isPressed)
+        .onLongPressGesture(
+            minimumDuration: 0, maximumDistance: .infinity,
+            pressing: { pressing in
+                withAnimation(.easeInOut(duration: 0.1)) {
+                    isPressed = pressing
+                }
+            },
+            perform: {
+                // Provide subtle haptic feedback on tap
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.prepare()
+                impactFeedback.impactOccurred()
+
+                onTap?()
+            })
+    }
+}
+
+// MARK: - Parent Post Media View
+struct ParentPostMediaView: View {
+    let attachments: [Post.Attachment]
+    private let maxHeight: CGFloat = 200  // Maximum height for parent post media
+
+    var body: some View {
+        let imageAttachments = attachments.filter { $0.type == .image }
+
+        if !imageAttachments.isEmpty {
+            ZStack(alignment: .bottom) {
+                mediaContent(for: imageAttachments)
+                    .frame(maxHeight: maxHeight)
+                    .clipped()
+
+                // Only show gradient fade when content is actually truncated
+                if shouldShowGradientFade(for: imageAttachments) {
+                    VStack(spacing: 0) {
+                        Spacer()
+
+                        // Gradient fade to transparency for truncated content
+                        LinearGradient(
+                            colors: [
+                                Color.clear,
+                                Color(.systemBackground).opacity(0.1),
+                                Color(.systemBackground).opacity(0.3),
+                                Color(.systemBackground).opacity(0.6),
+                                Color(.systemBackground),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 50)
+                    }
+                }
             }
+            .frame(maxHeight: maxHeight)
+            .clipped()
         }
+    }
+
+    @ViewBuilder
+    private func mediaContent(for imageAttachments: [Post.Attachment]) -> some View {
+        switch imageAttachments.count {
+        case 1:
+            SingleParentImage(attachment: imageAttachments[0], maxHeight: maxHeight)
+        case 2:
+            HStack(spacing: 4) {
+                ForEach(imageAttachments.prefix(2), id: \.id) { attachment in
+                    ParentImageView(attachment: attachment)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: min(120, maxHeight))
+        case 3:
+            HStack(spacing: 4) {
+                ParentImageView(attachment: imageAttachments[0])
+                    .frame(maxWidth: .infinity)
+
+                VStack(spacing: 4) {
+                    ForEach(imageAttachments[1...2], id: \.id) { attachment in
+                        ParentImageView(attachment: attachment)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(height: min(120, maxHeight))
+        default:
+            // 4+ images: show first 3 with a "+X more" overlay on the last one
+            HStack(spacing: 4) {
+                ParentImageView(attachment: imageAttachments[0])
+                    .frame(maxWidth: .infinity)
+
+                VStack(spacing: 4) {
+                    ParentImageView(attachment: imageAttachments[1])
+
+                    ZStack {
+                        ParentImageView(attachment: imageAttachments[2])
+
+                        // Overlay for additional images
+                        Rectangle()
+                            .fill(Color.black.opacity(0.6))
+                            .overlay(
+                                Text("+\(imageAttachments.count - 3)")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                            )
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(height: min(120, maxHeight))
+        }
+    }
+
+    private func shouldShowGradientFade(for imageAttachments: [Post.Attachment]) -> Bool {
+        // For single images, we can assume truncation if we're at maxHeight
+        // For multiple images, they're sized to fit within bounds so no truncation
+        return imageAttachments.count == 1
+    }
+
+}
+
+// MARK: - Single Parent Image
+struct SingleParentImage: View {
+    let attachment: Post.Attachment
+    let maxHeight: CGFloat
+
+    var body: some View {
+        StabilizedAsyncImage(
+            url: URL(string: attachment.url),
+            idealHeight: maxHeight,
+            aspectRatio: nil,
+            contentMode: .fill,
+            cornerRadius: 8
+        )
+        .frame(maxHeight: maxHeight)
+        .clipped()
+    }
+}
+
+// MARK: - Parent Image View
+struct ParentImageView: View {
+    let attachment: Post.Attachment
+
+    var body: some View {
+        StabilizedAsyncImage(
+            url: URL(string: attachment.url),
+            idealHeight: 58,
+            aspectRatio: 1.0,
+            contentMode: .fill,
+            cornerRadius: 6
+        )
+        .frame(height: 58)
+        .clipped()
     }
 }
 

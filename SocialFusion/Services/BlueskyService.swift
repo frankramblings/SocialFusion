@@ -127,6 +127,7 @@ class BlueskyService {
     // MARK: - Properties
     private let baseURL = "https://bsky.social/xrpc"
     private let logger = Logger(subsystem: "com.socialfusion", category: "BlueskyService")
+    private var quotedPostsCounter = 0
 
     // Configure a custom URLSession with more robust settings
     private lazy var session: URLSession = {
@@ -137,6 +138,56 @@ class BlueskyService {
         config.httpMaximumConnectionsPerHost = 5
         return URLSession(configuration: config)
     }()
+
+    // MARK: - JWT Token Utilities
+
+    /// Decode JWT token to extract expiration time
+    private func decodeJWTExpiration(_ jwtToken: String) -> Date? {
+        let parts = jwtToken.components(separatedBy: ".")
+        guard parts.count == 3 else {
+            logger.warning("Invalid JWT format - expected 3 parts, got \(parts.count)")
+            return nil
+        }
+
+        let payload = parts[1]
+
+        // Add padding if needed (JWT base64 encoding might not have padding)
+        var paddedPayload = payload
+        let padding = 4 - (payload.count % 4)
+        if padding != 4 {
+            paddedPayload += String(repeating: "=", count: padding)
+        }
+
+        guard let data = Data(base64Encoded: paddedPayload) else {
+            logger.warning("Failed to decode JWT payload as base64")
+            return nil
+        }
+
+        do {
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                logger.warning("JWT payload is not valid JSON")
+                return nil
+            }
+
+            // Handle different possible numeric types for the exp field
+            let exp: TimeInterval
+            if let expDouble = json["exp"] as? Double {
+                exp = expDouble
+            } else if let expInt = json["exp"] as? Int {
+                exp = TimeInterval(expInt)
+            } else if let expString = json["exp"] as? String, let expValue = Double(expString) {
+                exp = expValue
+            } else {
+                logger.warning("JWT payload missing or invalid 'exp' field")
+                return nil
+            }
+
+            return Date(timeIntervalSince1970: exp)
+        } catch {
+            logger.warning("Failed to parse JWT payload JSON: \(error.localizedDescription)")
+            return nil
+        }
+    }
 
     // MARK: - Authentication
 
@@ -265,7 +316,16 @@ class BlueskyService {
             // Save tokens
             account.saveAccessToken(accessJwt)
             account.saveRefreshToken(refreshJwt)
-            account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+
+            // Decode JWT to get actual expiration time
+            if let actualExpiration = decodeJWTExpiration(accessJwt) {
+                logger.info("Setting Bluesky token expiration from JWT: \(actualExpiration)")
+                account.saveTokenExpirationDate(actualExpiration)
+            } else {
+                // Fallback to conservative 2 hours if JWT decoding fails
+                logger.warning("Could not decode JWT expiration, using 2-hour fallback")
+                account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+            }
 
             return account
         } catch {
@@ -340,7 +400,17 @@ class BlueskyService {
             // Update account tokens
             account.saveAccessToken(accessJwt)
             account.saveRefreshToken(refreshJwt)
-            account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+
+            // Decode JWT to get actual expiration time
+            if let actualExpiration = decodeJWTExpiration(accessJwt) {
+                logger.info(
+                    "Setting refreshed Bluesky token expiration from JWT: \(actualExpiration)")
+                account.saveTokenExpirationDate(actualExpiration)
+            } else {
+                // Fallback to conservative 2 hours if JWT decoding fails
+                logger.warning("Could not decode refreshed JWT expiration, using 2-hour fallback")
+                account.saveTokenExpirationDate(Date().addingTimeInterval(2 * 60 * 60))  // 2 hours
+            }
 
             return (accessJwt, refreshJwt)
         } catch {
@@ -414,6 +484,18 @@ class BlueskyService {
 
             if let avatar = json["avatar"] as? String, let avatarURL = URL(string: avatar) {
                 account.profileImageURL = avatarURL
+                print(
+                    "✅ Updated Bluesky account \(account.username) with profile image URL: \(avatarURL)"
+                )
+
+                // Post notification about the profile image update
+                DispatchQueue.main.async {
+                    NotificationCenter.default.post(
+                        name: Notification.Name("AccountProfileImageUpdated"),
+                        object: nil,
+                        userInfo: ["accountId": account.id, "profileImageURL": avatarURL]
+                    )
+                }
             }
         } catch {
             throw error
@@ -482,31 +564,9 @@ class BlueskyService {
         }
 
         do {
-            // Check if token is expired and needs refresh
-            if account.isTokenExpired, account.refreshToken != nil {
-                // Try to refresh token
-                logger.info("Refreshing expired Bluesky token for: \(account.username)")
-                do {
-                    let (newAccessToken, newRefreshToken) = try await refreshSession(for: account)
-                    account.saveAccessToken(newAccessToken)
-                    account.saveRefreshToken(newRefreshToken)
-                    logger.info("Successfully refreshed Bluesky token")
-
-                    // Update the request with the new token
-                    request.setValue(
-                        "Bearer \(newAccessToken)", forHTTPHeaderField: "Authorization")
-                } catch BlueskyTokenError.invalidRefreshToken {
-                    logger.error(
-                        "Bluesky refresh token has expired for: \(account.username). User needs to re-authenticate."
-                    )
-                    throw ServiceError.unauthorized(
-                        "Your Bluesky session has expired. Please re-add your account.")
-                } catch {
-                    logger.error("Failed to refresh Bluesky token: \(error.localizedDescription)")
-                    // Continue with existing token as fallback but warn about potential issues
-                    logger.warning("Continuing with existing token, but API calls may fail")
-                }
-            }
+            // Get a valid access token (automatically refreshes if needed)
+            let accessToken = try await account.getValidAccessToken()
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
             // Make the API request
             logger.info("Making Bluesky API request...")
@@ -526,6 +586,47 @@ class BlueskyService {
                 throw ServiceError.unauthorized("Authentication failed or expired")
             }
 
+            if httpResponse.statusCode == 400 {
+                // Check for expired token error and attempt auto-refresh
+                if let responseBody = String(data: data, encoding: .utf8),
+                    responseBody.contains("ExpiredToken")
+                {
+                    logger.info("Bluesky token expired, attempting automatic refresh...")
+
+                    do {
+                        // Force refresh the token
+                        let refreshedToken = try await refreshAccessToken(for: account)
+
+                        // Retry the request with the new token
+                        request.setValue(
+                            "Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
+                        let (retryData, retryResponse) = try await session.data(for: request)
+
+                        if let retryHttpResponse = retryResponse as? HTTPURLResponse,
+                            retryHttpResponse.statusCode == 200
+                        {
+                            logger.info("Successfully retried request with refreshed token")
+                            return try processFeedDataWithPagination(retryData, account: account)
+                        } else {
+                            logger.error("Retry after token refresh still failed")
+                            if let retryResponseBody = String(data: retryData, encoding: .utf8) {
+                                logger.error("Retry response body: \(retryResponseBody)")
+                            }
+                        }
+                    } catch {
+                        logger.error(
+                            "Failed to refresh token for retry: \(error.localizedDescription)")
+                    }
+                }
+
+                // If we couldn't handle the 400 error or retry failed, fall through to generic error
+                logger.error("Bluesky API returned 400 status")
+                if let responseBody = String(data: data, encoding: .utf8) {
+                    logger.error("Response body: \(responseBody)")
+                }
+                throw ServiceError.apiError("Server returned status code 400")
+            }
+
             if httpResponse.statusCode != 200 {
                 logger.error(
                     "Bluesky API returned non-success status code: \(httpResponse.statusCode)")
@@ -539,7 +640,27 @@ class BlueskyService {
 
             // Process the timeline data
             logger.info("Processing Bluesky timeline data...")
+            var totalPosts = 0
+            var postsWithEmbeds = 0
+            var postsWithQuotes = 0
+
             let result = try processFeedDataWithPagination(data, account: account)
+
+            totalPosts = result.posts.count
+            postsWithEmbeds =
+                result.posts.filter { post in
+                    // Check if this post was created with embed data
+                    return false  // We'll update this logic
+                }.count
+
+            logger.info("📊 Timeline processing summary:")
+            logger.info("📊   - Total posts: \(totalPosts)")
+            logger.info("📊   - Posts with embeds: \(postsWithEmbeds)")
+            logger.info("📊   - Posts with quotes: \(self.quotedPostsCounter)")
+
+            // Reset counter for next timeline fetch
+            self.quotedPostsCounter = 0
+
             logger.info("Successfully processed \(result.posts.count) Bluesky posts")
             logger.info(
                 "[Bluesky] Timeline post IDs and CIDs: \(result.posts.map { "\($0.id):\($0.cid ?? "nil")" }.joined(separator: ", "))"
@@ -735,6 +856,10 @@ class BlueskyService {
                 }
             }
 
+            // Get a valid access token (automatically refreshes if needed)
+            let accessToken = try await account.getValidAccessToken()
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
             // Make the API request
             let (data, response) = try await session.data(for: request)
 
@@ -794,6 +919,7 @@ class BlueskyService {
     private func processTimelineResponse(_ feedItems: [[String: Any]], account: SocialAccount)
         throws -> [Post]
     {
+        print("🔍 [QUOTE_DEBUG] Starting to process \(feedItems.count) feed items")
         var posts: [Post] = []
 
         for item in feedItems {
@@ -1029,6 +1155,9 @@ class BlueskyService {
                 // Process media attachments - handle different API embed formats
                 var attachments: [Post.Attachment] = []
                 if let embed = post["embed"] as? [String: Any] {
+                    print(
+                        "[Bluesky] 🔍 Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
+                    )
                     logger.info(
                         "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
                     )
@@ -1193,15 +1322,27 @@ class BlueskyService {
                 var quotedPost: Post? = nil
 
                 if let embed = post["embed"] as? [String: Any] {
+                    print(
+                        "🔍 [QUOTE_DEBUG] Found embed for post \(uri): \(embed.keys.joined(separator: ", "))"
+                    )
                     logger.info(
                         "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
                     )
 
-                    // Handle direct record embed (quote post)
-                    if let record = embed["record"] as? [String: Any],
-                        let quotedRecord = record["record"] as? [String: Any],
-                        let quotedUri = quotedRecord["uri"] as? String,
-                        let quotedAuthor = quotedRecord["author"] as? [String: Any],
+                    // Debug: Log the full embed structure
+                    print("[Bluesky] 🔍 Full embed structure for post \(uri):")
+                    if let embedData = try? JSONSerialization.data(withJSONObject: embed),
+                        let embedString = String(data: embedData, encoding: .utf8)
+                    {
+                        print("[Bluesky] 🔍 Embed JSON: \(String(embedString.prefix(500)))")
+                    }
+
+                    // Handle direct record embed (quote post) - check for app.bsky.embed.record#view
+                    if let embedType = embed["$type"] as? String,
+                        embedType == "app.bsky.embed.record#view",
+                        let record = embed["record"] as? [String: Any],
+                        let quotedUri = record["uri"] as? String,
+                        let quotedAuthor = record["author"] as? [String: Any],
                         let quotedHandle = quotedAuthor["handle"] as? String
                     {
                         quotedPostUri = quotedUri
@@ -1209,14 +1350,53 @@ class BlueskyService {
                         logger.info("[Bluesky] Found quote post embed: \(quotedUri)")
 
                         // Hydrate quotedPost if the full quoted post is embedded
-                        if let quotedText = quotedRecord["text"] as? String,
-                            let quotedCreatedAt = quotedRecord["createdAt"] as? String
+                        if let quotedValue = record["value"] as? [String: Any],
+                            let quotedText = quotedValue["text"] as? String,
+                            let quotedCreatedAt = quotedValue["createdAt"] as? String
                         {
                             let quotedAuthorName =
                                 (quotedAuthor["displayName"] as? String) ?? quotedHandle
                             let quotedAuthorAvatar = quotedAuthor["avatar"] as? String ?? ""
                             let quotedCreatedAtDate =
                                 DateParser.parse(quotedCreatedAt) ?? Date.distantPast
+
+                            // Parse quoted post attachments if present
+                            var quotedAttachments: [Post.Attachment] = []
+                            if let quotedEmbed = quotedValue["embed"] as? [String: Any] {
+                                logger.info(
+                                    "[Bluesky] Processing quoted post embed: \(quotedEmbed.keys.joined(separator: ", "))"
+                                )
+
+                                // Handle images array format in quoted post
+                                if let images = quotedEmbed["images"] as? [[String: Any]] {
+                                    for image in images {
+                                        if let fullsize = image["fullsize"] as? String,
+                                            !fullsize.isEmpty,
+                                            URL(string: fullsize) != nil
+                                        {
+                                            let alt = image["alt"] as? String ?? "Image"
+                                            quotedAttachments.append(
+                                                Post.Attachment(
+                                                    url: fullsize, type: .image, altText: alt))
+                                            logger.debug(
+                                                "[Bluesky] Parsed quoted post image: \(fullsize)")
+                                        }
+                                    }
+                                }
+                                // Handle other media formats in quoted post
+                                else if let media = quotedEmbed["media"] as? [String: Any],
+                                    let mediaType = media["$type"] as? String,
+                                    mediaType.contains("image"),
+                                    let imgUrl = media["image"] as? [String: Any],
+                                    let url = imgUrl["url"] as? String, !url.isEmpty,
+                                    URL(string: url) != nil
+                                {
+                                    let alt = media["alt"] as? String ?? "Image"
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: url, type: .image, altText: alt))
+                                    logger.debug("[Bluesky] Parsed quoted post media: \(url)")
+                                }
+                            }
 
                             quotedPost = Post(
                                 id: quotedUri,
@@ -1228,7 +1408,7 @@ class BlueskyService {
                                 platform: .bluesky,
                                 originalURL:
                                     "https://bsky.app/profile/\(quotedHandle)/post/\(quotedUri.split(separator: "/").last ?? "")",
-                                attachments: [],  // TODO: Parse quoted post attachments if needed
+                                attachments: quotedAttachments,  // Now properly parsed
                                 mentions: [],
                                 tags: [],
                                 likeCount: 0,
@@ -1240,12 +1420,12 @@ class BlueskyService {
                                 inReplyToUsername: nil,
                                 quotedPostUri: nil,
                                 quotedPostAuthorHandle: nil,
-                                cid: quotedRecord["cid"] as? String,
+                                cid: record["cid"] as? String,
                                 blueskyLikeRecordURI: nil,  // Quoted posts don't have user interaction records
                                 blueskyRepostRecordURI: nil
                             )
                             logger.info(
-                                "[Bluesky] Successfully hydrated quote post: \(quotedText.prefix(40))"
+                                "[Bluesky] Successfully hydrated quote post with \(quotedAttachments.count) attachments: \(quotedText.prefix(40))"
                             )
                         } else {
                             logger.info(
@@ -1275,6 +1455,70 @@ class BlueskyService {
                             let quotedCreatedAtDate =
                                 DateParser.parse(quotedCreatedAt) ?? Date.distantPast
 
+                            // Parse quoted post attachments for recordWithMedia
+                            var quotedAttachments: [Post.Attachment] = []
+
+                            // First, check if there are attachments in the quoted record itself
+                            if let quotedEmbed = quotedRecord["embed"] as? [String: Any] {
+                                logger.info(
+                                    "[Bluesky] Processing quoted post embed in recordWithMedia: \(quotedEmbed.keys.joined(separator: ", "))"
+                                )
+
+                                if let images = quotedEmbed["images"] as? [[String: Any]] {
+                                    for image in images {
+                                        if let fullsize = image["fullsize"] as? String,
+                                            !fullsize.isEmpty,
+                                            URL(string: fullsize) != nil
+                                        {
+                                            let alt = image["alt"] as? String ?? "Image"
+                                            quotedAttachments.append(
+                                                Post.Attachment(
+                                                    url: fullsize, type: .image, altText: alt))
+                                            logger.debug(
+                                                "[Bluesky] Parsed quoted post image in recordWithMedia: \(fullsize)"
+                                            )
+                                        }
+                                    }
+                                }
+                                // Handle other media formats in quoted post
+                                else if let media = quotedEmbed["media"] as? [String: Any],
+                                    let mediaType = media["$type"] as? String,
+                                    mediaType.contains("image"),
+                                    let imgUrl = media["image"] as? [String: Any],
+                                    let url = imgUrl["url"] as? String, !url.isEmpty,
+                                    URL(string: url) != nil
+                                {
+                                    let alt = media["alt"] as? String ?? "Image"
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: url, type: .image, altText: alt))
+                                    logger.debug("[Bluesky] Parsed quoted post media: \(url)")
+                                }
+                            }
+
+                            // Also check the media part of recordWithMedia for additional attachments
+                            if let media = recordWithMedia["media"] as? [String: Any] {
+                                logger.info(
+                                    "[Bluesky] Processing media in recordWithMedia: \(media.keys.joined(separator: ", "))"
+                                )
+
+                                if let images = media["images"] as? [[String: Any]] {
+                                    for image in images {
+                                        if let fullsize = image["fullsize"] as? String,
+                                            !fullsize.isEmpty,
+                                            URL(string: fullsize) != nil
+                                        {
+                                            let alt = image["alt"] as? String ?? "Image"
+                                            quotedAttachments.append(
+                                                Post.Attachment(
+                                                    url: fullsize, type: .image, altText: alt))
+                                            logger.debug(
+                                                "[Bluesky] Parsed media image in recordWithMedia: \(fullsize)"
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             quotedPost = Post(
                                 id: quotedUri,
                                 content: quotedText,
@@ -1285,7 +1529,7 @@ class BlueskyService {
                                 platform: .bluesky,
                                 originalURL:
                                     "https://bsky.app/profile/\(quotedHandle)/post/\(quotedUri.split(separator: "/").last ?? "")",
-                                attachments: [],  // TODO: Parse quoted post attachments if needed
+                                attachments: quotedAttachments,  // Now properly parsed
                                 mentions: [],
                                 tags: [],
                                 likeCount: 0,
@@ -1302,7 +1546,7 @@ class BlueskyService {
                                 blueskyRepostRecordURI: nil
                             )
                             logger.info(
-                                "[Bluesky] Successfully hydrated quote post with media: \(quotedText.prefix(40))"
+                                "[Bluesky] Successfully hydrated quote post with media and \(quotedAttachments.count) attachments: \(quotedText.prefix(40))"
                             )
                         }
                     }
@@ -1353,6 +1597,15 @@ class BlueskyService {
                     blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
                 )
                 newPost.quotedPost = quotedPost
+
+                // Count quote posts for statistics
+                if quotedPostUri != nil || quotedPostAuthorHandle != nil || quotedPost != nil {
+                    self.quotedPostsCounter += 1
+                    logger.debug(
+                        "🔗 Created post with quote metadata: \(uri) - hydrated: \(quotedPost != nil)"
+                    )
+                }
+
                 logger.info(
                     "[Bluesky] Parsed post: id=\(uri), cid=\(cid ?? "nil"), content=\(text.prefix(40))"
                 )

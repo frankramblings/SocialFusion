@@ -33,6 +33,7 @@ struct PostLinkPreview: View {
                             EmptyView()
                         }
                     }
+                    .id(imageURL.absoluteString)
                 }
 
                 // Preview content

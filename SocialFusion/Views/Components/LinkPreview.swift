@@ -47,14 +47,16 @@ final class LinkPreviewCache {
 // Simplified and more stable metadata provider manager
 final class MetadataProviderManager {
     static let shared = MetadataProviderManager()
+
     private var activeProviders = [URL: LPMetadataProvider]()
-    private let queue = DispatchQueue(label: "metadataProvider", qos: .utility)
+    private let providerQueue = DispatchQueue(label: "metadataProvider", attributes: .concurrent)
+    private let maxConcurrentRequests = 3  // Limit concurrent requests
+    private var requestCount = 0
 
     private init() {}
 
     func startFetchingMetadata(
-        for url: URL,
-        completion: @escaping (LPLinkMetadata?, Error?) -> Void
+        for url: URL, completion: @escaping (LPLinkMetadata?, Error?) -> Void
     ) {
         // Check cache first
         if let cachedMetadata = LinkPreviewCache.shared.getMetadata(for: url) {
@@ -64,27 +66,32 @@ final class MetadataProviderManager {
             return
         }
 
-        // Cancel any existing provider for this URL
-        cancelProvider(for: url)
+        // Limit concurrent requests to prevent too many web processes
+        providerQueue.async(flags: .barrier) {
+            guard self.requestCount < self.maxConcurrentRequests else {
+                // Queue is full, delay this request
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self.startFetchingMetadata(for: url, completion: completion)
+                }
+                return
+            }
 
-        // Create a new provider
-        let provider = LPMetadataProvider()
-        activeProviders[url] = provider
+            self.requestCount += 1
 
-        // Set timeout
-        provider.timeout = 10.0
+            let provider = LPMetadataProvider()
+            self.activeProviders[url] = provider
 
-        // Start fetching on background queue
-        queue.async { [weak self] in
             provider.startFetchingMetadata(for: url) { metadata, error in
+                self.providerQueue.async(flags: .barrier) {
+                    self.activeProviders.removeValue(forKey: url)
+                    self.requestCount -= 1
+                }
+
+                if let metadata = metadata {
+                    LinkPreviewCache.shared.cache(metadata: metadata, for: url)
+                }
+
                 DispatchQueue.main.async {
-                    self?.removeProvider(for: url)
-
-                    // Cache successful results
-                    if let metadata = metadata, error == nil {
-                        LinkPreviewCache.shared.cache(metadata: metadata, for: url)
-                    }
-
                     completion(metadata, error)
                 }
             }
@@ -92,19 +99,19 @@ final class MetadataProviderManager {
     }
 
     func cancelProvider(for url: URL) {
-        activeProviders[url]?.cancel()
-        removeProvider(for: url)
+        providerQueue.async(flags: .barrier) {
+            if let provider = self.activeProviders.removeValue(forKey: url) {
+                provider.cancel()
+                self.requestCount -= 1
+            }
+        }
     }
 
-    private func removeProvider(for url: URL) {
-        activeProviders.removeValue(forKey: url)
-    }
-
-    // Cancel all active providers
-    func cancelAll() {
-        for (url, provider) in activeProviders {
-            provider.cancel()
-            removeProvider(for: url)
+    func cancelAllProviders() {
+        providerQueue.async(flags: .barrier) {
+            self.activeProviders.values.forEach { $0.cancel() }
+            self.activeProviders.removeAll()
+            self.requestCount = 0
         }
     }
 }
@@ -213,6 +220,7 @@ struct LinkPreviewContent: View {
                         EmptyView()
                     }
                 }
+                .id(imageURL.absoluteString)
             }
 
             // Text content

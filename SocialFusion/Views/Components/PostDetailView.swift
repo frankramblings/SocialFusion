@@ -2,15 +2,25 @@ import Foundation
 import SwiftUI
 import UIKit
 
-/// A navigation-optimized view that displays the details of a post (not modal)
+// MARK: - Scroll Offset Preference Key
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+/// A refined post detail view following Mail.app's unified layout styling
 struct PostDetailNavigationView: View {
     @ObservedObject var viewModel: PostViewModel
     let focusReplyComposer: Bool
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
     @State private var replyText: String = ""
     @State private var isReplying: Bool = false
     @State private var error: AppError? = nil
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     // Date formatter for detailed timestamp
     private let dateFormatter: DateFormatter = {
@@ -48,173 +58,160 @@ struct PostDetailNavigationView: View {
 
     var body: some View {
         let displayPost = viewModel.post.originalPost ?? viewModel.post
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                // Author info
-                HStack(spacing: 12) {
-                    PostAuthorImageView(
-                        authorProfilePictureURL: displayPost.authorProfilePictureURL,
-                        platform: displayPost.platform
-                    )
-                    .frame(width: 48, height: 48)
-                    .clipShape(Circle())
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(displayPost.authorName)
-                            .font(.headline)
-                            .fontWeight(.semibold)
+        GeometryReader { geometry in
+            ZStack {
+                // Plain dark background like Mail.app
+                Color.black
+                    .ignoresSafeArea(.all)
 
-                        Text("@\(displayPost.authorUsername)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        // Dynamic top spacing to prevent navigation overlap
+                        Color.clear
+                            .frame(height: max(geometry.safeAreaInsets.top, 20))
 
-                    Spacer()
+                        // All content in one unified flowing section
+                        VStack(alignment: .leading, spacing: 0) {
+                            // Author section
+                            authorSection(for: displayPost)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 20)
+                                .padding(.bottom, 16)
 
-                    // Time stamp
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(dateFormatter.string(from: displayPost.createdAt))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                            // Subtle divider
+                            Divider()
+                                .background(Color.gray.opacity(0.3))
+                                .padding(.horizontal, 16)
 
-                        // Platform indicator
-                        Image(systemName: displayPost.platform.icon)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                            // Post content
+                            postContentSection(for: displayPost)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
 
-                // Content
-                displayPost.contentView(lineLimit: nil, showLinkPreview: true, font: .body)
+                            // Media attachments
+                            if !displayPost.attachments.isEmpty {
+                                Divider()
+                                    .background(Color.gray.opacity(0.3))
+                                    .padding(.horizontal, 16)
 
-                // Media attachments
-                if !displayPost.attachments.isEmpty {
-                    UnifiedMediaGridView(attachments: displayPost.attachments)
-                }
-
-                // Action bar
-                ObservableActionBar(
-                    viewModel: viewModel,
-                    onAction: handleAction,
-                    onOpenInBrowser: {
-                        if let url = URL(string: displayPost.originalURL) {
-                            UIApplication.shared.open(url)
-                        }
-                    },
-                    onCopyLink: {
-                        UIPasteboard.general.string = displayPost.originalURL
-                    },
-                    onReport: {
-                        // TODO: Implement report functionality
-                        print("Report post: \(displayPost.id)")
-                    }
-                )
-
-                // Reply interface
-                if isReplying {
-                    VStack(spacing: 16) {
-                        // Reply header with platform theming
-                        HStack {
-                            Rectangle()
-                                .fill(platformColor)
-                                .frame(width: 3)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Replying to @\(displayPost.authorUsername)")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(platformColor)
+                                mediaSection(for: displayPost)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 16)
                             }
 
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(platformColor.opacity(0.1))
-                        )
+                            // Action bar
+                            Divider()
+                                .background(Color.gray.opacity(0.3))
+                                .padding(.horizontal, 16)
 
-                        // Text input with platform-themed border and auto-focus
-                        VStack(spacing: 12) {
-                            // Use FocusableTextEditor for reliable auto-focus
-                            FocusableTextEditor(
-                                text: $replyText,
-                                placeholder: "Reply to \(displayPost.authorName)...",
-                                shouldAutoFocus: focusReplyComposer,
-                                onFocusChange: { _ in }
-                            )
-                            .frame(minHeight: 100)
-                            .padding(12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(platformColor.opacity(0.3), lineWidth: 1)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color(UIColor.systemBackground))
-                                    )
-                            )
+                            actionBarSection(for: displayPost)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
 
-                            // Reply actions
-                            HStack {
-                                // Character count
-                                let remainingChars = 500 - replyText.count
-                                Text("\(remainingChars)")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(
-                                        remainingChars < 0
-                                            ? .red : remainingChars < 50 ? .orange : .secondary
-                                    )
+                            // Engagement metadata
+                            if viewModel.post.repostCount > 0 || viewModel.post.likeCount > 0 {
+                                Divider()
+                                    .background(Color.gray.opacity(0.3))
+                                    .padding(.horizontal, 16)
 
-                                Spacer()
-
-                                // Cancel button
-                                Button("Cancel") {
-                                    withAnimation(.easeInOut(duration: 0.3)) {
-                                        isReplying = false
-                                        replyText = ""
-                                    }
-                                }
-                                .foregroundColor(.secondary)
-
-                                // Send button
-                                Button("Reply") {
-                                    sendReply()
-                                }
-                                .fontWeight(.semibold)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 20)
-                                        .fill(
-                                            canSendReply
-                                                ? platformColor : Color.gray.opacity(0.5)
-                                        )
-                                )
-                                .disabled(!canSendReply)
-                                .animation(.easeInOut(duration: 0.2), value: canSendReply)
+                                metadataSection(for: displayPost)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 16)
                             }
+
+                            // Timestamp section
+                            Divider()
+                                .background(Color.gray.opacity(0.3))
+                                .padding(.horizontal, 16)
+
+                            bottomMetadataSection(for: displayPost)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 16)
                         }
-                        .padding(.top, 16)
-                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+
+                        // Reply interface if active
+                        if isReplying {
+                            replySection(for: displayPost)
+                                .padding(.top, 20)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
+                        // Bottom spacing for proper scroll behavior
+                        Color.clear
+                            .frame(height: max(100, geometry.safeAreaInsets.bottom + 60))
                     }
                 }
+                .scrollContentBackground(.hidden)
             }
-            .padding()
         }
         .scrollDismissesKeyboard(.immediately)
-        .background(Color(.systemBackground))
         .navigationTitle("Post")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(false)
+        .navigationBarBackButtonHidden(true)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarBackground(.regularMaterial, for: .navigationBar)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarLeading) {
+                Button(action: {
+                    dismiss()
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .frame(width: 32, height: 32)
+                        .background(Color.clear)
+                        .clipShape(Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Menu {
+                    Button(action: {
+                        if let url = URL(string: viewModel.post.originalURL) {
+                            UIApplication.shared.open(url)
+                        }
+                    }) {
+                        Label("Open in Browser", systemImage: "safari")
+                    }
+
+                    Button(action: {
+                        UIPasteboard.general.string = viewModel.post.originalURL
+                    }) {
+                        Label("Copy Link", systemImage: "link")
+                    }
+
+                    Button(action: {
+                        viewModel.share()
+                    }) {
+                        Label("Share Post", systemImage: "square.and.arrow.up")
+                    }
+
+                    Divider()
+
+                    Button(
+                        role: .destructive,
+                        action: {
+                            print("Report post: \(viewModel.post.id)")
+                        }
+                    ) {
+                        Label("Report Post", systemImage: "flag")
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                        .labelStyle(.iconOnly)
+                }
+                .menuStyle(.borderlessButton)
+            }
+        }
         .handleAppErrors(error: $viewModel.error)
         .onAppear {
             // Auto-focus reply if requested and not already replying
             if focusReplyComposer && !isReplying {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                    withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                    withAnimation(.easeInOut(duration: 0.3)) {
                         isReplying = true
                     }
                 }
@@ -222,18 +219,272 @@ struct PostDetailNavigationView: View {
         }
     }
 
+    // MARK: - Content Sections
+
+    @ViewBuilder
+    private func replySection(for post: Post) -> some View {
+        VStack(spacing: 0) {
+            // Reply header with clear hierarchy
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(platformColor)
+                    .frame(width: 4, height: 32)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Replying to")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text("@\(post.authorUsername)")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(platformColor)
+                }
+
+                Spacer()
+
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isReplying = false
+                        replyText = ""
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+
+            Divider()
+                .background(Color.gray.opacity(0.3))
+                .padding(.horizontal, 16)
+
+            // Text input with proper styling
+            VStack(spacing: 16) {
+                FocusableTextEditor(
+                    text: $replyText,
+                    placeholder: "Reply to \(post.authorName)...",
+                    shouldAutoFocus: focusReplyComposer,
+                    onFocusChange: { _ in }
+                )
+                .frame(minHeight: 120)
+                .padding(16)
+                .background(Color.clear)
+
+                // Action bar with standard button styles
+                HStack {
+                    let remainingChars = 500 - replyText.count
+
+                    // Character count indicator
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(
+                                remainingChars < 0
+                                    ? .red : remainingChars < 50 ? .orange : platformColor
+                            )
+                            .frame(width: 8, height: 8)
+
+                        Text("\(remainingChars)")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(remainingChars < 0 ? .red : .secondary)
+                    }
+
+                    Spacer()
+
+                    // Standard button grouping
+                    HStack(spacing: 12) {
+                        Button("Cancel") {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                isReplying = false
+                                replyText = ""
+                            }
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Reply") {
+                            sendReply()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canSendReply)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func bottomMetadataSection(for post: Post) -> some View {
+        // Timestamp information with clear hierarchy
+        VStack(alignment: .leading, spacing: 4) {
+            Button(action: {
+                openPostPermalink(for: post)
+            }) {
+                Text(dateFormatter.string(from: post.createdAt))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .underline()
+            }
+            .buttonStyle(.plain)
+
+            Text("Posted via \(post.platform.rawValue.capitalized)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func openPostPermalink(for post: Post) {
+        guard let url = URL(string: post.originalURL) else { return }
+
+        // Try to open in the default app first, then fall back to browser
+        UIApplication.shared.open(url, options: [:]) { success in
+            if !success {
+                // If opening in the default app fails, try opening in Safari
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
+    // MARK: - Content Components
+
+    @ViewBuilder
+    private func authorSection(for post: Post) -> some View {
+        HStack(spacing: 12) {
+            // Profile image with clean styling
+            PostAuthorImageView(
+                authorProfilePictureURL: post.authorProfilePictureURL,
+                platform: post.platform
+            )
+            .frame(width: 48, height: 48)
+            .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                // Name with clean typography
+                Text(post.authorName)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+
+                Text("@\(post.authorUsername)")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            // Platform indicator
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(platformColor)
+                    .frame(width: 6, height: 6)
+
+                Text(post.platform.rawValue.capitalized)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(platformColor)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func postContentSection(for post: Post) -> some View {
+        post.contentView(
+            lineLimit: nil,
+            showLinkPreview: true,
+            font: .body,
+            onQuotePostTap: { quotedPost in
+                navigationEnvironment.navigateToPost(quotedPost)
+            }
+        )
+        .font(.body)
+        .lineSpacing(4)
+        .foregroundStyle(.primary)
+    }
+
+    @ViewBuilder
+    private func mediaSection(for post: Post) -> some View {
+        UnifiedMediaGridView(attachments: post.attachments)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func actionBarSection(for post: Post) -> some View {
+        ObservableActionBar(
+            viewModel: viewModel,
+            onAction: handleAction,
+            onOpenInBrowser: {
+                if let url = URL(string: post.originalURL) {
+                    UIApplication.shared.open(url)
+                }
+            },
+            onCopyLink: {
+                UIPasteboard.general.string = post.originalURL
+            },
+            onReport: {
+                print("Report post: \(post.id)")
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func metadataSection(for post: Post) -> some View {
+        HStack(spacing: 24) {
+            if viewModel.post.repostCount > 0 {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(viewModel.post.repostCount)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                    Text(viewModel.post.repostCount == 1 ? "Repost" : "Reposts")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if viewModel.post.likeCount > 0 {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(viewModel.post.likeCount)")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.primary)
+                    Text(viewModel.post.likeCount == 1 ? "Like" : "Likes")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Action Handling
+
     private func handleAction(_ action: PostAction) {
         switch action {
-        case .like:
-            Task { await viewModel.like() }
-        case .repost:
-            Task { await viewModel.repost() }
         case .reply:
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(.easeInOut(duration: 0.3)) {
                 isReplying = true
+            }
+        case .repost:
+            Task {
+                await viewModel.repost()
+            }
+        case .like:
+            Task {
+                await viewModel.like()
             }
         case .share:
             viewModel.share()
+        case .quote:
+            print("Quote action tapped for post: \(viewModel.post.id)")
         }
     }
 
@@ -241,9 +492,8 @@ struct PostDetailNavigationView: View {
         Task {
             do {
                 let _ = try await serviceManager.replyToPost(viewModel.post, content: replyText)
-                // Reset state after successful reply with animation
                 await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(.easeInOut(duration: 0.2)) {
                         isReplying = false
                         replyText = ""
                     }
@@ -251,7 +501,6 @@ struct PostDetailNavigationView: View {
             } catch let replyError {
                 print("Error sending reply: \(replyError)")
                 await MainActor.run {
-                    // You could add error handling UI here if needed
                     print("Reply failed: \(replyError.localizedDescription)")
                 }
             }
@@ -264,10 +513,13 @@ struct PostDetailNavigationView_Previews: PreviewProvider {
         NavigationView {
             PostDetailNavigationView(
                 viewModel: PostViewModel(
-                    post: Post.samplePosts[0], serviceManager: SocialServiceManager()),
+                    post: Post.samplePosts[0],
+                    serviceManager: SocialServiceManager()
+                ),
                 focusReplyComposer: false
             )
             .environmentObject(SocialServiceManager())
+            .environmentObject(PostNavigationEnvironment())
         }
     }
 }

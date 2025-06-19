@@ -160,17 +160,8 @@ struct AccountPickerView: View {
                 NotificationCenter.default.publisher(
                     for: Notification.Name("shouldRepresentAddAccount"))
             ) { notification in
-                // Only handle non-autofill recovery notifications
-                if let userInfo = notification.userInfo,
-                    let source = userInfo["source"] as? String,
-                    source == "autofillRecovery"
-                {
-                    // This is an autofill recovery - don't handle it here
-                    return
-                }
-
-                print("🔐 [AccountPickerView] Received notification to re-present AddAccountView")
-                showAddAccountSheet = true
+                // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
+                // Account management will be handled through normal UI flow instead
             }
         }
     }

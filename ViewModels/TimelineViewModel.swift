@@ -4,7 +4,7 @@ import SwiftUI
 import os.log
 
 /// Represents the states a timeline view can be in
-public enum TimelineState {
+public enum ViewModelState {
     case idle
     case loading
     case loaded([Post])
@@ -45,7 +45,7 @@ public enum TimelineState {
 public final class TimelineViewModel: ObservableObject {
     // MARK: - Published Properties
 
-    @Published public private(set) var state: TimelineState = .idle
+    @Published public private(set) var state: ViewModelState = .idle
     @Published public private(set) var posts: [Post] = []
     @Published public private(set) var isLoading = false
     @Published public private(set) var error: Error?
@@ -77,7 +77,8 @@ public final class TimelineViewModel: ObservableObject {
     public init(accounts: [SocialAccount]) {
         self.accounts = accounts
         self.socialServiceManager = SocialServiceManager.shared
-        setupObservers()
+        // PHASE 3+: Removed setupObservers() to prevent AttributeGraph cycles
+        // State updates will be handled through normal data flow instead
     }
 
     // MARK: - Public Methods
@@ -145,14 +146,25 @@ public final class TimelineViewModel: ObservableObject {
     public func refreshUnifiedTimeline() {
         let now = Date()
 
+        print("🔄 TimelineViewModel: refreshUnifiedTimeline called")
+        print("🔄 TimelineViewModel: accounts count: \(self.accounts.count)")
+        print("🔄 TimelineViewModel: globalRefreshLock: \(Self.globalRefreshLock)")
+
         // GLOBAL LOCK: Block refresh attempts if one is already in progress
         if Self.globalRefreshLock {
+            let lockAge = now.timeIntervalSince(Self.globalRefreshLockTime)
+            print("🔄 TimelineViewModel: Global lock active, age: \(lockAge) seconds")
+
             // Check if lock is stale (older than 10 seconds)
-            if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
+            if lockAge > 10.0 {
                 Self.globalRefreshLock = false
-                print("🔓 TimelineViewModel: Stale unified refresh lock reset")
+                print(
+                    "🔓 TimelineViewModel: Stale unified refresh lock reset after \(lockAge) seconds"
+                )
             } else {
                 // Lock is active - BLOCK this attempt completely
+                print(
+                    "🚫 TimelineViewModel: Refresh blocked by active global lock (age: \(lockAge)s)")
                 return
             }
         }
@@ -160,6 +172,7 @@ public final class TimelineViewModel: ObservableObject {
         // Set global lock immediately to block other attempts
         Self.globalRefreshLock = true
         Self.globalRefreshLockTime = now
+        print("🔒 TimelineViewModel: Global refresh lock acquired")
 
         // Cancel any existing refresh task
         refreshTask?.cancel()
@@ -168,10 +181,16 @@ public final class TimelineViewModel: ObservableObject {
         refreshTask = Task { [weak self] in
             guard let self = self else {
                 Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Global lock released (self deallocated)")
                 return
             }
 
-            defer { Self.globalRefreshLock = false }
+            defer {
+                Self.globalRefreshLock = false
+                print("🔓 TimelineViewModel: Global refresh lock released")
+            }
+
+            print("🔄 TimelineViewModel: Starting timeline refresh task")
 
             // Show loading state
             await MainActor.run {
@@ -179,27 +198,52 @@ public final class TimelineViewModel: ObservableObject {
                 if case .idle = self.state {
                     self.state = .loading
                 }
+                print("🔄 TimelineViewModel: Loading state set")
             }
 
             do {
+                print(
+                    "🔄 TimelineViewModel: Calling socialServiceManager.refreshTimeline with \(self.accounts.count) accounts"
+                )
+
                 // Fetch unified timeline from service manager using self.accounts
                 let posts = try await socialServiceManager.refreshTimeline(accounts: self.accounts)
 
+                print("🔄 TimelineViewModel: Received \(posts.count) posts from service manager")
+
                 // Update UI on main thread
                 await MainActor.run {
+                    print(
+                        "🔄 TimelineViewModel: About to update posts array with \(posts.count) posts"
+                    )
+                    print(
+                        "🔄 TimelineViewModel: Current posts count before update: \(self.posts.count)"
+                    )
+
                     self.posts = posts
                     self.isLoading = false
 
+                    print(
+                        "🔄 TimelineViewModel: Posts array updated - new count: \(self.posts.count)")
+
                     if posts.isEmpty {
                         self.state = .empty
+                        print("🔄 TimelineViewModel: State set to empty (no posts)")
                     } else {
                         self.state = .loaded(posts)
+                        print("🔄 TimelineViewModel: State set to loaded with \(posts.count) posts")
+
+                        // Log first few posts for debugging
+                        for (index, post) in posts.prefix(3).enumerated() {
+                            print("🔄   Post \(index): \(post.id) - \(post.content.prefix(50))...")
+                        }
                     }
 
                     self.logger.info(
                         "Unified timeline refreshed for \(self.accounts.count) accounts")
                 }
             } catch {
+                print("❌ TimelineViewModel: Error refreshing timeline: \(error)")
                 await MainActor.run {
                     self.isLoading = false
                     self.state = .error(error)
@@ -258,20 +302,6 @@ public final class TimelineViewModel: ObservableObject {
 
     // MARK: - Private Methods
 
-    private func setupObservers() {
-        // Listen for account changes or other relevant notifications
-        NotificationCenter.default.publisher(for: .accountProfileImageUpdated)
-            .receive(on: RunLoop.main)  // Ensure on main thread
-            .debounce(for: .seconds(0.5), scheduler: RunLoop.main)  // Debounce rapid updates
-            .sink { [weak self] _ in
-                // Refresh posts if needed when account profile images update
-                if case .loaded(let posts) = self?.state, !posts.isEmpty {
-                    self?.objectWillChange.send()
-                }
-            }
-            .store(in: &cancellables)
-    }
-
     private func handleError(_ error: Error) {
         logger.error("Timeline error: \(error.localizedDescription, privacy: .public)")
 
@@ -319,7 +349,7 @@ public final class TimelineViewModel: ObservableObject {
                 self.rateLimitTimer = nil
 
                 // Reset state to idle so user can try again
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self.state = .idle
                 }
             }

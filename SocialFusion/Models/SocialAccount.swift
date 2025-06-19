@@ -495,10 +495,13 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
     public var isTokenExpired: Bool {
         guard let expirationDate = tokenExpirationDate else {
-            return true
+            // If no expiration date is set, assume token is still valid for now
+            // This prevents unnecessary re-authentication for tokens without expiration info
+            return false
         }
-        // Consider token expired 5 minutes before actual expiration
-        return expirationDate.addingTimeInterval(-5 * 60) < Date()
+        // Consider token expired 1 minute before actual expiration (reduced from 5 minutes)
+        // This gives a small buffer while being less aggressive
+        return expirationDate.addingTimeInterval(-1 * 60) < Date()
     }
 
     /// Ensures this account has a valid access token, refreshing if necessary
@@ -506,9 +509,33 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     public func getValidAccessToken() async throws -> String {
         let logger = Logger(subsystem: "com.socialfusion", category: "SocialAccount")
 
-        // If the token is not expired, return it
+        // If the token is not expired, return it immediately
         if !isTokenExpired, let token = accessToken {
             logger.debug("Token for \(self.username, privacy: .public) is still valid")
+            return token
+        }
+
+        // If token is close to expiring (within 2 hours), proactively refresh it
+        if let expirationDate = tokenExpirationDate,
+            expirationDate.timeIntervalSinceNow <= 7200,  // 2 hours
+            let token = accessToken
+        {
+            logger.info(
+                "Token for \(self.username, privacy: .public) expires soon, attempting proactive refresh"
+            )
+
+            // Try to refresh in background, but return current token if refresh fails
+            Task.detached {
+                do {
+                    _ = try await self.refreshTokenInBackground()
+                } catch {
+                    // Log error but don't fail the current request
+                    logger.warning(
+                        "Proactive token refresh failed for \(self.username, privacy: .public): \(error.localizedDescription)"
+                    )
+                }
+            }
+
             return token
         }
 
@@ -521,37 +548,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         }
 
         do {
-            // Special handling for each platform
-            switch platform {
-            case .bluesky:
-                let blueskyService = BlueskyService()
-                let newToken = try await blueskyService.refreshAccessToken(for: self)
-
-                logger.info(
-                    "Successfully refreshed token for Bluesky account \(self.username, privacy: .public)"
-                )
-                return newToken
-
-            case .mastodon:
-                // For Mastodon, use the refresh token to get a new access token
-                logger.debug(
-                    "Using refresh token for Mastodon account \(self.username, privacy: .public)")
-
-                // Use the existing MastodonService to refresh
-                let mastodonService = MastodonService()
-                let newToken = try await mastodonService.refreshAccessToken(for: self)
-
-                logger.info(
-                    "Successfully refreshed token for Mastodon account \(self.username, privacy: .public)"
-                )
-                return newToken
-
-            default:
-                logger.error(
-                    "Token refresh not implemented for platform \(self.platform.rawValue, privacy: .public)"
-                )
-                throw TokenError.refreshFailed
-            }
+            return try await refreshTokenInBackground()
         } catch {
             logger.error("Failed to refresh token: \(error.localizedDescription, privacy: .public)")
 
@@ -563,6 +560,37 @@ public class SocialAccount: Identifiable, Codable, Equatable {
             }
 
             throw TokenError.refreshFailed
+        }
+    }
+
+    /// Refresh token in background without blocking the UI
+    private func refreshTokenInBackground() async throws -> String {
+        let logger = Logger(subsystem: "com.socialfusion", category: "SocialAccount")
+
+        // Special handling for each platform
+        switch platform {
+        case .bluesky:
+            let blueskyService = BlueskyService()
+            let newToken = try await blueskyService.refreshAccessToken(for: self)
+
+            logger.info(
+                "Successfully refreshed token for Bluesky account \(self.username, privacy: .public)"
+            )
+            return newToken
+
+        case .mastodon:
+            // For Mastodon, use the refresh token to get a new access token
+            logger.debug(
+                "Using refresh token for Mastodon account \(self.username, privacy: .public)")
+
+            // Use the existing MastodonService to refresh
+            let mastodonService = MastodonService()
+            let newToken = try await mastodonService.refreshAccessToken(for: self)
+
+            logger.info(
+                "Successfully refreshed token for Mastodon account \(self.username, privacy: .public)"
+            )
+            return newToken
         }
     }
 

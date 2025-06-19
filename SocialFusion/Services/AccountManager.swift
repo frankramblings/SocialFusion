@@ -31,20 +31,8 @@ class AccountManager: ObservableObject {
         loadAccounts()
         loadSelectedAccounts()
 
-        // Subscribe to notifications
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAccountsChanged),
-            name: Self.accountsChangedNotification,
-            object: nil
-        )
-
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleSelectedAccountsChanged),
-            name: Self.selectedAccountsChangedNotification,
-            object: nil
-        )
+        // PHASE 3+: Removed NotificationCenter observers to prevent AttributeGraph cycles
+        // Account state management will be handled through normal data flow instead
     }
 
     // MARK: - Account Loading
@@ -386,16 +374,5 @@ class AccountManager: ObservableObject {
         }
 
         return []
-    }
-
-    // MARK: - Notification Handlers
-
-    @objc private func handleAccountsChanged() {
-        // Validate selected accounts after account list changes
-        validateSelectedAccounts()
-    }
-
-    @objc private func handleSelectedAccountsChanged() {
-        // Currently nothing to do, but included for future needs
     }
 }

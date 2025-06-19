@@ -186,6 +186,6 @@ extension Error {
         if let appError = self as? AppError {
             return appError
         }
-        return .unknown("An unknown error occurred")
+        return .unknown(self)
     }
 }

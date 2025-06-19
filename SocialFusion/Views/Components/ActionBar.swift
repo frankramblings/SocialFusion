@@ -1,5 +1,15 @@
 import SwiftUI
 
+/// Custom button style that provides scale feedback when pressed
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.8 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
+}
+
 /// ActionBar component for social media post interactions
 struct ActionBar: View {
     @ObservedObject var post: Post
@@ -15,6 +25,10 @@ struct ActionBar: View {
         HStack {
             // Reply button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.reply)
             } label: {
                 HStack(spacing: 4) {
@@ -28,19 +42,26 @@ struct ActionBar: View {
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel("Reply")
 
             Spacer()
 
             // Repost button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.repost)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.2.squarepath")
                         .font(.system(size: iconSize))
                         .foregroundColor(post.isReposted ? .green : .secondary)
+                        .scaleEffect(post.isReposted ? 1.1 : 1.0)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.6), value: post.isReposted)
                     if post.repostCount > 0 {
                         Text("\(post.repostCount)")
                             .font(.caption)
@@ -48,19 +69,43 @@ struct ActionBar: View {
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
+
+            Spacer()
+
+            // Quote button
+            Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
+                onAction(.quote)
+            } label: {
+                Image(systemName: "quote.bubble")
+                    .font(.system(size: iconSize))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Quote Post")
 
             Spacer()
 
             // Like button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.like)
             } label: {
                 HStack(spacing: 4) {
                     Image(systemName: post.isLiked ? "heart.fill" : "heart")
                         .font(.system(size: iconSize))
                         .foregroundColor(post.isLiked ? .red : .secondary)
+                        .scaleEffect(post.isLiked ? 1.1 : 1.0)
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.6), value: post.isLiked)
                     if post.likeCount > 0 {
                         Text("\(post.likeCount)")
                             .font(.caption)
@@ -68,20 +113,24 @@ struct ActionBar: View {
                     }
                 }
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
 
             Spacer()
 
             // Share button
             Button {
+                // Add haptic feedback
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+
                 onAction(.share)
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel("Share")
 
             Spacer()

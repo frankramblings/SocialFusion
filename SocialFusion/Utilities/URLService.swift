@@ -300,4 +300,85 @@ class URLService {
 
         return nil
     }
+
+    /// Check if URL is a YouTube video
+    func isYouTubeURL(_ url: URL) -> Bool {
+        let host = url.host?.lowercased() ?? ""
+        return host == "youtube.com" || host == "www.youtube.com" || host == "youtu.be"
+            || host == "m.youtube.com"
+    }
+
+    /// Extract YouTube video ID from various YouTube URL formats
+    func extractYouTubeVideoID(from url: URL) -> String? {
+        let host = url.host?.lowercased() ?? ""
+
+        // Handle youtu.be short URLs
+        if host == "youtu.be" {
+            let pathComponents = url.pathComponents
+            if pathComponents.count > 1 {
+                let videoID = pathComponents[1]
+                // Remove any query parameters
+                return videoID.components(separatedBy: "?").first
+            }
+        }
+
+        // Handle youtube.com URLs
+        if host.contains("youtube.com") {
+            // Check for /watch?v= format
+            if let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+            {
+                for item in queryItems {
+                    if item.name == "v", let value = item.value {
+                        return value
+                    }
+                }
+            }
+
+            // Check for /embed/ format
+            let path = url.path
+            if path.contains("/embed/") {
+                let components = path.components(separatedBy: "/embed/")
+                if components.count > 1 {
+                    return components[1].components(separatedBy: "/").first
+                }
+            }
+
+            // Check for /v/ format
+            if path.contains("/v/") {
+                let components = path.components(separatedBy: "/v/")
+                if components.count > 1 {
+                    return components[1].components(separatedBy: "/").first
+                }
+            }
+        }
+
+        return nil
+    }
+
+    /// Get YouTube video thumbnail URL
+    func getYouTubeThumbnailURL(videoID: String, quality: YouTubeThumbnailQuality = .high) -> URL? {
+        let thumbnailURL: String
+        switch quality {
+        case .default:
+            thumbnailURL = "https://img.youtube.com/vi/\(videoID)/default.jpg"
+        case .medium:
+            thumbnailURL = "https://img.youtube.com/vi/\(videoID)/mqdefault.jpg"
+        case .high:
+            thumbnailURL = "https://img.youtube.com/vi/\(videoID)/hqdefault.jpg"
+        case .standard:
+            thumbnailURL = "https://img.youtube.com/vi/\(videoID)/sddefault.jpg"
+        case .maxres:
+            thumbnailURL = "https://img.youtube.com/vi/\(videoID)/maxresdefault.jpg"
+        }
+        return URL(string: thumbnailURL)
+    }
+}
+
+/// YouTube thumbnail quality options
+enum YouTubeThumbnailQuality {
+    case `default`  // 120x90
+    case medium  // 320x180
+    case high  // 480x360
+    case standard  // 640x480
+    case maxres  // 1280x720
 }
