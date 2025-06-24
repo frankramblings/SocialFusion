@@ -367,7 +367,7 @@ struct YouTubeVideoPreview: View {
     @State private var thumbnailLoadFailed = false
     @Environment(\.colorScheme) private var colorScheme
 
-    init(url: URL, videoID: String, idealHeight: CGFloat = 200, fullScreenHeight: CGFloat = 300) {
+    init(url: URL, videoID: String, idealHeight: CGFloat = 220, fullScreenHeight: CGFloat = 320) {
         self.url = url
         self.videoID = videoID
         self.idealHeight = idealHeight
@@ -431,27 +431,46 @@ struct YouTubeVideoPreview: View {
                             image
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                        case .failure(_):
+                        case .failure(let error):
                             fallbackThumbnail
-                                .onAppear { thumbnailLoadFailed = true }
+                                .onAppear {
+                                    thumbnailLoadFailed = true
+                                    print(
+                                        "[YouTube] AsyncImage failed for \(videoID): \(error.localizedDescription)"
+                                    )
+                                }
                         case .empty:
                             loadingThumbnail
                         @unknown default:
                             fallbackThumbnail
+                                .onAppear {
+                                    print("[YouTube] Unknown AsyncImage state for \(videoID)")
+                                }
                         }
                     }
+                } else if thumbnailURL == nil {
+                    // Still testing thumbnail URLs
+                    loadingThumbnail
+                        .onAppear {
+                            print("[YouTube] Testing thumbnail qualities for \(videoID)...")
+                        }
                 } else {
+                    // All thumbnail qualities failed or thumbnailLoadFailed is true
                     fallbackThumbnail
+                        .onAppear {
+                            print("[YouTube] Using fallback thumbnail for \(videoID)")
+                        }
                 }
             }
             .clipped()
 
-            // Gradient overlay for better text readability
+            // Enhanced gradient overlay for better text readability across more area
             LinearGradient(
                 colors: [
                     Color.black.opacity(0.0),
-                    Color.black.opacity(0.3),
-                    Color.black.opacity(0.6),
+                    Color.black.opacity(0.1),
+                    Color.black.opacity(0.4),
+                    Color.black.opacity(0.7),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -461,8 +480,8 @@ struct YouTubeVideoPreview: View {
             VStack {
                 Spacer()
 
-                // Video info overlay
-                VStack(alignment: .leading, spacing: 4) {
+                // Video info overlay with improved text layout
+                VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         // YouTube logo
                         Image(systemName: "play.rectangle.fill")
@@ -473,6 +492,7 @@ struct YouTubeVideoPreview: View {
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
 
                         Spacer()
 
@@ -489,14 +509,17 @@ struct YouTubeVideoPreview: View {
                         }
                     }
 
-                    // Video title
+                    // Video title with improved spacing and constraints
                     if let title = videoTitle {
                         Text(title)
                             .font(.subheadline)
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
-                            .lineLimit(2)
+                            .lineLimit(3)  // Increased from 2 to 3 lines
                             .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)  // Allow text to expand vertically
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .shadow(color: .black.opacity(0.8), radius: 2, x: 0, y: 1)  // Text shadow for better readability
                     } else if isLoadingMetadata {
                         HStack {
                             ProgressView()
@@ -514,21 +537,38 @@ struct YouTubeVideoPreview: View {
                             Text(channelName)
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(1)
+                                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
                         }
 
                         if let viewCount = viewCount {
                             Text("•")
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.7))
+                                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
 
                             Text(viewCount)
                                 .font(.caption)
                                 .foregroundColor(.white.opacity(0.9))
+                                .lineLimit(1)
+                                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 12)
+                .padding(.horizontal, 16)  // Increased from 12 to 16 for better margins
+                .padding(.vertical, 16)  // Increased vertical padding and made it symmetric
+                .background(
+                    // Dedicated text area gradient for maximum readability
+                    LinearGradient(
+                        colors: [
+                            Color.black.opacity(0.1),
+                            Color.black.opacity(0.6),
+                            Color.black.opacity(0.9),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
             }
 
             // Play button overlay
@@ -599,31 +639,55 @@ struct YouTubeVideoPreview: View {
 
     private var fallbackThumbnail: some View {
         ZStack {
+            // YouTube-themed gradient background
             Rectangle()
                 .fill(
                     LinearGradient(
-                        colors: [Color.red.opacity(0.3), Color.red.opacity(0.1)],
+                        colors: [
+                            Color.red.opacity(0.8),
+                            Color.red.opacity(0.6),
+                            Color.red.opacity(0.4),
+                        ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
 
-            VStack(spacing: 8) {
-                Image(systemName: "play.rectangle")
-                    .font(.system(size: 40))
-                    .foregroundColor(.red)
+            VStack(spacing: 12) {
+                // YouTube play button design
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 60, height: 60)
 
-                Text("YouTube Video")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.red)
+                        .offset(x: 2)  // Slight offset for visual centering
+                }
 
-                if let title = videoTitle {
-                    Text(title)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
+                VStack(spacing: 4) {
+                    Text("YouTube Video")
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+
+                    if let title = videoTitle {
+                        Text(title)
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.9))
+                            .lineLimit(3)  // Increased from 2 to 3 lines for consistency
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)  // Allow text to expand vertically
+                            .padding(.horizontal, 20)  // Slightly more padding for better readability
+                    }
+
+                    if let channelName = channelName {
+                        Text(channelName)
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.top, 2)
+                    }
                 }
             }
         }
@@ -632,13 +696,61 @@ struct YouTubeVideoPreview: View {
     // MARK: - Enhanced Functions
 
     private func loadVideoData() {
-        // Load high-quality thumbnail
-        thumbnailURL =
-            URLService.shared.getYouTubeThumbnailURL(videoID: videoID, quality: .maxres)
-            ?? URLService.shared.getYouTubeThumbnailURL(videoID: videoID, quality: .high)
+        // Load thumbnail with cascading fallback quality system
+        loadThumbnailWithFallback()
 
         // Load enhanced video metadata
         loadEnhancedVideoMetadata()
+    }
+
+    private func loadThumbnailWithFallback() {
+        // Try multiple thumbnail qualities in order of preference
+        let qualities: [YouTubeThumbnailQuality] = [.high, .medium, .standard, .default]
+
+        func tryNextQuality(_ index: Int = 0) {
+            guard index < qualities.count else {
+                // All qualities failed, use fallback
+                print("[YouTube] All thumbnail qualities failed for video: \(videoID)")
+                return
+            }
+
+            let quality = qualities[index]
+            guard
+                let testURL = URLService.shared.getYouTubeThumbnailURL(
+                    videoID: videoID, quality: quality)
+            else {
+                tryNextQuality(index + 1)
+                return
+            }
+
+            // Test if this thumbnail URL actually exists
+            var request = URLRequest(url: testURL)
+            request.httpMethod = "HEAD"  // Only check headers, don't download image data
+            request.timeoutInterval = 5.0
+
+            URLSession.shared.dataTask(with: request) { _, response, error in
+                DispatchQueue.main.async {
+                    if let httpResponse = response as? HTTPURLResponse,
+                        httpResponse.statusCode == 200
+                    {
+                        // This quality works, use it
+                        self.thumbnailURL = testURL
+                        print(
+                            "[YouTube] Using \(quality) quality thumbnail for video: \(self.videoID)"
+                        )
+                    } else {
+                        // This quality failed, try next one
+                        print(
+                            "[YouTube] \(quality) quality failed for video: \(self.videoID), trying next..."
+                        )
+                        tryNextQuality(index + 1)
+                    }
+                }
+            }.resume()
+        }
+
+        // Start the fallback process
+        tryNextQuality()
     }
 
     private func loadEnhancedVideoMetadata() {
