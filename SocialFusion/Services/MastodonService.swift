@@ -1446,12 +1446,22 @@ public class MastodonService {
                 platform: .mastodon,
                 originalURL: reblog.url ?? "",
                 attachments: reblog.mediaAttachments.compactMap { media in
+                    let attachmentType: Post.Attachment.AttachmentType
+                    switch media.type {
+                    case "image":
+                        attachmentType = .image
+                    case "video":
+                        attachmentType = .video
+                    case "gifv":
+                        attachmentType = .gifv
+                    case "audio":
+                        attachmentType = .audio
+                    default:
+                        return nil  // Skip unsupported types
+                    }
                     return Post.Attachment(
                         url: media.url,
-                        type: media.type == "image"
-                            ? .image
-                            : media.type == "video"
-                                ? .video : media.type == "gifv" ? .gifv : .audio,
+                        type: attachmentType,
                         altText: media.description
                     )
                 },
@@ -1497,17 +1507,35 @@ public class MastodonService {
 
         // Regular non-boosted post
         let attachments = status.mediaAttachments.compactMap { media -> Post.Attachment? in
-            guard media.type == "image", let url = URL(string: media.url), !media.url.isEmpty else {
+            // Accept image, gifv, video, and audio attachments
+            let supportedTypes = ["image", "gifv", "video", "audio"]
+            guard supportedTypes.contains(media.type), let url = URL(string: media.url),
+                !media.url.isEmpty
+            else {
                 print(
-                    "[Mastodon] Skipping non-image or invalid attachment: \(media.url) type: \(media.type)"
+                    "[Mastodon] Skipping unsupported or invalid attachment: \(media.url) type: \(media.type)"
                 )
                 return nil
             }
-            let alt = media.description ?? "Image"
-            print("[Mastodon] Parsed image attachment: \(url) alt: \(alt)")
+
+            let alt = media.description ?? (media.type == "gifv" ? "Animated GIF" : "Media")
+            let attachmentType: Post.Attachment.AttachmentType
+            switch media.type {
+            case "image":
+                attachmentType = .image
+            case "video":
+                attachmentType = .video
+            case "gifv":
+                attachmentType = .gifv
+            case "audio":
+                attachmentType = .audio
+            default:
+                return nil  // Skip unsupported types
+            }
+            print("[Mastodon] Parsed \(media.type) attachment: \(url) alt: \(alt)")
             return Post.Attachment(
                 url: media.url,
-                type: .image,
+                type: attachmentType,
                 altText: alt
             )
         }

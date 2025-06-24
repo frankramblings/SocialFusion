@@ -33,6 +33,7 @@ struct PostDetailView: View {
 
     // Thread scroll position keys
     private let selectedPostScrollID = "selected-post"
+    private let selectedPostAreaID = "selected-post-area"
     private let topScrollID = "top-anchor"
 
     // Date formatter for detailed timestamp
@@ -65,64 +66,60 @@ struct PostDetailView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            GeometryReader { geometry in
-                ZStack(alignment: .bottom) {
-                    // Main content with ScrollViewReader for auto-scroll
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: 0) {
-                                // Top anchor for scroll position
-                                Color.clear
-                                    .frame(height: 1)
-                                    .id(topScrollID)
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                // Main content with ScrollViewReader for auto-scroll
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            // Top anchor for scroll position
+                            Color.clear
+                                .frame(height: 1)
+                                .id(topScrollID)
 
-                                threadContentView
-                                    .padding(.bottom, 100)  // Bottom padding for scroll behavior
-                            }
-                        }
-                        .background(
-                            GeometryReader { geometry in
-                                Color.clear
-                                    .preference(
-                                        key: ScrollOffsetPreferenceKey.self,
-                                        value: geometry.frame(in: .named("scrollView")).minY)
-                            }
-                        )
-                        .coordinateSpace(name: "scrollView")
-                        .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                            updateScrollState(offset: offset)
-                        }
-                        .background(Color(.systemGroupedBackground))
-                        .onAppear {
-                            loadThreadContext()
-                            scrollProxy = proxy
-                            // Auto-scroll to selected post as visual anchor - immediate positioning
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                                scrollToSelectedPost(proxy: proxy)
-                            }
+                            threadContentView
+                                .padding(.bottom, 100)  // Bottom padding for scroll behavior
                         }
                     }
-
-                    // Reply composer overlay
-                    if isReplying {
-                        replyComposerView
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .background(
+                        GeometryReader { geometry in
+                            Color.clear
+                                .preference(
+                                    key: ScrollOffsetPreferenceKey.self,
+                                    value: geometry.frame(in: .named("scrollView")).minY)
+                        }
+                    )
+                    .coordinateSpace(name: "scrollView")
+                    .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
+                        updateScrollState(offset: offset)
                     }
+                    .background(Color(.systemGroupedBackground))
+                    .onAppear {
+                        loadThreadContext()
+                        scrollProxy = proxy
+                        // Ivory-style: Immediate scroll on appear
+                        scrollToSelectedPost(proxy: proxy)
+                    }
+                }
 
-                    // Parent posts indicator (liquid glass)
-                    if showParentIndicator && !parentPosts.isEmpty {
-                        VStack {
-                            HStack {
-                                Spacer()
-                                parentPostsIndicator()
-                                Spacer()
-                            }
+                // Reply composer overlay
+                if isReplying {
+                    replyComposerView
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+
+                // Parent posts indicator (liquid glass)
+                if showParentIndicator && !parentPosts.isEmpty {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            parentPostsIndicator()
                             Spacer()
                         }
-                        .padding(.top, 20)
-                        .allowsHitTesting(true)
+                        Spacer()
                     }
+                    .padding(.top, 20)
+                    .allowsHitTesting(true)
                 }
             }
         }
@@ -169,22 +166,27 @@ struct PostDetailView: View {
         VStack(spacing: 0) {
             // Boost banner (if this post was boosted)
             if let boostInfo = navigationEnvironment.boostInfo {
-                HStack(alignment: .top, spacing: 0) {
-                    // Align with profile image position
-                    Color.clear
-                        .frame(width: 52)
+                // Invisible anchor for selected post area (including boost banner)
+                Color.clear
+                    .frame(height: 1)
+                    .id(selectedPostAreaID)
 
+                HStack {
                     BoostBanner(
                         handle: boostInfo.boostedBy,
                         platform: viewModel.post.platform
                     )
-                    .padding(.trailing, 16)
-
                     Spacer()
                 }
-                .padding(.leading, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
+                .padding(.horizontal, 12)  // Apple standard: 12pt for content - match feed alignment
+                .padding(.vertical, 6)  // Adequate touch target - match feed alignment
+            }
+
+            // Anchor for selected post area when no boost banner
+            if navigationEnvironment.boostInfo == nil {
+                Color.clear
+                    .frame(height: 1)
+                    .id(selectedPostAreaID)
             }
 
             // Parent posts (above selected post) - MOVED BACK TO TOP
@@ -239,6 +241,8 @@ struct PostDetailView: View {
                     dateFormatter: dateFormatter
                 )
                 .id(selectedPostScrollID)
+                .layoutPriority(1000)  // Ivory-style: Highest priority for anchor post
+                .padding(.top, 8)  // Add top padding for better spacing when at top of screen
 
                 // Action bar for selected post
                 PostActionBar(
@@ -578,15 +582,8 @@ struct PostDetailView: View {
     private func scrollToSelectedPost(proxy: ScrollViewProxy) {
         guard !hasScrolledToSelectedPost else { return }
 
-        // First, immediately jump to the selected post without animation
-        proxy.scrollTo(selectedPostScrollID, anchor: .top)
-
-        // Then animate to fine-tune the position
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            withAnimation(.easeInOut(duration: 0.4)) {
-                proxy.scrollTo(selectedPostScrollID, anchor: .top)
-            }
-        }
+        // Ivory-style: Simple, immediate positioning - no delays, no animation
+        proxy.scrollTo(selectedPostAreaID, anchor: .top)
 
         hasScrolledToSelectedPost = true
     }
@@ -605,9 +602,11 @@ struct PostDetailView: View {
     @ViewBuilder
     private func parentPostsIndicator() -> some View {
         Button(action: {
-            withAnimation(.easeInOut(duration: 0.5)) {
-                scrollProxy?.scrollTo(topScrollID, anchor: .top)
-                showParentIndicator = false
+            Task { @MainActor in
+                withAnimation(.easeInOut(duration: 0.5)) {
+                    scrollProxy?.scrollTo(topScrollID, anchor: .top)
+                    showParentIndicator = false
+                }
             }
         }) {
             ZStack {
@@ -653,51 +652,43 @@ struct SelectedPostView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Author header section - Ivory-inspired prominence
-            HStack(spacing: 16) {  // Increased spacing for better hierarchy
+            // Author header section - moderately prominent
+            HStack(spacing: 12) {  // Reasonable spacing
                 PostAuthorImageView(
                     authorProfilePictureURL: post.authorProfilePictureURL,
                     platform: post.platform,
                     authorName: post.authorName
                 )
-                .frame(width: 52, height: 52)  // Larger profile image for selected post
+                .frame(width: 44, height: 44)  // Standard size, slightly larger than thread posts
                 .onTapGesture {
                     // Profile navigation - could be implemented in future
                 }
 
-                VStack(alignment: .leading, spacing: 4) {  // More spacing for readability
+                VStack(alignment: .leading, spacing: 2) {  // Compact spacing
                     Text(post.authorName)
-                        .font(.title2)  // Larger, more prominent font
-                        .fontWeight(.bold)  // Bold for emphasis
+                        .font(.headline)  // Moderately prominent
+                        .fontWeight(.semibold)  // Less bold than before
                         .foregroundColor(.primary)
                         .lineLimit(1)
 
                     Text("@\(post.authorUsername)")
-                        .font(.callout)  // Slightly larger username
+                        .font(.subheadline)  // Standard size
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
 
                 Spacer()
-
-                // Share/menu button in top right
-                Button(action: {}) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.title3)
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
-            .padding(.top, 4)  // Reduced top padding to balance with separator spacing
-            .padding(.bottom, 16)  // More spacing before content
+            .padding(.top, 8)
+            .padding(.bottom, 12)
 
-            // Post content section with emphasis
-            VStack(alignment: .leading, spacing: 20) {  // More generous spacing
+            // Post content section - moderately emphasized
+            VStack(alignment: .leading, spacing: 12) {  // Reasonable spacing
                 post.contentView(
                     lineLimit: nil,
                     showLinkPreview: true,
-                    font: .title,  // Larger font for main selected post
+                    font: .body,  // Standard body font, just slightly more readable
                     onQuotePostTap: { _ in },
                     allowTruncation: false  // Anchor post never truncated
                 )
@@ -707,23 +698,26 @@ struct SelectedPostView: View {
                 if !post.attachments.isEmpty {
                     UnifiedMediaGridView(
                         attachments: post.attachments,
-                        maxHeight: 400
+                        maxHeight: 350
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     .padding(.horizontal, 16)
                 }
             }
-            .padding(.bottom, 20)  // More bottom padding for emphasis
+            .padding(.bottom, 16)
         }
         .background(
-            // Soft background color for emphasis (optional)
+            // Subtle background emphasis
             RoundedRectangle(cornerRadius: 0)
                 .fill(Color(.systemBackground))
-                .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1),
-                    radius: 8,
-                    x: 0,
-                    y: 2
+                .overlay(
+                    // Subtle left border to indicate selected post
+                    HStack {
+                        Rectangle()
+                            .fill(platformColor.opacity(0.3))
+                            .frame(width: 3)
+                        Spacer()
+                    }
                 )
         )
         .clipped()
