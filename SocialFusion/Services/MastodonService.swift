@@ -1148,7 +1148,7 @@ public class MastodonService {
         do {
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
             print("[Mastodon] Successfully liked post: \(status.id)")
-            return convertMastodonStatusToPost(status, account: account)
+            return await self.convertMastodonStatusToPost(status, account: account)
         } catch {
             print("[Mastodon] Failed to decode like response: \(error)")
             if let responseBody = String(data: data, encoding: .utf8) {
@@ -1247,7 +1247,7 @@ public class MastodonService {
         do {
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
             print("[Mastodon] Successfully unliked post: \(status.id)")
-            return convertMastodonStatusToPost(status, account: account)
+            return await self.convertMastodonStatusToPost(status, account: account)
         } catch {
             print("[Mastodon] Failed to decode unlike response: \(error)")
             if let responseBody = String(data: data, encoding: .utf8) {
@@ -1321,7 +1321,7 @@ public class MastodonService {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        return await self.convertMastodonStatusToPost(status, account: account)
     }
 
     /// Unrepost (unreblog) a post on Mastodon
@@ -1365,7 +1365,7 @@ public class MastodonService {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        return await self.convertMastodonStatusToPost(status, account: account)
     }
 
     /// Reply to a post on Mastodon
@@ -1406,7 +1406,7 @@ public class MastodonService {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        return await self.convertMastodonStatusToPost(status, account: account)
     }
 
     // MARK: - Helper Methods
@@ -1435,8 +1435,7 @@ public class MastodonService {
 
         // Check if this is a reblog/boost
         if let reblog = status.reblog {
-            // Create the original post (reblogged content)
-            let originalPost = Post(
+            var originalPost = Post(
                 id: reblog.id,
                 content: reblog.content,
                 authorName: reblog.account.displayName,
@@ -1467,7 +1466,17 @@ public class MastodonService {
                 blueskyRepostRecordURI: nil
             )
 
-            // Create the boost/reblog wrapper post
+            // Hydrate originalPost if content is empty (defensive, rare)
+            if originalPost.content.isEmpty, let acct = account {
+                Task {
+                    if let hydrated = try? await self.fetchPostByID(originalPost.id, account: acct),
+                        !hydrated.content.isEmpty
+                    {
+                        originalPost = hydrated
+                    }
+                }
+            }
+
             let boostPost = Post(
                 id: status.id,
                 content: "",  // Reblog doesn't have its own content
@@ -1674,7 +1683,7 @@ public class MastodonService {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return convertMastodonStatusToPost(status, account: account)
+        return await self.convertMastodonStatusToPost(status, account: account)
     }
 
     // MARK: - Public Access APIs
@@ -1707,7 +1716,8 @@ public class MastodonService {
         }
 
         let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
-        return convertToGenericPosts(statuses: statuses)
+        let posts = await convertToGenericPosts(statuses: statuses)
+        return posts
     }
 
     /// Update profile image for a Mastodon account
@@ -1886,7 +1896,7 @@ public class MastodonService {
 
         do {
             let status = try decoder.decode(MastodonStatus.self, from: data)
-            return convertMastodonStatusToPost(status, account: account)
+            return await self.convertMastodonStatusToPost(status, account: account)
         } catch {
             print("Error decoding Mastodon status: \(error)")
             return nil
@@ -1992,7 +2002,7 @@ public class MastodonService {
                 )
 
                 // Convert to our Post model using the existing convertMastodonStatusToPost method
-                let post = self.convertMastodonStatusToPost(status, account: account)
+                let post = await self.convertMastodonStatusToPost(status, account: account)
                 self.logger.info(
                     "Converted to Post model: id=\(post.id), inReplyToID=\(post.inReplyToID ?? "nil")"
                 )

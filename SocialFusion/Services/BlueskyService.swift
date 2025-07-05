@@ -505,17 +505,9 @@ class BlueskyService {
     // MARK: - Timeline
 
     /// Fetch the timeline for a Bluesky account
-    func fetchTimeline(for account: SocialAccount) async throws -> TimelineResult {
-        // Call the actual API implementation instead of using sample data
-        return try await fetchHomeTimeline(for: account)
-    }
-
-    /// Fetch home timeline for a Bluesky account
     public func fetchHomeTimeline(
         for account: SocialAccount, limit: Int = 20, cursor: String? = nil
-    ) async throws
-        -> TimelineResult
-    {
+    ) async throws -> TimelineResult {
         guard account.platform == .bluesky else {
             throw ServiceError.invalidAccount(reason: "Account is not a Bluesky account")
         }
@@ -606,7 +598,8 @@ class BlueskyService {
                             retryHttpResponse.statusCode == 200
                         {
                             logger.info("Successfully retried request with refreshed token")
-                            return try processFeedDataWithPagination(retryData, account: account)
+                            return try await processFeedDataWithPagination(
+                                retryData, account: account)
                         } else {
                             logger.error("Retry after token refresh still failed")
                             if let retryResponseBody = String(data: retryData, encoding: .utf8) {
@@ -644,7 +637,7 @@ class BlueskyService {
             var postsWithEmbeds = 0
             var postsWithQuotes = 0
 
-            let result = try processFeedDataWithPagination(data, account: account)
+            let result = try await processFeedDataWithPagination(data, account: account)
 
             totalPosts = result.posts.count
             postsWithEmbeds =
@@ -677,8 +670,13 @@ class BlueskyService {
         }
     }
 
+    public func fetchTimeline(for account: SocialAccount) async throws -> TimelineResult {
+        // Call the actual API implementation instead of using sample data
+        return try await fetchHomeTimeline(for: account)
+    }
+
     /// Process feed data from timeline response with pagination
-    private func processFeedDataWithPagination(_ data: Data, account: SocialAccount) throws
+    private func processFeedDataWithPagination(_ data: Data, account: SocialAccount) async throws
         -> TimelineResult
     {
         do {
@@ -721,7 +719,7 @@ class BlueskyService {
             logger.info("Found \(feed.count) items in Bluesky feed")
 
             // Process the feed items
-            let posts = try processTimelineResponse(feed, account: account)
+            let posts = try await processTimelineResponse(feed, account: account)
             logger.info("Successfully processed \(posts.count) Bluesky posts")
 
             // Extract cursor for pagination
@@ -740,7 +738,7 @@ class BlueskyService {
     }
 
     /// Process feed data from timeline response
-    private func processFeedData(_ data: Data, account: SocialAccount) throws -> [Post] {
+    private func processFeedData(_ data: Data, account: SocialAccount) async throws -> [Post] {
         do {
             // First try to decode as raw JSON to inspect the structure
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -781,7 +779,7 @@ class BlueskyService {
             logger.info("Found \(feed.count) items in Bluesky feed")
 
             // Process the feed items
-            let posts = try processTimelineResponse(feed, account: account)
+            let posts = try await processTimelineResponse(feed, account: account)
             logger.info("Successfully processed \(posts.count) Bluesky posts")
             return posts
         } catch {
@@ -899,14 +897,9 @@ class BlueskyService {
             let feedItems = [["post": post]]
 
             // Use our existing processing method to convert the data
-            let posts = try processTimelineResponse(feedItems, account: account)
+            let posts = try await processTimelineResponse(feedItems, account: account)
 
-            if let post = posts.first {
-                return post
-            } else {
-                logger.warning("No post returned from processing")
-                return nil
-            }
+            return posts.first
         } catch {
             logger.error("Error fetching Bluesky post: \(error.localizedDescription)")
             throw ServiceError.timelineError(underlying: error)
@@ -917,7 +910,7 @@ class BlueskyService {
 
     /// Process timeline response into Post objects
     private func processTimelineResponse(_ feedItems: [[String: Any]], account: SocialAccount)
-        throws -> [Post]
+        async throws -> [Post]
     {
         print("🔍 [QUOTE_DEBUG] Starting to process \(feedItems.count) feed items")
         var posts: [Post] = []
@@ -1319,6 +1312,15 @@ class BlueskyService {
                             blueskyLikeRecordURI: viewer?["like"] as? String,  // Fixed: Use actual like URI
                             blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
                         )
+
+                        // Hydrate originalPost if content is empty (defensive, rare)
+                        if let unwrappedOriginal = originalPost, unwrappedOriginal.content.isEmpty {
+                            if let hydrated = try? await self.fetchPostByID(
+                                unwrappedOriginal.id, account: account), !hydrated.content.isEmpty
+                            {
+                                originalPost = hydrated
+                            }
+                        }
 
                         // Create the repost wrapper with repost timestamp for timeline positioning
                         let repostId = "repost-\(reposterUsername)-\(uri)"
@@ -1736,6 +1738,20 @@ class BlueskyService {
         let originalURL =
             "https://\(authorUsername)/post/\(post.uri.split(separator: "/").last ?? "")"
         var attachments: [Post.Attachment] = []
+        // Extract images from embed if present (dictionary access for compatibility)
+        if let embed = post.embed {
+            if let imagesArray = embed.images as? [[String: Any]] {
+                for image in imagesArray {
+                    if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
+                        URL(string: fullsize) != nil
+                    {
+                        let alt = image["alt"] as? String ?? "Image"
+                        attachments.append(
+                            Post.Attachment(url: fullsize, type: .image, altText: alt))
+                    }
+                }
+            }
+        }
         let mentions: [String] = []  // TODO: Extract mentions from Bluesky post if available
         let tags: [String] = []  // TODO: Extract tags from Bluesky post if available
         let cid = post.cid  // Use the real cid from BlueskyPost
@@ -1766,6 +1782,68 @@ class BlueskyService {
             cid: cid,
             blueskyLikeRecordURI: post.viewer?.likeUri,  // Use existing like URI if available
             blueskyRepostRecordURI: post.viewer?.repostUri  // Use existing repost URI if available
+        )
+    }
+
+    /// Convert a Bluesky thread post to our Post model (simplified version of the main converter)
+    private func convertBlueskyThreadPostToPost(_ post: [String: Any], account: SocialAccount)
+        -> Post?
+    {
+        guard let uri = post["uri"] as? String,
+            let record = post["record"] as? [String: Any],
+            let text = record["text"] as? String,
+            let createdAt = record["createdAt"] as? String,
+            let author = post["author"] as? [String: Any]
+        else {
+            return nil
+        }
+
+        let authorName =
+            author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
+        let authorUsername = author["handle"] as? String ?? "unknown"
+        let authorAvatarURL = author["avatar"] as? String ?? ""
+
+        // Extract basic interaction counts
+        let likeCount = post["likeCount"] as? Int ?? 0
+        let repostCount = post["repostCount"] as? Int ?? 0
+        let replyCount = post["replyCount"] as? Int ?? 0
+
+        let createdDate = ISO8601DateFormatter().date(from: createdAt) ?? Date()
+
+        // Extract images from embed if present
+        var attachments: [Post.Attachment] = []
+        if let embed = post["embed"] as? [String: Any] {
+            if let images = embed["images"] as? [[String: Any]] {
+                for image in images {
+                    if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
+                        URL(string: fullsize) != nil
+                    {
+                        let alt = image["alt"] as? String ?? "Image"
+                        attachments.append(
+                            Post.Attachment(url: fullsize, type: .image, altText: alt))
+                    }
+                }
+            }
+        }
+
+        return Post(
+            id: uri,
+            content: text,
+            authorName: authorName,
+            authorUsername: authorUsername,
+            authorProfilePictureURL: authorAvatarURL,
+            createdAt: createdDate,
+            platform: .bluesky,
+            originalURL:
+                "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
+            attachments: attachments,
+            mentions: [],
+            tags: [],
+            likeCount: likeCount,
+            repostCount: repostCount,
+            replyCount: replyCount,
+            platformSpecificId: uri,
+            cid: post["cid"] as? String
         )
     }
 
@@ -2547,52 +2625,6 @@ class BlueskyService {
         }
 
         return descendants
-    }
-
-    /// Convert a Bluesky thread post to our Post model (simplified version of the main converter)
-    private func convertBlueskyThreadPostToPost(_ post: [String: Any], account: SocialAccount)
-        -> Post?
-    {
-        guard let uri = post["uri"] as? String,
-            let record = post["record"] as? [String: Any],
-            let text = record["text"] as? String,
-            let createdAt = record["createdAt"] as? String,
-            let author = post["author"] as? [String: Any]
-        else {
-            return nil
-        }
-
-        let authorName =
-            author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
-        let authorUsername = author["handle"] as? String ?? "unknown"
-        let authorAvatarURL = author["avatar"] as? String ?? ""
-
-        // Extract basic interaction counts
-        let likeCount = post["likeCount"] as? Int ?? 0
-        let repostCount = post["repostCount"] as? Int ?? 0
-        let replyCount = post["replyCount"] as? Int ?? 0
-
-        let createdDate = ISO8601DateFormatter().date(from: createdAt) ?? Date()
-
-        return Post(
-            id: uri,
-            content: text,
-            authorName: authorName,
-            authorUsername: authorUsername,
-            authorProfilePictureURL: authorAvatarURL,
-            createdAt: createdDate,
-            platform: .bluesky,
-            originalURL:
-                "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
-            attachments: [],  // Simplified - can be enhanced later
-            mentions: [],
-            tags: [],
-            likeCount: likeCount,
-            repostCount: repostCount,
-            replyCount: replyCount,
-            platformSpecificId: uri,
-            cid: post["cid"] as? String
-        )
     }
 
 }

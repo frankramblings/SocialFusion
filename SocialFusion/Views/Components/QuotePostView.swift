@@ -120,6 +120,8 @@ public struct QuotePostView: View {
         )
         .font(.callout)
         .padding(.horizontal, 4)
+        // Prevent nested quotes in quote cards
+        .environment(\.preventNestedQuotes, true)
     }
 
     private var postMedia: some View {

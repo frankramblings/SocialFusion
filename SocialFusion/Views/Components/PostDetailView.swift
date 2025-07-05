@@ -667,7 +667,7 @@ struct SelectedPostView: View {
 
                 VStack(alignment: .leading, spacing: 4) {  // More spacing for readability
                     Text(post.authorName)
-                        .font(.title2)  // Larger, more prominent font
+                        .font(.headline)  // Reduced from .title2 for less overwhelming size
                         .fontWeight(.bold)  // Bold for emphasis
                         .foregroundColor(.primary)
                         .lineLimit(1)
@@ -697,7 +697,7 @@ struct SelectedPostView: View {
                 post.contentView(
                     lineLimit: nil,
                     showLinkPreview: true,
-                    font: .title,  // Larger font for main selected post
+                    font: .title3,  // Reduced from .title for better balance
                     onQuotePostTap: { _ in },
                     allowTruncation: false  // Anchor post never truncated
                 )

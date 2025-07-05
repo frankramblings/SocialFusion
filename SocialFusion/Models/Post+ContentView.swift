@@ -3,6 +3,19 @@ import SwiftUI
 import UIKit  // Required for NSAttributedString
 import WebKit
 
+// MARK: - Environment Keys
+
+private struct PreventNestedQuotesKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+extension EnvironmentValues {
+    var preventNestedQuotes: Bool {
+        get { self[PreventNestedQuotesKey.self] }
+        set { self[PreventNestedQuotesKey.self] = newValue }
+    }
+}
+
 // Use the shared HTMLString and EmojiTextApp from Utilities/HTMLString.swift
 
 // Add extension to String for repairedUTF8 (can be removed since we're not using it)
@@ -142,9 +155,12 @@ extension Post {
     // MARK: - Private Views
 
     @ViewBuilder
-    fileprivate func quotePostViews(onQuotePostTap: ((Post) -> Void)? = nil) -> some View {
-        // 1. First check if we have a fully hydrated quoted post
-        if let quotedPost = quotedPost {
+    fileprivate func quotePostViews(
+        onQuotePostTap: ((Post) -> Void)? = nil, preventNestedQuotes: Bool = false
+    ) -> some View {
+        if preventNestedQuotes {
+            EmptyView()
+        } else if let quotedPost = quotedPost {
             QuotedPostView(post: quotedPost) {
                 if let onQuotePostTap = onQuotePostTap {
                     onQuotePostTap(quotedPost)
@@ -162,9 +178,7 @@ extension Post {
                     )
                 }
             }
-        }
-        // 2. If no hydrated quote but have quote metadata, fetch it
-        else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
+        } else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
             FetchQuotePostView(
                 url: quotedPostURL,
                 onQuotePostTap: onQuotePostTap
@@ -178,66 +192,23 @@ extension Post {
                     "🔗 [Post+ContentView] quotedPostAuthorHandle: \(self.quotedPostAuthorHandle ?? "nil")"
                 )
             }
-        }
-        // 3. Check for social media links that should be displayed as quotes
-        else {
+        } else {
             let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
             let allLinks = URLService.shared.extractLinks(from: plainText)
-            let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
-
-            if let firstSocialLink = socialMediaLinks.first {
+            // Find the first valid Fediverse post link (not self-link)
+            if let firstFediverseLink = allLinks.first(where: {
+                URLService.shared.isFediversePostURL($0) && $0.absoluteString != self.originalURL
+            }) {
                 FetchQuotePostView(
-                    url: firstSocialLink,
+                    url: firstFediverseLink,
                     onQuotePostTap: onQuotePostTap
                 )
                 .padding(.top, 8)
                 .onAppear {
                     print(
-                        "🔗 [Post+ContentView] Displaying social media link as quote: \(firstSocialLink)"
+                        "🔗 [Post+ContentView] Displaying fediverse link as quote: \(firstFediverseLink)"
                     )
                 }
-            } else {
-                // Debug: Check if we have quote metadata but no URL
-                EmptyView()
-                    .onAppear {
-                        // Enhanced debug logging for all posts
-                        print(
-                            "🔗 [Post+ContentView] DEBUG: Post \(self.id) - platform: \(self.platform)"
-                        )
-                        print(
-                            "🔗 [Post+ContentView] DEBUG: quotedPost: \(self.quotedPost != nil ? "YES" : "NO")"
-                        )
-                        print(
-                            "🔗 [Post+ContentView] DEBUG: quotedPostUri: \(self.quotedPostUri ?? "nil")"
-                        )
-                        print(
-                            "🔗 [Post+ContentView] DEBUG: quotedPostAuthorHandle: \(self.quotedPostAuthorHandle ?? "nil")"
-                        )
-                        print(
-                            "🔗 [Post+ContentView] DEBUG: content preview: \(self.content.prefix(100))"
-                        )
-                        print("🔗 [Post+ContentView] DEBUG: allLinks count: \(allLinks.count)")
-                        print(
-                            "🔗 [Post+ContentView] DEBUG: socialMediaLinks count: \(socialMediaLinks.count)"
-                        )
-
-                        // Debug logging for quote metadata issues (console only)
-                        if self.platform == .bluesky {
-                            if let uri = self.quotedPostUri,
-                                let handle = self.quotedPostAuthorHandle
-                            {
-                                print(
-                                    "🔗 [Post+ContentView] DEBUG: Have quote metadata but no URL - uri: \(uri), handle: \(handle)"
-                                )
-                            } else if self.quotedPostUri != nil
-                                || self.quotedPostAuthorHandle != nil
-                            {
-                                print(
-                                    "🔗 [Post+ContentView] DEBUG: Partial quote metadata - uri: \(self.quotedPostUri ?? "nil"), handle: \(self.quotedPostAuthorHandle ?? "nil")"
-                                )
-                            }
-                        }
-                    }
             }
         }
     }
@@ -941,6 +912,7 @@ struct ExpandableTextView: View {
     let post: Post
 
     @State private var isExpanded: Bool = false
+    @Environment(\.preventNestedQuotes) private var preventNestedQuotes
 
     private var shouldTruncate: Bool {
         // Never truncate if allowTruncation is false (anchor post)
@@ -1005,7 +977,9 @@ struct ExpandableTextView: View {
             }
 
             // Always show quote posts, but respect showLinkPreview for other content
-            post.quotePostViews(onQuotePostTap: onQuotePostTap)
+            // Use environment value to prevent nested quotes
+            post.quotePostViews(
+                onQuotePostTap: onQuotePostTap, preventNestedQuotes: preventNestedQuotes)
 
             if showLinkPreview {
                 post.regularLinkPreviewsOnly

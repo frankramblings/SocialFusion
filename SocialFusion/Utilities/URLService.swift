@@ -323,6 +323,42 @@ class URLService {
         return false
     }
 
+    /// Determines if a URL is a Fediverse post URL (Mastodon, Misskey, Firefish, Calckey, Pleroma, Akkoma, etc)
+    /// - Parameter url: The URL to check
+    /// - Returns: True if the URL is a Fediverse post URL
+    func isFediversePostURL(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let path = url.path.lowercased()
+        let components = path.split(separator: "/").map(String.init)
+
+        // Mastodon-style: /@username/postID
+        if path.contains("/@") && components.count >= 2 {
+            let lastComponent = components.last!
+            let isNumericID = lastComponent.allSatisfy { $0.isNumber }
+            let hasUsernamePattern = components.contains { $0.hasPrefix("@") }
+            if isNumericID && hasUsernamePattern { return true }
+        }
+
+        // Misskey/Firefish/Calckey: /notes/noteID
+        if path.contains("/notes/") && components.count >= 2 {
+            if let idx = components.firstIndex(of: "notes"), idx + 1 < components.count {
+                let noteID = components[idx + 1]
+                if noteID.count > 10 { return true }  // crude check for UUID-like
+            }
+        }
+
+        // Pleroma/Akkoma: /objects/objectID
+        if path.contains("/objects/") && components.count >= 2 {
+            if let idx = components.firstIndex(of: "objects"), idx + 1 < components.count {
+                let objectID = components[idx + 1]
+                if objectID.count > 10 { return true }
+            }
+        }
+
+        // Add more patterns as needed
+        return false
+    }
+
     /// Extracts the Bluesky post ID from a URL
     /// - Parameter url: The Bluesky post URL
     /// - Returns: The post ID if available
