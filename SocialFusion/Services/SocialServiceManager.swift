@@ -705,9 +705,8 @@ public final class SocialServiceManager: ObservableObject {
                 print(
                     "ℹ️ SocialServiceManager: User-initiated refresh failed - providing detailed error"
                 )
-                // Create a more user-friendly error
-                let userFriendlyError = createUserFriendlyError(from: error)
-                throw userFriendlyError
+                // Throw the original error for now
+                throw error
             }
 
             throw error
@@ -785,7 +784,7 @@ public final class SocialServiceManager: ObservableObject {
         )
     }
 
-    /// Refresh timeline for specific accounts
+    /// Refresh timeline from the specified accounts and return all posts
     func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
         print(
             "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts"
@@ -804,36 +803,42 @@ public final class SocialServiceManager: ObservableObject {
 
         var allPosts: [Post] = []
 
-        // Use TaskGroup for concurrent fetching but limit concurrency
-        await withTaskGroup(of: [Post].self) { group in
-            for account in accounts {
-                group.addTask {
-                    do {
-                        print("🔄 SocialServiceManager: Starting fetch for \(account.username)")
-                        let posts = try await self.fetchPostsForAccount(account)
-                        print(
-                            "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
-                        )
-                        return posts
-                    } catch {
-                        // Only log serious errors, not cancellations
-                        if !(error is CancellationError) {
+        // Use Task.detached to prevent cancellation during navigation
+        return try await Task.detached(priority: .userInitiated) {
+            await withTaskGroup(of: [Post].self) { group in
+                for account in accounts {
+                    group.addTask {
+                        do {
+                            print("🔄 SocialServiceManager: Starting fetch for \(account.username)")
+                            let posts = try await self.fetchPostsForAccount(account)
                             print(
-                                "❌ Error fetching \(account.username): \(error.localizedDescription)"
+                                "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
                             )
+                            return posts
+                        } catch {
+                            // Check for cancellation and handle appropriately
+                            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                                print(
+                                    "🔄 SocialServiceManager: Fetch cancelled for \(account.username)"
+                                )
+                            } else {
+                                print(
+                                    "❌ Error fetching \(account.username): \(error.localizedDescription)"
+                                )
+                            }
+                            return []
                         }
-                        return []
                     }
+                }
+
+                for await posts in group {
+                    allPosts.append(contentsOf: posts)
                 }
             }
 
-            for await posts in group {
-                allPosts.append(contentsOf: posts)
-            }
-        }
-
-        print("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
-        return allPosts
+            print("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
+            return allPosts
+        }.value
     }
 
     /// Fetch the unified timeline for all accounts
@@ -1986,6 +1991,8 @@ public final class SocialServiceManager: ObservableObject {
             // Don't throw - just log the error and continue
         }
     }
+
+
 }
 
 // MARK: - Array Extension for Chunking
