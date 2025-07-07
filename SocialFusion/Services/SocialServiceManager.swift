@@ -1651,6 +1651,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Proactively fetch parent posts in the background to prevent jittery reply banner animations
         Task.detached(priority: .background) { [weak self] in
+            print("🔄 SocialServiceManager: Starting background proactive parent fetching task")
             await self?.proactivelyFetchParentPosts(from: posts)
         }
     }
@@ -1876,15 +1877,20 @@ public final class SocialServiceManager: ObservableObject {
 
             // Check if we already have this parent in cache
             let cacheKey = "\(post.platform.rawValue):\(parentId)"
+            print("🔍 SocialServiceManager: Checking cache for key: \(cacheKey)")
+            
             if PostParentCache.shared.getCachedPost(id: cacheKey) != nil {
+                print("✅ SocialServiceManager: Parent \(parentId) already cached, skipping")
                 continue  // Already cached, skip
             }
 
             // Check if we're already fetching this parent
             if parentFetchInProgress.contains(cacheKey) {
+                print("⏳ SocialServiceManager: Parent \(parentId) already being fetched, skipping")
                 continue  // Already in progress, skip
             }
 
+            print("📝 SocialServiceManager: Adding parent \(parentId) to fetch queue for post \(post.id)")
             parentsToFetch.append((postId: post.id, parentId: parentId, platform: post.platform))
         }
 
@@ -1921,6 +1927,7 @@ public final class SocialServiceManager: ObservableObject {
     /// Fetch a single parent post and cache it
     private func fetchSingleParentPost(parentId: String, platform: SocialPlatform) async {
         let cacheKey = "\(platform.rawValue):\(parentId)"
+        print("🔄 SocialServiceManager: Starting fetch for parent \(parentId) on \(platform)")
 
         // Mark as in progress
         await MainActor.run {

@@ -374,23 +374,37 @@ struct ExpandingReplyBanner: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
         .onAppear {
-            // Use Task to defer state updates outside view rendering cycle
+            // Check for proactively fetched parent posts with retry mechanism
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                guard let parentId = parentId else { return }
 
-                // Check cache for existing parent post (service manager handles proactive fetching)
-                if let parentId = parentId {
-                    // Use the same cache key format as SocialServiceManager
-                    let cacheKey = "\(network.rawValue):\(parentId)"
+                let cacheKey = "\(network.rawValue):\(parentId)"
+                print(
+                    "🔍 ExpandingReplyBanner: Checking cache for parent \(parentId) with key: \(cacheKey)"
+                )
+
+                // Try to find cached parent post with retries to account for background fetching
+                for attempt in 1...5 {
                     if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
                         parent = cachedPost
-                        print("✅ Found cached parent: \(cachedPost.authorUsername)")
-                    } else {
                         print(
-                            "❌ No cached parent found for cache key: \(cacheKey) - will be fetched by service manager"
+                            "✅ ExpandingReplyBanner: Found cached parent on attempt \(attempt): \(cachedPost.authorUsername)"
                         )
+                        return
                     }
+
+                    // Wait a bit longer on each attempt to give background fetching time
+                    let delay = UInt64(attempt * 200_000_000)  // 0.2s, 0.4s, 0.6s, 0.8s, 1.0s
+                    try? await Task.sleep(nanoseconds: delay)
+                    print(
+                        "🔄 ExpandingReplyBanner: Cache check attempt \(attempt) failed, retrying..."
+                    )
                 }
+
+                print(
+                    "❌ ExpandingReplyBanner: No cached parent found after 5 attempts for key: \(cacheKey)"
+                )
+                // Fallback fetching will be triggered when user expands the banner
             }
         }
         .onChange(of: isExpanded) { newValue in
