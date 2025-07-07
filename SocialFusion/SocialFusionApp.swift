@@ -6,8 +6,8 @@ import UIKit
 
 @main
 struct SocialFusionApp: App {
-    // Use the shared singleton instead of creating a new instance
-    @StateObject private var serviceManager = SocialServiceManager.shared
+    // Create a single instance for the app
+    @StateObject private var serviceManager = SocialServiceManager()
 
     // Version manager for launch animation control
     @StateObject private var appVersionManager = AppVersionManager()

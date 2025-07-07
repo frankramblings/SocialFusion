@@ -57,7 +57,11 @@ struct ProfileImageView: View {
                         print(
                             "🔄 [ProfileImageView] Received profile image update for \(account.username)"
                         )
-                        refreshTrigger.toggle()
+                        // Use Task to defer state update outside of view update cycle
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            refreshTrigger.toggle()
+                        }
                     }
                 }
             } else {

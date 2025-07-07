@@ -46,10 +46,18 @@ struct AudioPlayerView: View {
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
         .onAppear {
-            setupAudioPlayer()
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000) // 0.001 seconds
+                setupAudioPlayer()
+            }
         }
         .onDisappear {
-            cleanup()
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000) // 0.001 seconds
+                cleanup()
+            }
         }
     }
 

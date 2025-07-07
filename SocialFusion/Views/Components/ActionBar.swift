@@ -1,12 +1,14 @@
 import SwiftUI
 
-/// Custom button style that provides scale feedback when pressed
-struct ScaleButtonStyle: ButtonStyle {
+/// Custom button style that provides smooth Apple-like feedback when pressed
+struct SmoothScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
-            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.88 : 1.0)
+            .opacity(configuration.isPressed ? 0.75 : 1.0)
+            .animation(
+                .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05),
+                value: configuration.isPressed)
     }
 }
 
@@ -21,6 +23,16 @@ struct ActionBar: View {
     // Icon size for better visibility
     private let iconSize: CGFloat = 18
 
+    // Platform color helper
+    private var platformColor: Color {
+        switch post.platform {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
     var body: some View {
         HStack {
             // Reply button
@@ -34,15 +46,22 @@ struct ActionBar: View {
                 HStack(spacing: 4) {
                     Image(systemName: "bubble.left")
                         .font(.system(size: iconSize))
-                        .foregroundColor(.secondary)
+                        .foregroundColor(post.isReplied ? platformColor : .secondary)
+                        .scaleEffect(post.isReplied ? 1.05 : 1.0)
+                        .animation(
+                            .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
+                            value: post.isReplied)
                     if post.replyCount > 0 {
                         Text("\(post.replyCount)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(post.isReplied ? platformColor : .secondary)
+                            .animation(
+                                .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
+                                value: post.isReplied)
                     }
                 }
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel("Reply")
 
             Spacer()
@@ -61,15 +80,19 @@ struct ActionBar: View {
                         .foregroundColor(post.isReposted ? .green : .secondary)
                         .scaleEffect(post.isReposted ? 1.1 : 1.0)
                         .animation(
-                            .spring(response: 0.3, dampingFraction: 0.6), value: post.isReposted)
+                            .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
+                            value: post.isReposted)
                     if post.repostCount > 0 {
                         Text("\(post.repostCount)")
                             .font(.caption)
                             .foregroundColor(post.isReposted ? .green : .secondary)
+                            .animation(
+                                .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
+                                value: post.isReposted)
                     }
                 }
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
 
             Spacer()
@@ -86,7 +109,7 @@ struct ActionBar: View {
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel("Quote Post")
 
             Spacer()
@@ -105,15 +128,19 @@ struct ActionBar: View {
                         .foregroundColor(post.isLiked ? .red : .secondary)
                         .scaleEffect(post.isLiked ? 1.1 : 1.0)
                         .animation(
-                            .spring(response: 0.3, dampingFraction: 0.6), value: post.isLiked)
+                            .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
+                            value: post.isLiked)
                     if post.likeCount > 0 {
                         Text("\(post.likeCount)")
                             .font(.caption)
                             .foregroundColor(post.isLiked ? .red : .secondary)
+                            .animation(
+                                .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
+                                value: post.isLiked)
                     }
                 }
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
 
             Spacer()
@@ -130,7 +157,7 @@ struct ActionBar: View {
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
             }
-            .buttonStyle(ScaleButtonStyle())
+            .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel("Share")
 
             Spacer()

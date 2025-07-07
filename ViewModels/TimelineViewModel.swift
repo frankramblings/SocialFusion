@@ -42,6 +42,7 @@ public enum ViewModelState {
 }
 
 /// A ViewModel for managing timeline data and state
+@MainActor
 public final class TimelineViewModel: ObservableObject {
     // MARK: - Published Properties
 
@@ -76,7 +77,7 @@ public final class TimelineViewModel: ObservableObject {
 
     public init(accounts: [SocialAccount]) {
         self.accounts = accounts
-        self.socialServiceManager = SocialServiceManager.shared
+        self.socialServiceManager = SocialServiceManager()
         // PHASE 3+: Removed setupObservers() to prevent AttributeGraph cycles
         // State updates will be handled through normal data flow instead
     }

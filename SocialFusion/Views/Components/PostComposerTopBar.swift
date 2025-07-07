@@ -41,7 +41,16 @@ struct PostComposerTopBar: View {
 
                         // Show hint if no accounts
                         if socialServiceManager.accounts.isEmpty {
-                            EmptyAccountsView()
+                            UnifiedAccountsIcon(
+                                mastodonAccounts: socialServiceManager.mastodonAccounts,
+                                blueskyAccounts: socialServiceManager.blueskyAccounts
+                            )
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
                         }
                     }
                     .padding(.horizontal, 16)
@@ -150,12 +159,8 @@ struct ProfileToggleButton: View {
             onLongPress()
         }
         .onAppear {
-            // Add subtle animation when appearing
-            withAnimation(
-                .spring(response: 0.6, dampingFraction: 0.8).delay(Double.random(in: 0...0.2))
-            ) {
-                // Small scale animation on appear
-            }
+            // REMOVED: Animation delay that was causing AttributeGraph cycles
+            // Proper SwiftUI state management doesn't need artificial delays
         }
         // Note: sensoryFeedback is iOS 17+, removed for iOS 16 compatibility
         .animation(.easeInOut(duration: 0.15), value: isSelected)

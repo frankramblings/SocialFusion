@@ -114,16 +114,6 @@ public struct QuotedPostView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
-        .onAppear {
-            print(
-                "🖼️ [QuotedPostView] Displaying \(post.attachments.count) attachments for quoted post: \(post.id)"
-            )
-            for (index, attachment) in post.attachments.enumerated() {
-                print(
-                    "🖼️ [QuotedPostView] Attachment \(index): \(attachment.url) (type: \(attachment.type))"
-                )
-            }
-        }
     }
 
     private var backgroundStyle: some View {
@@ -234,65 +224,56 @@ struct FetchQuotePostView: View {
     private func fetchPost() async {
         guard retryCount <= maxRetries else {
             print("🔗 [FetchQuotePostView] Max retries exceeded for URL: \(url)")
-            await MainActor.run {
-                isLoading = false
-                error = NSError(
-                    domain: "FetchQuotePostView",
-                    code: -1,
-                    userInfo: [NSLocalizedDescriptionKey: "Maximum retries exceeded"]
-                )
-            }
+            isLoading = false
+            error = NSError(
+                domain: "FetchQuotePostView",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Maximum retries exceeded"]
+            )
             return
         }
 
-        print(
-            "🔗 [FetchQuotePostView] Fetching \(platform) post (attempt \(retryCount + 1)): \(url)")
-        await MainActor.run {
-            isLoading = true
-        }
+        print("🔗 [FetchQuotePostView] Fetching post for URL: \(url) (attempt \(retryCount + 1))")
+
+        isLoading = true
+        error = nil
 
         do {
-            let post = try await fetchPostForPlatform()
-            await MainActor.run {
-                if let post = post {
-                    print(
-                        "🔗 [FetchQuotePostView] Successfully fetched post: \(post.content.prefix(50))"
-                    )
-                    self.quotedPost = post
-                } else {
-                    print("🔗 [FetchQuotePostView] Fetched nil post for URL: \(url)")
-                }
-                self.isLoading = false
-                self.error = nil
+            let post: Post?
+
+            if url.host?.contains("bsky.social") == true {
+                post = try await fetchBlueskyPost()
+            } else if url.host?.contains("mastodon") == true || url.host?.contains("social") == true
+            {
+                post = try await fetchMastodonPost()
+            } else {
+                throw NSError(
+                    domain: "FetchQuotePostView",
+                    code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "Unsupported platform"]
+                )
             }
+
+            if let post = post {
+                self.quotedPost = post
+            }
+            self.isLoading = false
+            self.error = nil
+
         } catch {
-            print("🔗 [FetchQuotePostView] Error fetching \(platform) post: \(error)")
+            print("🔗 [FetchQuotePostView] Error fetching post: \(error)")
+            self.retryCount += 1
+            self.isLoading = false
+            self.error = error
 
-            await MainActor.run {
-                self.error = error
+            // Retry with exponential backoff
+            if retryCount <= maxRetries {
+                let delay = min(pow(2.0, Double(retryCount)), 30.0)
+                print("🔗 [FetchQuotePostView] Retrying in \(delay) seconds...")
 
-                // Retry for transient errors
-                if retryCount < maxRetries && isTransientError(error) {
-                    print("🔗 [FetchQuotePostView] Retrying in 1 second...")
-                    retryCount += 1
-                    Task {
-                        try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
-                        await fetchPost()
-                    }
-                } else {
-                    print("🔗 [FetchQuotePostView] Giving up after \(retryCount + 1) attempts")
-                    self.isLoading = false
-                }
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                await fetchPost()
             }
-        }
-    }
-
-    private func fetchPostForPlatform() async throws -> Post? {
-        switch platform {
-        case .bluesky:
-            return try await fetchBlueskyPost()
-        case .mastodon:
-            return try await fetchMastodonPost()
         }
     }
 
@@ -309,15 +290,6 @@ struct FetchQuotePostView: View {
         }
 
         let postID = String(components[components.count - 1])
-
-        guard let account = serviceManager.accounts.first(where: { $0.platform == .bluesky }) else {
-            throw NSError(
-                domain: "FetchQuotePostView",
-                code: 2,
-                userInfo: [NSLocalizedDescriptionKey: "No Bluesky account available"]
-            )
-        }
-
         return try await serviceManager.fetchBlueskyPostByID(postID)
     }
 
@@ -343,15 +315,6 @@ struct FetchQuotePostView: View {
         }
 
         return try await serviceManager.fetchMastodonStatus(id: postID, account: account)
-    }
-
-    private func isTransientError(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        // Network errors that might be worth retrying
-        return nsError.domain == NSURLErrorDomain
-            && (nsError.code == NSURLErrorTimedOut
-                || nsError.code == NSURLErrorNetworkConnectionLost
-                || nsError.code == NSURLErrorNotConnectedToInternet)
     }
 }
 

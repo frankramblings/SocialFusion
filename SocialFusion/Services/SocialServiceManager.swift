@@ -3,6 +3,7 @@ import Combine
 import Foundation
 import SwiftUI
 import UIKit
+import os
 import os.log
 
 // Define notification names
@@ -90,10 +91,10 @@ struct RateLimitInfo {
     }
 }
 
-/// Manages social media accounts and services
+/// Service manager for handling all social platform interactions
+/// Manages authentication, timeline loading, and post interactions for Mastodon and Bluesky
 @MainActor
 public final class SocialServiceManager: ObservableObject {
-    static let shared = SocialServiceManager()
 
     @Published var accounts: [SocialAccount] = []
     @Published var isLoading: Bool = false
@@ -767,11 +768,9 @@ public final class SocialServiceManager: ObservableObject {
             let sortedPosts = collectedPosts.sorted { $0.createdAt > $1.createdAt }
             print("🔄 SocialServiceManager: Sorted posts, updating timeline...")
 
-            // Update UI on main thread with proper delay to prevent rapid updates
+            // Update UI on main thread with proper delay to prevent rapid updates and AttributeGraph cycles
             Task { @MainActor in
-                // Add additional delay to prevent rapid updates
-                try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
-                await self.safelyUpdateTimeline(sortedPosts)
+                self.safelyUpdateTimeline(sortedPosts)
                 print("🔄 SocialServiceManager: Timeline updated with \(sortedPosts.count) posts")
             }
         } catch {
@@ -803,7 +802,7 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Fetch the next page of posts for infinite scrolling
-    func fetchNextPage() async {
+    func fetchNextPage() async throws {
         guard !isLoadingNextPage && hasNextPage else {
             return
         }
@@ -882,10 +881,11 @@ public final class SocialServiceManager: ObservableObject {
                 self.isLoadingNextPage = false
             }
         } catch {
+            print("❌ SocialServiceManager: Error loading next page: \(error)")
             await MainActor.run {
                 self.isLoadingNextPage = false
-                self.timelineError = error
             }
+            throw error
         }
     }
 
@@ -1079,15 +1079,39 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Like a post
-    func likePost(_ post: Post) async throws -> Post {
+    public func likePost(_ post: Post) async throws -> Post {
+        print("🔄 [SocialServiceManager] likePost called for platform: \(post.platform)")
+
         switch post.platform {
         case .mastodon:
+            print("🔄 [SocialServiceManager] Processing Mastodon like request")
+            print("🔄 [SocialServiceManager] Available Mastodon accounts: \(mastodonAccounts.count)")
+
+            for (index, account) in mastodonAccounts.enumerated() {
+                print(
+                    "🔄 [SocialServiceManager] Mastodon account \(index): \(account.username) (ID: \(account.id))"
+                )
+                print(
+                    "🔄 [SocialServiceManager] Account has access token: \(account.getAccessToken() != nil)"
+                )
+                print("🔄 [SocialServiceManager] Account token expired: \(account.isTokenExpired)")
+            }
+
             guard let account = mastodonAccounts.first else {
+                print("❌ [SocialServiceManager] No Mastodon account available")
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
+
+            print("✅ [SocialServiceManager] Using Mastodon account: \(account.username)")
+
             do {
-                return try await mastodonService.likePost(post, account: account)
+                print("🔄 [SocialServiceManager] Calling mastodonService.likePost")
+                let result = try await mastodonService.likePost(post, account: account)
+                print("✅ [SocialServiceManager] mastodonService.likePost succeeded")
+                return result
             } catch {
+                print("❌ [SocialServiceManager] mastodonService.likePost failed: \(error)")
+
                 // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
@@ -1104,23 +1128,40 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         case .bluesky:
+            print("🔄 [SocialServiceManager] Processing Bluesky like request")
             guard let account = blueskyAccounts.first else {
+                print("❌ [SocialServiceManager] No Bluesky account available")
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
+            print("✅ [SocialServiceManager] Using Bluesky account: \(account.username)")
             return try await blueskyService.likePost(post, account: account)
         }
     }
 
     /// Unlike a post
     func unlikePost(_ post: Post) async throws -> Post {
+        print("🔄 [SocialServiceManager] unlikePost called for platform: \(post.platform)")
+
         switch post.platform {
         case .mastodon:
+            print("🔄 [SocialServiceManager] Processing Mastodon unlike request")
+            print("🔄 [SocialServiceManager] Available Mastodon accounts: \(mastodonAccounts.count)")
+
             guard let account = mastodonAccounts.first else {
+                print("❌ [SocialServiceManager] No Mastodon account available")
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
+
+            print("✅ [SocialServiceManager] Using Mastodon account: \(account.username)")
+
             do {
-                return try await mastodonService.unlikePost(post, account: account)
+                print("🔄 [SocialServiceManager] Calling mastodonService.unlikePost")
+                let result = try await mastodonService.unlikePost(post, account: account)
+                print("✅ [SocialServiceManager] mastodonService.unlikePost succeeded")
+                return result
             } catch {
+                print("❌ [SocialServiceManager] mastodonService.unlikePost failed: \(error)")
+
                 // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
@@ -1137,15 +1178,18 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         case .bluesky:
+            print("🔄 [SocialServiceManager] Processing Bluesky unlike request")
             guard let account = blueskyAccounts.first else {
+                print("❌ [SocialServiceManager] No Bluesky account available")
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
+            print("✅ [SocialServiceManager] Using Bluesky account: \(account.username)")
             return try await blueskyService.unlikePost(post, account: account)
         }
     }
 
     /// Repost a post (Mastodon or Bluesky)
-    func repostPost(_ post: Post) async throws -> Post {
+    public func repostPost(_ post: Post) async throws -> Post {
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
@@ -1481,42 +1525,22 @@ public final class SocialServiceManager: ObservableObject {
         )
     }
 
+    /// Safely update the timeline with proper isolation to prevent AttributeGraph cycles
     @MainActor
     private func safelyUpdateTimeline(_ posts: [Post]) {
-        let now = Date()
-        let isInitialLoad = unifiedTimeline.isEmpty
-
-        // Allow initial loads to bypass debounce, but still debounce subsequent updates
-        if !isInitialLoad {
-            // Increase debounce time to 1 second to prevent rapid updates
-            guard now.timeIntervalSince(lastTimelineUpdate) > 1.0 else {
-                print("🔄 SocialServiceManager: Update blocked by debounce (not initial load)")
-                return
-            }
-        } else {
-            print("🔄 SocialServiceManager: Initial load detected - bypassing debounce")
-        }
-
-        lastTimelineUpdate = now
-
-        // Direct update on main actor - no additional dispatch needed
         print("🔄 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
         self.unifiedTimeline = posts
-        self.isLoadingTimeline = false
-        print(
-            "✅ SocialServiceManager: unifiedTimeline updated - new count: \(self.unifiedTimeline.count)"
-        )
+        print("✅ SocialServiceManager: unifiedTimeline updated - new count: \(posts.count)")
 
-        // Wire up timeline debug singleton for Bluesky
-        if let debug = SocialFusionTimelineDebug.shared as SocialFusionTimelineDebug? {
-            debug.setBlueskyPosts(posts.filter { $0.platform == .bluesky })
+        // Proactively fetch parent posts in the background to prevent jittery reply banner animations
+        Task.detached(priority: .background) { [weak self] in
+            await self?.proactivelyFetchParentPosts(from: posts)
         }
-
-        print("🔄 SocialServiceManager: Timeline updated with \(posts.count) posts")
     }
 
     @MainActor
-    private func safelyUpdateLoadingState(_ isLoading: Bool, error: Error? = nil) {
+    private func updateLoadingState(_ isLoading: Bool, error: Error? = nil) {
+        // Immediate update - no delays
         self.isLoadingTimeline = isLoading
         if let error = error {
             self.timelineError = error
@@ -1717,5 +1741,119 @@ public final class SocialServiceManager: ObservableObject {
             ancestors: existingParents + newParents,
             descendants: existingReplies + newReplies
         )
+    }
+
+    // MARK: - Helper Methods
+
+    /// Proactively fetch parent posts in the background to prevent jittery reply banner animations
+    private func proactivelyFetchParentPosts(from posts: [Post]) async {
+        print(
+            "🔄 SocialServiceManager: Starting proactive parent post fetching for \(posts.count) posts"
+        )
+
+        // Collect all posts that have parent IDs but no cached parent data
+        var parentsToFetch: [(postId: String, parentId: String, platform: SocialPlatform)] = []
+
+        for post in posts {
+            guard let parentId = post.inReplyToID else { continue }
+
+            // Check if we already have this parent in cache
+            let cacheKey = "\(post.platform.rawValue):\(parentId)"
+            if PostParentCache.shared.getCachedPost(id: cacheKey) != nil {
+                continue  // Already cached, skip
+            }
+
+            // Check if we're already fetching this parent
+            if parentFetchInProgress.contains(cacheKey) {
+                continue  // Already in progress, skip
+            }
+
+            parentsToFetch.append((postId: post.id, parentId: parentId, platform: post.platform))
+        }
+
+        guard !parentsToFetch.isEmpty else {
+            print("✅ SocialServiceManager: No parent posts need fetching")
+            return
+        }
+
+        print("🔄 SocialServiceManager: Fetching \(parentsToFetch.count) parent posts in background")
+
+        // Fetch parent posts concurrently with a limit to avoid overwhelming the APIs
+        let maxConcurrentFetches = 5
+        let batches = Array(parentsToFetch).chunked(into: maxConcurrentFetches)
+
+        for batch in batches {
+            await withTaskGroup(of: Void.self) { group in
+                for fetchRequest in batch {
+                    group.addTask { [weak self] in
+                        await self?.fetchSingleParentPost(
+                            parentId: fetchRequest.parentId,
+                            platform: fetchRequest.platform
+                        )
+                    }
+                }
+            }
+
+            // Small delay between batches to be respectful to APIs
+            try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
+        }
+
+        print("✅ SocialServiceManager: Completed proactive parent post fetching")
+    }
+
+    /// Fetch a single parent post and cache it
+    private func fetchSingleParentPost(parentId: String, platform: SocialPlatform) async {
+        let cacheKey = "\(platform.rawValue):\(parentId)"
+
+        // Mark as in progress
+        await MainActor.run {
+            parentFetchInProgress.insert(cacheKey)
+        }
+
+        defer {
+            // Remove from in-progress set when done
+            Task { @MainActor in
+                parentFetchInProgress.remove(cacheKey)
+            }
+        }
+
+        do {
+            let parentPost: Post?
+
+            switch platform {
+            case .mastodon:
+                guard let account = mastodonAccounts.first else {
+                    print("⚠️ SocialServiceManager: No Mastodon account available for parent fetch")
+                    return
+                }
+                parentPost = try await fetchMastodonStatus(id: parentId, account: account)
+
+            case .bluesky:
+                parentPost = try await fetchBlueskyPostByID(parentId)
+            }
+
+            // Cache the result if successful
+            if let parentPost = parentPost {
+                await MainActor.run {
+                    PostParentCache.shared.cache[cacheKey] = parentPost
+                }
+                print("✅ SocialServiceManager: Cached parent post \(parentId) for \(platform)")
+            }
+
+        } catch {
+            print(
+                "⚠️ SocialServiceManager: Failed to fetch parent post \(parentId): \(error.localizedDescription)"
+            )
+            // Don't throw - just log the error and continue
+        }
+    }
+}
+
+// MARK: - Array Extension for Chunking
+extension Array {
+    func chunked(into size: Int) -> [[Element]] {
+        return stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
+        }
     }
 }

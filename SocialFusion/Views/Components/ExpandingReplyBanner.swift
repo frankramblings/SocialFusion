@@ -66,21 +66,32 @@ class PostParentCache: ObservableObject {
 }
 
 struct ExpandingReplyBanner: View {
+    // MARK: - Properties
     let username: String
     let network: SocialPlatform
     let parentId: String?
+    let initialParent: Post?  // Add optional initial parent post
     @Binding var isExpanded: Bool
-    var onBannerTap: (() -> Void)? = nil
-    var onParentPostTap: ((Post) -> Void)? = nil
-    @ObservedObject private var parentCache = PostParentCache.shared
-    @State private var parent: Post? = nil
+    let onBannerTap: (() -> Void)?
+    let onParentPostTap: ((Post) -> Void)?
+
+    // MARK: - State
+    @State private var parent: Post?
+    @State private var showContent = false
     @State private var fetchAttempted = false
+    @State private var isLoading = false
+    @State private var fetchError: String?
+
+    // MARK: - Environment
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
+
+    // Use the shared PostParentCache instance
+    private var parentCache: PostParentCache { PostParentCache.shared }
 
     // Enhanced animation state management
     @State private var isPressed = false
-    @State private var showContent = false
     @State private var contentHeight: CGFloat = 0
-    @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
 
     // Apple-style animation timing curves
     private var expandAnimation: Animation {
@@ -96,20 +107,34 @@ struct ExpandingReplyBanner: View {
     }
 
     private var displayUsername: String {
+        // Use the real display name from the fetched parent post if available
         if let parent = parent {
+            // Priority 1: Use display name (real name) if available and not empty
+            if !parent.authorName.isEmpty && parent.authorName != "unknown"
+                && parent.authorName != "Loading..." && !parent.isPlaceholder
+            {
+                return parent.authorName
+            }
+            // Priority 2: Use username without @ symbol if display name not available
             if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
                 && parent.authorUsername != "unknown" && !parent.isPlaceholder
             {
-                return parent.authorUsername
+                return parent.authorUsername.hasPrefix("@")
+                    ? String(parent.authorUsername.dropFirst()) : parent.authorUsername
             }
         }
-        return username
-    }
 
-    private var shouldShowLoadingState: Bool {
-        guard let parentId = parentId else { return false }
-        return isExpanded
-            && (parentCache.isFetching(id: parentId) || (parent?.isPlaceholder == true))
+        // Check if the username is a generic fallback (like "user-frwkc7fg")
+        // ONLY show "someone" for these truly generic cases
+        if username.hasPrefix("user-") && username.count == 13 {
+            // This is likely a generic DID-based username from Bluesky fallback
+            return "someone"
+        }
+
+        // For normal usernames (even if not in cache), show the actual username
+        // Remove @ if present for cleaner display
+        let cleanUsername = username.hasPrefix("@") ? String(username.dropFirst()) : username
+        return cleanUsername
     }
 
     private var platformColor: Color {
@@ -145,14 +170,12 @@ struct ExpandingReplyBanner: View {
                     Image(systemName: "arrow.turn.up.left")
                         .font(.caption)
                         .foregroundColor(platformColor)
-                        .scaleEffect(isPressed ? 0.95 : 1.0)
-                        .animation(.easeInOut(duration: 0.1), value: isPressed)
 
-                    Text("Replying to @\(displayUsername)")
+                    Text("Replying to \(displayUsername)")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    if shouldShowLoadingState {
+                    if isLoading {
                         ProgressView()
                             .scaleEffect(0.6)
                             .frame(width: 12, height: 12)
@@ -164,23 +187,21 @@ struct ExpandingReplyBanner: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                         .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .scaleEffect(isPressed ? 0.9 : 1.0)
                         .animation(chevronAnimation, value: isExpanded)
-                        .animation(.easeInOut(duration: 0.1), value: isPressed)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .scaleEffect(isPressed ? 0.98 : 1.0)
+                .animation(.easeInOut(duration: 0.1), value: isPressed)
             }
             .buttonStyle(PlainButtonStyle())
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.6)) {
-                        isPressed = pressing
-                    }
+                    // Remove animation to prevent floating
+                    isPressed = pressing
                     // Add haptic feedback for better interaction
                     if pressing {
                         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -198,13 +219,13 @@ struct ExpandingReplyBanner: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                } else if shouldShowLoadingState {
-                    // Skeleton loading state
+                } else if isLoading {
+                    // Skeleton loading state while fetching
                     ParentPostSkeleton()
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                } else if fetchAttempted && parent == nil {
-                    // Error state
+                } else if let error = fetchError {
+                    // Error state with retry option
                     VStack(spacing: 8) {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundColor(.orange)
@@ -212,16 +233,68 @@ struct ExpandingReplyBanner: View {
                         Text("Unable to load parent post")
                             .font(.caption)
                             .foregroundColor(.secondary)
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+
+                        Button("Retry") {
+                            fetchAttempted = false
+                            fetchError = nil
+                            if let parentId = parentId {
+                                triggerParentFetch(parentId: parentId)
+                            }
+                        }
+                        .font(.caption)
+                        .foregroundColor(.blue)
                     }
                     .padding(.vertical, 12)
                     .padding(.horizontal, 12)
                     .frame(maxWidth: .infinity)
+                } else if isExpanded {
+                    // Placeholder content when expanded but no parent data available
+                    VStack(spacing: 8) {
+                        HStack(spacing: 12) {
+                            Circle()
+                                .fill(Color.secondary.opacity(0.3))
+                                .frame(width: 36, height: 36)
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("@\(username)")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+
+                                Text("Original post")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+                        }
+
+                        Text("Tap to view the original post this is replying to")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        // Try to fetch the parent post when placeholder is tapped
+                        if let parentId = parentId {
+                            triggerParentFetch(parentId: parentId)
+                        }
+                    }
                 }
             }
             .opacity(showContent ? 1 : 0)
             .scaleEffect(showContent ? 1 : 0.98, anchor: .top)
             .frame(height: isExpanded ? nil : 0)
             .clipped()
+            .animation(isExpanded ? expandAnimation : collapseAnimation, value: showContent)
             .background(
                 // Simplified content background matching main container
                 Color(.systemBackground).opacity(0.01)
@@ -232,8 +305,8 @@ struct ExpandingReplyBanner: View {
             RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
                 .fill(
                     isExpanded
-                        ? AnyShapeStyle(.ultraThinMaterial)
-                        : AnyShapeStyle(Color(.systemBackground))
+                        ? AnyShapeStyle(Color.clear)  // Remove gray background, let liquid glass work directly
+                        : AnyShapeStyle(Color.clear)
                 )
                 .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
@@ -251,36 +324,43 @@ struct ExpandingReplyBanner: View {
             x: 0,
             y: isExpanded ? 2 : 0.5
         )
-        .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
-        // Apply liquid glass effects to the entire banner
-        .advancedLiquidGlass(
-            variant: liquidGlassVariant,
-            intensity: isExpanded ? 0.9 : 0.7,
-            morphingState: liquidGlassMorphingState
+        .background(
+            // Apply liquid glass effect only when expanded
+            Group {
+                if isExpanded {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.clear)
+                        .advancedLiquidGlass(
+                            variant: liquidGlassVariant,
+                            intensity: 0.9,
+                            morphingState: liquidGlassMorphingState
+                        )
+                }
+            }
         )
         .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
-        .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         .onAppear {
-            // Set initial parent from cache immediately
-            if let parentId = parentId {
-                parent = parentCache.getCachedPost(id: parentId)
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
 
-                // Preload in background for smoother experience
-                if !parentCache.isFetching(id: parentId) && parent == nil {
-                    triggerBackgroundPreload(parentId: parentId)
+                // Check cache for existing parent post (service manager handles proactive fetching)
+                if let parentId = parentId {
+                    if let cachedPost = parentCache.getCachedPost(id: parentId) {
+                        parent = cachedPost
+                        print("✅ Found cached parent: \(cachedPost.authorUsername)")
+                    } else {
+                        print(
+                            "❌ No cached parent found for ID: \(parentId) - will be fetched by service manager"
+                        )
+                    }
                 }
             }
         }
-        .onReceive(parentCache.$cache) { cache in
-            // Simple parent update - no complex state synchronization
-            if let parentId = parentId {
-                parent = cache[parentId]
-            }
-        }
         .onChange(of: isExpanded) { newValue in
-            // Ensure showContent state stays synchronized with expansion
-            if !newValue {
-                showContent = false
+            // Animate showContent state synchronization with expansion
+            withAnimation(newValue ? expandAnimation : collapseAnimation) {
+                showContent = newValue
             }
         }
     }
@@ -291,58 +371,71 @@ struct ExpandingReplyBanner: View {
         impactFeedback.prepare()
         impactFeedback.impactOccurred()
 
-        // Toggle expansion state with Apple-style animation
+        // Animate the expansion state change with streamlined animation
         withAnimation(isExpanded ? collapseAnimation : expandAnimation) {
             isExpanded.toggle()
         }
 
-        // Manage content appearance with staggered timing
-        if isExpanded {
-            // When expanding, show content after a delay
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    showContent = true
-                }
-            }
-        } else {
-            // When collapsing, hide content immediately
-            withAnimation(.easeOut(duration: 0.2)) {
-                showContent = false
-            }
-        }
-
-        // Start fetching when expanded
-        if !isExpanded, let parentId = parentId {
+        // Only start fetching when expanded if we don't already have the parent data
+        if isExpanded, let parentId = parentId, parent == nil {
+            print("🔄 Triggering fetch from banner tap")
             triggerParentFetch(parentId: parentId)
         }
 
         onBannerTap?()
     }
 
-    private func triggerBackgroundPreload(parentId: String) {
-        parentCache.preloadParentPost(
-            id: parentId,
-            username: username,
-            platform: network,
-            serviceManager: SocialServiceManager.shared,
-            allAccounts: SocialServiceManager.shared.mastodonAccounts
-                + SocialServiceManager.shared.blueskyAccounts
-        )
-    }
-
     private func triggerParentFetch(parentId: String) {
-        guard parent == nil || parent?.isPlaceholder == true else { return }
-
-        if !parentCache.isFetching(id: parentId) {
-            fetchAttempted = true
-            parentCache.fetchRealPost(
-                id: parentId,
-                username: username,
-                platform: network,
-                serviceManager: SocialServiceManager.shared,
-                allAccounts: SocialServiceManager.shared.mastodonAccounts
-                    + SocialServiceManager.shared.blueskyAccounts
+        // Skip if already loading, attempted, or if we already have the parent
+        guard !isLoading && !fetchAttempted && parent == nil else {
+            print(
+                "⏭️ Skipping fetch - already loading: \(isLoading), attempted: \(fetchAttempted), has parent: \(parent != nil)"
             )
+            return
+        }
+
+        // Use Task to defer the fetch outside view rendering cycle
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+
+            isLoading = true
+            fetchAttempted = true
+            fetchError = nil
+
+            do {
+                let fetchedPost: Post?
+
+                switch network {
+                case .bluesky:
+                    // Use the serviceManager's Bluesky post fetching method
+                    fetchedPost = try await serviceManager.fetchBlueskyPostByID(parentId)
+
+                case .mastodon:
+                    // For Mastodon, we need to find an appropriate account
+                    guard let mastodonAccount = serviceManager.mastodonAccounts.first else {
+                        throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+                    }
+                    fetchedPost = try await serviceManager.fetchMastodonStatus(
+                        id: parentId, account: mastodonAccount)
+                }
+
+                if let post = fetchedPost {
+                    parent = post
+                    parentCache.cache[parentId] = post
+                    print(
+                        "✅ Fetched parent post: \(post.authorUsername) - \(post.content.prefix(50))..."
+                    )
+                } else {
+                    fetchError = "Post not found"
+                    print("❌ Parent post not found for ID: \(parentId)")
+                }
+
+            } catch {
+                fetchError = error.localizedDescription
+                print("❌ Fetch error: \(error.localizedDescription)")
+            }
+
+            isLoading = false
         }
     }
 }
@@ -455,12 +548,16 @@ struct ParentPostSkeleton: View {
             .padding(.leading, 4)
         }
         .onAppear {
-            // Start gentle shimmer animation
-            withAnimation(
-                .easeInOut(duration: 2.0)
-                    .repeatForever(autoreverses: false)
-            ) {
-                shimmerOffset = 200
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                // Start gentle shimmer animation
+                withAnimation(
+                    .easeInOut(duration: 2.0)
+                        .repeatForever(autoreverses: false)
+                ) {
+                    shimmerOffset = 200
+                }
             }
         }
     }
@@ -474,7 +571,10 @@ struct ExpandingReplyBanner_Previews: PreviewProvider {
                 username: "testuser",
                 network: .bluesky,
                 parentId: nil,
-                isExpanded: .constant(false)
+                initialParent: nil,
+                isExpanded: .constant(false),
+                onBannerTap: nil,
+                onParentPostTap: nil
             )
 
             // Mastodon reply banner
@@ -482,7 +582,10 @@ struct ExpandingReplyBanner_Previews: PreviewProvider {
                 username: "testuser",
                 network: .mastodon,
                 parentId: nil,
-                isExpanded: .constant(true)
+                initialParent: nil,
+                isExpanded: .constant(true),
+                onBannerTap: nil,
+                onParentPostTap: nil
             )
         }
         .padding()

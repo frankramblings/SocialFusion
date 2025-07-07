@@ -9,6 +9,7 @@ struct PostActionBar: View {
     let isReplying: Bool
     let isReposted: Bool
     let isLiked: Bool
+    let isReplied: Bool
     let onReply: () -> Void
     let onRepost: () -> Void
     let onLike: () -> Void
@@ -21,6 +22,7 @@ struct PostActionBar: View {
                 post: post,
                 replyCount: replyCount,
                 isReplying: isReplying,
+                isReplied: isReplied,
                 onTap: onReply
             )
 
@@ -106,6 +108,7 @@ struct PostActionBar_Previews: PreviewProvider {
                 isReplying: false,
                 isReposted: true,
                 isLiked: true,
+                isReplied: false,
                 onReply: {},
                 onRepost: {},
                 onLike: {},
@@ -131,6 +134,7 @@ struct PostActionBar_Previews: PreviewProvider {
                 isReplying: false,
                 isReposted: false,
                 isLiked: false,
+                isReplied: false,
                 onReply: {},
                 onRepost: {},
                 onLike: {},

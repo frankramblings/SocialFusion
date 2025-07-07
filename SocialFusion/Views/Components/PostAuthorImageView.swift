@@ -23,19 +23,6 @@ struct PostAuthorImageView: View {
 
         // Generate initials from author name for fallback
         self.initials = Self.generateInitials(from: authorName)
-
-        // Debug logging for profile image initialization
-        if authorProfilePictureURL.isEmpty {
-            print("⚠️ [PostAuthorImageView] Empty profile URL for \(platform)")
-        } else if stableImageURL == nil {
-            print(
-                "❌ [PostAuthorImageView] Invalid profile URL for \(platform): \(authorProfilePictureURL)"
-            )
-        } else {
-            print(
-                "✅ [PostAuthorImageView] Valid profile URL for \(platform): \(String(authorProfilePictureURL.prefix(50)))"
-            )
-        }
     }
 
     var body: some View {
@@ -72,9 +59,6 @@ struct PostAuthorImageView: View {
             Circle()
                 .stroke(Color(.systemBackground), lineWidth: 1)
                 .frame(width: size, height: size)
-                .onAppear {
-                    print("👁️ [PostAuthorImageView] Avatar appeared for: \(debugDescription)")
-                }
 
             // Platform indicator badge with SVG logo and full Liquid Glass
             PlatformLogoBadge(

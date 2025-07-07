@@ -131,16 +131,6 @@ public struct QuotePostView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .padding(.top, 4)
-        .onAppear {
-            print(
-                "🖼️ [QuotePostView] Displaying \(post.attachments.count) attachments for quoted post: \(post.id)"
-            )
-            for (index, attachment) in post.attachments.enumerated() {
-                print(
-                    "🖼️ [QuotePostView] Attachment \(index): \(attachment.url) (type: \(attachment.type))"
-                )
-            }
-        }
     }
 
     private var errorMediaView: some View {

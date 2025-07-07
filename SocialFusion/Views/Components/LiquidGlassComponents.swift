@@ -87,16 +87,26 @@ struct AdvancedLiquidGlassLensing: ViewModifier {
                 }
             }
             .onAppear {
-                if variant == .floating && !reduceMotion {
-                    startFloatingAnimation()
+                if !reduceMotion {
+                    // Use Task to defer state updates outside view rendering cycle
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                        startFloatingAnimation()
+                    }
                 }
             }
     }
 
     private func startFloatingAnimation() {
-        withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-            floatingOffset = -2
-        }
+        // Only start floating animation if reduce motion is disabled
+        guard !reduceMotion else { return }
+
+        // Disable floating for tab bars to keep them stable
+        return
+
+            withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                floatingOffset = -2
+            }
 
         withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
             rotationAngle = 1
@@ -572,9 +582,15 @@ struct FloatingLiquidGlassTabBar: ViewModifier {
     }
 
     private func startFloatingAnimation() {
-        withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
-            tabBarOffset = -3
-        }
+        // Only start floating animation if reduce motion is disabled
+        guard !reduceMotion else { return }
+
+        // Disable floating for tab bars to keep them stable
+        return
+
+            withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+                tabBarOffset = -3
+            }
     }
 }
 
@@ -835,15 +851,25 @@ struct FloatingLiquidGlassComposeButton: ViewModifier {
             }
             .onAppear {
                 if !reduceMotion {
-                    startFloatingAnimation()
+                    // Use Task to defer state updates outside view rendering cycle
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                        startFloatingAnimation()
+                    }
                 }
             }
     }
 
     private func startFloatingAnimation() {
-        withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) {
-            floatingOffset = -4
-        }
+        // Only start floating animation if reduce motion is disabled
+        guard !reduceMotion else { return }
+
+        // Disable floating for compose buttons to keep them stable
+        return
+
+            withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) {
+                floatingOffset = -4
+            }
 
         withAnimation(.easeInOut(duration: 5.0).repeatForever(autoreverses: true)) {
             rotationAngle = 2

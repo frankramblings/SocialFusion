@@ -18,11 +18,7 @@ struct UnifiedAccountsIcon: View {
 
     var body: some View {
         Circle()
-            .fill(
-                colorScheme == .dark
-                    ? Color(UIColor.secondarySystemBackground)
-                    : Color(UIColor.systemGray6)
-            )
+            .fill(Color.clear)  // Made transparent instead of background color
             .frame(width: 32, height: 32)
             .overlay(
                 Group {
@@ -131,7 +127,6 @@ struct ContentView: View {
                             // Show current account image or unified icon
                             getCurrentAccountImage()
                                 .frame(width: 24, height: 24)
-                                .clipShape(Circle())
                         }
                         // Debug: Triple tap to show launch animation
                         .onTapGesture(count: 3) {

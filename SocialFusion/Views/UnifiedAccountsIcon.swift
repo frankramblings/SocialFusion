@@ -22,24 +22,6 @@ public struct UnifiedAccountsIcon: View {
 
     var body: some View {
         ZStack {
-            // Main circular background
-            Circle()
-                .fill(
-                    colorScheme == .dark
-                        ? Color(UIColor.tertiarySystemBackground)
-                        : Color(UIColor.systemGray6)
-                )
-                .frame(width: 32, height: 32)
-                .overlay(
-                    Circle()
-                        .stroke(
-                            colorScheme == .dark
-                                ? Color(UIColor.quaternaryLabel)
-                                : Color(UIColor.tertiaryLabel),
-                            lineWidth: 0.5
-                        )
-                )
-
             if !hasAccounts {
                 // No accounts, show a placeholder
                 Image(systemName: "person.crop.circle")

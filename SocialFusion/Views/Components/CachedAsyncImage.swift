@@ -63,13 +63,11 @@ public class ImageCache: ObservableObject {
 
         // Check hot cache first (most frequently accessed)
         if let hotImage = hotCache.object(forKey: key) {
-            print("🚀 [ImageCache] Hot cache HIT for: \(url.lastPathComponent)")
             return Just(hotImage).eraseToAnyPublisher()
         }
 
         // Check regular memory cache
         if let cachedImage = cache.object(forKey: key) {
-            print("✅ [ImageCache] Cache HIT for: \(url.lastPathComponent)")
             // Promote to hot cache if accessed again
             hotCache.setObject(cachedImage, forKey: key)
             return Just(cachedImage).eraseToAnyPublisher()
@@ -80,20 +78,13 @@ public class ImageCache: ObservableObject {
         let currentPriority = requestPriorities[url] ?? .background
         if priority.rawValue > currentPriority.rawValue {
             requestPriorities[url] = priority
-            print("📈 [ImageCache] Updated priority for \(url.lastPathComponent): \(priority)")
         }
         priorityLock.unlock()
 
         // Check if we already have an in-flight request for this URL
         if let existingPublisher = inFlightRequests[url] {
-            print(
-                "🔄 [ImageCache] Using existing request for: \(url.lastPathComponent) (priority: \(priority))"
-            )
             return existingPublisher
         }
-
-        print(
-            "📥 [ImageCache] Cache MISS, loading: \(url.lastPathComponent) (priority: \(priority))")
 
         // Create new request with priority-based timeouts and retry logic
         let timeoutInterval: TimeInterval = priority == .high ? 15 : 30
@@ -285,52 +276,65 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 placeholder()
                     .onAppear {
                         if !isLoading {
-                            loadImageWithPriority()
+                            // Use Task to defer state updates outside view rendering cycle
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                                loadImageWithPriority()
+                            }
                         }
                     }
             }
         }
         .id(stableID)
         .onAppear {
-            isVisible = true
-            viewAppearCount += 1
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                isVisible = true
+                viewAppearCount += 1
 
-            // Load with high priority when visible
-            if image == nil && !isLoading {
-                let loadPriority: ImageLoadPriority = isVisible ? .high : priority
-                let delay = viewAppearCount > 1 ? 0.05 : 0.0  // Reduced delay for responsiveness
+                // Load with high priority when visible
+                if image == nil && !isLoading {
+                    let loadPriority: ImageLoadPriority = isVisible ? .high : priority
+                    let delay = viewAppearCount > 1 ? 0.05 : 0.0  // Reduced delay for responsiveness
 
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     loadImageWithPriority(loadPriority)
                 }
             }
         }
         .onDisappear {
-            isVisible = false
-            // Don't cancel immediately - keep some requests for smooth scrolling back
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                isVisible = false
+                // Don't cancel immediately - keep some requests for smooth scrolling back
+            }
         }
         .onChange(of: url) { newURL in
-            // Reset state when URL changes
-            image = nil
-            hasError = false
-            retryCount = 0
-            isLoading = false
-            viewAppearCount = 0
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                // Reset state when URL changes
+                image = nil
+                hasError = false
+                retryCount = 0
+                isLoading = false
+                viewAppearCount = 0
 
-            if newURL != nil {
-                loadImageWithPriority()
+                if newURL != nil {
+                    loadImageWithPriority()
+                }
             }
         }
     }
 
     private func loadImageWithPriority(_ overridePriority: ImageLoadPriority? = nil) {
         guard let url = url else {
-            print("⚠️ [CachedAsyncImage] No URL provided")
             return
         }
 
         guard !isLoading else {
-            print("🔄 [CachedAsyncImage] Already loading: \(url.lastPathComponent)")
             return
         }
 
@@ -338,10 +342,6 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         isLoading = true
         hasError = false
         let startTime = Date()
-
-        print(
-            "📱 [CachedAsyncImage] Loading image: \(url.lastPathComponent) (attempt \(retryCount + 1), priority: \(loadPriority))"
-        )
 
         // Clear previous cancellables for this load
         cancellables.removeAll()
@@ -358,7 +358,6 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                     self.image = loadedImage
                     self.hasError = false
                     self.retryCount = 0
-                    print("✅ [CachedAsyncImage] SUCCESS: \(url.lastPathComponent)")
 
                     // Post success notification for live monitoring
                     NotificationCenter.default.post(
@@ -374,9 +373,6 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                 } else {
                     // Network request completed but returned nil (could be 404, invalid data, etc.)
                     self.hasError = true
-                    print(
-                        "❌ [CachedAsyncImage] FAILED: \(url.lastPathComponent) (attempt \(self.retryCount + 1))"
-                    )
 
                     // Post failure notification for live monitoring
                     NotificationCenter.default.post(
@@ -397,26 +393,12 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                         let jitter = Double.random(in: 0.05...0.15)
                         let delay = baseDelay + jitter
 
-                        print(
-                            "🔄 [CachedAsyncImage] Retrying \(url.lastPathComponent) in \(String(format: "%.1f", delay))s (attempt \(self.retryCount + 1)) - isVisible: \(self.isVisible)"
-                        )
-
-                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                             if self.isVisible {  // Only retry if still visible
-                                print(
-                                    "🔄 [CachedAsyncImage] Executing retry for: \(url.lastPathComponent)"
-                                )
                                 self.loadImageWithPriority(loadPriority)
-                            } else {
-                                print(
-                                    "🚫 [CachedAsyncImage] Skipping retry (no longer visible): \(url.lastPathComponent)"
-                                )
                             }
                         }
-                    } else {
-                        print(
-                            "❌ [CachedAsyncImage] Max retries exceeded for: \(url.lastPathComponent) - showing fallback (retryCount: \(self.retryCount), maxRetries: \(self.maxRetries), isVisible: \(self.isVisible))"
-                        )
                     }
                 }
             })

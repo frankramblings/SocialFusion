@@ -27,12 +27,18 @@ struct StabilizedLinkPreview: View {
             .frame(maxWidth: .infinity)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
             .onAppear {
-                print("🎯 [StabilizedLinkPreview] onAppear for URL: \(url.absoluteString)")
-                loadMetadata()
+                // Use Task to defer state updates outside view rendering cycle
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                    loadMetadata()
+                }
             }
             .onDisappear {
-                print("🎯 [StabilizedLinkPreview] onDisappear for URL: \(url.absoluteString)")
-                MetadataProviderManager.shared.cancelProvider(for: url)
+                // Use Task to defer state updates outside view rendering cycle
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                    MetadataProviderManager.shared.cancelProvider(for: url)
+                }
             }
     }
 
@@ -178,8 +184,12 @@ private struct StabilizedLinkLoadingView: View {
         )
         .clipped()
         .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                phase = 1.3
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                    phase = 1.3
+                }
             }
         }
     }

@@ -21,7 +21,12 @@ struct PostDetailView: View {
     // Reply composer state
     @State private var replyText: String = ""
     @State private var isReplying: Bool = false
+    @State private var replyError: Error?
     @FocusState private var isReplyFocused: Bool
+
+    // Reply loading state
+    @State private var isLoadingReplies: Bool = false
+    @State private var repliesError: Error?
 
     // UI state
     @State private var hasScrolledToSelectedPost: Bool = false
@@ -95,10 +100,12 @@ struct PostDetailView: View {
                     }
                     .background(Color(.systemGroupedBackground))
                     .onAppear {
-                        loadThreadContext()
-                        scrollProxy = proxy
-                        // Ivory-style: Immediate scroll on appear
-                        scrollToSelectedPost(proxy: proxy)
+                        // Use Task to defer state updates outside view rendering cycle
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            loadThreadContext()
+                            scrollProxy = proxy
+                        }
                     }
                 }
 
@@ -253,6 +260,7 @@ struct PostDetailView: View {
                     isReplying: isReplying,
                     isReposted: viewModel.isReposted,
                     isLiked: viewModel.isLiked,
+                    isReplied: viewModel.post.isReplied,
                     onReply: { handleAction(.reply) },
                     onRepost: { handleAction(.repost) },
                     onLike: { handleAction(.like) },
@@ -488,17 +496,20 @@ struct PostDetailView: View {
         Task {
             do {
                 let _ = try await serviceManager.replyToPost(viewModel.post, content: replyText)
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isReplying = false
-                        replyText = ""
-                    }
-                    // Reload replies to show new reply
-                    loadReplies()
+
+                // Update the post's isReplied state
+                self.viewModel.post.isReplied = true
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    self.isReplying = false
+                    self.replyText = ""
                 }
+
+                // Reload replies to show the new reply
+                await loadReplies()
+
             } catch {
-                print("Error sending reply: \(error)")
-                // TODO: Show error to user
+                print("📊 PostDetailView: Failed to send reply: \(error)")
+                self.replyError = error
             }
         }
     }
@@ -538,23 +549,19 @@ struct PostDetailView: View {
             do {
                 let context = try await serviceManager.fetchThreadContext(for: viewModel.post)
 
-                await MainActor.run {
-                    self.parentPosts = context.ancestors
-                    self.replyPosts = context.descendants
-                    self.isLoadingThread = false
-                    self.hasLoadedInitialThread = true
+                self.parentPosts = context.ancestors
+                self.replyPosts = context.descendants
+                self.isLoadingThread = false
+                self.hasLoadedInitialThread = true
 
-                    print(
-                        "✅ PostDetailView: Thread loaded - \(context.ancestors.count) parents, \(context.descendants.count) replies"
-                    )
-                }
+                print(
+                    "📊 PostDetailView: Thread context loaded - \(context.ancestors.count) ancestors, \(context.descendants.count) descendants"
+                )
+
             } catch {
-                print("❌ PostDetailView: Thread loading failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.threadError = error
-                    self.isLoadingThread = false
-                    self.hasLoadedInitialThread = true
-                }
+                print("📊 PostDetailView: Failed to load thread context: \(error)")
+                self.threadError = error
+                self.isLoadingThread = false
             }
         }
     }
@@ -567,25 +574,29 @@ struct PostDetailView: View {
     }
 
     private func loadReplies() {
+        guard !isLoadingReplies else { return }
+
+        print("📊 PostDetailView: Loading replies for post \(viewModel.post.id)")
+
+        isLoadingReplies = true
+        repliesError = nil
+
         Task {
             do {
                 let context = try await serviceManager.fetchThreadContext(for: viewModel.post)
-                await MainActor.run {
-                    self.replyPosts = context.descendants
-                }
+                let newReplies = context.descendants
+
+                self.replyPosts = newReplies
+                self.isLoadingReplies = false
+
+                print("📊 PostDetailView: Loaded \(newReplies.count) replies")
+
             } catch {
-                print("Failed to reload replies: \(error)")
+                print("📊 PostDetailView: Failed to load replies: \(error)")
+                self.repliesError = error
+                self.isLoadingReplies = false
             }
         }
-    }
-
-    private func scrollToSelectedPost(proxy: ScrollViewProxy) {
-        guard !hasScrolledToSelectedPost else { return }
-
-        // Ivory-style: Simple, immediate positioning - no delays, no animation
-        proxy.scrollTo(selectedPostAreaID, anchor: .top)
-
-        hasScrolledToSelectedPost = true
     }
 
     private func updateScrollState(offset: CGFloat) {
@@ -666,13 +677,8 @@ struct SelectedPostView: View {
 
                 VStack(alignment: .leading, spacing: 2) {  // Compact spacing
                     Text(post.authorName)
-<<<<<<< HEAD
-                        .font(.headline)  // Reduced from .title2 for less overwhelming size
-                        .fontWeight(.bold)  // Bold for emphasis
-=======
                         .font(.headline)  // Moderately prominent
-                        .fontWeight(.semibold)  // Less bold than before
->>>>>>> main
+                        .fontWeight(.semibold)  // Less bold than bold
                         .foregroundColor(.primary)
                         .lineLimit(1)
 
@@ -693,11 +699,7 @@ struct SelectedPostView: View {
                 post.contentView(
                     lineLimit: nil,
                     showLinkPreview: true,
-<<<<<<< HEAD
-                    font: .title3,  // Reduced from .title for better balance
-=======
                     font: .body,  // Standard body font, just slightly more readable
->>>>>>> main
                     onQuotePostTap: { _ in },
                     allowTruncation: false  // Anchor post never truncated
                 )

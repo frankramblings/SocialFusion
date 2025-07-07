@@ -7,6 +7,8 @@ struct PostRepostButton: View {
     let isReposted: Bool
     let onTap: () -> Void
 
+    @State private var isPressed: Bool = false
+
     var body: some View {
         Button(action: {
             // Add haptic feedback
@@ -17,26 +19,47 @@ struct PostRepostButton: View {
         }) {
             HStack(spacing: 4) {
                 Image(systemName: isReposted ? "arrow.2.squarepath.fill" : "arrow.2.squarepath")
-                    .foregroundColor(isReposted ? platformColor : .secondary)
+                    .foregroundColor(isReposted ? .green : .secondary)
                     .scaleEffect(isReposted ? 1.1 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isReposted)
+                    .animation(
+                        .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
+                        value: isReposted)
 
                 if repostCount > 0 {
                     Text(formatCount(repostCount))
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(isReposted ? .green : .secondary)
+                        .animation(
+                            .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
+                            value: isReposted)
                 }
             }
         }
-        .buttonStyle(ScaleButtonStyle())
+        .scaleEffect(isPressed ? 0.88 : 1.0)
+        .opacity(isPressed ? 0.75 : 1.0)
+        .animation(
+            .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05),
+            value: isPressed
+        )
+        .onLongPressGesture(
+            minimumDuration: 0, maximumDistance: .infinity,
+            pressing: { pressing in
+                withAnimation(
+                    .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05)
+                ) {
+                    isPressed = pressing
+                }
+            }, perform: {}
+        )
+        .buttonStyle(PlainButtonStyle())
     }
 
     private var platformColor: Color {
         switch post.platform {
-        case .bluesky:
-            return .blue
         case .mastodon:
-            return .purple
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
         }
     }
 

@@ -95,67 +95,61 @@ private struct SingleImageView: View {
         self.onTap = onTap
         self.onAltTap = onAltTap
         self.stableURL = URL(string: attachment.url)
-        print("🖼️ [SingleImageView] Loading image URL: \(attachment.url)")
-        print("🖼️ [SingleImageView] Parsed URL: \(String(describing: stableURL))")
     }
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            AsyncImage(url: stableURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: 500)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .onAppear {
-                            print(
-                                "✅ [SingleImageView] Successfully loaded image from: \(String(describing: stableURL))"
+            // Use SmartMediaView for video content, AsyncImage for images
+            if attachment.type == .video {
+                SmartMediaView(
+                    attachment: attachment,
+                    contentMode: SmartMediaView.ContentMode.fill,
+                    maxHeight: 500,
+                    cornerRadius: 16,
+                    onTap: onTap
+                )
+            } else {
+                AsyncImage(url: stableURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity, maxHeight: 500)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    case .failure(_):
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.15))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 280)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(
+                                VStack(spacing: 8) {
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.secondary)
+                                    Text("Image unavailable")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             )
-                        }
-                case .failure(let error):
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.15))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            VStack(spacing: 8) {
-                                Image(systemName: "photo")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                                Text("Image unavailable")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        )
-                        .onAppear {
-                            print(
-                                "❌ [SingleImageView] Failed to load image from: \(String(describing: stableURL)) - Error: \(error)"
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.1))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 280)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(1.2)
                             )
-                        }
-                case .empty:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.2)
-                        )
-                        .onAppear {
-                            print(
-                                "⏳ [SingleImageView] Loading image from: \(String(describing: stableURL))"
-                            )
-                        }
-                @unknown default:
-                    EmptyView()
+                    @unknown default:
+                        EmptyView()
+                    }
                 }
-            }
-            .onTapGesture {
-                onTap()
+                .onTapGesture {
+                    onTap()
+                }
             }
 
             if let alt = attachment.altText, !alt.isEmpty {
@@ -233,39 +227,51 @@ private struct GridImageView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            AsyncImage(url: stableURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: gridSize, height: gridSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                case .failure(_):
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.15))
-                        .frame(width: gridSize, height: gridSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            Image(systemName: "photo")
-                                .font(.title2)
-                                .foregroundColor(.secondary)
-                        )
-                case .empty:
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.08))
-                        .frame(width: gridSize, height: gridSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.0)
-                        )
-                @unknown default:
-                    EmptyView()
+            // Use SmartMediaView for video content, AsyncImage for images
+            if attachment.type == .video {
+                SmartMediaView(
+                    attachment: attachment,
+                    contentMode: SmartMediaView.ContentMode.fill,
+                    maxWidth: gridSize,
+                    maxHeight: gridSize,
+                    cornerRadius: 12,
+                    onTap: { onTap(attachment) }
+                )
+            } else {
+                AsyncImage(url: stableURL) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: gridSize, height: gridSize)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    case .failure(_):
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.15))
+                            .frame(width: gridSize, height: gridSize)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                Image(systemName: "photo")
+                                    .font(.title2)
+                                    .foregroundColor(.secondary)
+                            )
+                    case .empty:
+                        Rectangle()
+                            .fill(Color.gray.opacity(0.08))
+                            .frame(width: gridSize, height: gridSize)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .overlay(
+                                ProgressView()
+                                    .scaleEffect(1.0)
+                            )
+                    @unknown default:
+                        EmptyView()
+                    }
                 }
-            }
-            .onTapGesture {
-                onTap(attachment)
+                .onTapGesture {
+                    onTap(attachment)
+                }
             }
 
             if let alt = attachment.altText, !alt.isEmpty {

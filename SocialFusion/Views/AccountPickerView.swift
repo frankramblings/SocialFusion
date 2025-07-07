@@ -155,13 +155,6 @@ struct AccountPickerView: View {
                 AddAccountView()
                     .environmentObject(serviceManager)
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: Notification.Name("shouldRepresentAddAccount"))
-            ) { notification in
-                // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
-                // Account management will be handled through normal UI flow instead
-            }
         }
     }
 

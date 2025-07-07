@@ -222,9 +222,17 @@ struct KeyboardAdaptive: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(.bottom, keyboardHeight)
-            .onReceive(Publishers.keyboardHeight) { keyboardHeight in
-                // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
-                // Keyboard handling will be managed through normal SwiftUI state flow instead
+            .onReceive(Publishers.keyboardHeight) { newHeight in
+                // Prevent AttributeGraph cycles by using proper async state updates
+                guard !isUpdating else { return }
+                isUpdating = true
+
+                Task { @MainActor in
+                    // Use Task to defer state update outside of view update cycle
+                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                    keyboardHeight = newHeight
+                    isUpdating = false
+                }
             }
     }
 }
@@ -270,7 +278,7 @@ struct ComposeView: View {
     @State private var isTextFieldFocused: Bool = false
 
     // Add SocialServiceManager for actual posting
-    @ObservedObject private var socialServiceManager = SocialServiceManager.shared
+    @EnvironmentObject private var socialServiceManager: SocialServiceManager
 
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 

@@ -242,13 +242,6 @@ struct AddAccountView: View {
             .onChange(of: scenePhase) { newPhase in
                 handleScenePhaseChange(newPhase)
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: Notification.Name("shouldRepresentAddAccount"))
-            ) { notification in
-                // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
-                // Account management will be handled through normal UI flow instead
-            }
             .overlay {
                 if isLoading {
                     ProgressView()
@@ -319,9 +312,8 @@ struct AddAccountView: View {
                         credentials: credentials)
                 }
 
-                // Use Task with MainActor to prevent AttributeGraph cycles
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
+                // Use proper async pattern without artificial delays
+                await MainActor.run {
                     self.isLoading = false
 
                     // Clear the presentation flag since we're dismissing successfully
@@ -335,8 +327,7 @@ struct AddAccountView: View {
                 }
 
             } catch {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
+                await MainActor.run {
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
                 }
@@ -368,9 +359,8 @@ struct AddAccountView: View {
                     password: password
                 )
 
-                // Use Task with MainActor to prevent AttributeGraph cycles
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
+                // Use proper async pattern without artificial delays
+                await MainActor.run {
                     self.isLoading = false
 
                     // Clear the presentation flag since we're dismissing successfully
@@ -384,8 +374,7 @@ struct AddAccountView: View {
                 }
 
             } catch {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
+                await MainActor.run {
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
                 }
@@ -586,6 +575,6 @@ struct PlatformButton: View {
 
 struct AddAccountView_Previews: PreviewProvider {
     static var previews: some View {
-        AddAccountView().environmentObject(SocialServiceManager.shared)
+        AddAccountView().environmentObject(SocialServiceManager())
     }
 }

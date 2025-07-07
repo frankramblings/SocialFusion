@@ -60,11 +60,11 @@ struct SmartMediaView: View {
                 .frame(maxWidth: .infinity)
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(12)
-            } else if attachment.type.needsVideoPlayer {
+            } else if (attachment.type as Post.Attachment.AttachmentType).needsVideoPlayer {
                 // Use AVPlayer for video-like content (including .gifv)
                 VideoPlayerView(
                     url: URL(string: attachment.url),
-                    isGIF: attachment.type.isAnimated
+                    isGIF: (attachment.type as Post.Attachment.AttachmentType).isAnimated
                 )
             } else if attachment.type == .animatedGIF {
                 // Use specialized GIF handler for true GIFs
@@ -76,15 +76,21 @@ struct SmartMediaView: View {
                         .resizable()
                         .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                         .onAppear {
-                            loadingState = .loaded
+                            // Use Task to defer state updates outside view rendering cycle
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                                loadingState = .loaded
+                            }
                         }
                 } placeholder: {
                     loadingView
                         .onAppear {
-                            loadingState = .loading
+                            // Use Task to defer state updates outside view rendering cycle
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                                loadingState = .loading
+                            }
                         }
-                } onFailure: { error in
-                    loadingState = .failed(error)
                 }
                 .overlay(
                     Group {
@@ -162,13 +168,21 @@ private struct VideoPlayerView: View {
             if let player = player {
                 VideoPlayer(player: player)
                     .onAppear {
-                        if isGIF {
-                            // For GIFs, ensure looping and auto-play
-                            player.play()
+                        // Use Task to defer state updates outside view rendering cycle
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            if isGIF {
+                                // For GIFs, ensure looping and auto-play
+                                player.play()
+                            }
                         }
                     }
                     .onDisappear {
-                        player.pause()
+                        // Use Task to defer state updates outside view rendering cycle
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            player.pause()
+                        }
                     }
             } else {
                 Rectangle()
@@ -180,10 +194,18 @@ private struct VideoPlayerView: View {
             }
         }
         .onAppear {
-            setupPlayer()
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                setupPlayer()
+            }
         }
         .onDisappear {
-            cleanup()
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                cleanup()
+            }
         }
     }
 

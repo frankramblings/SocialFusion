@@ -303,17 +303,14 @@ extension Post: BlueskyQuotedPostProvider {
             let uri = quotedPostUri,
             let handle = quotedPostAuthorHandle
         else {
-            if platform == .bluesky {
-                print(
-                    "🔗 [BlueskyQuotedPostProvider] Missing quote data - uri: \(quotedPostUri ?? "nil"), handle: \(quotedPostAuthorHandle ?? "nil")"
-                )
-            }
+            // REMOVED: Debug print statements that were causing AttributeGraph cycles
+            // during view rendering when checking for quote data
             return nil
         }
 
         let postId = uri.split(separator: "/").last ?? ""
         let urlString = "https://bsky.app/profile/\(handle)/post/\(postId)"
-        print("🔗 [BlueskyQuotedPostProvider] Generated quote URL: \(urlString)")
+        // REMOVED: Debug print statement that was causing AttributeGraph cycles
         return URL(string: urlString)
     }
 }

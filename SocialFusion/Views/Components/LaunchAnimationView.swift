@@ -88,26 +88,27 @@ struct LaunchAnimationView: View {
             }
         }
         .onAppear {
-            withAnimation(anim) {
-                fused = true  // circles and text converge over 0.6 s
-                textSpacing = 0
-            }
-            // Wait until the circles are ~50 % overlapped, then trigger the reaction
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                withAnimation(anim) {
+                    fused = true  // circles and text converge over 0.6 s
+                    textSpacing = 0
+                }
+                // Wait until the circles are ~50 % overlapped, then trigger the reaction
+                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
                 withAnimation(.easeOut(duration: 0.12)) {
                     bloomScale = 1.4
                     bloomOpacity = 1
                 }
                 // settle
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                    withAnimation(.easeIn(duration: 0.28)) {
-                        bloomScale = 1.0
-                        bloomOpacity = 0.85
-                    }
+                try? await Task.sleep(nanoseconds: 120_000_000)  // 0.12 seconds
+                withAnimation(.easeIn(duration: 0.28)) {
+                    bloomScale = 1.0
+                    bloomOpacity = 0.85
                 }
-            }
-            // Allow more time for the complete animation sequence including the settle phase
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                // Allow more time for the complete animation sequence including the settle phase
+                try? await Task.sleep(nanoseconds: 1_080_000_000)  // 1.08 seconds (1.5 - 0.3 - 0.12)
                 onFinished()
             }
         }

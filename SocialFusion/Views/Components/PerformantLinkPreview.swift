@@ -20,7 +20,11 @@ struct PerformantLinkPreview: View {
             if isVisible && !hasLoaded {
                 StabilizedLinkPreview(url: url, idealHeight: idealHeight)
                     .onAppear {
-                        hasLoaded = true
+                        // Use Task to defer state updates outside view rendering cycle
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            hasLoaded = true
+                        }
                     }
             } else if hasLoaded {
                 StabilizedLinkPreview(url: url, idealHeight: idealHeight)
@@ -31,13 +35,19 @@ struct PerformantLinkPreview: View {
         }
         .frame(maxWidth: .infinity, idealHeight: idealHeight)
         .onAppear {
-            // Small delay to avoid loading too many at once
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                // Small delay to avoid loading too many at once
+                try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
                 isVisible = true
             }
         }
         .onDisappear {
-            isVisible = false
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                isVisible = false
+            }
         }
     }
 }

@@ -15,6 +15,7 @@
 		5031715E2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */; };
 		503171602DE6AEB700E1C528 /* PostStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031715F2DE6AEB700E1C528 /* PostStore.swift */; };
 		5031716E2DE6B02100E1C528 /* TimelineViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */; };
+		5056CCDA2E19E8AD004B0016 /* SmartMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5056CCD92E19E8AD004B0016 /* SmartMediaView.swift */; };
 		505C34052E00BB9800551A64 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 505C34042E00BB9800551A64 /* CachedAsyncImage.swift */; };
 		5067F5CE2DF23D5B00373A5B /* QuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */; };
 		50782E742DF8CA4F0064B61D /* TimelineState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50782E732DF8CA4F0064B61D /* TimelineState.swift */; };
@@ -98,6 +99,7 @@
 		5031715D2DE6872F00E1C528 /* SocialFusionTimelineDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionTimelineDebug.swift; sourceTree = "<group>"; };
 		5031715F2DE6AEB700E1C528 /* PostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostStore.swift; sourceTree = "<group>"; };
 		5031716C2DE6B02100E1C528 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
+		5056CCD92E19E8AD004B0016 /* SmartMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartMediaView.swift; sourceTree = "<group>"; };
 		505C34042E00BB9800551A64 /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		5067F5CD2DF23D5B00373A5B /* QuotePostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuotePostView.swift; sourceTree = "<group>"; };
 		5067F5CF2DF23D7600373A5B /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
@@ -248,6 +250,7 @@
 				LMN012LMN0123456789LMN01 /* PostLikeButton.swift */,
 				OPQ345OPQ3456789012OPQ34 /* PostShareButton.swift */,
 				RST678RST6789012345RST67 /* TimelineCard.swift */,
+				5056CCD92E19E8AD004B0016 /* SmartMediaView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -426,6 +429,7 @@
 				50CDC8382DD7CDDD00144E13 /* FetchQuotePostView.swift in Sources */,
 				503171602DE6AEB700E1C528 /* PostStore.swift in Sources */,
 				50A05CB52DFE832300D0A21D /* LiquidGlassConfiguration.swift in Sources */,
+				5056CCDA2E19E8AD004B0016 /* SmartMediaView.swift in Sources */,
 				50A05CB62DFE832300D0A21D /* LiquidGlassComponents.swift in Sources */,
 				50A229422DFB1CE400C1C1BF /* StabilizedLinkPreview.swift in Sources */,
 				50A05CB82DFE8DFA00D0A21D /* PostNavigationEnvironment.swift in Sources */,

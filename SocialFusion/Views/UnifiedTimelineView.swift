@@ -19,6 +19,6 @@ struct UnifiedTimelineView: View {
 struct UnifiedTimelineView_Previews: PreviewProvider {
     static var previews: some View {
         UnifiedTimelineView()
-            .environmentObject(SocialServiceManager.shared)
+            .environmentObject(SocialServiceManager())
     }
 }

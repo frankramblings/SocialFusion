@@ -3,6 +3,7 @@ import Foundation
 import SwiftUI
 
 /// A ViewModel for managing a single post
+/// Implements proper SwiftUI state management to prevent AttributeGraph cycles
 @MainActor
 public class PostViewModel: ObservableObject {
     // MARK: - Properties
@@ -17,14 +18,10 @@ public class PostViewModel: ObservableObject {
     @Published public var error: Error?
     public var quotedPostViewModel: PostViewModel?
 
-    // State change callback for UI updates
-    public var onStateChange: (() -> Void)?
-
     // MARK: - Private Properties
 
     private let serviceManager: SocialServiceManager
     private var cancellables = Set<AnyCancellable>()
-    private let serialQueue = DispatchQueue(label: "PostViewModel.serial", qos: .userInitiated)
 
     // MARK: - Initialization
 
@@ -32,7 +29,7 @@ public class PostViewModel: ObservableObject {
         self.post = post
         self.serviceManager = serviceManager
 
-        // Initialize state from post
+        // Initialize state from post - single source of truth
         self.isLiked = post.isLiked
         self.isReposted = post.isReposted
         self.likeCount = post.likeCount
@@ -44,9 +41,6 @@ public class PostViewModel: ObservableObject {
             self.quotedPostViewModel = PostViewModel(
                 post: quotedPost, serviceManager: serviceManager)
         }
-
-        // Removed setupObservers() to prevent AttributeGraph cycles
-        // State updates are now handled directly in the action methods
     }
 
     deinit {
@@ -56,117 +50,23 @@ public class PostViewModel: ObservableObject {
 
     // MARK: - Public Methods
 
-    /// Toggle like/unlike the post
+    /// Toggle like/unlike the post - proper intent-based pattern
     public func like() {
-        guard !isLoading else {
-            print("[PostViewModel] ⚠️ Like operation already in progress for post \(post.id)")
-            return
-        }
+        guard !isLoading else { return }
 
-        print(
-            "[PostViewModel] 🔄 Like button tapped for post \(post.id), current isLiked: \(isLiked), platform: \(post.platform)"
-        )
-
-        // Store original values for potential revert
-        let originalLiked = isLiked
-        let originalCount = likeCount
-
-        // Optimistic UI update
-        isLiked.toggle()
-        likeCount += isLiked ? 1 : -1
-        isLoading = true
-        error = nil
-
-        Task {
-            do {
-                let updatedPost: Post
-                if originalLiked {
-                    print("[PostViewModel] 👎 Attempting to UNLIKE post \(post.id)")
-                    updatedPost = try await serviceManager.unlikePost(post)
-                } else {
-                    print("[PostViewModel] 👍 Attempting to LIKE post \(post.id)")
-                    updatedPost = try await serviceManager.likePost(post)
-                }
-
-                print(
-                    "[PostViewModel] ✅ Like/unlike completed for post \(post.id), new isLiked: \(updatedPost.isLiked), new likeCount: \(updatedPost.likeCount)"
-                )
-
-                // Update with server response
-                self.post = updatedPost
-                self.isLiked = updatedPost.isLiked
-                self.likeCount = updatedPost.likeCount
-                self.replyCount = updatedPost.replyCount
-                self.isLoading = false
-
-            } catch {
-                print("[PostViewModel] ❌ Like/unlike failed for post \(post.id): \(error)")
-
-                // Revert optimistic update
-                self.isLiked = originalLiked
-                self.likeCount = originalCount
-                self.error = error
-                self.isLoading = false
-            }
-        }
+        let intent = PostActionIntent.like(originalState: isLiked, originalCount: likeCount)
+        processPostAction(intent)
     }
 
-    /// Toggle repost/unrepost the post
+    /// Toggle repost/unrepost the post - proper intent-based pattern
     public func repost() {
-        guard !isLoading else {
-            print("[PostViewModel] ⚠️ Repost operation already in progress for post \(post.id)")
-            return
-        }
+        guard !isLoading else { return }
 
-        print(
-            "[PostViewModel] 🔄 Repost button tapped for post \(post.id), current isReposted: \(isReposted), platform: \(post.platform)"
-        )
-
-        // Store original values for potential revert
-        let originalReposted = isReposted
-        let originalCount = repostCount
-
-        // Optimistic UI update
-        isReposted.toggle()
-        repostCount += isReposted ? 1 : -1
-        isLoading = true
-        error = nil
-
-        Task {
-            do {
-                let updatedPost: Post
-                if originalReposted {
-                    print("[PostViewModel] 🔄 Attempting to UNREPOST post \(post.id)")
-                    updatedPost = try await serviceManager.unrepostPost(post)
-                } else {
-                    print("[PostViewModel] 🔄 Attempting to REPOST post \(post.id)")
-                    updatedPost = try await serviceManager.repostPost(post)
-                }
-
-                print(
-                    "[PostViewModel] ✅ Repost/unrepost completed for post \(post.id), new isReposted: \(updatedPost.isReposted), new repostCount: \(updatedPost.repostCount)"
-                )
-
-                // Update with server response
-                self.post = updatedPost
-                self.isReposted = updatedPost.isReposted
-                self.repostCount = updatedPost.repostCount
-                self.replyCount = updatedPost.replyCount
-                self.isLoading = false
-
-            } catch {
-                print("[PostViewModel] ❌ Repost/unrepost failed for post \(post.id): \(error)")
-
-                // Revert optimistic update
-                self.isReposted = originalReposted
-                self.repostCount = originalCount
-                self.error = error
-                self.isLoading = false
-            }
-        }
+        let intent = PostActionIntent.repost(originalState: isReposted, originalCount: repostCount)
+        processPostAction(intent)
     }
 
-    /// Reply to the post
+    /// Reply to the post - proper async pattern
     public func reply(content: String) async throws -> Post {
         guard !isLoading else { throw PostError.operationInProgress }
 
@@ -175,7 +75,12 @@ public class PostViewModel: ObservableObject {
 
         do {
             let reply = try await serviceManager.replyToPost(post, content: content)
+
+            // Update reply count
             self.replyCount += 1
+            self.post.replyCount += 1
+            self.post.isReplied = true
+
             self.isLoading = false
             return reply
         } catch {
@@ -185,49 +90,132 @@ public class PostViewModel: ObservableObject {
         }
     }
 
-    /// Share the post
+    /// Share the post - proper event-driven pattern
     public func share() {
-        // Create the share sheet with the post URL
         guard let url = URL(string: post.originalURL) else { return }
 
-        Task { @MainActor in
-            let activityViewController = UIActivityViewController(
-                activityItems: [url],
-                applicationActivities: nil
-            )
+        let activityViewController = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
 
-            // Present the share sheet
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                let window = windowScene.windows.first,
-                let rootViewController = window.rootViewController
-            {
+        // Present the share sheet
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+            let window = windowScene.windows.first,
+            let rootViewController = window.rootViewController
+        {
 
-                // Find the topmost view controller
-                var topViewController = rootViewController
-                while let presentedVC = topViewController.presentedViewController {
-                    topViewController = presentedVC
-                }
+            // Find the top-most view controller
+            var topController = rootViewController
+            while let presentedViewController = topController.presentedViewController {
+                topController = presentedViewController
+            }
 
-                // Configure for iPad
-                if let popover = activityViewController.popoverPresentationController {
-                    popover.sourceView = window
-                    popover.sourceRect = CGRect(
-                        x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
-                    popover.permittedArrowDirections = []
-                }
+            // Configure for iPad
+            if let popoverController = activityViewController.popoverPresentationController {
+                popoverController.sourceView = topController.view
+                popoverController.sourceRect = CGRect(
+                    x: topController.view.bounds.midX,
+                    y: topController.view.bounds.midY,
+                    width: 0,
+                    height: 0
+                )
+            }
 
-                topViewController.present(activityViewController, animated: true)
+            topController.present(activityViewController, animated: true)
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    /// Process post actions using proper intent pattern
+    private func processPostAction(_ intent: PostActionIntent) {
+        // Apply optimistic update
+        applyOptimisticUpdate(for: intent)
+
+        // Execute network request
+        Task {
+            do {
+                let updatedPost = try await executePostAction(intent)
+                await confirmOptimisticUpdate(for: intent, with: updatedPost)
+            } catch {
+                await revertOptimisticUpdate(for: intent)
+                await setError(error)
             }
         }
     }
 
-    // MARK: - Private Methods
+    /// Apply optimistic update for immediate UI feedback
+    private func applyOptimisticUpdate(for intent: PostActionIntent) {
+        isLoading = true
+        error = nil
 
-    // Removed setupObservers method to prevent AttributeGraph cycles
-    // The observer was creating feedback loops by modifying @Published properties
-    // in response to other @Published property changes
+        switch intent {
+        case .like(let originalState, let originalCount):
+            isLiked = !originalState
+            likeCount = originalCount + (isLiked ? 1 : -1)
+        case .repost(let originalState, let originalCount):
+            isReposted = !originalState
+            repostCount = originalCount + (isReposted ? 1 : -1)
+        }
+    }
 
-    // MARK: - Computed Properties
+    /// Execute the actual network request
+    private func executePostAction(_ intent: PostActionIntent) async throws -> Post {
+        switch intent {
+        case .like(let originalState, _):
+            return originalState
+                ? try await serviceManager.unlikePost(post)
+                : try await serviceManager.likePost(post)
+        case .repost(let originalState, _):
+            return originalState
+                ? try await serviceManager.unrepostPost(post)
+                : try await serviceManager.repostPost(post)
+        }
+    }
+
+    /// Confirm optimistic update with server response
+    private func confirmOptimisticUpdate(for intent: PostActionIntent, with updatedPost: Post) async
+    {
+        // Update the post model
+        self.post = updatedPost
+
+        // Update published state
+        self.isLiked = updatedPost.isLiked
+        self.likeCount = updatedPost.likeCount
+        self.isReposted = updatedPost.isReposted
+        self.repostCount = updatedPost.repostCount
+        self.replyCount = updatedPost.replyCount
+
+        self.isLoading = false
+    }
+
+    /// Revert optimistic update on failure
+    private func revertOptimisticUpdate(for intent: PostActionIntent) async {
+        switch intent {
+        case .like(let originalState, let originalCount):
+            self.isLiked = originalState
+            self.likeCount = originalCount
+        case .repost(let originalState, let originalCount):
+            self.isReposted = originalState
+            self.repostCount = originalCount
+        }
+
+        self.isLoading = false
+    }
+
+    /// Set error state safely
+    private func setError(_ error: Error) async {
+        self.error = error
+    }
+}
+
+// MARK: - Post Action Intent
+
+/// Intent pattern for post actions to prevent AttributeGraph cycles
+private enum PostActionIntent {
+    case like(originalState: Bool, originalCount: Int)
+    case repost(originalState: Bool, originalCount: Int)
 }
 
 // MARK: - Errors

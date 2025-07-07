@@ -2097,10 +2097,10 @@ public class MastodonService {
     /// Find a valid account to use for API requests
     @MainActor
     private func findValidAccount() -> SocialAccount? {
-        // This method should look for a valid account in your account storage
-        // For now, we'll use this placeholder
-        let accounts = SocialServiceManager.shared.mastodonAccounts
-        return accounts.first
+        // TODO: This is a legacy method that should be removed in favor of explicit account passing
+        // For now, return nil to avoid dependency issues
+        // All new code should use the async methods that take an explicit account parameter
+        return nil
     }
 
     // MARK: - Thread Context Methods

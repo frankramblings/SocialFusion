@@ -1,25 +1,21 @@
 import SwiftUI
 
 /// Consolidated timeline view that serves as the single source of truth
-/// Replaces all other timeline implementations to eliminate multiple instances
+/// Implements proper SwiftUI state management to prevent AttributeGraph cycles
 struct ConsolidatedTimelineView: View {
-    @StateObject private var controller: UnifiedTimelineController
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @StateObject private var controller: UnifiedTimelineController
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var isRefreshing = false
     @State private var scrollVelocity: CGFloat = 0
     @State private var lastScrollTime = Date()
     @State private var scrollCancellationTimer: Timer?
+    @State private var replyingToPost: Post? = nil
 
-    init(serviceManager: SocialServiceManager? = nil) {
-        // Handle the main actor isolation issue by creating controller on main thread
-        if let serviceManager = serviceManager {
-            self._controller = StateObject(
-                wrappedValue: UnifiedTimelineController(serviceManager: serviceManager))
-        } else {
-            // Use a default initialization that will be handled properly
-            self._controller = StateObject(wrappedValue: UnifiedTimelineController())
-        }
+    init(serviceManager: SocialServiceManager) {
+        // Use a factory pattern to create the controller with proper dependency injection
+        _controller = StateObject(
+            wrappedValue: UnifiedTimelineController(serviceManager: serviceManager))
     }
 
     var body: some View {
@@ -44,8 +40,12 @@ struct ConsolidatedTimelineView: View {
                 )
                 .hidden()
             )
+            .sheet(item: $replyingToPost) { post in
+                FeedReplyComposer(post: post, onDismiss: { replyingToPost = nil })
+            }
             .task {
-                await controller.ensureTimelineLoaded()
+                // Proper lifecycle management - only refresh if needed
+                await ensureTimelineLoaded()
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("OK") {
@@ -96,15 +96,12 @@ struct ConsolidatedTimelineView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
+                    ForEach(Array(controller.posts.enumerated()), id: \.element.id) {
+                        index, post in
                         postCard(for: post)
-                            .onAppear {
-                                // Trigger infinite scroll when approaching the end
-                                if shouldLoadMorePosts(currentIndex: index) {
-                                    Task {
-                                        await loadMorePosts()
-                                    }
-                                }
+                            .task {
+                                // Proper async pattern for infinite scroll
+                                await handleInfiniteScroll(currentIndex: index)
                             }
 
                         // Divider between posts
@@ -115,13 +112,13 @@ struct ConsolidatedTimelineView: View {
                     }
 
                     // Loading indicator at the bottom when fetching more posts
-                    if serviceManager.isLoadingNextPage {
+                    if controller.isLoadingNextPage {
                         infiniteScrollLoadingView
                             .padding(.vertical, 20)
                     }
 
                     // End of timeline indicator
-                    if !serviceManager.hasNextPage && !controller.posts.isEmpty {
+                    if !controller.hasNextPage && !controller.posts.isEmpty {
                         endOfTimelineView
                             .padding(.vertical, 20)
                     }
@@ -179,99 +176,79 @@ struct ConsolidatedTimelineView: View {
         let entryKind: TimelineEntryKind
         if let boostedBy = post.boostedBy {
             entryKind = .boost(boostedBy: boostedBy)
-        } else if post.inReplyToID != nil {
-            entryKind = .reply(parentId: post.inReplyToID!)
+        } else if let parentId = post.inReplyToID {
+            entryKind = .reply(parentId: parentId)
         } else {
             entryKind = .normal
         }
 
-        return PostCardView(
-            entry: TimelineEntry(
-                id: post.stableId,
-                kind: entryKind,
-                post: post,
-                createdAt: post.createdAt
-            ),
-            onPostTap: {
-                navigationEnvironment.navigateToPost(post)
-            },
-            onParentPostTap: { parentPost in
-                navigationEnvironment.navigateToPost(parentPost)
-            },
-            onRepost: {
-                Task {
-                    await controller.repostPost(post)
-                }
-            },
-            onLike: {
-                Task {
-                    await controller.likePost(post)
-                }
-            }
+        let entry = TimelineEntry(
+            id: post.id,
+            kind: entryKind,
+            post: post,
+            createdAt: post.createdAt
         )
-        .background(Color(.systemBackground))
+
+        return PostCardView(
+            entry: entry,
+            onPostTap: { navigationEnvironment.navigateToPost(post) },
+            onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
+            onReply: { replyingToPost = post },
+            onRepost: { controller.repostPost(post) },
+            onLike: { controller.likePost(post) },
+            onShare: { /* TODO: Implement share functionality */  }
+        )
+        .id(post.id)
     }
 
+    // MARK: - Private Helpers
+
+    /// Ensure timeline is loaded - proper async pattern
+    private func ensureTimelineLoaded() async {
+        guard controller.posts.isEmpty && !controller.isLoading else { return }
+        controller.refreshTimeline()
+    }
+
+    /// Refresh timeline - proper async pattern
     private func refreshTimeline() async {
-        isRefreshing = true
-        // Reset pagination when doing a full refresh
-        serviceManager.resetPagination()
-        await controller.refreshTimeline(force: true)
-        isRefreshing = false
+        controller.refreshTimeline()
     }
 
-    /// Determines if we should load more posts based on current scroll position
+    /// Handle infinite scroll - proper async pattern
+    private func handleInfiniteScroll(currentIndex: Int) async {
+        guard shouldLoadMorePosts(currentIndex: currentIndex) else { return }
+        await loadMorePosts()
+    }
+
+    /// Check if we should load more posts
     private func shouldLoadMorePosts(currentIndex: Int) -> Bool {
-        let totalPosts = controller.posts.count
-        let threshold = max(5, totalPosts / 4)  // Load when 25% from bottom, minimum 5 posts
-
-        return currentIndex >= totalPosts - threshold && serviceManager.hasNextPage
-            && !serviceManager.isLoadingNextPage
+        let threshold = 3
+        return currentIndex >= controller.posts.count - threshold
+            && controller.hasNextPage
+            && !controller.isLoadingNextPage
     }
 
-    /// Load more posts for infinite scrolling
+    /// Load more posts for infinite scroll
     private func loadMorePosts() async {
-        guard serviceManager.hasNextPage && !serviceManager.isLoadingNextPage else {
-            return
-        }
-
-        print("🔄 ConsolidatedTimelineView: Loading more posts...")
-        await serviceManager.fetchNextPage()
-        print("🔄 ConsolidatedTimelineView: Finished loading more posts")
+        guard !controller.isLoadingNextPage else { return }
+        await controller.loadNextPage()
     }
 
-    /// Handle scroll change detection for smart image loading optimization
+    /// Handle scroll changes - proper event-driven pattern
     private func handleScrollChange(offset: CGFloat) {
-        let now = Date()
-        let timeDelta = now.timeIntervalSince(lastScrollTime)
+        let currentTime = Date()
+        let timeDiff = currentTime.timeIntervalSince(lastScrollTime)
 
-        // Calculate scroll velocity (points per second)
-        if timeDelta > 0 {
-            let offsetDelta = abs(offset - scrollVelocity)
-            let velocity = offsetDelta / timeDelta
+        guard timeDiff > 0.016 else { return }  // Throttle to ~60fps
 
-            // Fast scrolling threshold (adjust based on testing)
-            let fastScrollThreshold: CGFloat = 500  // points per second
+        scrollVelocity = abs(offset) / timeDiff
+        lastScrollTime = currentTime
 
-            if velocity > fastScrollThreshold {
-                // Fast scrolling detected - cancel low priority image requests
-                ImageCache.shared.cancelLowPriorityRequests()
-                print(
-                    "🏃‍♂️ [ScrollDetection] Fast scroll detected (velocity: \(Int(velocity)) pts/s) - cancelling low priority requests"
-                )
-
-                // Cancel existing timer and create new one
-                scrollCancellationTimer?.invalidate()
-                scrollCancellationTimer = Timer.scheduledTimer(
-                    withTimeInterval: 0.5, repeats: false
-                ) { _ in
-                    print("📷 [ScrollDetection] Scroll slowed down - resuming normal image loading")
-                }
-            }
+        // Cancel previous timer and set new one
+        scrollCancellationTimer?.invalidate()
+        scrollCancellationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+            scrollVelocity = 0
         }
-
-        scrollVelocity = offset
-        lastScrollTime = now
     }
 }
 
@@ -285,5 +262,69 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 }
 
 #Preview {
-    ConsolidatedTimelineView()
+    ConsolidatedTimelineView(serviceManager: SocialServiceManager())
+}
+
+// Add a simple reply composer view for the feed
+struct FeedReplyComposer: View, Identifiable {
+    let id = UUID()
+    let post: Post
+    let onDismiss: () -> Void
+    @State private var replyText: String = ""
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    @State private var isSending = false
+    @State private var error: String? = nil
+
+    var body: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Replying to @\(post.authorUsername)")
+                    .font(.headline)
+                TextEditor(text: $replyText)
+                    .frame(minHeight: 100)
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2)))
+                if let error = error {
+                    Text(error)
+                        .foregroundColor(.red)
+                        .font(.caption)
+                }
+                Spacer()
+                HStack {
+                    Button("Cancel") {
+                        onDismiss()
+                    }
+                    Spacer()
+                    Button("Send") {
+                        sendReply()
+                    }
+                    .disabled(
+                        replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || isSending)
+                }
+            }
+            .padding()
+            .navigationTitle("Reply")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private func sendReply() {
+        guard !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        isSending = true
+        error = nil
+        Task {
+            do {
+                _ = try await serviceManager.replyToPost(post, content: replyText)
+                // Update the post's isReplied state using proper async pattern
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                    post.isReplied = true
+                }
+                onDismiss()
+            } catch {
+                self.error = error.localizedDescription
+            }
+            isSending = false
+        }
+    }
 }

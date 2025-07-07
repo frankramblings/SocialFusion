@@ -488,8 +488,9 @@ class BlueskyService {
                     "✅ Updated Bluesky account \(account.username) with profile image URL: \(avatarURL)"
                 )
 
-                // Post notification about the profile image update
-                DispatchQueue.main.async {
+                // Post notification about the profile image update using Task to prevent AttributeGraph cycles
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds
                     NotificationCenter.default.post(
                         name: .profileImageUpdated,
                         object: nil,
@@ -1167,6 +1168,19 @@ class BlueskyService {
                             }
                         }
                     }
+                    // Handle video embeds
+                    else if let embedType = embed["$type"] as? String,
+                        embedType == "app.bsky.embed.video#view",
+                        let video = embed["video"] as? [String: Any],
+                        let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
+                        URL(string: videoUrl) != nil
+                    {
+                        let alt = video["alt"] as? String ?? "Video"
+                        logger.info("[Bluesky] Parsed video attachment: \(videoUrl)")
+                        attachments.append(
+                            Post.Attachment(url: videoUrl, type: .video, altText: alt)
+                        )
+                    }
                     // Then try the other common formats for images
                     else if let media = embed["media"] as? [String: Any],
                         let mediaType = media["$type"] as? String,
@@ -1443,6 +1457,19 @@ class BlueskyService {
                                         }
                                     }
                                 }
+                                // Handle video embeds in quoted posts
+                                else if let embedType = quotedEmbed["$type"] as? String,
+                                    embedType == "app.bsky.embed.video#view",
+                                    let video = quotedEmbed["video"] as? [String: Any],
+                                    let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
+                                    URL(string: videoUrl) != nil
+                                {
+                                    let alt = video["alt"] as? String ?? "Video"
+                                    logger.info("[Bluesky] 🎥 Parsed quoted post video: \(videoUrl)")
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: videoUrl, type: .video, altText: alt)
+                                    )
+                                }
                             }
 
                             // Also check if there's an embed directly in the record (fallback)
@@ -1568,6 +1595,20 @@ class BlueskyService {
                                         Post.Attachment(url: url, type: .image, altText: alt))
                                     logger.debug("[Bluesky] Parsed quoted post media: \(url)")
                                 }
+                                // Handle video embeds in quoted record
+                                else if let embedType = quotedEmbed["$type"] as? String,
+                                    embedType == "app.bsky.embed.video#view",
+                                    let video = quotedEmbed["video"] as? [String: Any],
+                                    let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
+                                    URL(string: videoUrl) != nil
+                                {
+                                    let alt = video["alt"] as? String ?? "Video"
+                                    logger.info(
+                                        "[Bluesky] 🎥 Parsed quoted record video: \(videoUrl)")
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: videoUrl, type: .video, altText: alt)
+                                    )
+                                }
                             }
 
                             // Also check the media part of recordWithMedia for additional attachments
@@ -1591,6 +1632,20 @@ class BlueskyService {
                                             )
                                         }
                                     }
+                                }
+                                // Handle video embeds in recordWithMedia
+                                else if let embedType = media["$type"] as? String,
+                                    embedType == "app.bsky.embed.video#view",
+                                    let video = media["video"] as? [String: Any],
+                                    let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
+                                    URL(string: videoUrl) != nil
+                                {
+                                    let alt = video["alt"] as? String ?? "Video"
+                                    logger.info(
+                                        "[Bluesky] 🎥 Parsed recordWithMedia video: \(videoUrl)")
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: videoUrl, type: .video, altText: alt)
+                                    )
                                 }
                             }
 

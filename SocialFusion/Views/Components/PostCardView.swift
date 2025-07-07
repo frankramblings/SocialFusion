@@ -148,13 +148,14 @@ struct PostCardView: View {
                     username: inReplyToUsername,
                     network: displayPost.platform,
                     parentId: displayPost.inReplyToID,
+                    initialParent: nil,
                     isExpanded: $isReplyBannerExpanded,
                     onBannerTap: { bannerWasTapped = true },
                     onParentPostTap: { parentPost in
                         onParentPostTap(parentPost)  // Navigate to the parent post
                     }
                 )
-                .padding(.horizontal, 12)  // Apple standard: 12pt for content - match boost banner alignment
+                .padding(.horizontal, 12)  // Match BoostBanner alignment structure
                 .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
                 .id(displayPost.id + "_reply_banner")  // Key the banner to the specific post ID
             }

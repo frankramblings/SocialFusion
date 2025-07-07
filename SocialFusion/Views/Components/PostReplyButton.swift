@@ -5,30 +5,62 @@ struct PostReplyButton: View {
     let post: Post
     let replyCount: Int
     let isReplying: Bool
+    let isReplied: Bool
     let onTap: () -> Void
 
+    @State private var isPressed: Bool = false
+
     var body: some View {
-        Button(action: onTap) {
+        Button(action: {
+            // Add haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+
+            onTap()
+        }) {
             HStack(spacing: 4) {
                 Image(systemName: "bubble.left")
-                    .foregroundColor(isReplying ? platformColor : .secondary)
+                    .foregroundColor(isReplied ? platformColor : .secondary)
+                    .scaleEffect(isReplied ? 1.05 : 1.0)
+                    .animation(
+                        .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
+                        value: isReplied)
 
                 if replyCount > 0 {
                     Text(formatCount(replyCount))
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(isReplied ? platformColor : .secondary)
+                        .animation(
+                            .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
+                            value: isReplied)
                 }
             }
         }
+        .scaleEffect(isPressed ? 0.88 : 1.0)
+        .opacity(isPressed ? 0.75 : 1.0)
+        .animation(
+            .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05),
+            value: isPressed
+        )
+        .onLongPressGesture(
+            minimumDuration: 0, maximumDistance: .infinity,
+            pressing: { pressing in
+                withAnimation(
+                    .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05)
+                ) {
+                    isPressed = pressing
+                }
+            }, perform: {}
+        )
         .buttonStyle(PlainButtonStyle())
     }
 
     private var platformColor: Color {
         switch post.platform {
-        case .bluesky:
-            return .blue
         case .mastodon:
-            return .purple
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
         }
     }
 
@@ -62,6 +94,7 @@ struct PostReplyButton_Previews: PreviewProvider {
                 ),
                 replyCount: 42,
                 isReplying: false,
+                isReplied: false,
                 onTap: {}
             )
 
@@ -80,6 +113,7 @@ struct PostReplyButton_Previews: PreviewProvider {
                 ),
                 replyCount: 1234,
                 isReplying: true,
+                isReplied: false,
                 onTap: {}
             )
 
@@ -98,6 +132,7 @@ struct PostReplyButton_Previews: PreviewProvider {
                 ),
                 replyCount: 0,
                 isReplying: false,
+                isReplied: false,
                 onTap: {}
             )
         }

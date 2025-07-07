@@ -144,6 +144,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
     }
     @Published public var isReposted: Bool = false
     @Published public var isLiked: Bool = false
+    @Published public var isReplied: Bool = false
     @Published public var likeCount: Int = 0
     @Published public var repostCount: Int = 0
     @Published public var replyCount: Int = 0
@@ -201,6 +202,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             case video
             case audio
             case gifv
+            case animatedGIF
         }
     }
 
@@ -225,6 +227,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         case originalPost
         case isReposted
         case isLiked
+        case isReplied
         case repostCount
         case likeCount
         case replyCount
@@ -258,6 +261,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         let originalPost = try container.decodeIfPresent(Post.self, forKey: .originalPost)
         let isReposted = try container.decode(Bool.self, forKey: .isReposted)
         let isLiked = try container.decode(Bool.self, forKey: .isLiked)
+        let isReplied = try container.decode(Bool.self, forKey: .isReplied)
         let likeCount = try container.decode(Int.self, forKey: .likeCount)
         let repostCount = try container.decode(Int.self, forKey: .repostCount)
         let replyCount = try container.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
@@ -291,6 +295,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             originalPost: originalPost,
             isReposted: isReposted,
             isLiked: isLiked,
+            isReplied: isReplied,
             likeCount: likeCount,
             repostCount: repostCount,
             replyCount: replyCount,
@@ -326,6 +331,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         try container.encodeIfPresent(originalPost, forKey: .originalPost)
         try container.encode(isReposted, forKey: .isReposted)
         try container.encode(isLiked, forKey: .isLiked)
+        try container.encode(isReplied, forKey: .isReplied)
         try container.encode(likeCount, forKey: .likeCount)
         try container.encode(repostCount, forKey: .repostCount)
         try container.encode(replyCount, forKey: .replyCount)
@@ -357,6 +363,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         originalPost: Post? = nil,
         isReposted: Bool = false,
         isLiked: Bool = false,
+        isReplied: Bool = false,
         likeCount: Int = 0,
         repostCount: Int = 0,
         replyCount: Int = 0,
@@ -385,6 +392,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         self.tags = tags
         self.isReposted = isReposted
         self.isLiked = isLiked
+        self.isReplied = isReplied
         self.likeCount = likeCount
         self.repostCount = repostCount
         self.replyCount = replyCount
@@ -612,6 +620,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             originalPost: self.originalPost,
             isReposted: self.isReposted,
             isLiked: self.isLiked,
+            isReplied: self.isReplied,
             likeCount: self.likeCount,
             repostCount: self.repostCount,
             replyCount: self.replyCount,
@@ -644,6 +653,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             originalPost: self.originalPost?.deepCopy(),  // Deep copy nested posts too
             isReposted: self.isReposted,
             isLiked: self.isLiked,
+            isReplied: self.isReplied,
             likeCount: self.likeCount,
             repostCount: self.repostCount,
             replyCount: self.replyCount,
@@ -821,6 +831,7 @@ class PostViewModel: ObservableObject, Identifiable {
     @Published var post: Post
     @Published var isLiked: Bool
     @Published var isReposted: Bool
+    @Published var isReplied: Bool
     @Published var likeCount: Int
     @Published var repostCount: Int
     @Published var replyCount: Int
@@ -842,6 +853,7 @@ class PostViewModel: ObservableObject, Identifiable {
         self.post = post
         self.isLiked = post.isLiked
         self.isReposted = post.isReposted
+        self.isReplied = post.isReplied
         self.likeCount = post.likeCount
         self.repostCount = post.repostCount
         self.replyCount = post.replyCount
@@ -955,10 +967,10 @@ extension Post: Hashable {
 struct ThreadContext {
     /// Posts that come before this post in the thread (ancestors/parents)
     let ancestors: [Post]
-    
-    /// Posts that come after this post in the thread (replies/descendants)  
+
+    /// Posts that come after this post in the thread (replies/descendants)
     let descendants: [Post]
-    
+
     /// Initialize a thread context
     /// - Parameters:
     ///   - ancestors: Parent posts in chronological order (oldest first)
@@ -967,14 +979,35 @@ struct ThreadContext {
         self.ancestors = ancestors
         self.descendants = descendants
     }
-    
+
     /// Total number of posts in the thread context
     var totalContextPosts: Int {
         return ancestors.count + descendants.count
     }
-    
+
     /// Whether this thread has any context (parents or replies)
     var hasContext: Bool {
         return !ancestors.isEmpty || !descendants.isEmpty
+    }
+}
+
+// Extension to support video player functionality
+extension Post.Attachment.AttachmentType {
+    var needsVideoPlayer: Bool {
+        switch self {
+        case .video, .gifv:
+            return true
+        case .image, .audio, .animatedGIF:
+            return false
+        }
+    }
+
+    var isAnimated: Bool {
+        switch self {
+        case .gifv, .animatedGIF:
+            return true
+        case .video, .image, .audio:
+            return false
+        }
     }
 }

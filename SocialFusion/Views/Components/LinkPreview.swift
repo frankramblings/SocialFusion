@@ -138,10 +138,18 @@ struct LinkPreview: View {
             }
         }
         .onAppear {
-            loadMetadata()
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                loadMetadata()
+            }
         }
         .onDisappear {
-            MetadataProviderManager.shared.cancelProvider(for: url)
+            // Use Task to defer state updates outside view rendering cycle
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                MetadataProviderManager.shared.cancelProvider(for: url)
+            }
         }
     }
 

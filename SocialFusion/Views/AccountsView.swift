@@ -156,22 +156,6 @@ struct AccountsView: View {
                 AddAccountView()
                     .environmentObject(serviceManager)
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: Notification.Name("shouldRepresentAddAccount"))
-            ) { notification in
-                // Only handle non-autofill recovery notifications
-                if let userInfo = notification.userInfo,
-                    let source = userInfo["source"] as? String,
-                    source == "autofillRecovery"
-                {
-                    // This is an autofill recovery - don't handle it here
-                    return
-                }
-
-                print("🔐 [AccountsView] Received notification to re-present AddAccountView")
-                showingAddAccount = true
-            }
             .sheet(isPresented: $showingAddTokenView) {
                 NavigationView {
                     Form {
