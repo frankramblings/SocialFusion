@@ -106,8 +106,8 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Refresh timeline with async/await for pull-to-refresh
     func refreshTimelineAsync() async {
-        // Prevent multiple concurrent refreshes
-        guard !isLoading else { return }
+        // Remove the guard - pull-to-refresh should always be allowed
+        // The service manager will handle preventing duplicate refreshes properly
 
         do {
             try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
