@@ -97,10 +97,22 @@ class UnifiedTimelineController: ObservableObject {
 
         Task {
             do {
-                try await serviceManager.refreshTimeline(force: false)
+                try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
             } catch {
                 // Error is automatically propagated via binding
             }
+        }
+    }
+
+    /// Refresh timeline with async/await for pull-to-refresh
+    func refreshTimelineAsync() async {
+        // Remove the guard - pull-to-refresh should always be allowed
+        // The service manager will handle preventing duplicate refreshes properly
+
+        do {
+            try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
+        } catch {
+            // Error is automatically propagated via binding
         }
     }
 
@@ -126,7 +138,7 @@ class UnifiedTimelineController: ObservableObject {
     /// Load next page for infinite scroll
     func loadNextPage() async {
         guard !isLoadingNextPage && hasNextPage else { return }
-        
+
         do {
             try await serviceManager.fetchNextPage()
         } catch {

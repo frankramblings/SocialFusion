@@ -80,6 +80,11 @@ struct SettingsView: View {
                             showingDebugOptions = true
                         }
                         .foregroundColor(.primary)
+                        
+                        Toggle("Debug Refresh", isOn: Binding(
+                            get: { UserDefaults.standard.bool(forKey: "debugRefresh") },
+                            set: { UserDefaults.standard.set($0, forKey: "debugRefresh") }
+                        ))
                     }
                 #endif
 

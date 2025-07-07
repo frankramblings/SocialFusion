@@ -13,8 +13,19 @@ class PostParentCache: ObservableObject {
         return fetching.contains(id)
     }
 
+    func isFetching(id: String, platform: SocialPlatform) -> Bool {
+        let cacheKey = "\(platform.rawValue):\(id)"
+        return fetching.contains(cacheKey)
+    }
+
     func getCachedPost(id: String) -> Post? {
         return cache[id]
+    }
+
+    func getParentPost(for post: Post) -> Post? {
+        guard let parentId = post.inReplyToID else { return nil }
+        let cacheKey = "\(post.platform.rawValue):\(parentId)"
+        return cache[cacheKey]
     }
 
     func preloadParentPost(
@@ -31,8 +42,10 @@ class PostParentCache: ObservableObject {
         id: String, username: String, platform: SocialPlatform,
         serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
     ) {
-        guard !fetching.contains(id) else { return }
-        fetching.insert(id)
+        // Use the same cache key format as SocialServiceManager
+        let cacheKey = "\(platform.rawValue):\(id)"
+        guard !fetching.contains(cacheKey) else { return }
+        fetching.insert(cacheKey)
 
         _ = Task {
             do {
@@ -51,14 +64,14 @@ class PostParentCache: ObservableObject {
                 }
 
                 await MainActor.run {
-                    self.fetching.remove(id)
+                    self.fetching.remove(cacheKey)
                     if let post = post {
-                        self.cache[id] = post
+                        self.cache[cacheKey] = post
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.fetching.remove(id)
+                    self.fetching.remove(cacheKey)
                 }
             }
         }
@@ -107,15 +120,15 @@ struct ExpandingReplyBanner: View {
     }
 
     private var displayUsername: String {
-        // Use the real display name from the fetched parent post if available
+        // Priority 1: Use the real display name from the fetched parent post if available
         if let parent = parent {
-            // Priority 1: Use display name (real name) if available and not empty
+            // Use display name (real name) if available and not empty
             if !parent.authorName.isEmpty && parent.authorName != "unknown"
                 && parent.authorName != "Loading..." && !parent.isPlaceholder
             {
                 return parent.authorName
             }
-            // Priority 2: Use username without @ symbol if display name not available
+            // Use username without @ symbol if display name not available
             if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
                 && parent.authorUsername != "unknown" && !parent.isPlaceholder
             {
@@ -124,14 +137,35 @@ struct ExpandingReplyBanner: View {
             }
         }
 
-        // Check if the username is a generic fallback (like "user-frwkc7fg")
-        // ONLY show "someone" for these truly generic cases
+        // Priority 2: Check cache for parent post even if we don't have it in state yet
+        if let parentId = parentId {
+            let cacheKey = "\(network.rawValue):\(parentId)"
+            if let cachedParent = parentCache.getCachedPost(id: cacheKey) {
+                // Use cached parent info
+                if !cachedParent.authorName.isEmpty && cachedParent.authorName != "unknown"
+                    && cachedParent.authorName != "Loading..." && !cachedParent.isPlaceholder
+                {
+                    return cachedParent.authorName
+                }
+                if !cachedParent.authorUsername.isEmpty
+                    && cachedParent.authorUsername != "unknown.bsky.social"
+                    && cachedParent.authorUsername != "unknown" && !cachedParent.isPlaceholder
+                {
+                    return cachedParent.authorUsername.hasPrefix("@")
+                        ? String(cachedParent.authorUsername.dropFirst())
+                        : cachedParent.authorUsername
+                }
+            }
+        }
+
+        // Priority 3: Check if the username is a generic fallback (like "user-frwkc7fg")
+        // ONLY show "someone" for these truly generic cases AND we don't have cached data
         if username.hasPrefix("user-") && username.count == 13 {
             // This is likely a generic DID-based username from Bluesky fallback
             return "someone"
         }
 
-        // For normal usernames (even if not in cache), show the actual username
+        // Priority 4: For normal usernames (even if not in cache), show the actual username
         // Remove @ if present for cleaner display
         let cleanUsername = username.hasPrefix("@") ? String(username.dropFirst()) : username
         return cleanUsername
@@ -192,6 +226,19 @@ struct ExpandingReplyBanner: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    // Add solid background only when collapsed to match BoostBanner visibility
+                    Group {
+                        if !isExpanded {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(.systemBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                        }
+                    }
+                )
                 .contentShape(Rectangle())
                 .scaleEffect(isPressed ? 0.98 : 1.0)
                 .animation(.easeInOut(duration: 0.1), value: isPressed)
@@ -301,12 +348,12 @@ struct ExpandingReplyBanner: View {
             )
         }
         .background(
-            // Background that matches boost banner in closed state, morphs to expanded state
+            // Background that matches boost banner in closed state, clear for liquid glass when expanded
             RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
                 .fill(
                     isExpanded
-                        ? AnyShapeStyle(Color.clear)  // Remove gray background, let liquid glass work directly
-                        : AnyShapeStyle(Color.clear)
+                        ? AnyShapeStyle(Color.clear)  // Clear background for liquid glass when expanded
+                        : AnyShapeStyle(Color(.systemBackground))  // Solid background when collapsed
                 )
                 .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
@@ -340,21 +387,37 @@ struct ExpandingReplyBanner: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
         .onAppear {
-            // Use Task to defer state updates outside view rendering cycle
+            // Check for proactively fetched parent posts with retry mechanism
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                guard let parentId = parentId else { return }
 
-                // Check cache for existing parent post (service manager handles proactive fetching)
-                if let parentId = parentId {
-                    if let cachedPost = parentCache.getCachedPost(id: parentId) {
+                let cacheKey = "\(network.rawValue):\(parentId)"
+                print(
+                    "🔍 ExpandingReplyBanner: Checking cache for parent \(parentId) with key: \(cacheKey)"
+                )
+
+                // Try to find cached parent post with retries to account for background fetching
+                for attempt in 1...5 {
+                    if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
                         parent = cachedPost
-                        print("✅ Found cached parent: \(cachedPost.authorUsername)")
-                    } else {
                         print(
-                            "❌ No cached parent found for ID: \(parentId) - will be fetched by service manager"
+                            "✅ ExpandingReplyBanner: Found cached parent on attempt \(attempt): \(cachedPost.authorUsername)"
                         )
+                        return
                     }
+
+                    // Wait a bit longer on each attempt to give background fetching time
+                    let delay = UInt64(attempt * 200_000_000)  // 0.2s, 0.4s, 0.6s, 0.8s, 1.0s
+                    try? await Task.sleep(nanoseconds: delay)
+                    print(
+                        "🔄 ExpandingReplyBanner: Cache check attempt \(attempt) failed, retrying..."
+                    )
                 }
+
+                print(
+                    "❌ ExpandingReplyBanner: No cached parent found after 5 attempts for key: \(cacheKey)"
+                )
+                // Fallback fetching will be triggered when user expands the banner
             }
         }
         .onChange(of: isExpanded) { newValue in
@@ -421,7 +484,9 @@ struct ExpandingReplyBanner: View {
 
                 if let post = fetchedPost {
                     parent = post
-                    parentCache.cache[parentId] = post
+                    // Use the same cache key format as SocialServiceManager
+                    let cacheKey = "\(network.rawValue):\(parentId)"
+                    parentCache.cache[cacheKey] = post
                     print(
                         "✅ Fetched parent post: \(post.authorUsername) - \(post.content.prefix(50))..."
                     )

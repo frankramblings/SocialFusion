@@ -48,11 +48,24 @@ struct ConsolidatedTimelineView: View {
                 await ensureTimelineLoaded()
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
+                Button("Retry") {
+                    controller.clearError()
+                    controller.refreshTimeline()
+                }
                 Button("OK") {
                     controller.clearError()
                 }
             } message: {
-                Text(controller.error?.localizedDescription ?? "Unknown error")
+                if let error = controller.error {
+                    Text(error.localizedDescription)
+                    if let recoverySuggestion = (error as NSError).localizedRecoverySuggestion {
+                        Text(recoverySuggestion)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                } else {
+                    Text("Unknown error")
+                }
             }
     }
 
@@ -209,9 +222,10 @@ struct ConsolidatedTimelineView: View {
         controller.refreshTimeline()
     }
 
-    /// Refresh timeline - proper async pattern
+    /// Refresh timeline - proper async pattern for user-initiated refresh
     private func refreshTimeline() async {
-        controller.refreshTimeline()
+        print("🔄 ConsolidatedTimelineView: User-initiated refresh (pull-to-refresh)")
+        await controller.refreshTimelineAsync()
     }
 
     /// Handle infinite scroll - proper async pattern
