@@ -13,8 +13,19 @@ class PostParentCache: ObservableObject {
         return fetching.contains(id)
     }
 
+    func isFetching(id: String, platform: SocialPlatform) -> Bool {
+        let cacheKey = "\(platform.rawValue):\(id)"
+        return fetching.contains(cacheKey)
+    }
+
     func getCachedPost(id: String) -> Post? {
         return cache[id]
+    }
+
+    func getParentPost(for post: Post) -> Post? {
+        guard let parentId = post.inReplyToID else { return nil }
+        let cacheKey = "\(post.platform.rawValue):\(parentId)"
+        return cache[cacheKey]
     }
 
     func preloadParentPost(
@@ -31,8 +42,10 @@ class PostParentCache: ObservableObject {
         id: String, username: String, platform: SocialPlatform,
         serviceManager: SocialServiceManager, allAccounts: [SocialAccount]
     ) {
-        guard !fetching.contains(id) else { return }
-        fetching.insert(id)
+        // Use the same cache key format as SocialServiceManager
+        let cacheKey = "\(platform.rawValue):\(id)"
+        guard !fetching.contains(cacheKey) else { return }
+        fetching.insert(cacheKey)
 
         _ = Task {
             do {
@@ -51,14 +64,14 @@ class PostParentCache: ObservableObject {
                 }
 
                 await MainActor.run {
-                    self.fetching.remove(id)
+                    self.fetching.remove(cacheKey)
                     if let post = post {
-                        self.cache[id] = post
+                        self.cache[cacheKey] = post
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.fetching.remove(id)
+                    self.fetching.remove(cacheKey)
                 }
             }
         }
@@ -107,15 +120,15 @@ struct ExpandingReplyBanner: View {
     }
 
     private var displayUsername: String {
-        // Use the real display name from the fetched parent post if available
+        // Priority 1: Use the real display name from the fetched parent post if available
         if let parent = parent {
-            // Priority 1: Use display name (real name) if available and not empty
+            // Use display name (real name) if available and not empty
             if !parent.authorName.isEmpty && parent.authorName != "unknown"
                 && parent.authorName != "Loading..." && !parent.isPlaceholder
             {
                 return parent.authorName
             }
-            // Priority 2: Use username without @ symbol if display name not available
+            // Use username without @ symbol if display name not available
             if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
                 && parent.authorUsername != "unknown" && !parent.isPlaceholder
             {
@@ -124,14 +137,35 @@ struct ExpandingReplyBanner: View {
             }
         }
 
-        // Check if the username is a generic fallback (like "user-frwkc7fg")
-        // ONLY show "someone" for these truly generic cases
+        // Priority 2: Check cache for parent post even if we don't have it in state yet
+        if let parentId = parentId {
+            let cacheKey = "\(network.rawValue):\(parentId)"
+            if let cachedParent = parentCache.getCachedPost(id: cacheKey) {
+                // Use cached parent info
+                if !cachedParent.authorName.isEmpty && cachedParent.authorName != "unknown"
+                    && cachedParent.authorName != "Loading..." && !cachedParent.isPlaceholder
+                {
+                    return cachedParent.authorName
+                }
+                if !cachedParent.authorUsername.isEmpty
+                    && cachedParent.authorUsername != "unknown.bsky.social"
+                    && cachedParent.authorUsername != "unknown" && !cachedParent.isPlaceholder
+                {
+                    return cachedParent.authorUsername.hasPrefix("@")
+                        ? String(cachedParent.authorUsername.dropFirst())
+                        : cachedParent.authorUsername
+                }
+            }
+        }
+
+        // Priority 3: Check if the username is a generic fallback (like "user-frwkc7fg")
+        // ONLY show "someone" for these truly generic cases AND we don't have cached data
         if username.hasPrefix("user-") && username.count == 13 {
             // This is likely a generic DID-based username from Bluesky fallback
             return "someone"
         }
 
-        // For normal usernames (even if not in cache), show the actual username
+        // Priority 4: For normal usernames (even if not in cache), show the actual username
         // Remove @ if present for cleaner display
         let cleanUsername = username.hasPrefix("@") ? String(username.dropFirst()) : username
         return cleanUsername
@@ -346,12 +380,14 @@ struct ExpandingReplyBanner: View {
 
                 // Check cache for existing parent post (service manager handles proactive fetching)
                 if let parentId = parentId {
-                    if let cachedPost = parentCache.getCachedPost(id: parentId) {
+                    // Use the same cache key format as SocialServiceManager
+                    let cacheKey = "\(network.rawValue):\(parentId)"
+                    if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
                         parent = cachedPost
                         print("✅ Found cached parent: \(cachedPost.authorUsername)")
                     } else {
                         print(
-                            "❌ No cached parent found for ID: \(parentId) - will be fetched by service manager"
+                            "❌ No cached parent found for cache key: \(cacheKey) - will be fetched by service manager"
                         )
                     }
                 }
@@ -421,7 +457,9 @@ struct ExpandingReplyBanner: View {
 
                 if let post = fetchedPost {
                     parent = post
-                    parentCache.cache[parentId] = post
+                    // Use the same cache key format as SocialServiceManager
+                    let cacheKey = "\(network.rawValue):\(parentId)"
+                    parentCache.cache[cacheKey] = post
                     print(
                         "✅ Fetched parent post: \(post.authorUsername) - \(post.content.prefix(50))..."
                     )

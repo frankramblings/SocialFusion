@@ -97,7 +97,7 @@ class UnifiedTimelineController: ObservableObject {
 
         Task {
             do {
-                try await serviceManager.refreshTimeline(force: false)
+                try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
             } catch {
                 // Error is automatically propagated via binding
             }

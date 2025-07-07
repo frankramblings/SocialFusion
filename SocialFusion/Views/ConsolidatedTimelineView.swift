@@ -47,13 +47,26 @@ struct ConsolidatedTimelineView: View {
                 // Proper lifecycle management - only refresh if needed
                 await ensureTimelineLoaded()
             }
-            .alert("Error", isPresented: .constant(controller.error != nil)) {
-                Button("OK") {
-                    controller.clearError()
-                }
-            } message: {
-                Text(controller.error?.localizedDescription ?? "Unknown error")
+                    .alert("Error", isPresented: .constant(controller.error != nil)) {
+            Button("Retry") {
+                controller.clearError()
+                controller.refreshTimeline()
             }
+            Button("OK") {
+                controller.clearError()
+            }
+        } message: {
+            if let error = controller.error {
+                Text(error.localizedDescription)
+                if let recoverySuggestion = (error as NSError).localizedRecoverySuggestion {
+                    Text(recoverySuggestion)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } else {
+                Text("Unknown error")
+            }
+        }
     }
 
     @ViewBuilder
@@ -209,8 +222,9 @@ struct ConsolidatedTimelineView: View {
         controller.refreshTimeline()
     }
 
-    /// Refresh timeline - proper async pattern
+    /// Refresh timeline - proper async pattern for user-initiated refresh
     private func refreshTimeline() async {
+        print("🔄 ConsolidatedTimelineView: User-initiated refresh (pull-to-refresh)")
         controller.refreshTimeline()
     }
 

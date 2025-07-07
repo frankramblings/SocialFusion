@@ -554,33 +554,50 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Refresh timeline, with option to force refresh
     func refreshTimeline(force: Bool = false) async throws {
-        print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
+        let debugRefresh = UserDefaults.standard.bool(forKey: "debugRefresh")
+        if debugRefresh {
+            print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
+            print("🔄 SocialServiceManager: globalRefreshLock: \(Self.globalRefreshLock)")
+            print("🔄 SocialServiceManager: isCircuitBreakerOpen: \(isCircuitBreakerOpen)")
+            print("🔄 SocialServiceManager: isRefreshInProgress: \(isRefreshInProgress)")
+            print("🔄 SocialServiceManager: isLoadingTimeline: \(isLoadingTimeline)")
+            print("🔄 SocialServiceManager: lastRefreshAttempt: \(lastRefreshAttempt)")
+            print("🔄 SocialServiceManager: consecutiveFailures: \(consecutiveFailures)")
+        } else {
+            print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called")
+        }
 
         let now = Date()
 
         // Allow initial load to bypass restrictions if timeline is completely empty
         let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
-        let shouldBypassRestrictions = force || isInitialLoad
+        let isUserInitiated = force  // Force flag indicates user-initiated refresh (pull-to-refresh)
+        let shouldBypassRestrictions = isUserInitiated || isInitialLoad
 
         print(
-            "🔄 SocialServiceManager: isInitialLoad = \(isInitialLoad), shouldBypassRestrictions = \(shouldBypassRestrictions)"
+            "🔄 SocialServiceManager: isInitialLoad = \(isInitialLoad), isUserInitiated = \(isUserInitiated), shouldBypassRestrictions = \(shouldBypassRestrictions)"
         )
         print(
             "🔄 SocialServiceManager: unifiedTimeline.count = \(unifiedTimeline.count), isLoadingTimeline = \(isLoadingTimeline)"
         )
 
-        // AGGRESSIVE GLOBAL LOCK: Block all refresh attempts from ANY source if one is in progress
-        // BUT allow initial loads to proceed
+        // IMPROVED GLOBAL LOCK: Only block automatic refreshes, allow user-initiated ones
         if Self.globalRefreshLock && !shouldBypassRestrictions {
             // Check if lock is stale (older than 10 seconds)
             if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
                 Self.globalRefreshLock = false
                 print("🔓 SocialServiceManager: Stale refresh lock reset")
             } else {
-                // Lock is active - BLOCK this attempt completely (unless it's initial load)
-                print("🔒 SocialServiceManager: Refresh blocked by global lock (not initial load)")
+                // Lock is active - BLOCK only automatic attempts, allow user-initiated
+                print("🔒 SocialServiceManager: Refresh blocked by global lock (automatic refresh)")
                 return
             }
+        }
+
+        // For user-initiated refreshes, cancel any existing refresh and proceed immediately
+        if isUserInitiated && Self.globalRefreshLock {
+            print("🔄 SocialServiceManager: User-initiated refresh - canceling existing refresh")
+            Self.globalRefreshLock = false
         }
 
         // Set global lock immediately to block other attempts
@@ -591,8 +608,8 @@ public final class SocialServiceManager: ObservableObject {
             Self.globalRefreshLock = false
         }
 
-        // Circuit breaker: if too many failures, temporarily stop all requests
-        // BUT allow initial loads to proceed
+        // Circuit breaker: if too many failures, temporarily stop automatic requests
+        // BUT allow user-initiated refreshes and initial loads to proceed
         if isCircuitBreakerOpen && !shouldBypassRestrictions {
             if let openTime = circuitBreakerOpenTime,
                 now.timeIntervalSince(openTime) > circuitBreakerResetInterval
@@ -603,20 +620,35 @@ public final class SocialServiceManager: ObservableObject {
                 consecutiveFailures = 0
                 print("🔄 SocialServiceManager: Circuit breaker reset - resuming requests")
             } else {
-                // Circuit breaker is still open - block all requests (unless initial load)
+                // Circuit breaker is still open - block only automatic requests
                 print(
-                    "🚫 SocialServiceManager: Refresh blocked by circuit breaker (not initial load)")
+                    "🚫 SocialServiceManager: Refresh blocked by circuit breaker (automatic refresh)")
                 return
             }
         }
 
+        // For user-initiated refreshes, allow them even if circuit breaker is open
+        // but reset the circuit breaker after successful user refresh
+        if isUserInitiated && isCircuitBreakerOpen {
+            print("🔄 SocialServiceManager: User-initiated refresh - bypassing circuit breaker")
+        }
+
         // Rate limiting - minimum time between attempts
-        // BUT allow initial loads to proceed with reduced restrictions
-        let minimumInterval = shouldBypassRestrictions ? 1.0 : 3.0
+        // User-initiated refreshes get more lenient rate limiting
+        let minimumInterval: TimeInterval
+        if isUserInitiated {
+            minimumInterval = 0.5  // Allow user to refresh every 0.5 seconds
+        } else if isInitialLoad {
+            minimumInterval = 1.0  // Initial loads get 1 second
+        } else {
+            minimumInterval = 3.0  // Automatic refreshes get 3 seconds
+        }
+        
         guard
             shouldBypassRestrictions || now.timeIntervalSince(lastRefreshAttempt) > minimumInterval
         else {
-            print("🕐 SocialServiceManager: Refresh blocked by rate limiting")
+            let timeRemaining = minimumInterval - now.timeIntervalSince(lastRefreshAttempt)
+            print("🕐 SocialServiceManager: Refresh blocked by rate limiting (wait \(String(format: "%.1f", timeRemaining))s)")
             return
         }
 
@@ -639,12 +671,24 @@ public final class SocialServiceManager: ObservableObject {
             try await fetchTimeline()
             // Reset failure count on success
             consecutiveFailures = 0
+            
+            // If this was a user-initiated refresh that succeeded, reset circuit breaker
+            if isUserInitiated && isCircuitBreakerOpen {
+                isCircuitBreakerOpen = false
+                circuitBreakerOpenTime = nil
+                print("✅ SocialServiceManager: Circuit breaker reset after successful user refresh")
+            }
+            
             print("✅ SocialServiceManager: Timeline refresh completed successfully")
         } catch {
             consecutiveFailures += 1
-            print("❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)")
+            let errorMessage = "Timeline refresh failed: \(error.localizedDescription)"
+            print("❌ SocialServiceManager: \(errorMessage)")
 
-            if consecutiveFailures >= maxConsecutiveFailures {
+            // For user-initiated refreshes, be more lenient with circuit breaker
+            let failureThreshold = isUserInitiated ? maxConsecutiveFailures * 2 : maxConsecutiveFailures
+            
+            if consecutiveFailures >= failureThreshold {
                 isCircuitBreakerOpen = true
                 circuitBreakerOpenTime = now
                 print(
@@ -652,8 +696,81 @@ public final class SocialServiceManager: ObservableObject {
                 )
             }
 
+            // Provide more detailed error information for user-initiated refreshes
+            if isUserInitiated {
+                print("ℹ️ SocialServiceManager: User-initiated refresh failed - providing detailed error")
+                // Create a more user-friendly error
+                let userFriendlyError = createUserFriendlyError(from: error)
+                throw userFriendlyError
+            }
+
             throw error
         }
+    }
+
+    /// Create user-friendly error messages for refresh failures
+    private func createUserFriendlyError(from error: Error) -> Error {
+        if let networkError = error as? NetworkError {
+            switch networkError {
+            case .networkUnavailable:
+                return NSError(
+                    domain: "SocialFusion",
+                    code: 1001,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "No internet connection",
+                        NSLocalizedRecoverySuggestionErrorKey: "Please check your internet connection and try again."
+                    ]
+                )
+            case .timeout:
+                return NSError(
+                    domain: "SocialFusion",
+                    code: 1002,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Request timed out",
+                        NSLocalizedRecoverySuggestionErrorKey: "The server is taking too long to respond. Please try again."
+                    ]
+                )
+            case .rateLimitExceeded(let retryAfter):
+                return NSError(
+                    domain: "SocialFusion",
+                    code: 1003,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Rate limit exceeded",
+                        NSLocalizedRecoverySuggestionErrorKey: "Please wait \(Int(retryAfter ?? 60)) seconds before trying again."
+                    ]
+                )
+            case .serverError:
+                return NSError(
+                    domain: "SocialFusion",
+                    code: 1004,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Server error",
+                        NSLocalizedRecoverySuggestionErrorKey: "The server is experiencing issues. Please try again later."
+                    ]
+                )
+            case .unauthorized:
+                return NSError(
+                    domain: "SocialFusion",
+                    code: 1005,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "Authentication failed",
+                        NSLocalizedRecoverySuggestionErrorKey: "Please check your account settings and try again."
+                    ]
+                )
+            default:
+                break
+            }
+        }
+        
+        // Default fallback
+        return NSError(
+            domain: "SocialFusion",
+            code: 1000,
+            userInfo: [
+                NSLocalizedDescriptionKey: "Refresh failed",
+                NSLocalizedRecoverySuggestionErrorKey: "Unable to refresh timeline. Please try again."
+            ]
+        )
     }
 
     /// Refresh timeline for specific accounts
