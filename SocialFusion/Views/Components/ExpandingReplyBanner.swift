@@ -226,6 +226,19 @@ struct ExpandingReplyBanner: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    // Add solid background only when collapsed to match BoostBanner visibility
+                    Group {
+                        if !isExpanded {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(.systemBackground))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                )
+                        }
+                    }
+                )
                 .contentShape(Rectangle())
                 .scaleEffect(isPressed ? 0.98 : 1.0)
                 .animation(.easeInOut(duration: 0.1), value: isPressed)
@@ -335,12 +348,12 @@ struct ExpandingReplyBanner: View {
             )
         }
         .background(
-            // Background that matches boost banner in closed state, morphs to expanded state
+            // Background that matches boost banner in closed state, clear for liquid glass when expanded
             RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
                 .fill(
                     isExpanded
-                        ? AnyShapeStyle(Color.clear)  // Remove gray background, let liquid glass work directly
-                        : AnyShapeStyle(Color.clear)
+                        ? AnyShapeStyle(Color.clear)  // Clear background for liquid glass when expanded
+                        : AnyShapeStyle(Color(.systemBackground))  // Solid background when collapsed
                 )
                 .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
         )
