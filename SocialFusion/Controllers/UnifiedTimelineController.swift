@@ -104,6 +104,18 @@ class UnifiedTimelineController: ObservableObject {
         }
     }
 
+    /// Refresh timeline with async/await for pull-to-refresh
+    func refreshTimelineAsync() async {
+        // Prevent multiple concurrent refreshes
+        guard !isLoading else { return }
+
+        do {
+            try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
+        } catch {
+            // Error is automatically propagated via binding
+        }
+    }
+
     /// Like or unlike a post - proper event-driven pattern
     func likePost(_ post: Post) {
         // Create intent for the action
@@ -126,7 +138,7 @@ class UnifiedTimelineController: ObservableObject {
     /// Load next page for infinite scroll
     func loadNextPage() async {
         guard !isLoadingNextPage && hasNextPage else { return }
-        
+
         do {
             try await serviceManager.fetchNextPage()
         } catch {
