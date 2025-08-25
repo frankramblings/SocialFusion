@@ -75,16 +75,23 @@ struct SmartMediaView: View {
             )
             .onAppear { print("[SmartMediaView] gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
-            // Enhanced GIF rendering with progressive loading and quality controls
+            // Flag-driven unfurling with local fallback
             let url = URL(string: attachment.url)
             if let url = url {
-                GIFUnfurlContainer(
-                    url: url,
-                    maxHeight: maxHeight ?? 300,
-                    cornerRadius: cornerRadius,
-                    showControls: true,
-                    onTap: { onTap?() }
-                )
+                Group {
+                    if FeatureFlags.enableGIFUnfurling {
+                        GIFUnfurlContainer(
+                            url: url,
+                            maxHeight: maxHeight ?? 300,
+                            cornerRadius: cornerRadius,
+                            showControls: true,
+                            onTap: { onTap?() }
+                        )
+                    } else {
+                        AnimatedGIFViewComponent(url: url)
+                            .frame(maxHeight: maxHeight ?? 300)
+                    }
+                }
                 .frame(maxWidth: .infinity)
                 .background(Color.gray.opacity(0.08))
                 .onAppear {

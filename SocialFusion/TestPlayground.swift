@@ -78,39 +78,29 @@ struct PostLinkTestView: View {
     private let samplePosts = [
         Post(
             id: "test1",
-            authorUsername: "testuser",
-            authorDisplayName: "Test User",
-            authorAvatarURL: "",
             content: "Check out this great article: https://www.apple.com/news",
+            authorName: "Test User",
+            authorUsername: "testuser",
+            authorProfilePictureURL: "",
             createdAt: Date(),
-            attachments: [],
-            repostCount: 0,
-            likeCount: 0,
-            replyCount: 0,
-            isReposted: false,
-            isLiked: false,
-            mentions: [],
-            tags: [],
             platform: .bluesky,
-            originalURL: "https://test.com/post1"
+            originalURL: "https://test.com/post1",
+            attachments: [],
+            mentions: [],
+            tags: []
         ),
         Post(
             id: "test2",
-            authorUsername: "testuser2",
-            authorDisplayName: "Test User 2",
-            authorAvatarURL: "",
             content: "Multiple links here: https://github.com and https://swift.org",
+            authorName: "Test User 2",
+            authorUsername: "testuser2",
+            authorProfilePictureURL: "",
             createdAt: Date(),
-            attachments: [],
-            repostCount: 0,
-            likeCount: 0,
-            replyCount: 0,
-            isReposted: false,
-            isLiked: false,
-            mentions: [],
-            tags: [],
             platform: .bluesky,
-            originalURL: "https://test.com/post2"
+            originalURL: "https://test.com/post2",
+            attachments: [],
+            mentions: [],
+            tags: []
         ),
     ]
 

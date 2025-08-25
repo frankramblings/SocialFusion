@@ -1,5 +1,8 @@
 import Combine
 import Foundation
+import MachO
+import SwiftUI
+import os
 
 /// Service for monitoring app performance and error rates
 final class MonitoringService {
@@ -246,7 +249,7 @@ final class MonitoringService {
                 vm_deallocate(
                     mach_task_self_,
                     vm_address_t(bitPattern: cpuInfo),
-                    vm_size_t(numCpuInfo * Int32(MemoryLayout<integer_t>.stride)))
+                    vm_size_t(Int(numCpuInfo) * MemoryLayout<integer_t>.stride))
             }
         }
     }

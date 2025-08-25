@@ -2,56 +2,7 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-// Clean circular unified accounts icon that behaves like the compose button
-struct UnifiedAccountsIcon: View {
-    let mastodonAccounts: [SocialAccount]
-    let blueskyAccounts: [SocialAccount]
-    @Environment(\.colorScheme) var colorScheme
-
-    private var totalAccountCount: Int {
-        mastodonAccounts.count + blueskyAccounts.count
-    }
-
-    private var hasAccounts: Bool {
-        !mastodonAccounts.isEmpty || !blueskyAccounts.isEmpty
-    }
-
-    var body: some View {
-        Circle()
-            .fill(Color.clear)  // Made transparent instead of background color
-            .frame(width: 32, height: 32)
-            .overlay(
-                Group {
-                    if !hasAccounts {
-                        // No accounts - plus icon
-                        Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.secondary)
-                    } else if totalAccountCount == 1 {
-                        // Single account
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
-                    } else {
-                        // Multiple accounts
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
-                    }
-                }
-            )
-            .overlay(
-                Circle()
-                    .stroke(
-                        colorScheme == .dark
-                            ? Color(UIColor.tertiaryLabel).opacity(0.3)
-                            : Color(UIColor.systemGray4).opacity(0.5),
-                        lineWidth: 0.5
-                    )
-            )
-            .animation(.easeInOut(duration: 0.2), value: totalAccountCount)
-    }
-}
+// UnifiedAccountsIcon is defined in Views/UnifiedAccountsIcon.swift
 
 struct ContentView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
@@ -1107,83 +1058,7 @@ struct ContentView_Previews: PreviewProvider {
     }
 }
 
-// MARK: - Supporting Components
-
-/// ProfileImageView displays a user's profile image with appropriate styling
-/// based on their account type.
-struct ProfileImageView: View {
-    let account: SocialAccount
-
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            // Profile image (real avatar or placeholder)
-            if let profileURL = account.profileImageURL {
-                AsyncImage(url: profileURL) { phase in
-                    if let image = phase.image {
-                        image.resizable()
-                            .aspectRatio(contentMode: .fill)
-                    } else if phase.error != nil {
-                        // Error placeholder
-                        Image(systemName: "person.crop.circle.fill")
-                            .resizable()
-                            .foregroundColor(.gray)
-                    } else {
-                        // Loading placeholder
-                        Color.gray.opacity(0.3)
-                    }
-                }
-                .clipShape(Circle())
-            } else {
-                // Default placeholder
-                Image(systemName: "person.crop.circle.fill")
-                    .resizable()
-                    .foregroundColor(.gray)
-                    .clipShape(Circle())
-            }
-
-            // Platform badge in bottom-right
-            PlatformBadge(platform: account.platform)
-                .offset(x: 2, y: 2)
-        }
-    }
-}
-
 // UnifiedAccountsIcon is now defined in Views/UnifiedAccountsIcon.swift
-
-/// Platform badge to show on account avatars (temporary duplicate to fix build)
-struct PlatformBadge: View {
-    let platform: SocialPlatform
-
-    private func getLogoSystemName(for platform: SocialPlatform) -> String {
-        switch platform {
-        case .mastodon:
-            return "person.crop.circle"
-        case .bluesky:
-            return "person.crop.circle"
-        }
-    }
-
-    private func getPlatformColor() -> Color {
-        switch platform {
-        case .mastodon:
-            return Color("AppPrimaryColor")
-        case .bluesky:
-            return Color("AppSecondaryColor")
-        }
-    }
-
-    var body: some View {
-        ZStack {
-            // Remove the white circle background
-            // Just show the platform logo with a slight shadow for visibility
-            Image(systemName: getLogoSystemName(for: platform))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(getPlatformColor())
-                .shadow(color: Color.black.opacity(0.4), radius: 1.5, x: 0, y: 0)
-        }
-        .frame(width: 20, height: 20)
-    }
-}
 
 // MARK: - Tab Bar Delegate for Double-Tap Detection
 class TabBarDelegate: NSObject, UITabBarControllerDelegate {

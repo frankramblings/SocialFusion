@@ -12,10 +12,21 @@ targets:
     type: application
     platform: iOS
     sources:
-      - SocialFusion
+      - path: SocialFusion
+        excludes:
+          - Networking/NetworkError.swift
+          - Views/Utilities/URLServiceWrapper.swift
+          - Views/Components/FullscreenMediaView.swift
+          - Extensions/NotificationCenter+Extensions.swift
+          - Models/TimelineState+Bridge.swift
+          - Models/TimelineState+Verification.swift
+          - Models/TimelineState+Phase2Verification.swift
+          - Views/TestingView.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.emanueledigital.socialfusion
+        PRODUCT_NAME: SocialFusion
+        SWIFT_VERSION: 5.0
         DEVELOPMENT_TEAM: "APN37S2B8F" # You'll need to set this
         INFOPLIST_FILE: SocialFusion/Info.plist
         MARKETING_VERSION: 1.0.0
@@ -35,4 +46,20 @@ targets:
           UISceneConfigurations:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default Configuration
-                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate 
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+
+schemes:
+  SocialFusion:
+    build:
+      targets:
+        SocialFusion: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release 

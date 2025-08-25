@@ -30,11 +30,13 @@ struct FullscreenMediaView: View {
     // Replace the task queues with a single serial queue
     private let serialQueue = DispatchQueue(label: "com.socialfusion.media", qos: .userInitiated)
 
-    private func updateState<T>(_ keyPath: WritableKeyPath<FullscreenMediaView, T>, value: T) {
-        DispatchQueue.main.async {
-            self[keyPath: keyPath] = value
-        }
-    }
+    // Note: updateState method removed as it's not compatible with SwiftUI's immutable view pattern
+    // Use @State variables instead for mutable state
+    // private func updateState<T>(_ keyPath: WritableKeyPath<FullscreenMediaView, T>, value: T) {
+    //     DispatchQueue.main.async {
+    //         self[keyPath: keyPath] = value
+    //     }
+    // }
 
     // Computed property to work with either single attachment or collection
     private var currentAttachments: [Post.Attachment] {
@@ -185,7 +187,7 @@ struct FullscreenMediaView: View {
                 if showControls {
                     VStack {
                         HStack {
-                            Button(action: dismiss) {
+                            Button(action: { dismiss() }) {
                                 Image(systemName: "xmark")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -200,8 +202,8 @@ struct FullscreenMediaView: View {
 
                             if let currentAttachment = currentAttachment,
                                 currentAttachment.type == .image,
-                                let imageURLString = currentAttachment.url,
-                                let imageURL = URL(string: imageURLString)
+                                !currentAttachment.url.isEmpty,
+                                let imageURL = URL(string: currentAttachment.url)
                             {
                                 Button(action: {
                                     shareImage(url: imageURL)
@@ -289,7 +291,7 @@ struct FullscreenMediaView: View {
     {
         switch attachment.type {
         case .image:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:
@@ -465,7 +467,7 @@ struct FullscreenMediaView: View {
                 }
             }
         case .video:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 // Use our managed player
                 let player = videoPlayers[url] ?? createPlayer(for: url)
                 VideoPlayer(player: player)
@@ -479,7 +481,7 @@ struct FullscreenMediaView: View {
                     .foregroundColor(.white)
             }
         case .gifv:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 // Use our managed player
                 let player = videoPlayers[url] ?? createPlayer(for: url)
                 VideoPlayer(player: player)
@@ -500,8 +502,8 @@ struct FullscreenMediaView: View {
 
     private func setupMedia() {
         guard let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString)
+            !currentAttachment.url.isEmpty,
+            let url = URL(string: currentAttachment.url)
         else {
             return
         }
@@ -543,8 +545,7 @@ struct FullscreenMediaView: View {
         config.timeoutIntervalForResource = 30
 
         let session = URLSession(configuration: config)
-        let task = session.dataTask(with: url) { [weak self] data, response, error in
-            guard let self = self else { return }
+        let task = session.dataTask(with: url) { data, response, error in
 
             self.serialQueue.async {
                 if let error = error {
@@ -575,8 +576,8 @@ struct FullscreenMediaView: View {
 
     private func resumeVideoPlayback() {
         guard let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString),
+            !currentAttachment.url.isEmpty,
+            let url = URL(string: currentAttachment.url),
             let player = videoPlayers[url]
         else {
             return
@@ -595,8 +596,8 @@ struct FullscreenMediaView: View {
 
     private func retryLoading() {
         guard let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString)
+            !currentAttachment.url.isEmpty,
+            let url = URL(string: currentAttachment.url)
         else {
             return
         }
@@ -660,8 +661,8 @@ struct FullscreenMediaView: View {
 
             // Clear caches
             self.currentAttachments.forEach { attachment in
-                if let urlString = attachment.url,
-                    let url = URL(string: urlString)
+                if !attachment.url.isEmpty,
+                    let url = URL(string: attachment.url)
                 {
                     URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
                     if let cookies = HTTPCookieStorage.shared.cookies(for: url) {

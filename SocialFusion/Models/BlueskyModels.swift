@@ -48,13 +48,13 @@ struct BlueskyFeed: Codable {
 
 // Feed Item
 struct BlueskyFeedItem: Codable {
-    let post: BlueskyPost
+    let post: BlueskyPostDTO
     let reply: BlueskyReply?
     let reason: BlueskyReason?
 }
 
 // Post
-struct BlueskyPost: Codable {
+struct BlueskyPostDTO: Codable {
     let uri: String
     let cid: String
     let author: BlueskyActor
@@ -139,8 +139,8 @@ struct BlueskyViewer: Codable {
 
 // Reply
 struct BlueskyReply: Codable {
-    let root: BlueskyPost
-    let parent: BlueskyPost
+    let root: BlueskyPostDTO
+    let parent: BlueskyPostDTO
 }
 
 // Reason (for repost)
@@ -210,7 +210,7 @@ struct BlueskyEmbedRecord: Codable {
 }
 
 // Error Response
-struct BlueskyError: Codable, Error {
+struct BlueskyAPIErrorDTO: Codable, Error {
     let error: String
     let message: String?
 
@@ -219,8 +219,8 @@ struct BlueskyError: Codable, Error {
     }
 }
 
-// Timeline Response
-struct BlueskyTimelineResponse: Codable {
+// Timeline Response (DTO; keep name unique to avoid clashes with API client private type)
+struct BlueskyTimelineResponseDTO: Codable {
     let feed: [BlueskyFeedItem]
     let cursor: String?
 }
@@ -231,7 +231,7 @@ struct BlueskyThreadResponse: Codable {
 }
 
 class BlueskyThreadView: Codable {
-    let post: BlueskyPost?
+    let post: BlueskyPostDTO?
     let parent: BlueskyThreadParent?
     let replies: [BlueskyThreadView]?
 
@@ -241,6 +241,6 @@ class BlueskyThreadView: Codable {
 }
 
 struct BlueskyThreadParent: Codable {
-    let post: BlueskyPost?
+    let post: BlueskyPostDTO?
     let replies: [BlueskyThreadView]?
 }

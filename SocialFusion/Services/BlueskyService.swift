@@ -47,8 +47,8 @@ enum BlueskyTokenError: Error, Equatable {
     }
 }
 
-/// Set up local NetworkError temporarily
-enum NetworkError: Error {
+// Use the canonical NetworkError defined in Networking
+enum LocalNetworkError: Error {
     case requestFailed(Error)
     case httpError(Int, String?)
     case noData
@@ -67,7 +67,7 @@ enum NetworkError: Error {
     case networkUnavailable
     case apiError(String)
 
-    static func from(error: Error?, response: URLResponse?) -> NetworkError {
+    static func from(error: Error?, response: URLResponse?) -> LocalNetworkError {
         // First handle NSError types
         if let nsError = error as NSError? {
             switch nsError.domain {
@@ -1783,7 +1783,7 @@ class BlueskyService {
     }
 
     private func convertBlueskyPostToOriginalPost(_ post: BlueskyPost) -> Post {
-        let quotedPostUri = post.embed?.record?.record.uri
+        let quotedPostUri = post.embed?.record?.uri
         let quotedPostAuthorHandle: String? = nil  // Not available from Bluesky API
         let authorName = post.author.displayName ?? post.author.handle
         let authorUsername = post.author.handle
@@ -1823,8 +1823,8 @@ class BlueskyService {
             mentions: mentions,
             tags: tags,
             originalPost: nil,
-            isReposted: post.viewer?.repostUri != nil,
-            isLiked: post.viewer?.likeUri != nil,
+            isReposted: post.viewer?.repost != nil,
+            isLiked: post.viewer?.like != nil,
             likeCount: post.likeCount,
             repostCount: post.repostCount,
             platformSpecificId: post.uri,
@@ -1835,8 +1835,8 @@ class BlueskyService {
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
             cid: cid,
-            blueskyLikeRecordURI: post.viewer?.likeUri,  // Use existing like URI if available
-            blueskyRepostRecordURI: post.viewer?.repostUri  // Use existing repost URI if available
+            blueskyLikeRecordURI: post.viewer?.like,  // Use existing like URI if available
+            blueskyRepostRecordURI: post.viewer?.repost  // Use existing repost URI if available
         )
     }
 
@@ -1921,7 +1921,7 @@ class BlueskyService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2017,7 +2017,7 @@ class BlueskyService {
             }
         }
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2169,7 +2169,7 @@ class BlueskyService {
         }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2276,7 +2276,7 @@ class BlueskyService {
             }
         }
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2431,7 +2431,7 @@ class BlueskyService {
         }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2517,7 +2517,7 @@ class BlueskyService {
         request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(

@@ -30,7 +30,7 @@ struct PerformantLinkPreview: View {
                 StabilizedLinkPreview(url: url, idealHeight: idealHeight)
             } else {
                 // Placeholder with identical dimensions
-                LinkPreviewPlaceholder(url: url, height: idealHeight)
+                PerformantLinkPreviewPlaceholder(url: url, height: idealHeight)
             }
         }
         .frame(maxWidth: .infinity, idealHeight: idealHeight)
@@ -53,7 +53,7 @@ struct PerformantLinkPreview: View {
 }
 
 /// Consistent placeholder that matches the final link preview dimensions
-private struct LinkPreviewPlaceholder: View {
+private struct PerformantLinkPreviewPlaceholder: View {
     let url: URL
     let height: CGFloat
     @Environment(\.colorScheme) private var colorScheme

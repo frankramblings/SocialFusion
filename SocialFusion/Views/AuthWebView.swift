@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SafariServices
 import SwiftUI
 import WebKit

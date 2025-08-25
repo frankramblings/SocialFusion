@@ -7,8 +7,8 @@ import os.log
 /// It's kept for backward compatibility but should not be used in new code.
 /// Use ConsolidatedTimelineView with UnifiedTimelineController instead.
 
-/// Represents the states a timeline view can be in
-public enum TimelineState {
+/// Represents the states a timeline view can be in (legacy view-model)
+public enum TimelineViewState {
     case idle
     case loading
     case loaded([Post])
@@ -49,7 +49,7 @@ public enum TimelineState {
 /// Use UnifiedTimelineController instead for new implementations
 @MainActor
 public final class TimelineViewModel: ObservableObject {
-    @Published public private(set) var state: TimelineState = .idle
+    @Published public private(set) var state: TimelineViewState = .idle
     @Published public private(set) var posts: [Post] = []
     @Published public private(set) var isLoading = false
     @Published public private(set) var error: Error?
@@ -57,12 +57,14 @@ public final class TimelineViewModel: ObservableObject {
     @Published public private(set) var retryAfter: TimeInterval = 0
 
     private let socialServiceManager: SocialServiceManager
+    private let logger = Logger(subsystem: "com.socialfusion", category: "TimelineViewModel")
     private var cancellables = Set<AnyCancellable>()
     private let serialQueue = DispatchQueue(label: "TimelineViewModel.serial", qos: .userInitiated)
     private var refreshTask: Task<Void, Never>?
+    private var rateLimitTimer: Timer?
 
-    public init(socialServiceManager: SocialServiceManager = .shared) {
-        self.socialServiceManager = socialServiceManager
+    public init(socialServiceManager: SocialServiceManager? = nil) {
+        self.socialServiceManager = socialServiceManager ?? SocialServiceManager()
         // PHASE 3+: Removed setupObservers() to prevent AttributeGraph cycles
         // State updates will be handled through normal data flow instead
     }
@@ -93,7 +95,7 @@ public final class TimelineViewModel: ObservableObject {
 
             do {
                 // Fetch posts from the service manager
-                let posts = try await socialServiceManager.fetchTimeline(for: account)
+                let posts = try await socialServiceManager.fetchPostsForAccount(account)
 
                 // Update UI on main thread
                 await MainActor.run {
@@ -115,7 +117,7 @@ public final class TimelineViewModel: ObservableObject {
                                     Task(priority: .userInitiated) {
                                         // Find a matching Mastodon account
                                         let mastodonAccount = await MainActor.run {
-                                            return accounts.first(where: {
+                                            return self.socialServiceManager.accounts.first(where: {
                                                 $0.platform == .mastodon
                                             })
                                         }
@@ -153,15 +155,15 @@ public final class TimelineViewModel: ObservableObject {
                                     Task(priority: .userInitiated) {
                                         // Find a Bluesky account
                                         let blueskyAccount = await MainActor.run {
-                                            return accounts.first(where: { $0.platform == .bluesky }
-                                            )
+                                            return self.socialServiceManager.accounts.first(where: {
+                                                $0.platform == .bluesky
+                                            })
                                         }
 
                                         if let blueskyAccount = blueskyAccount {
                                             do {
                                                 if let parent = try await self.socialServiceManager
-                                                    .blueskyService.fetchPostByID(
-                                                        parentID, account: blueskyAccount)
+                                                    .fetchBlueskyPostByID(parentID)
                                                 {
                                                     // Use Task with MainActor to prevent AttributeGraph cycles
                                                     Task { @MainActor in
@@ -192,15 +194,17 @@ public final class TimelineViewModel: ObservableObject {
 
                         // Pre-load original posts for boosts/reposts for smooth expansion
                         for post in posts {
-                            let isBoost = post.kind == .boost || post.isBoost == true
+                            let isBoost = post.originalPost != nil || post.boostedBy != nil
                             let originalPostMissing = post.originalPost == nil
-                            if isBoost, let originalURI = post.originalPostURI, originalPostMissing
+                            // TODO: Re-implement original post preloading when originalPostURI is available
+                            if false /* isBoost, let originalURI = post.originalPostURI, originalPostMissing */
                             {
+                                /*
                                 switch post.platform {
                                 case .mastodon:
                                     Task(priority: .userInitiated) {
                                         let mastodonAccount = await MainActor.run {
-                                            return accounts.first(where: {
+                                            return self.socialServiceManager.accounts.first(where: {
                                                 $0.platform == .mastodon
                                             })
                                         }
@@ -230,15 +234,15 @@ public final class TimelineViewModel: ObservableObject {
                                 case .bluesky:
                                     Task(priority: .userInitiated) {
                                         let blueskyAccount = await MainActor.run {
-                                            return accounts.first(where: { $0.platform == .bluesky }
-                                            )
+                                            return self.socialServiceManager.accounts.first(where: {
+                                                $0.platform == .bluesky
+                                            })
                                         }
                                         if let blueskyAccount = blueskyAccount {
                                             do {
                                                 if let original =
                                                     try await self.socialServiceManager
-                                                    .blueskyService.fetchPostByID(
-                                                        originalURI, account: blueskyAccount)
+                                                    .fetchBlueskyPostByID(originalURI)
                                                 {
                                                     Task { @MainActor in
                                                         try? await Task.sleep(
@@ -257,11 +261,12 @@ public final class TimelineViewModel: ObservableObject {
                                         }
                                     }
                                 }
+                                */
                             }
                         }
                     }
 
-                    self.logger.info("Timeline refreshed for \(account.username, privacy: .public)")
+                    self.logger.info("Timeline refreshed for \(account.username)")
                 }
             } catch {
                 // Update UI on main thread
@@ -359,8 +364,7 @@ public final class TimelineViewModel: ObservableObject {
                                         if let blueskyAccount = blueskyAccount {
                                             do {
                                                 if let parent = try await self.socialServiceManager
-                                                    .blueskyService.fetchPostByID(
-                                                        parentID, account: blueskyAccount)
+                                                    .fetchBlueskyPostByID(parentID)
                                                 {
                                                     // Use Task with MainActor to prevent AttributeGraph cycles
                                                     Task { @MainActor in
@@ -391,10 +395,12 @@ public final class TimelineViewModel: ObservableObject {
 
                         // Pre-load original posts for boosts/reposts for smooth expansion
                         for post in posts {
-                            let isBoost = post.kind == .boost || post.isBoost == true
+                            let isBoost = post.originalPost != nil || post.boostedBy != nil
                             let originalPostMissing = post.originalPost == nil
-                            if isBoost, let originalURI = post.originalPostURI, originalPostMissing
+                            // TODO: Re-implement original post preloading when originalPostURI is available
+                            if false /* isBoost, let originalURI = post.originalPostURI, originalPostMissing */
                             {
+                                /*
                                 switch post.platform {
                                 case .mastodon:
                                     Task(priority: .userInitiated) {
@@ -436,8 +442,7 @@ public final class TimelineViewModel: ObservableObject {
                                             do {
                                                 if let original =
                                                     try await self.socialServiceManager
-                                                    .blueskyService.fetchPostByID(
-                                                        originalURI, account: blueskyAccount)
+                                                    .fetchBlueskyPostByID(originalURI)
                                                 {
                                                     Task { @MainActor in
                                                         try? await Task.sleep(
@@ -456,6 +461,7 @@ public final class TimelineViewModel: ObservableObject {
                                         }
                                     }
                                 }
+                                */
                             }
                         }
                     }
@@ -564,7 +570,7 @@ public final class TimelineViewModel: ObservableObject {
                 }
 
                 await MainActor.run {
-                    self.logger.info("Post repost/unrepost completed: \(post.id, privacy: .public)")
+                    self.logger.info("Post repost/unrepost completed: \(post.id)")
                 }
             } catch {
                 // Revert on error
@@ -574,13 +580,8 @@ public final class TimelineViewModel: ObservableObject {
                         updatedPost.repostCount = originalCount
                     }
                 }
-
-                await MainActor.run {
-                    self.logger.error(
-                        "Failed to repost/unrepost: \(error.localizedDescription, privacy: .public)"
-                    )
-                    // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
-                }
+                self.logger.error("Failed to repost/unrepost: \(error.localizedDescription)")
+                // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
             }
         }
     }
@@ -625,7 +626,7 @@ public final class TimelineViewModel: ObservableObject {
     }
 
     private func handleError(_ error: Error) {
-        logger.error("Timeline error: \(error.localizedDescription, privacy: .public)")
+        logger.error("Timeline error: \(error.localizedDescription)")
 
         if let serviceError = error as? ServiceError {
             switch serviceError {

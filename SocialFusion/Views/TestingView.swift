@@ -6,12 +6,13 @@ struct TestingView: View {
     @StateObject private var migrationController: MigrationTestController
     @State private var showingNewArchitecture = false
     @State private var testCompleted = false
-    
+
     init() {
-        let serviceManager = SocialServiceManager.shared
-        self._migrationController = StateObject(wrappedValue: MigrationTestController(serviceManager: serviceManager))
+        let serviceManager = SocialServiceManager()
+        self._migrationController = StateObject(
+            wrappedValue: MigrationTestController(serviceManager: serviceManager))
     }
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
@@ -20,11 +21,11 @@ struct TestingView: View {
                     Text("Architecture Migration Testing")
                         .font(.title2)
                         .fontWeight(.bold)
-                    
+
                     Text("Current Status: \(migrationController.migrationState.description)")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    
+
                     // Test Button
                     Button(action: {
                         Task {
@@ -53,7 +54,7 @@ struct TestingView: View {
                 .padding()
                 .background(Color(.systemGray6))
                 .cornerRadius(12)
-                
+
                 // Test Results
                 if !migrationController.testResults.isEmpty {
                     ScrollView {
@@ -61,25 +62,28 @@ struct TestingView: View {
                             Text("Test Results")
                                 .font(.headline)
                                 .padding(.horizontal)
-                            
+
                             ForEach(migrationController.testResults) { result in
                                 HStack {
-                                    Image(systemName: result.success ? "checkmark.circle.fill" : "xmark.circle.fill")
-                                        .foregroundColor(result.success ? .green : .red)
-                                        .font(.title3)
-                                    
+                                    Image(
+                                        systemName: result.success
+                                            ? "checkmark.circle.fill" : "xmark.circle.fill"
+                                    )
+                                    .foregroundColor(result.success ? .green : .red)
+                                    .font(.title3)
+
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(result.name)
                                             .font(.subheadline)
                                             .fontWeight(.medium)
-                                        
+
                                         Text(result.details)
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
-                                    
+
                                     Spacer()
-                                    
+
                                     Text(DateFormatter.timeOnly.string(from: result.timestamp))
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
@@ -93,13 +97,13 @@ struct TestingView: View {
                     }
                     .frame(maxHeight: 300)
                 }
-                
+
                 // Architecture Comparison Buttons
                 if testCompleted {
                     VStack(spacing: 12) {
                         Text("Compare Architectures")
                             .font(.headline)
-                        
+
                         HStack(spacing: 16) {
                             NavigationLink(destination: oldArchitectureView) {
                                 VStack {
@@ -113,7 +117,7 @@ struct TestingView: View {
                                 .background(Color.orange.opacity(0.2))
                                 .cornerRadius(10)
                             }
-                            
+
                             NavigationLink(destination: newArchitectureView) {
                                 VStack {
                                     Image(systemName: "doc.badge.plus")
@@ -132,7 +136,7 @@ struct TestingView: View {
                     .background(Color(.systemGray6))
                     .cornerRadius(12)
                 }
-                
+
                 Spacer()
             }
             .padding()
@@ -140,29 +144,29 @@ struct TestingView: View {
             .navigationBarTitleDisplayMode(.large)
         }
     }
-    
+
     // MARK: - Architecture Views
-    
+
     private var oldArchitectureView: some View {
         VStack {
             Text("Original Timeline Implementation")
                 .font(.title2)
                 .padding()
-            
-            UnifiedTimelineView(accounts: serviceManager.accounts)
+
+            UnifiedTimelineView()
                 .environmentObject(serviceManager)
         }
         .navigationTitle("Old Architecture")
         .navigationBarTitleDisplayMode(.inline)
     }
-    
+
     private var newArchitectureView: some View {
         VStack {
             Text("New Timeline Implementation")
                 .font(.title2)
                 .padding()
-            
-            UnifiedTimelineViewV2(serviceManager: serviceManager)
+
+            ConsolidatedTimelineView(serviceManager: serviceManager)
                 .environmentObject(serviceManager)
         }
         .navigationTitle("New Architecture")
@@ -184,10 +188,10 @@ extension DateFormatter {
 // MARK: - Preview
 
 #if DEBUG
-struct TestingView_Previews: PreviewProvider {
-    static var previews: some View {
-        TestingView()
-            .environmentObject(SocialServiceManager.shared)
+    struct TestingView_Previews: PreviewProvider {
+        static var previews: some View {
+            TestingView()
+                .environmentObject(SocialServiceManager.shared)
+        }
     }
-}
-#endif 
+#endif

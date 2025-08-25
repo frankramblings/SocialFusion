@@ -19,7 +19,7 @@ public class UnifiedPostStore {
 
     // MARK: - Initialization
 
-    public init(
+    init(
         blueskyService: BlueskyService,
         mastodonService: MastodonService,
         postNormalizer: PostNormalizer
@@ -69,9 +69,11 @@ public class UnifiedPostStore {
         do {
             switch post.platform {
             case .bluesky:
-                try await blueskyService.likePost(post.platformSpecificId, account: post.account)
+                _ = try await blueskyService.likePost(
+                    post, account: try await resolveAccount(for: post))
             case .mastodon:
-                try await mastodonService.likePost(post.platformSpecificId, account: post.account)
+                _ = try await mastodonService.likePost(
+                    post, account: try await resolveAccount(for: post))
             }
 
             // Update local state
@@ -94,9 +96,11 @@ public class UnifiedPostStore {
         do {
             switch post.platform {
             case .bluesky:
-                try await blueskyService.unlikePost(post.platformSpecificId, account: post.account)
+                _ = try await blueskyService.unlikePost(
+                    post, account: try await resolveAccount(for: post))
             case .mastodon:
-                try await mastodonService.unlikePost(post.platformSpecificId, account: post.account)
+                _ = try await mastodonService.unlikePost(
+                    post, account: try await resolveAccount(for: post))
             }
 
             // Update local state
@@ -119,9 +123,11 @@ public class UnifiedPostStore {
         do {
             switch post.platform {
             case .bluesky:
-                try await blueskyService.repostPost(post.platformSpecificId, account: post.account)
+                _ = try await blueskyService.repostPost(
+                    post, account: try await resolveAccount(for: post))
             case .mastodon:
-                try await mastodonService.repostPost(post.platformSpecificId, account: post.account)
+                _ = try await mastodonService.repostPost(
+                    post, account: try await resolveAccount(for: post))
             }
 
             // Update local state
@@ -144,11 +150,11 @@ public class UnifiedPostStore {
         do {
             switch post.platform {
             case .bluesky:
-                try await blueskyService.unrepostPost(
-                    post.platformSpecificId, account: post.account)
+                _ = try await blueskyService.unrepostPost(
+                    post, account: try await resolveAccount(for: post))
             case .mastodon:
-                try await mastodonService.unrepostPost(
-                    post.platformSpecificId, account: post.account)
+                _ = try await mastodonService.unrepostPost(
+                    post, account: try await resolveAccount(for: post))
             }
 
             // Update local state
@@ -173,19 +179,11 @@ public class UnifiedPostStore {
 
             switch post.platform {
             case .bluesky:
-                let blueskyReply = try await blueskyService.replyToPost(
-                    post.platformSpecificId,
-                    content: content,
-                    account: post.account
-                )
-                reply = postNormalizer.normalizeBlueskyPost(blueskyReply)
+                reply = try await blueskyService.replyToPost(
+                    post, content: content, account: try await resolveAccount(for: post))
             case .mastodon:
-                let mastodonReply = try await mastodonService.replyToPost(
-                    post.platformSpecificId,
-                    content: content,
-                    account: post.account
-                )
-                reply = postNormalizer.normalizeMastodonPost(mastodonReply)
+                reply = try await mastodonService.replyToPost(
+                    post, content: content, account: try await resolveAccount(for: post))
             }
 
             // Update local state
@@ -210,12 +208,17 @@ public class UnifiedPostStore {
     private func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
         switch account.platform {
         case .bluesky:
-            let blueskyPosts = try await blueskyService.fetchTimeline(for: account)
-            return blueskyPosts.map { postNormalizer.normalizeBlueskyPost($0) }
+            // Use timeline API result to return posts
+            return try await blueskyService.fetchHomeTimeline(for: account).posts
         case .mastodon:
-            let mastodonPosts = try await mastodonService.fetchTimeline(for: account)
-            return mastodonPosts.map { postNormalizer.normalizeMastodonPost($0) }
+            return try await mastodonService.fetchHomeTimeline(for: account).posts
         }
+    }
+
+    private func resolveAccount(for post: Post) async throws -> SocialAccount {
+        // Placeholder resolution; in this store we may need an injected account source
+        throw ServiceError.invalidAccount(
+            reason: "Account resolution not configured in UnifiedPostStore")
     }
 }
 
@@ -223,9 +226,9 @@ public class UnifiedPostStore {
 extension UnifiedPostStore {
     static var preview: UnifiedPostStore {
         UnifiedPostStore(
-            blueskyService: BlueskyService.preview,
-            mastodonService: MastodonService.preview,
-            postNormalizer: PostNormalizer.preview
+            blueskyService: BlueskyService(),
+            mastodonService: MastodonService(),
+            postNormalizer: PostNormalizerImpl.shared
         )
     }
 }

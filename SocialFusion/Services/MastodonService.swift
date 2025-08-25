@@ -1436,15 +1436,15 @@ public class MastodonService {
         // Check if this is a reblog/boost
         if let reblog = status.reblog {
             var originalPost = Post(
-                id: reblog.id,
-                content: reblog.content,
-                authorName: reblog.account.displayName,
-                authorUsername: reblog.account.acct,
-                authorProfilePictureURL: reblog.account.avatar,
-                createdAt: DateParser.parse(reblog.createdAt) ?? Date.distantPast,
+                id: reblog.id ?? "",
+                content: reblog.content ?? "",
+                authorName: reblog.account?.displayName ?? "",
+                authorUsername: reblog.account?.acct ?? "",
+                authorProfilePictureURL: reblog.account?.avatar ?? "",
+                createdAt: DateParser.parse(reblog.createdAt ?? "") ?? Date.distantPast,
                 platform: .mastodon,
                 originalURL: reblog.url ?? "",
-                attachments: reblog.mediaAttachments.compactMap { media in
+                attachments: (reblog.mediaAttachments ?? []).compactMap { media in
                     let attachmentType: Post.Attachment.AttachmentType
                     switch media.type {
                     case "image":
@@ -1464,14 +1464,14 @@ public class MastodonService {
                         altText: media.description
                     )
                 },
-                mentions: reblog.mentions.compactMap { $0.username },
-                tags: reblog.tags.compactMap { $0.name },
-                isReposted: reblog.reblogged ?? false,
-                isLiked: reblog.favourited ?? false,
-                likeCount: reblog.favouritesCount,
-                repostCount: reblog.reblogsCount,
-                replyCount: reblog.repliesCount,  // Add reply count
-                platformSpecificId: reblog.id,
+                mentions: (reblog.mentions ?? []).compactMap { $0.username },
+                tags: (reblog.tags ?? []).compactMap { $0.name },
+                isReposted: false,
+                isLiked: false,
+                likeCount: 0,
+                repostCount: 0,
+                replyCount: 0,
+                platformSpecificId: reblog.id ?? "",
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil
             )

@@ -98,7 +98,6 @@ struct PostDetailView: View {
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
                         updateScrollState(offset: offset)
                     }
-                    .background(Color(.systemGroupedBackground))
                     .onAppear {
                         // Use Task to defer state updates outside view rendering cycle
                         Task { @MainActor in
@@ -130,30 +129,23 @@ struct PostDetailView: View {
                 }
             }
         }
+        .toolbarBackground(.clear, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-        .toolbarBackground(.visible, for: .navigationBar)
-        .toolbarBackground(.regularMaterial, for: .navigationBar)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarLeading) {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "chevron.left")
-                        .font(.body.weight(.medium))
-                        .frame(width: 32, height: 32)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
+        .navigationBarItems(
+            leading: Button(action: { dismiss() }) {
+                Image(systemName: "chevron.left")
+                    .font(.body.weight(.medium))
+                    .foregroundColor(.primary)
+            },
+            trailing: Menu {
+                postMenuItems
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.body)
+                    .foregroundColor(.primary)
             }
-
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Menu {
-                    postMenuItems
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.body)
-                }
-                .menuStyle(.borderlessButton)
-            }
-        }
+            .menuStyle(.borderlessButton)
+        )
         .onAppear {
             // Auto-focus reply if requested
             if focusReplyComposer && !isReplying {

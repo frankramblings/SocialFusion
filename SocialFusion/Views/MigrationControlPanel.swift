@@ -278,7 +278,7 @@ struct MigrationControlPanel: View {
                     .buttonStyle(.bordered)
 
                     NavigationLink("Run Migration Tests") {
-                        MigrationTestView()
+                        MigrationTestViewStandalone()
                     }
                     .buttonStyle(.bordered)
                 }
@@ -313,9 +313,16 @@ struct MigrationControlPanel: View {
                 Text(error.error)
                     .font(.caption)
                     .fontWeight(.medium)
-                Text(DateFormatter.timeOnly.string(from: error.timestamp))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                Text(
+                    {
+                        let formatter = DateFormatter()
+                        formatter.dateStyle = .none
+                        formatter.timeStyle = .medium
+                        return formatter.string(from: error.timestamp)
+                    }()
+                )
+                .font(.caption2)
+                .foregroundColor(.secondary)
             }
 
             Spacer()
@@ -442,7 +449,7 @@ struct MigrationControlPanel: View {
 
     private func refreshMetrics() async {
         // Force refresh of current metrics
-        await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
+        try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
     }
 }
 
@@ -455,7 +462,7 @@ struct ArchitectureComparisonView: View {
     }
 }
 
-struct MigrationTestView: View {
+struct MigrationTestViewStandalone: View {
     var body: some View {
         Text("Migration Test View")
             .navigationTitle("Migration Tests")

@@ -34,7 +34,7 @@ public struct BlueskyPost: Codable, Identifiable {
         public let langs: [String]?
         public let labels: [String]?
         public let reply: BlueskyReply?
-        public let embed: BlueskyEmbed?
+        // Removed embed from record to avoid recursive value-type cycles
     }
 
     public struct BlueskyReply: Codable {
@@ -49,7 +49,8 @@ public struct BlueskyPost: Codable, Identifiable {
 
     public struct BlueskyEmbed: Codable {
         public let type: String
-        public let record: BlueskyRecord?
+        // Use a reference to avoid recursion
+        public let record: BlueskyReference?
         public let images: [BlueskyImage]?
         public let external: BlueskyExternal?
         public let recordWithMedia: BlueskyRecordWithMedia?
@@ -69,8 +70,19 @@ public struct BlueskyPost: Codable, Identifiable {
     }
 
     public struct BlueskyRecordWithMedia: Codable {
-        public let record: BlueskyRecord
-        public let media: BlueskyEmbed
+        // Use a simplified record to avoid recursion back to embed
+        public let record: BlueskySimpleRecord
+        public let media: SimpleMedia
+    }
+
+    public struct SimpleMedia: Codable {
+        public let images: [BlueskyImage]?
+        public let external: BlueskyExternal?
+    }
+
+    public struct BlueskySimpleRecord: Codable {
+        public let text: String
+        public let createdAt: String
     }
 
     public struct BlueskyViewer: Codable {
@@ -106,8 +118,7 @@ extension BlueskyPost {
                 createdAt: "2024-03-20T12:00:00Z",
                 langs: ["en"],
                 labels: nil,
-                reply: nil,
-                embed: nil
+                reply: nil
             ),
             embed: nil,
             replyCount: 2,

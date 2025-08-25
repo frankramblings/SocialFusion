@@ -2,12 +2,12 @@ import SwiftUI
 
 /// ProfileImageView displays a user's profile image with appropriate styling
 /// based on their account type.
-struct ProfileImageView: View {
+public struct ProfileImageView: View {
     let account: SocialAccount
 
     @State private var refreshTrigger = false
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             // Colored circle for outline based on platform
             Circle()

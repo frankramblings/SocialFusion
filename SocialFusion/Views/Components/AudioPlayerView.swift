@@ -19,6 +19,7 @@ struct AudioPlayerView: View {
     @State private var errorMessage = ""
     @State private var isDragging = false
     @State private var timeObserver: Any?
+    @State private var statusObserver: NSKeyValueObservation?
     @State private var waveformData: [Float] = []
     @State private var isGeneratingWaveform = false
 
@@ -48,14 +49,14 @@ struct AudioPlayerView: View {
         .onAppear {
             // Use Task to defer state updates outside view rendering cycle
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000) // 0.001 seconds
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                 setupAudioPlayer()
             }
         }
         .onDisappear {
             // Use Task to defer state updates outside view rendering cycle
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000) // 0.001 seconds
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                 cleanup()
             }
         }
@@ -246,23 +247,15 @@ struct AudioPlayerView: View {
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
 
-        // Observe player status using modern async/await
-        Task {
-            do {
-                let status = try await playerItem.load(.status)
-                let duration = try await playerItem.load(.duration)
-
-                await MainActor.run {
-                    if status == .readyToPlay {
-                        self.duration = duration.seconds
-                    }
-                    isLoading = false
-                }
-            } catch {
-                await MainActor.run {
+        // Use KVO to observe status and duration
+        statusObserver = playerItem.observe(\.status) { item, _ in
+            DispatchQueue.main.async {
+                isLoading = false
+                if item.status == .readyToPlay {
+                    duration = item.duration.seconds
+                } else if item.status == .failed {
                     hasError = true
                     errorMessage = "Failed to load audio"
-                    isLoading = false
                 }
             }
         }

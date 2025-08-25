@@ -64,8 +64,10 @@ struct UnifiedMediaGridView: View {
         .sheet(isPresented: $selection.showFullscreen) {
             if let selected = selection.selectedAttachment {
                 FullscreenMediaView(
-                    media: selected, allMedia: attachments,
-                    showAltTextInitially: selection.showAltTextInitially)
+                    attachment: selected,
+                    attachments: attachments,
+                    initialIndex: attachments.firstIndex(where: { $0.id == selected.id }) ?? 0
+                )
             } else {
                 Color.black  // fallback
             }

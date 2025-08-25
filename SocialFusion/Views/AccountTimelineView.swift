@@ -27,7 +27,7 @@ struct AccountTimelineView: View {
                 VStack(spacing: 20) {
                     Image(systemName: "person.crop.circle")
                         .font(.system(size: 60))
-                        .foregroundColor(Color(account.platform.color))
+                        .foregroundColor(Color(hex: account.platform.colorHex))
 
                     Text("No posts to display")
                         .font(.headline)
@@ -172,12 +172,12 @@ struct AccountTimelineView: View {
     private func fetchTimelineForAccount(cursor: String? = nil) async throws -> TimelineResult {
         switch account.platform {
         case .mastodon:
-            return try await serviceManager.mastodonService.fetchHomeTimeline(
+            return try await serviceManager.mastodonSvc.fetchHomeTimeline(
                 for: account,
                 maxId: cursor
             )
         case .bluesky:
-            return try await serviceManager.blueskyService.fetchHomeTimeline(
+            return try await serviceManager.blueskySvc.fetchHomeTimeline(
                 for: account,
                 cursor: cursor
             )
@@ -186,18 +186,9 @@ struct AccountTimelineView: View {
 }
 
 extension SocialServiceManager {
-    // Make these services accessible for individual account timelines
-    var mastodonService: MastodonService {
-        // In a real app, this would be properly injected
-        // For now, we're creating a new instance here
-        MastodonService()
-    }
-
-    var blueskyService: BlueskyService {
-        // In a real app, this would be properly injected
-        // For now, we're creating a new instance here
-        BlueskyService()
-    }
+    // Make these services accessible for individual account timelines (renamed to avoid collisions)
+    var mastodonSvc: MastodonService { MastodonService() }
+    var blueskySvc: BlueskyService { BlueskyService() }
 }
 
 struct AccountTimelineView_Previews: PreviewProvider {

@@ -20,7 +20,7 @@ public struct UnifiedAccountsIcon: View {
         !mastodonAccounts.isEmpty || !blueskyAccounts.isEmpty
     }
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             if !hasAccounts {
                 // No accounts, show a placeholder
@@ -44,14 +44,14 @@ public struct UnifiedAccountsIcon: View {
                             Image("MastodonLogo")
                                 .resizable()
                                 .renderingMode(.template)
-                                .foregroundStyle(Color(hex: "6364FF"))
+                                .foregroundStyle(Color.mastodonColor)
                                 .frame(width: 8, height: 8)
                         }
                         if !blueskyAccounts.isEmpty {
                             Image("BlueskyLogo")
                                 .resizable()
                                 .renderingMode(.template)
-                                .foregroundStyle(Color(hex: "0085FF"))
+                                .foregroundStyle(Color.blueskyColor)
                                 .frame(width: 8, height: 8)
                         }
                     }
@@ -116,14 +116,14 @@ struct UnifiedAccountsIconCompact: View {
                         Image("MastodonLogo")
                             .resizable()
                             .renderingMode(.template)
-                            .foregroundStyle(Color(hex: "6364FF"))
+                            .foregroundStyle(Color.mastodonColor)
                             .frame(width: 8, height: 6)
                     }
                     if !blueskyAccounts.isEmpty {
                         Image("BlueskyLogo")
                             .resizable()
                             .renderingMode(.template)
-                            .foregroundStyle(Color(hex: "0085FF"))
+                            .foregroundStyle(Color.blueskyColor)
                             .frame(width: 8, height: 6)
                     }
                 }
@@ -143,7 +143,7 @@ struct UnifiedAccountsIconMinimal: View {
         mastodonAccounts.count + blueskyAccounts.count
     }
 
-    var body: some View {
+    public var body: some View {
         ZStack {
             // Clean background circle
             Circle()
@@ -164,12 +164,12 @@ struct UnifiedAccountsIconMinimal: View {
                             Image("MastodonLogo")
                                 .resizable()
                                 .renderingMode(.template)
-                                .foregroundStyle(Color(hex: "6364FF"))
+                                .foregroundStyle(Color.mastodonColor)
                                 .frame(width: 12, height: 12)
                             if mastodonAccounts.count > 1 {
                                 Text("\(mastodonAccounts.count)")
                                     .font(.system(size: 8, weight: .bold))
-                                    .foregroundColor(Color(hex: "6364FF"))
+                                    .foregroundColor(Color.mastodonColor)
                             }
                         }
                     }
@@ -178,12 +178,12 @@ struct UnifiedAccountsIconMinimal: View {
                             Image("BlueskyLogo")
                                 .resizable()
                                 .renderingMode(.template)
-                                .foregroundStyle(Color(hex: "0085FF"))
+                                .foregroundStyle(Color.blueskyColor)
                                 .frame(width: 12, height: 12)
                             if blueskyAccounts.count > 1 {
                                 Text("\(blueskyAccounts.count)")
                                     .font(.system(size: 8, weight: .bold))
-                                    .foregroundColor(Color(hex: "0085FF"))
+                                    .foregroundColor(Color.blueskyColor)
                             }
                         }
                     }
@@ -193,56 +193,25 @@ struct UnifiedAccountsIconMinimal: View {
     }
 }
 
-// Helper extension for hex colors
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a: UInt64
-        let r: UInt64
-        let g: UInt64
-        let b: UInt64
-        switch hex.count {
-        case 3:  // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6:  // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8:  // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-}
+// Helper extension removed (use global Color(hex:) instead)
 
 // MARK: - Preview
 struct UnifiedAccountsIcon_Previews: PreviewProvider {
     static let sampleMastodonAccount = SocialAccount(
         id: "mastodon-1",
-        platform: .mastodon,
         username: "user1",
         displayName: "User One",
-        profileImageURL: nil,
         serverURL: "mastodon.social",
+        platform: .mastodon,
         accessToken: "token"
     )
 
     static let sampleBlueskyAccount = SocialAccount(
         id: "bluesky-1",
-        platform: .bluesky,
         username: "user2",
         displayName: "User Two",
-        profileImageURL: nil,
         serverURL: "bsky.social",
+        platform: .bluesky,
         accessToken: "token"
     )
 

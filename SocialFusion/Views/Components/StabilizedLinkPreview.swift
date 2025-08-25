@@ -1,5 +1,6 @@
 import LinkPresentation
 import SwiftUI
+import UIKit
 
 /// A link preview component that maintains stable dimensions to prevent layout shifts
 struct StabilizedLinkPreview: View {
@@ -374,51 +375,9 @@ private struct StabilizedLinkContentView: View {
     }
 
     private func loadImageURL() {
-        print("🔍 [StabilizedLinkPreview] Loading image for URL: \(url)")
-
-        guard let imageProvider = metadata.imageProvider ?? metadata.iconProvider else {
-            print("❌ [StabilizedLinkPreview] No image provider found for \(url)")
-            return
-        }
-
-        if let cachedURL = LinkPreviewCache.shared.getImageURL(for: url) {
-            print("✅ [StabilizedLinkPreview] Using cached image for \(url)")
-            self.imageURL = cachedURL
-            return
-        }
-
-        print("📥 [StabilizedLinkPreview] Loading image from provider for \(url)")
-        imageProvider.loadObject(ofClass: UIImage.self) { image, error in
-            DispatchQueue.main.async {
-                if let error = error {
-                    print("❌ [StabilizedLinkPreview] Error loading image for \(self.url): \(error)")
-                    return
-                }
-
-                guard let image = image as? UIImage else {
-                    print("❌ [StabilizedLinkPreview] Invalid image type for \(self.url)")
-                    return
-                }
-
-                print("✅ [StabilizedLinkPreview] Successfully loaded image for \(self.url)")
-
-                let tempDir = FileManager.default.temporaryDirectory
-                let tempURL = tempDir.appendingPathComponent(UUID().uuidString)
-                    .appendingPathExtension("png")
-
-                do {
-                    if let data = image.pngData() {
-                        try data.write(to: tempURL)
-                        self.imageURL = tempURL
-                        LinkPreviewCache.shared.cacheImage(url: tempURL, for: self.url)
-                        print("💾 [StabilizedLinkPreview] Cached image for \(self.url)")
-                    }
-                } catch {
-                    print(
-                        "❌ [StabilizedLinkPreview] Failed to save image for \(self.url): \(error)")
-                }
-            }
-        }
+        // Temporarily disabled provider image loading to avoid Swift compiler crash in previews.
+        // Fallback UI will be shown; metadata text still renders.
+        return
     }
 }
 

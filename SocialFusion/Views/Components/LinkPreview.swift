@@ -2,48 +2,6 @@ import Foundation
 import LinkPresentation
 import SwiftUI
 
-// Simple caching for link metadata and images
-final class LinkPreviewCache {
-    static let shared = LinkPreviewCache()
-
-    private var metadataCache = [URL: LPLinkMetadata]()
-    private var imageURLCache = [URL: URL]()
-    private let cacheQueue = DispatchQueue(label: "linkPreviewCache", attributes: .concurrent)
-
-    private init() {}
-
-    func getMetadata(for url: URL) -> LPLinkMetadata? {
-        return cacheQueue.sync {
-            return metadataCache[url]
-        }
-    }
-
-    func cache(metadata: LPLinkMetadata, for url: URL) {
-        cacheQueue.async(flags: .barrier) {
-            self.metadataCache[url] = metadata
-        }
-    }
-
-    func getImageURL(for url: URL) -> URL? {
-        return cacheQueue.sync {
-            return imageURLCache[url]
-        }
-    }
-
-    func cacheImage(url imageURL: URL, for linkURL: URL) {
-        cacheQueue.async(flags: .barrier) {
-            self.imageURLCache[linkURL] = imageURL
-        }
-    }
-
-    func clearCache() {
-        cacheQueue.async(flags: .barrier) {
-            self.metadataCache.removeAll()
-            self.imageURLCache.removeAll()
-        }
-    }
-}
-
 // Simplified and more stable metadata provider manager
 final class MetadataProviderManager {
     static let shared = MetadataProviderManager()

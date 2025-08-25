@@ -23,7 +23,7 @@ public struct MastodonPost: Codable, Identifiable {
     public let visibility: String
     public let inReplyToId: String?
     public let inReplyToAccountId: String?
-    public let reblog: MastodonPost?
+    public let reblog: MastodonReblog?
 
     // MARK: - Nested Types
 
@@ -71,6 +71,19 @@ public struct MastodonPost: Codable, Identifiable {
         public let name: String
         public let url: String
     }
+}
+
+// Lightweight reblog model to avoid recursive stored property on value type
+public struct MastodonReblog: Codable {
+    public let id: String?
+    public let uri: String?
+    public let url: String?
+    public let content: String?
+    public let createdAt: String?
+    public let account: MastodonPost.MastodonAccount?
+    public let mediaAttachments: [MastodonPost.MastodonMediaAttachment]?
+    public let mentions: [MastodonPost.MastodonMention]?
+    public let tags: [MastodonPost.MastodonTag]?
 }
 
 // MARK: - Preview Helper
