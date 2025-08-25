@@ -77,16 +77,12 @@ struct PostDetailView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            // Top anchor for scroll position
-                            Color.clear
-                                .frame(height: 1)
-                                .id(topScrollID)
-
                             threadContentView
                                 .padding(.bottom, 100)  // Bottom padding for scroll behavior
                         }
                     }
                     .background(
+                        // Allow content to flow behind navigation with scroll offset tracking
                         GeometryReader { geometry in
                             Color.clear
                                 .preference(
@@ -233,7 +229,7 @@ struct PostDetailView: View {
 
             // Selected post (anchor) - Ivory-style layout
             VStack(spacing: 0) {
-                // Selected post content with top spacing for perfect anchoring
+                // Selected post content - extends to top for transparent navigation effect
                 SelectedPostView(
                     post: viewModel.post,
                     showThreadLine: !parentPosts.isEmpty || !replyPosts.isEmpty,
@@ -241,7 +237,7 @@ struct PostDetailView: View {
                 )
                 .id(selectedPostScrollID)
                 .layoutPriority(1000)  // Ivory-style: Highest priority for anchor post
-                .padding(.top, 8)  // Add top padding for better spacing when at top of screen
+                // Remove top padding to allow content to flow behind navigation
 
                 // Action bar for selected post
                 PostActionBar(
@@ -276,7 +272,6 @@ struct PostDetailView: View {
                 Divider()
                     .padding(.horizontal, 16)
             }
-            .background(Color(.systemBackground))
 
             // Replies header (if there are replies)
             if !replyPosts.isEmpty {
@@ -709,19 +704,14 @@ struct SelectedPostView: View {
             }
             .padding(.bottom, 16)
         }
-        .background(
-            // Subtle background emphasis
-            RoundedRectangle(cornerRadius: 0)
-                .fill(Color(.systemBackground))
-                .overlay(
-                    // Subtle left border to indicate selected post
-                    HStack {
-                        Rectangle()
-                            .fill(platformColor.opacity(0.3))
-                            .frame(width: 3)
-                        Spacer()
-                    }
-                )
+        .overlay(
+            // Subtle left border to indicate selected post (no background to allow transparency)
+            HStack {
+                Rectangle()
+                    .fill(platformColor.opacity(0.3))
+                    .frame(width: 3)
+                Spacer()
+            }
         )
         .clipped()
     }

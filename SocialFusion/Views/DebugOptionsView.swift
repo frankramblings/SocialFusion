@@ -5,6 +5,7 @@ struct DebugOptionsView: View {
     @State private var testingEnabled = UserDefaults.standard.bool(
         forKey: "ArchitectureTestingEnabled")
     @State private var showingRestartAlert = false
+    @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
 
     var body: some View {
         List {
@@ -19,6 +20,31 @@ struct DebugOptionsView: View {
 
                 if testingEnabled {
                     Text("⚠️ App will launch in testing mode after restart")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+
+            Section(header: Text("Feature Flags")) {
+                Toggle(
+                    "GIF Unfurling",
+                    isOn: Binding(
+                        get: { featureFlagManager.enableGIFUnfurling },
+                        set: { enabled in
+                            if enabled {
+                                featureFlagManager.enableFeature(FeatureFlag.gifUnfurling)
+                            } else {
+                                featureFlagManager.disableFeature(FeatureFlag.gifUnfurling)
+                            }
+                        }
+                    ))
+
+                if featureFlagManager.enableGIFUnfurling {
+                    Text("✅ GIF unfurling is enabled - GIFs will be processed for better loading")
+                        .font(.caption)
+                        .foregroundColor(.green)
+                } else {
+                    Text("⚠️ GIF unfurling is disabled - using fallback GIF rendering")
                         .font(.caption)
                         .foregroundColor(.orange)
                 }
@@ -125,7 +151,7 @@ struct DebugOptionsView: View {
                 let loadTime = Date().timeIntervalSince(startTime)
                 let success = image != nil
 
-                await MonitoringService.shared.trackProfileImageLoad(
+                MonitoringService.shared.trackProfileImageLoad(
                     url: urlString,
                     platform: urlString.contains("bsky") ? .bluesky : .mastodon,
                     success: success,

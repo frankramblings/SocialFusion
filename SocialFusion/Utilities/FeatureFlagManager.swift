@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 /// Manages feature flags for the application
-final class FeatureFlagManager {
+final class FeatureFlagManager: ObservableObject {
     static let shared = FeatureFlagManager()
 
     // MARK: - Architecture Flags
@@ -32,6 +32,11 @@ final class FeatureFlagManager {
 
     /// Controls whether performance tracking is enabled
     @AppStorage("trackPerformance") private(set) var trackPerformance = false
+
+    // MARK: - Media Flags
+
+    /// Controls whether GIF unfurling is enabled
+    @AppStorage("enableGIFUnfurling") private(set) var enableGIFUnfurling = true
 
     // MARK: - Analytics
 
@@ -67,6 +72,8 @@ final class FeatureFlagManager {
             verboseLogging = true
         case .performanceTracking:
             trackPerformance = true
+        case .gifUnfurling:
+            enableGIFUnfurling = true
         }
 
         // Track when feature was enabled
@@ -93,6 +100,8 @@ final class FeatureFlagManager {
             verboseLogging = false
         case .performanceTracking:
             trackPerformance = false
+        case .gifUnfurling:
+            enableGIFUnfurling = false
         }
 
         saveAnalyticsData()
@@ -124,6 +133,7 @@ final class FeatureFlagManager {
             "debugMode": debugModeEnabled,
             "verboseLogging": verboseLogging,
             "performanceTracking": trackPerformance,
+            "gifUnfurling": enableGIFUnfurling,
         ]
 
         return stats
@@ -167,6 +177,7 @@ enum FeatureFlag: String {
     case debugMode = "debug_mode"
     case verboseLogging = "verbose_logging"
     case performanceTracking = "performance_tracking"
+    case gifUnfurling = "gif_unfurling"
 }
 
 // MARK: - SwiftUI View Extension
@@ -186,7 +197,8 @@ extension View {
                 .newSocialServiceManager where manager.useNewSocialServiceManager,
                 .debugMode where manager.debugModeEnabled,
                 .verboseLogging where manager.verboseLogging,
-                .performanceTracking where manager.trackPerformance:
+                .performanceTracking where manager.trackPerformance,
+                .gifUnfurling where manager.enableGIFUnfurling:
                 content()
             default:
                 EmptyView()
