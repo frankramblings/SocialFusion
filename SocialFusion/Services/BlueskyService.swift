@@ -1402,8 +1402,22 @@ class BlueskyService {
                         let external = embed["external"] as? [String: Any],
                         let externalUri = external["uri"] as? String
                     {
-                        externalEmbedURL = externalUri
-                        logger.info("[Bluesky] Found external embed URL: \(externalUri)")
+                        // Check if this is a GIF URL - if so, treat it as media attachment instead of link preview
+                        if let gifURL = URL(string: externalUri), URLService.shared.isGIFURL(gifURL)
+                        {
+                            let alt =
+                                external["title"] as? String ?? external["description"] as? String
+                                ?? "Animated GIF"
+                            attachments.append(
+                                Post.Attachment(url: externalUri, type: .animatedGIF, altText: alt)
+                            )
+                            logger.info(
+                                "[Bluesky] Treated external GIF URL as animated attachment: \(externalUri)"
+                            )
+                        } else {
+                            externalEmbedURL = externalUri
+                            logger.info("[Bluesky] Found external embed URL: \(externalUri)")
+                        }
                     }
 
                     // Handle direct record embed (quote post) - check for app.bsky.embed.record#view

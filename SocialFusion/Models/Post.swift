@@ -756,7 +756,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
                         let videoID = URLServiceWrapper.shared.extractYouTubeVideoID(from: link)
                     {
                         return AnyView(YouTubeVideoPreview(url: link, videoID: videoID))
-                    } else {
+                    } else if !URLServiceWrapper.shared.isGIFURL(link) {
+                        // Only show link preview if it's not a GIF URL
                         return AnyView(StabilizedLinkPreview(url: link, idealHeight: 140))
                     }
                 }

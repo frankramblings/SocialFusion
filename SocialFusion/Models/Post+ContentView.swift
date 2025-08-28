@@ -224,6 +224,7 @@ extension Post {
             let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
             let regularLinks = allLinks.filter {
                 !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
+                    && !URLService.shared.isGIFURL($0)
             }
             let firstYouTubeLink = youtubeLinks.first
 

@@ -304,7 +304,7 @@ class URLService {
     /// - Parameter url: The URL to check
     /// - Returns: True if the URL is a Fediverse post URL
     func isFediversePostURL(_ url: URL) -> Bool {
-        guard let host = url.host?.lowercased() else { return false }
+        guard url.host?.lowercased() != nil else { return false }
         let path = url.path.lowercased()
         let components = path.split(separator: "/").map(String.init)
 
@@ -371,6 +371,44 @@ class URLService {
         let host = url.host?.lowercased() ?? ""
         return host == "youtube.com" || host == "www.youtube.com" || host == "youtu.be"
             || host == "m.youtube.com"
+    }
+
+    /// Check if URL is a direct GIF file URL
+    func isGIFURL(_ url: URL) -> Bool {
+        let urlString = url.absoluteString.lowercased()
+        let host = url.host?.lowercased() ?? ""
+
+        // Check if URL has .gif extension
+        if urlString.hasSuffix(".gif") {
+            return true
+        }
+
+        // Check known GIF hosting domains
+        let gifDomains = [
+            "media.tenor.com",
+            "media.giphy.com",
+            "i.giphy.com",
+            "media1.giphy.com",
+            "media2.giphy.com",
+            "media3.giphy.com",
+            "media4.giphy.com",
+            "c.tenor.com",
+            "media1.tenor.com",
+        ]
+
+        for domain in gifDomains {
+            if host == domain || host.contains(domain) {
+                return true
+            }
+        }
+
+        // Check URL path for gif-like patterns
+        let path = url.path.lowercased()
+        if path.contains("gif") || path.contains("giphy") || path.contains("tenor") {
+            return true
+        }
+
+        return false
     }
 
     /// Extract YouTube video ID from various YouTube URL formats

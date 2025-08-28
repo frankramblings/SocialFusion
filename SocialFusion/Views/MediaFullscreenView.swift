@@ -1,5 +1,6 @@
 import AVKit
 import Combine
+import ImageIO
 import SwiftUI
 
 /// View for displaying media attachments in fullscreen mode
@@ -494,6 +495,14 @@ struct FullscreenMediaView: View {
                 Text("Invalid GIF URL")
                     .foregroundColor(.white)
             }
+        case .animatedGIF:
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
+                FullscreenAnimatedGIFView(url: url)
+                    .edgesIgnoringSafeArea(.all)
+            } else {
+                Text("Invalid GIF URL")
+                    .foregroundColor(.white)
+            }
         default:
             Text("Unsupported media type")
                 .foregroundColor(.white)
@@ -514,7 +523,7 @@ struct FullscreenMediaView: View {
 
         if currentAttachment.type == .video || currentAttachment.type == .gifv {
             setupVideoPlayer(for: url)
-        } else if currentAttachment.type == .image {
+        } else if currentAttachment.type == .image || currentAttachment.type == .animatedGIF {
             setupImageLoading(for: url)
         }
     }
@@ -769,6 +778,70 @@ struct MediaFullscreenView: View {
         // Redirect to the new FullscreenMediaView for better functionality
         FullscreenMediaView(
             attachment: attachment, attachments: attachments.isEmpty ? [] : attachments)
+    }
+}
+
+/// Fullscreen view for animated GIFs
+struct FullscreenAnimatedGIFView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+        imageView.backgroundColor = .black
+        return imageView
+    }
+
+    func updateUIView(_ uiView: UIImageView, context: Context) {
+        // Load the GIF data
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+
+                await MainActor.run {
+                    // Create animated image from GIF data
+                    if let animatedImage = createAnimatedImage(from: data) {
+                        uiView.image = animatedImage
+                    } else {
+                        // Fallback to static image if animation fails
+                        uiView.image = UIImage(data: data)
+                    }
+                }
+            } catch {
+                print("❌ [FullscreenAnimatedGIFView] Failed to load GIF from \(url): \(error)")
+                await MainActor.run {
+                    uiView.image = nil
+                }
+            }
+        }
+    }
+
+    private func createAnimatedImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let count = CGImageSourceGetCount(source)
+        var frames: [UIImage] = []
+        var duration: Double = 0
+
+        for i in 0..<count {
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) else { continue }
+            let frameDuration = getFrameDuration(from: source, at: i)
+            duration += frameDuration
+            frames.append(UIImage(cgImage: cgImage))
+        }
+
+        guard !frames.isEmpty else { return nil }
+        return UIImage.animatedImage(with: frames, duration: duration)
+    }
+
+    private func getFrameDuration(from source: CGImageSource, at index: Int) -> Double {
+        guard
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil)
+                as NSDictionary?,
+            let gifProps = properties[kCGImagePropertyGIFDictionary as String] as? NSDictionary,
+            let delay = gifProps[kCGImagePropertyGIFDelayTime as String] as? NSNumber
+        else { return 0.1 }
+        return delay.doubleValue
     }
 }
 

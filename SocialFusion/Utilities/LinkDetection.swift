@@ -39,4 +39,8 @@ class URLServiceWrapper {
     func extractYouTubeVideoID(from url: URL) -> String? {
         return URLService.shared.extractYouTubeVideoID(from: url)
     }
+
+    func isGIFURL(_ url: URL) -> Bool {
+        return URLService.shared.isGIFURL(url)
+    }
 }

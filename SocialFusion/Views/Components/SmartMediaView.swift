@@ -85,6 +85,7 @@ struct SmartMediaView: View {
                             maxHeight: maxHeight ?? 300,
                             cornerRadius: cornerRadius,
                             showControls: true,
+                            contentMode: contentMode == .fill ? .scaleAspectFill : .scaleAspectFit,
                             onTap: { onTap?() }
                         )
                     } else {

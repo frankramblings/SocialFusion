@@ -2,11 +2,68 @@ import ImageIO
 import SwiftUI
 import UIKit
 
+/// UIViewRepresentable wrapper for animated UIImageView with proper container bounds
+private struct AnimatedImageView: UIViewRepresentable {
+    let image: UIImage
+    let contentMode: UIView.ContentMode
+
+    func makeUIView(context: Context) -> GIFContainerView {
+        let containerView = GIFContainerView()
+        containerView.clipsToBounds = true
+        containerView.backgroundColor = UIColor.clear
+
+        let imageView = UIImageView()
+        imageView.contentMode = contentMode
+        imageView.clipsToBounds = true
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+
+        containerView.addSubview(imageView)
+        containerView.imageView = imageView
+
+        // Use constraints for proper bounds handling
+        NSLayoutConstraint.activate([
+            imageView.topAnchor.constraint(equalTo: containerView.topAnchor),
+            imageView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            imageView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            imageView.bottomAnchor.constraint(equalTo: containerView.bottomAnchor),
+        ])
+
+        // Let SwiftUI handle the overall sizing
+        containerView.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        containerView.setContentHuggingPriority(.defaultLow, for: .vertical)
+        containerView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        containerView.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+
+        return containerView
+    }
+
+    func updateUIView(_ containerView: GIFContainerView, context: Context) {
+        containerView.imageView?.image = image
+    }
+}
+
+/// Custom container view that properly handles sizing for SwiftUI integration
+private class GIFContainerView: UIView {
+    var imageView: UIImageView?
+
+    override var intrinsicContentSize: CGSize {
+        // Return no intrinsic size - let SwiftUI decide
+        return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Force clipping to container bounds - constraints handle the sizing
+        self.clipsToBounds = true
+    }
+}
+
 public struct GIFUnfurlContainer: View {
     let url: URL
     let maxHeight: CGFloat
     let cornerRadius: CGFloat
     let showControls: Bool
+    let contentMode: UIView.ContentMode
     let onTap: (() -> Void)?
 
     @State private var animatedImage: UIImage?
@@ -17,12 +74,14 @@ public struct GIFUnfurlContainer: View {
         maxHeight: CGFloat,
         cornerRadius: CGFloat,
         showControls: Bool = true,
+        contentMode: UIView.ContentMode = .scaleAspectFill,
         onTap: (() -> Void)? = nil
     ) {
         self.url = url
         self.maxHeight = maxHeight
         self.cornerRadius = cornerRadius
         self.showControls = showControls
+        self.contentMode = contentMode
         self.onTap = onTap
     }
 
@@ -31,9 +90,9 @@ public struct GIFUnfurlContainer: View {
             if FeatureFlags.enableGIFUnfurling {
                 ZStack {
                     if let animatedImage {
-                        Image(uiImage: animatedImage)
-                            .resizable()
-                            .scaledToFit()
+                        AnimatedImageView(image: animatedImage, contentMode: .scaleAspectFit)
+                            .aspectRatio(
+                                contentMode: contentMode == .scaleAspectFill ? .fill : .fit)
                     } else {
                         ProgressView()
                     }
@@ -97,4 +156,3 @@ public struct GIFUnfurlContainer: View {
         return delay.doubleValue
     }
 }
-
