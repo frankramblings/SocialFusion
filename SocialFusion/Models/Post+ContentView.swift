@@ -886,7 +886,10 @@ struct ExpandableTextView: View {
     private var displayContent: String {
         var processedContent = content
 
-        // For Mastodon: Remove URLs that will be shown as link previews to avoid duplication
+        // Platform-specific URL handling strategy:
+        // • Mastodon: Remove URLs from text when showing link previews (only if no media attachments)
+        // • Bluesky: Always preserve URLs in text, even with link previews (matches native behavior)
+        //   This allows users to click URLs directly OR interact with rich preview cards
         if platform == .mastodon && showLinkPreview {
             let plainText = HTMLString(raw: processedContent).plainText
             let allLinks = URLService.shared.extractLinks(from: plainText)
@@ -895,15 +898,18 @@ struct ExpandableTextView: View {
                     && !URLService.shared.isGIFURL($0)
             }
 
-            print("🔗 [Mastodon URL Removal] Original content: \(processedContent.prefix(200))")
+            print("🔗 [Mastodon URL Processing] Original content: \(processedContent.prefix(200))")
             print(
-                "🔗 [Mastodon URL Removal] Found \(previewableLinks.count) previewable links, attachments: \(post.attachments.count)"
+                "🔗 [Mastodon URL Processing] Found \(previewableLinks.count) previewable links, \(post.attachments.count) attachments"
             )
+            print("🔗 [Mastodon URL Processing] Will remove URLs: \(post.attachments.isEmpty && !previewableLinks.isEmpty)")
             for (i, link) in previewableLinks.enumerated() {
                 print("🔗 [Mastodon URL Removal] Link \(i): \(link.absoluteString)")
             }
 
-            // Only remove URLs if there are no attachments (when link previews would be shown)
+            // CRITICAL: Only remove URLs if there are no attachments
+            // This ensures that when posts have media attachments, URLs remain visible and clickable
+            // When posts have no attachments, URLs are removed to avoid duplication with link previews
             if post.attachments.isEmpty && !previewableLinks.isEmpty {
                 // Remove the first few previewable links from content since they'll be shown as previews
                 for link in previewableLinks.prefix(2) {
@@ -953,11 +959,15 @@ struct ExpandableTextView: View {
                 }
 
                 print("🔗 [Mastodon URL Removal] Final content: \(processedContent.prefix(200))")
-            } else {
+            } else if !post.attachments.isEmpty {
                 print(
-                    "🔗 [Mastodon URL Removal] Skipping URL removal - has \(post.attachments.count) attachments or \(previewableLinks.count) previewable links"
+                    "🔗 [Mastodon URL Processing] ✅ Preserving URLs because post has \(post.attachments.count) media attachments"
                 )
+            } else if previewableLinks.isEmpty {
+                print("🔗 [Mastodon URL Processing] No previewable links found, keeping original content")
             }
+        } else if platform == .bluesky {
+            print("🔗 [Bluesky URL Processing] ✅ Preserving all URLs (matches native Bluesky behavior)")
         }
 
         if shouldTruncate && !isExpanded {
