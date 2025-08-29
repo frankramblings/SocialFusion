@@ -46,7 +46,7 @@ struct MastodonAccount: Codable {
     let id: String
     let username: String
     let acct: String
-    let displayName: String
+    let displayName: String?
     let note: String
     let url: String
     let avatar: String

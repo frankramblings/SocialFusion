@@ -133,26 +133,61 @@ extension Post {
         allowTruncation: Bool = true
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ExpandableTextView(
-                content: content,
-                platform: platform,
+            EmojiTextApp(
+                htmlString: HTMLString(raw: content),
                 customEmoji: customEmoji,
-                mentions: mentions,
-                tags: tags,
                 font: font,
+                foregroundColor: .primary,
                 lineLimit: lineLimit,
-                showLinkPreview: showLinkPreview,
-                onQuotePostTap: onQuotePostTap,
-                allowTruncation: allowTruncation,
-                createTextWithLinksCallback: { text in
-                    self.createTextWithLinks(from: text)
-                },
-                post: self
+                mentions: mentions,
+                tags: tags
             )
+            .fixedSize(horizontal: false, vertical: true)
+
+            // Always show quote posts, but respect showLinkPreview for other content
+            quotePostViews(onQuotePostTap: onQuotePostTap)
+
+            if showLinkPreview {
+                regularLinkPreviewsOnly
+            }
         }
     }
 
     // MARK: - Private Views
+
+    @ViewBuilder
+    fileprivate var regularLinkPreviewsOnly: some View {
+        let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+        let allLinks = URLService.shared.extractLinks(from: plainText)
+        let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
+        let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
+        let regularLinks = allLinks.filter {
+            !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
+        }
+        let firstYouTubeLink = youtubeLinks.first
+
+        // Show first YouTube video as inline player
+        if let firstYouTubeLink = firstYouTubeLink,
+            let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
+        {
+            YouTubeVideoPreview(
+                url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
+            )
+            .padding(.vertical, 12)
+        }
+
+        // Show remaining links as previews (limit to first 2 for performance)
+        // Exclude social media links and YouTube links as they're handled separately
+        let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
+        let previewLinks = regularLinks.filter { link in
+            !excludedLinks.contains(link)
+        }
+
+        ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
+            StabilizedLinkPreview(url: url, idealHeight: 200)
+                .padding(.vertical, 12)
+        }
+    }
 
     @ViewBuilder
     fileprivate func quotePostViews(
@@ -210,78 +245,6 @@ extension Post {
                     )
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    fileprivate var regularLinkPreviewsOnly: some View {
-        // Don't show link previews if the post has media attachments
-        // This matches the behavior of Ivory, Bluesky, and other social apps
-        if self.attachments.isEmpty {
-            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
-            let allLinks = URLService.shared.extractLinks(from: plainText)
-            let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
-            let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
-            let regularLinks = allLinks.filter {
-                !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
-                    && !URLService.shared.isGIFURL($0)
-            }
-            let firstYouTubeLink = youtubeLinks.first
-
-            // Show first YouTube video as inline player
-            if let firstYouTubeLink = firstYouTubeLink,
-                let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
-            {
-                YouTubeVideoPreview(
-                    url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
-                )
-                .padding(.top, 8)
-                .onAppear {
-                    print("🔗   Showing YouTube video: \(firstYouTubeLink)")
-                }
-            }
-
-            // Show remaining links as previews (limit to first 2 for performance)
-            // Exclude social media links and YouTube links as they're handled separately
-            let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
-            let previewLinks = regularLinks.filter { link in
-                !excludedLinks.contains(link)
-            }
-
-            ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
-                StabilizedLinkPreview(url: url, idealHeight: 200)
-                    .padding(.top, 8)
-                    .onAppear {
-                        print("🔗   Creating StabilizedLinkPreview for: \(url)")
-                    }
-            }
-            .onAppear {
-                // Debug logging for link detection
-                print("🔗 [regularLinkPreviewsOnly] Post \(self.id) link analysis:")
-                print("🔗   Platform: \(self.platform)")
-                print("🔗   Content length: \(self.content.count)")
-                print("🔗   Plain text length: \(plainText.count)")
-                print("🔗   Content preview: '\(self.content.prefix(200))'")
-                print("🔗   Plain text preview: '\(plainText.prefix(200))'")
-                print("🔗   All links found: \(allLinks.count)")
-                for (index, link) in allLinks.enumerated() {
-                    print("🔗     [\(index)] \(link.absoluteString)")
-                }
-                print("🔗   Social media links: \(socialMediaLinks.count)")
-                print("🔗   YouTube links: \(youtubeLinks.count)")
-                print("🔗   Regular links: \(regularLinks.count)")
-                print("🔗   Preview links after filtering: \(previewLinks.count)")
-                for (index, link) in previewLinks.enumerated() {
-                    print("🔗     Preview [\(index)] \(link.absoluteString)")
-                }
-            }
-        } else {
-            EmptyView()
-                .onAppear {
-                    print(
-                        "🔗 [regularLinkPreviewsOnly] Post \(self.id) has \(self.attachments.count) attachments - suppressing link previews"
-                    )
-                }
         }
     }
 
@@ -921,12 +884,90 @@ struct ExpandableTextView: View {
     }
 
     private var displayContent: String {
+        var processedContent = content
+
+        // For Mastodon: Remove URLs that will be shown as link previews to avoid duplication
+        if platform == .mastodon && showLinkPreview {
+            let plainText = HTMLString(raw: processedContent).plainText
+            let allLinks = URLService.shared.extractLinks(from: plainText)
+            let previewableLinks = allLinks.filter {
+                !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
+                    && !URLService.shared.isGIFURL($0)
+            }
+
+            print("🔗 [Mastodon URL Removal] Original content: \(processedContent.prefix(200))")
+            print(
+                "🔗 [Mastodon URL Removal] Found \(previewableLinks.count) previewable links, attachments: \(post.attachments.count)"
+            )
+            for (i, link) in previewableLinks.enumerated() {
+                print("🔗 [Mastodon URL Removal] Link \(i): \(link.absoluteString)")
+            }
+
+            // Only remove URLs if there are no attachments (when link previews would be shown)
+            if post.attachments.isEmpty && !previewableLinks.isEmpty {
+                // Remove the first few previewable links from content since they'll be shown as previews
+                for link in previewableLinks.prefix(2) {
+                    let originalContent = processedContent
+
+                    // More comprehensive URL removal patterns for Mastodon HTML
+                    let urlEscaped = NSRegularExpression.escapedPattern(for: link.absoluteString)
+                    let patterns = [
+                        // Remove complete anchor tags with this exact URL - more flexible matching
+                        "<a\\s+[^>]*href\\s*=\\s*[\"']\(urlEscaped)[\"'][^>]*>.*?</a>",
+                        // Remove anchor tags with HTML-escaped quotes
+                        "<a\\s+[^>]*href\\s*=\\s*&quot;\(urlEscaped)&quot;[^>]*>.*?</a>",
+                        // Remove the standalone URL text (this is often what shows up)
+                        "\\b\(urlEscaped)\\b",
+                        // Remove trailing/leading whitespace after removal
+                        "\\s*\(urlEscaped)\\s*",
+                    ]
+
+                    for pattern in patterns {
+                        let beforeCount = processedContent.count
+                        processedContent = processedContent.replacingOccurrences(
+                            of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
+                        let afterCount = processedContent.count
+                        if beforeCount != afterCount {
+                            print(
+                                "🔗 [Mastodon URL Removal] Pattern '\(pattern.prefix(50))...' removed \(beforeCount - afterCount) characters"
+                            )
+                            break  // Stop at first successful pattern to avoid over-removal
+                        }
+                    }
+
+                    // Clean up extra whitespace
+                    processedContent = processedContent.replacingOccurrences(
+                        of: "\\s+", with: " ", options: .regularExpression
+                    )
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    if originalContent != processedContent {
+                        print(
+                            "🔗 [Mastodon URL Removal] Content changed after processing link: \(link.absoluteString)"
+                        )
+                    } else {
+                        print(
+                            "🔗 [Mastodon URL Removal] ⚠️ No changes made for link: \(link.absoluteString)"
+                        )
+                    }
+                }
+
+                print("🔗 [Mastodon URL Removal] Final content: \(processedContent.prefix(200))")
+            } else {
+                print(
+                    "🔗 [Mastodon URL Removal] Skipping URL removal - has \(post.attachments.count) attachments or \(previewableLinks.count) previewable links"
+                )
+            }
+        }
+
         if shouldTruncate && !isExpanded {
-            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let plainText =
+                platform == .mastodon
+                ? HTMLString(raw: processedContent).plainText : processedContent
             let truncatedText = String(plainText.prefix(500))
             return platform == .mastodon ? truncatedText : truncatedText
         }
-        return content
+        return processedContent
     }
 
     var body: some View {

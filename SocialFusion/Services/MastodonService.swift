@@ -622,7 +622,7 @@ public class MastodonService {
         let verifiedAccount = SocialAccount(
             id: mastodonAccount.id,
             username: mastodonAccount.username,
-            displayName: mastodonAccount.displayName,
+            displayName: mastodonAccount.displayName ?? mastodonAccount.username,
             serverURL: formattedServerURL,
             platform: .mastodon,
             accessToken: accessToken,
@@ -694,7 +694,7 @@ public class MastodonService {
         let verifiedAccount = SocialAccount(
             id: mastodonAccount.id,
             username: mastodonAccount.username,
-            displayName: mastodonAccount.displayName,
+            displayName: mastodonAccount.displayName ?? mastodonAccount.username,
             serverURL: formattedServerURL,
             platform: .mastodon,
             accessToken: accessToken,
@@ -748,7 +748,9 @@ public class MastodonService {
             throw ServiceError.invalidInput(reason: "Invalid server URL")
         }
 
-        logger.info("Fetching Mastodon timeline from: \(urlString)")
+        logger.info("🔄 MASTODON: Fetching timeline from: \(urlString)")
+        print("🔄 MASTODON: Fetching timeline from: \(urlString)")
+        print("🔄 MASTODON: Token preview: \(String(token.prefix(10)))...")
 
         // Create request
         var request = URLRequest(url: url)
@@ -772,7 +774,11 @@ public class MastodonService {
                     underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
             }
 
+            print("🔍 MASTODON: HTTP Status Code: \(httpResponse.statusCode)")
+            print("🔍 MASTODON: Response Headers: \(httpResponse.allHeaderFields)")
+
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                print("❌ MASTODON: Authentication failed - token may be expired")
                 throw ServiceError.unauthorized("Authentication failed or expired")
             }
 
@@ -781,11 +787,56 @@ public class MastodonService {
                     "Server returned status code \(httpResponse.statusCode)")
             }
 
-            // Decode the response
-            let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
+            // Check if we got empty data
+            if data.isEmpty {
+                logger.warning("⚠️ MASTODON: Received empty response data")
+                print("⚠️ MASTODON: Received empty response data")
+                return TimelineResult(posts: [], pagination: PaginationInfo.empty)
+            }
+
+            // Log response data for debugging
+            logger.info("🔍 MASTODON: Response data length: \(data.count) bytes")
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.info("🔍 MASTODON: Response preview: \(String(responseString.prefix(500)))")
+                print("🔍 MASTODON: Response preview: \(String(responseString.prefix(500)))")
+
+                // Check if response looks like HTML instead of JSON
+                if responseString.lowercased().contains("<html")
+                    || responseString.lowercased().contains("<!doctype")
+                {
+                    logger.error(
+                        "❌ MASTODON: Server returned HTML instead of JSON - possible auth redirect")
+                    throw ServiceError.unauthorized(
+                        "Server returned HTML page instead of JSON - token may be invalid")
+                }
+            }
+
+            // Decode the response with better error handling
+            let statuses: [MastodonStatus]
+            do {
+                statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
+            } catch {
+                logger.error("❌ MASTODON JSON DECODE ERROR: \(error)")
+
+                // Try to log first 1000 characters of response to see what we got
+                if let responseString = String(data: data, encoding: .utf8) {
+                    logger.error("❌ MASTODON RAW RESPONSE: \(String(responseString.prefix(1000)))")
+                }
+
+                // Try to decode as a single status instead of array (some endpoints return single objects)
+                if let singleStatus = try? JSONDecoder().decode(MastodonStatus.self, from: data) {
+                    logger.info("✅ MASTODON: Successfully decoded single status instead of array")
+                    statuses = [singleStatus]
+                } else {
+                    throw error
+                }
+            }
 
             // Convert to post models
             let posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+
+            logger.info("✅ MASTODON: Successfully fetched \(posts.count) posts")
+            print("✅ MASTODON: Successfully fetched \(posts.count) posts")
 
             // Determine pagination info - Mastodon has more pages if we get the full limit
             let hasNextPage = posts.count >= limit
@@ -795,7 +846,9 @@ public class MastodonService {
 
             return TimelineResult(posts: posts, pagination: pagination)
         } catch {
-            print("Error fetching Mastodon timeline: \(error.localizedDescription)")
+            logger.error("❌ MASTODON ERROR: \(error.localizedDescription)")
+            print("❌ MASTODON ERROR: \(error.localizedDescription)")
+            print("❌ MASTODON ERROR DETAILS: \(error)")
             throw ServiceError.timelineError(underlying: error)
         }
     }
@@ -1438,10 +1491,18 @@ public class MastodonService {
             var originalPost = Post(
                 id: reblog.id ?? "",
                 content: reblog.content ?? "",
-                authorName: reblog.account?.displayName ?? "",
+                authorName: reblog.account?.displayName ?? reblog.account?.acct ?? "",
                 authorUsername: reblog.account?.acct ?? "",
                 authorProfilePictureURL: reblog.account?.avatar ?? "",
-                createdAt: DateParser.parse(reblog.createdAt ?? "") ?? Date.distantPast,
+                createdAt: {
+                    let createdAtString = reblog.createdAt ?? ""
+                    let parsedDate = DateParser.parse(createdAtString)
+                    if parsedDate == nil {
+                        logger.error("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
+                        print("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
+                    }
+                    return parsedDate ?? Date.distantPast
+                }(),
                 platform: .mastodon,
                 originalURL: reblog.url ?? "",
                 attachments: (reblog.mediaAttachments ?? []).compactMap { media in
@@ -1490,10 +1551,17 @@ public class MastodonService {
             let boostPost = Post(
                 id: status.id,
                 content: "",  // Reblog doesn't have its own content
-                authorName: status.account.displayName,
+                authorName: status.account.displayName ?? status.account.acct,
                 authorUsername: status.account.acct,
                 authorProfilePictureURL: status.account.avatar,
-                createdAt: DateParser.parse(status.createdAt) ?? Date.distantPast,
+                createdAt: {
+                    let parsedDate = DateParser.parse(status.createdAt)
+                    if parsedDate == nil {
+                        logger.error("❌ MASTODON DATE PARSE FAILED: '\(status.createdAt)'")
+                        print("❌ MASTODON DATE PARSE FAILED: '\(status.createdAt)'")
+                    }
+                    return parsedDate ?? Date.distantPast
+                }(),
                 platform: .mastodon,
                 originalURL: status.url ?? "",
                 attachments: [],
@@ -1505,8 +1573,8 @@ public class MastodonService {
                 likeCount: status.favouritesCount,
                 repostCount: status.reblogsCount,
                 replyCount: status.repliesCount,  // Add reply count
-                boostedBy: status.account.displayName.isEmpty
-                    ? status.account.acct : status.account.displayName,
+                boostedBy: (status.account.displayName?.isEmpty ?? true)
+                    ? status.account.acct : (status.account.displayName ?? status.account.acct),
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil
             )
@@ -1557,11 +1625,14 @@ public class MastodonService {
             return tag.name
         }
 
-        // Create a properly configured ISO8601DateFormatter
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-
-        let createdDate = formatter.date(from: status.createdAt) ?? Date()
+        // Use DateParser for consistent date parsing
+        let createdDate =
+            DateParser.parse(status.createdAt)
+            ?? {
+                logger.error("❌ MASTODON MAIN DATE PARSE FAILED: '\(status.createdAt)'")
+                print("❌ MASTODON MAIN DATE PARSE FAILED: '\(status.createdAt)'")
+                return Date.distantPast
+            }()
 
         // Log reply status information
         if let replyToId = status.inReplyToId {
@@ -1604,7 +1675,7 @@ public class MastodonService {
         let post = Post(
             id: status.id,
             content: status.content,
-            authorName: status.account.displayName,
+            authorName: status.account.displayName ?? status.account.acct,
             authorUsername: status.account.acct,
             authorProfilePictureURL: status.account.avatar,
             createdAt: createdDate,
@@ -1847,7 +1918,9 @@ public class MastodonService {
         clientSecret: String
     ) -> SocialAccount {
         // Generate a default avatar URL using the displayName
-        let displayName = userInfo.displayName.isEmpty ? userInfo.username : userInfo.displayName
+        let displayName =
+            (userInfo.displayName?.isEmpty ?? true)
+            ? userInfo.username : (userInfo.displayName ?? userInfo.username)
         let defaultAvatarURL = URL(
             string:
                 "https://ui-avatars.com/api/?name=\(displayName.replacingOccurrences(of: " ", with: "+"))&background=random"

@@ -31,7 +31,7 @@ public struct MastodonPost: Codable, Identifiable {
         public let id: String
         public let username: String
         public let acct: String
-        public let displayName: String
+        public let displayName: String?
         public let avatar: String
         public let avatarStatic: String
         public let header: String
@@ -47,6 +47,18 @@ public struct MastodonPost: Codable, Identifiable {
         public let followingCount: Int
         public let statusesCount: Int
         public let lastStatusAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, username, acct, avatar, header, locked, bot, discoverable, group, note, url
+            case displayName = "display_name"
+            case avatarStatic = "avatar_static"
+            case headerStatic = "header_static"
+            case createdAt = "created_at"
+            case followersCount = "followers_count"
+            case followingCount = "following_count"
+            case statusesCount = "statuses_count"
+            case lastStatusAt = "last_status_at"
+        }
     }
 
     public struct MastodonMediaAttachment: Codable {
