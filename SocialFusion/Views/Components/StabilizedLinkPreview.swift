@@ -32,6 +32,7 @@ struct StabilizedLinkPreview: View {
         contentView
             .frame(maxWidth: .infinity, idealHeight: idealHeight, maxHeight: idealHeight)
             .fixedSize(horizontal: false, vertical: true)
+            .clipped()
             .animation(.easeInOut(duration: 0.2), value: isLoading)
             .onAppear {
                 // Use Task to defer state updates outside view rendering cycle
@@ -256,32 +257,70 @@ private struct StabilizedLinkContentView: View {
         Button(action: {
             UIApplication.shared.open(url)
         }) {
-            VStack(alignment: .leading, spacing: 0) {
-                // Image on top - full width, edge to edge, matching Bluesky style
+            // YouTube-style: Single ZStack with image and overlaid content
+            ZStack {
+                // Background image
                 imageSection
                     .frame(maxWidth: .infinity)
-                    .frame(height: 140)  // Slightly reduced height to prevent squishing
+                    .frame(height: height)
                     .clipped()
 
-                // Text content below image - Bluesky style
-                textSection
+                // YouTube-style gradient overlay for text readability
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.0),
+                        Color.black.opacity(0.1),
+                        Color.black.opacity(0.4),
+                        Color.black.opacity(0.7),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                // Content overlay (exactly like YouTube)
+                VStack {
+                    Spacer()
+
+                    // Link info overlay with YouTube-style layout
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            // Link icon (equivalent to YouTube icon)
+                            Image(systemName: "link")
+                                .foregroundColor(.white)
+                                .font(.caption)
+
+                            Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
+
+                            Spacer()
+                        }
+
+                        // Title with YouTube-style constraints
+                        if let title = metadata.title, !title.isEmpty {
+                            Text(title)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.white)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 16)  // Increased vertical padding for more breathing room
+                    .padding(.bottom, 16)
+                }
             }
             .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        colorScheme == .dark
-                            ? Color(.systemGray6) : Color(.systemGray6).opacity(0.3))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.separator).opacity(0.3), lineWidth: 1)
-            )
+            .frame(height: height)
+            .cornerRadius(12)
             .clipped()
         }
-        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity, idealHeight: height, maxHeight: height)
+        .buttonStyle(ScaleButtonStyle())
         .onAppear {
             loadImageURL()
         }
@@ -297,18 +336,8 @@ private struct StabilizedLinkContentView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity)
-                        .frame(maxHeight: 140)
+                        .frame(maxHeight: 200)
                         .clipped()
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                cornerRadii: .init(
-                                    topLeading: 12,
-                                    bottomLeading: 0,
-                                    bottomTrailing: 0,
-                                    topTrailing: 12
-                                )
-                            )
-                        )
                 case .failure(_):
                     failureImageView
                 case .empty:
@@ -325,16 +354,6 @@ private struct StabilizedLinkContentView: View {
     private var failureImageView: some View {
         Rectangle()
             .fill(Color.gray.opacity(0.15))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: 12,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 12
-                    )
-                )
-            )
             .overlay(
                 Image(systemName: "photo")
                     .font(.title2)
@@ -345,16 +364,6 @@ private struct StabilizedLinkContentView: View {
     private var loadingImageView: some View {
         Rectangle()
             .fill(Color.gray.opacity(0.1))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: 12,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 12
-                    )
-                )
-            )
             .overlay(
                 ProgressView()
                     .scaleEffect(0.8)
@@ -364,59 +373,11 @@ private struct StabilizedLinkContentView: View {
     private var placeholderImageView: some View {
         Rectangle()
             .fill(Color.gray.opacity(0.15))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: 12,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 12
-                    )
-                )
-            )
             .overlay(
                 Image(systemName: "link")
                     .font(.title2)
                     .foregroundColor(.secondary)
             )
-    }
-
-    private var textSection: some View {
-        VStack(alignment: .leading, spacing: 6) {  // Increased spacing for breathing room
-            // Title - Bluesky style with proper line height
-            if let title = metadata.title, !title.isEmpty {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineSpacing(2)  // Add proper line spacing
-                    .lineLimit(2)
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // Description - Bluesky style
-            if let description = metadata.value(forKey: "_summary") as? String,
-                !description.isEmpty
-            {
-                Text(description)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // Domain - Bluesky style with subtle styling
-            HStack(spacing: 4) {
-                Image(systemName: "link")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-
-                Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-        }
     }
 
     private func loadImageURL() {
@@ -478,65 +439,75 @@ private struct StabilizedLinkFallbackView: View {
         Button(action: {
             UIApplication.shared.open(url)
         }) {
-            VStack(alignment: .leading, spacing: 0) {
-                // Icon placeholder on top - Bluesky style
+            // YouTube-style: Single ZStack with placeholder and overlaid content
+            ZStack {
+                // Background placeholder
                 Rectangle()
                     .fill(Color.gray.opacity(0.15))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 140)
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            cornerRadii: .init(
-                                topLeading: 12,
-                                bottomLeading: 0,
-                                bottomTrailing: 0,
-                                topTrailing: 12
-                            )
-                        )
-                    )
+                    .frame(height: height)
                     .overlay(
-                        Image(systemName: "link")
-                            .font(.title2)
-                            .foregroundColor(.secondary)
+                        Image(systemName: "globe")
+                            .font(.system(size: 32, weight: .light))
+                            .foregroundColor(.secondary.opacity(0.6))
                     )
 
-                // Text content below - Bluesky style
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.primary)
+                // YouTube-style gradient overlay for text readability
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.0),
+                        Color.black.opacity(0.1),
+                        Color.black.opacity(0.4),
+                        Color.black.opacity(0.7),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                // Content overlay (exactly like YouTube)
+                VStack {
+                    Spacer()
+
+                    // Link info overlay with YouTube-style layout
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            // Link icon (equivalent to YouTube icon)
+                            Image(systemName: "link")
+                                .foregroundColor(.white)
+                                .font(.caption)
+
+                            Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
+
+                            Spacer()
+                        }
+
+                        // Domain/path as title
+                        Text(
+                            url.host?.replacingOccurrences(of: "www.", with: "") ?? "External Link"
+                        )
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
                         .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
                         .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // Show more of the URL path for better context
-                    HStack(spacing: 4) {
-                        Image(systemName: "link")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-
-                        Text(url.path.isEmpty ? "External Link" : url.path)
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
             }
             .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        colorScheme == .dark
-                            ? Color(.systemGray6) : Color(.systemGray6).opacity(0.3))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.separator).opacity(0.3), lineWidth: 1)
-            )
+            .frame(height: height)
+            .cornerRadius(12)
             .clipped()
         }
-        .buttonStyle(PlainButtonStyle())
+        .frame(maxWidth: .infinity, idealHeight: height, maxHeight: height)
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
@@ -558,4 +529,13 @@ private struct StabilizedLinkFallbackView: View {
         )
     }
     .padding()
+}
+
+// MARK: - YouTube-Style Button Animation
+private struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+    }
 }
