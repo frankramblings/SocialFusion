@@ -1,5 +1,94 @@
 import SwiftUI
 
+/// Simple empty state view for basic edge case handling
+struct SimpleEmptyStateView: View {
+    enum StateType {
+        case loading
+        case noAccounts
+        case noInternet
+        case noPostsYet
+        case lowMemory
+    }
+    
+    let state: StateType
+    let onRetry: (() -> Void)?
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            image
+                .font(.system(size: 48))
+                .foregroundColor(.secondary)
+            
+            Text(title)
+                .font(.title2)
+                .fontWeight(.medium)
+                .multilineTextAlignment(.center)
+            
+            Text(message)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            
+            if let onRetry = onRetry, state != .loading {
+                Button("Retry") {
+                    onRetry()
+                }
+                .buttonStyle(.borderedProminent)
+                .padding(.top, 8)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    @ViewBuilder
+    private var image: some View {
+        switch state {
+        case .loading:
+            ProgressView()
+                .scaleEffect(1.5)
+        case .noAccounts:
+            Image(systemName: "person.crop.circle.badge.questionmark")
+        case .noInternet:
+            Image(systemName: "wifi.slash")
+        case .noPostsYet:
+            Image(systemName: "timeline.selection")
+        case .lowMemory:
+            Image(systemName: "memorychip")
+        }
+    }
+    
+    private var title: String {
+        switch state {
+        case .loading:
+            return "Loading timeline..."
+        case .noAccounts:
+            return "No accounts added"
+        case .noInternet:
+            return "No internet connection"
+        case .noPostsYet:
+            return "No posts yet"
+        case .lowMemory:
+            return "Low memory"
+        }
+    }
+    
+    private var message: String {
+        switch state {
+        case .loading:
+            return "Please wait while we fetch your timeline."
+        case .noAccounts:
+            return "Add your Mastodon or Bluesky accounts to see posts here."
+        case .noInternet:
+            return "Please check your network connection and try again."
+        case .noPostsYet:
+            return "Pull to refresh or add some accounts to get started."
+        case .lowMemory:
+            return "The app is running low on memory. Some features may be limited."
+        }
+    }
+}
+
 /// Consolidated timeline view that serves as the single source of truth
 /// Implements proper SwiftUI state management to prevent AttributeGraph cycles
 /// Enhanced with Phase 3 features: position persistence, smart restoration, and unread tracking
@@ -16,7 +105,7 @@ struct ConsolidatedTimelineView: View {
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
     @StateObject private var timelineState = TimelineState()
     private let config = TimelineConfiguration.shared
-
+    
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -106,37 +195,35 @@ struct ConsolidatedTimelineView: View {
     @ViewBuilder
     private var contentView: some View {
         if controller.posts.isEmpty && controller.isLoading {
-            loadingView
+            SimpleEmptyStateView(
+                state: .loading,
+                onRetry: {
+                    controller.refreshTimeline()
+                }
+            )
         } else if controller.posts.isEmpty && !controller.isLoading {
-            emptyView
+            determineEmptyState()
         } else {
             timelineView
         }
     }
-
-    private var loadingView: some View {
-        VStack(spacing: 16) {
-            ProgressView()
-                .scaleEffect(1.2)
-            Text("Loading timeline...")
-                .foregroundColor(.secondary)
+    
+    @ViewBuilder
+    private func determineEmptyState() -> some View {
+        // Determine the appropriate empty state based on current conditions
+        if serviceManager.accounts.isEmpty {
+            SimpleEmptyStateView(
+                state: .noAccounts,
+                onRetry: nil
+            )
+        } else {
+            SimpleEmptyStateView(
+                state: .noPostsYet,
+                onRetry: {
+                    controller.refreshTimeline()
+                }
+            )
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var emptyView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "timeline.selection")
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-            Text("No posts yet")
-                .font(.title2)
-                .fontWeight(.medium)
-            Text("Pull to refresh or add some accounts to get started")
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var timelineView: some View {
