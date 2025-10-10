@@ -9,26 +9,26 @@ struct SimpleEmptyStateView: View {
         case noPostsYet
         case lowMemory
     }
-    
+
     let state: StateType
     let onRetry: (() -> Void)?
-    
+
     var body: some View {
         VStack(spacing: 16) {
             image
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            
+
             Text(title)
                 .font(.title2)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.center)
-            
+
             Text(message)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            
+
             if let onRetry = onRetry, state != .loading {
                 Button("Retry") {
                     onRetry()
@@ -40,7 +40,7 @@ struct SimpleEmptyStateView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
+
     @ViewBuilder
     private var image: some View {
         switch state {
@@ -57,7 +57,7 @@ struct SimpleEmptyStateView: View {
             Image(systemName: "memorychip")
         }
     }
-    
+
     private var title: String {
         switch state {
         case .loading:
@@ -72,7 +72,7 @@ struct SimpleEmptyStateView: View {
             return "Low memory"
         }
     }
-    
+
     private var message: String {
         switch state {
         case .loading:
@@ -105,7 +105,7 @@ struct ConsolidatedTimelineView: View {
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
     @StateObject private var timelineState = TimelineState()
     private let config = TimelineConfiguration.shared
-    
+
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -207,7 +207,7 @@ struct ConsolidatedTimelineView: View {
             timelineView
         }
     }
-    
+
     @ViewBuilder
     private func determineEmptyState() -> some View {
         // Determine the appropriate empty state based on current conditions

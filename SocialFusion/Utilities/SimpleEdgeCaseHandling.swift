@@ -1,23 +1,23 @@
-import SwiftUI
 import Network
+import SwiftUI
 
 /// Simple edge case monitoring for basic app state management
 @MainActor
 class SimpleEdgeCaseMonitor: ObservableObject {
     static let shared = SimpleEdgeCaseMonitor()
-    
+
     @Published var isNetworkAvailable: Bool = true
     @Published var hasAccounts: Bool = false
     @Published var isLowMemory: Bool = false
-    
+
     private let networkMonitor = NWPathMonitor()
     private let networkQueue = DispatchQueue(label: "NetworkMonitor")
-    
+
     private init() {
         setupNetworkMonitoring()
         setupMemoryMonitoring()
     }
-    
+
     private func setupNetworkMonitoring() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
@@ -26,7 +26,7 @@ class SimpleEdgeCaseMonitor: ObservableObject {
         }
         networkMonitor.start(queue: networkQueue)
     }
-    
+
     private func setupMemoryMonitoring() {
         NotificationCenter.default.addObserver(
             forName: UIApplication.didReceiveMemoryWarningNotification,
@@ -45,13 +45,13 @@ class SimpleEdgeCaseMonitor: ObservableObject {
             }
         }
     }
-    
+
     func updateAccountStatus(hasAccounts: Bool) {
         Task { @MainActor in
             self.hasAccounts = hasAccounts
         }
     }
-    
+
     deinit {
         networkMonitor.cancel()
         NotificationCenter.default.removeObserver(self)
@@ -67,26 +67,26 @@ struct SimpleEmptyStateView: View {
         case noPostsYet
         case lowMemory
     }
-    
+
     let state: StateType
     let onRetry: (() -> Void)?
-    
+
     var body: some View {
         VStack(spacing: 16) {
             image
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
-            
+
             Text(title)
                 .font(.title2)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.center)
-            
+
             Text(message)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
-            
+
             if let onRetry = onRetry, state != .loading {
                 Button("Retry") {
                     onRetry()
@@ -98,7 +98,7 @@ struct SimpleEmptyStateView: View {
         .padding()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
+
     @ViewBuilder
     private var image: some View {
         switch state {
@@ -115,7 +115,7 @@ struct SimpleEmptyStateView: View {
             Image(systemName: "memorychip")
         }
     }
-    
+
     private var title: String {
         switch state {
         case .loading:
@@ -130,7 +130,7 @@ struct SimpleEmptyStateView: View {
             return "Low memory"
         }
     }
-    
+
     private var message: String {
         switch state {
         case .loading:

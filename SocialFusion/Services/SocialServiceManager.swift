@@ -277,7 +277,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Update edge case handler with authentication state - temporarily disabled
         // updateAuthenticationState()
-        
+
         // Update simple edge case monitor with account status - temporarily disabled
         // SimpleEdgeCaseMonitor.shared.updateAccountStatus(hasAccounts: !accounts.isEmpty)
 
