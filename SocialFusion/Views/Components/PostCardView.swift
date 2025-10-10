@@ -223,6 +223,93 @@ struct PostCardView: View {
             }
             bannerWasTapped = false
         }
+        // MARK: - Accessibility Support
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(postAccessibilityLabel)
+        .accessibilityHint("Double tap to view full post and replies")
+        .accessibilityAction(named: "Reply") {
+            onReply()
+        }
+        .accessibilityAction(named: "Repost") {
+            onRepost()
+        }
+        .accessibilityAction(named: "Like") {
+            onLike()
+        }
+        .accessibilityAction(named: "Share") {
+            onShare()
+        }
+    }
+
+    // MARK: - Accessibility Helpers
+
+    /// Creates a comprehensive accessibility label for the post
+    private var postAccessibilityLabel: String {
+        var components: [String] = []
+
+        // Boost information
+        if let boostedBy = boostedBy {
+            components.append("Reposted by \(boostedBy)")
+        }
+
+        // Author and timestamp
+        components.append(
+            "Post by \(displayPost.authorName), \(formatAccessibilityTimestamp(displayPost.createdAt))"
+        )
+
+        // Content
+        let cleanContent = displayPost.content.replacingOccurrences(of: "\n", with: " ")
+        if !cleanContent.isEmpty {
+            components.append("Content: \(cleanContent)")
+        }
+
+        // Media count
+        if !displayPost.attachments.isEmpty {
+            let mediaCount = displayPost.attachments.count
+            let mediaType = displayPost.attachments.first?.type == .image ? "image" : "media"
+            components.append("\(mediaCount) \(mediaType)\(mediaCount > 1 ? "s" : "") attached")
+        }
+
+        // Interaction counts
+        var interactions: [String] = []
+        if replyCount > 0 {
+            interactions.append("\(replyCount) repl\(replyCount == 1 ? "y" : "ies")")
+        }
+        if repostCount > 0 {
+            interactions.append("\(repostCount) repost\(repostCount == 1 ? "" : "s")")
+        }
+        if likeCount > 0 {
+            interactions.append("\(likeCount) like\(likeCount == 1 ? "" : "s")")
+        }
+
+        if !interactions.isEmpty {
+            components.append(interactions.joined(separator: ", "))
+        }
+
+        // User's interaction state
+        var userStates: [String] = []
+        if isLiked {
+            userStates.append("liked by you")
+        }
+        if isReposted {
+            userStates.append("reposted by you")
+        }
+        if isReplying {
+            userStates.append("reply in progress")
+        }
+
+        if !userStates.isEmpty {
+            components.append(userStates.joined(separator: ", "))
+        }
+
+        return components.joined(separator: ". ")
+    }
+
+    /// Formats timestamp for accessibility
+    private func formatAccessibilityTimestamp(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

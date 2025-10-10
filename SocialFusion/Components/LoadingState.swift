@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Represents the state of loading data
 enum LoadingState<T> {
@@ -71,7 +72,7 @@ struct EmptyStateView: View {
             .background(Color(.systemGroupedBackground))
             .cornerRadius(12)
 
-        LoadingStateView(
+        LoadingStateView<AnyView, EmptyStateView>(
             state: .loading,
             emptyContent: { EmptyStateView(message: "Nothing here", systemImage: "tray") },
             retryAction: {}
@@ -80,7 +81,7 @@ struct EmptyStateView: View {
         .background(Color(.systemGroupedBackground))
         .cornerRadius(12)
 
-        LoadingStateView(
+        LoadingStateView<AnyView, EmptyStateView>(
             state: .error(NSError(domain: "test", code: 1, userInfo: nil)),
             emptyContent: { EmptyStateView(message: "Nothing here", systemImage: "tray") },
             retryAction: {}

@@ -70,7 +70,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
 
     private func makeURL(path: String) throws -> URL {
         guard let url = URL(string: "https://bsky.social/xrpc\(path)") else {
-            throw BlueskyError.invalidURL
+            throw BlueskyAPIClientError.invalidURL
         }
         return url
     }
@@ -87,7 +87,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let url = try makeURL(path: "/com.atproto.repo.createRecord")
         var request = try makeRequest(url: url, method: "POST", token: token)
 
-        let body = [
+        let body: [String: Any] = [
             "collection": "app.bsky.feed.post",
             "repo": "did:plc:example",
             "record": [
@@ -100,7 +100,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -109,11 +109,11 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode(BlueskyPost.self, from: data)
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -129,7 +129,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -139,11 +139,11 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
             let result = try decoder.decode(BlueskyPostResponse.self, from: data)
             return result.post
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -164,18 +164,18 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -196,18 +196,18 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -228,18 +228,18 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -260,18 +260,18 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -282,7 +282,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         var request = try makeRequest(url: url, method: "POST", token: token)
 
         // Add request body
-        let body = [
+        let body: [String: Any] = [
             "text": content,
             "reply": [
                 "parent": [
@@ -300,7 +300,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -310,11 +310,11 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
             let result = try decoder.decode(BlueskyPostResponse.self, from: data)
             return result.post
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         case 404:
-            throw BlueskyError.notFound
+            throw BlueskyAPIClientError.notFound
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -326,7 +326,7 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw BlueskyError.invalidResponse
+            throw BlueskyAPIClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -336,9 +336,9 @@ public class BlueskyAPIClientImpl: BlueskyAPIClient {
             let result = try decoder.decode(BlueskyTimelineResponse.self, from: data)
             return result.feed.map { $0.post }
         case 401:
-            throw BlueskyError.unauthorized
+            throw BlueskyAPIClientError.unauthorized
         default:
-            throw BlueskyError.serverError(httpResponse.statusCode)
+            throw BlueskyAPIClientError.serverError(httpResponse.statusCode)
         }
     }
 }
@@ -357,7 +357,7 @@ private struct BlueskyTimelineItem: Codable {
 }
 
 // MARK: - Errors
-public enum BlueskyError: Error {
+public enum BlueskyAPIClientError: Error {
     case invalidURL
     case invalidResponse
     case unauthorized
@@ -368,14 +368,14 @@ public enum BlueskyError: Error {
 // MARK: - Preview Helper
 extension BlueskyAPIClient {
     static var preview: BlueskyAPIClient {
-        BlueskyAPIClientImpl()
+        BlueskyAPIClientImpl(postNormalizer: PostNormalizerImpl.shared)
     }
 }
 
 // MARK: - Models
 
 /// Represents a Bluesky post
-public struct BlueskyPost: Codable {
+public struct APIBlueskyPost: Codable {
     public let uri: String
     public let cid: String
     public let author: BlueskyAuthor

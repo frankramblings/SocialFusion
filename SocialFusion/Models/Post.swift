@@ -244,6 +244,52 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         case blueskyRepostRecordURI
     }
 
+    // MARK: - Poll Support (nested types for UI components)
+    public struct Poll: Identifiable, Equatable {
+        public struct PollOption: Identifiable, Equatable {
+            public var id: String { title }
+            public let title: String
+            public let votesCount: Int?
+
+            public init(title: String, votesCount: Int? = nil) {
+                self.title = title
+                self.votesCount = votesCount
+            }
+        }
+
+        public let id: String
+        public let expiresAt: Date?
+        public let expired: Bool
+        public let multiple: Bool
+        public let votesCount: Int
+        public let votersCount: Int?
+        public let voted: Bool?
+        public let ownVotes: [Int]?
+        public let options: [PollOption]
+
+        public init(
+            id: String,
+            expiresAt: Date? = nil,
+            expired: Bool = false,
+            multiple: Bool = false,
+            votesCount: Int,
+            votersCount: Int? = nil,
+            voted: Bool? = nil,
+            ownVotes: [Int]? = nil,
+            options: [PollOption]
+        ) {
+            self.id = id
+            self.expiresAt = expiresAt
+            self.expired = expired
+            self.multiple = multiple
+            self.votesCount = votesCount
+            self.votersCount = votersCount
+            self.voted = voted
+            self.ownVotes = ownVotes
+            self.options = options
+        }
+    }
+
     public required convenience init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let id = try container.decode(String.self, forKey: .id)
@@ -710,7 +756,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
                         let videoID = URLServiceWrapper.shared.extractYouTubeVideoID(from: link)
                     {
                         return AnyView(YouTubeVideoPreview(url: link, videoID: videoID))
-                    } else {
+                    } else if !URLServiceWrapper.shared.isGIFURL(link) {
+                        // Only show link preview if it's not a GIF URL
                         return AnyView(StabilizedLinkPreview(url: link, idealHeight: 140))
                     }
                 }
@@ -821,7 +868,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
     }
 }
 
-class PostViewModel: ObservableObject, Identifiable {
+private class PostViewModelInternal: ObservableObject, Identifiable {
     enum Kind: Equatable {
         case normal
         case boost(boostedBy: String)

@@ -47,8 +47,8 @@ enum BlueskyTokenError: Error, Equatable {
     }
 }
 
-/// Set up local NetworkError temporarily
-enum NetworkError: Error {
+// Use the canonical NetworkError defined in Networking
+enum LocalNetworkError: Error {
     case requestFailed(Error)
     case httpError(Int, String?)
     case noData
@@ -67,7 +67,7 @@ enum NetworkError: Error {
     case networkUnavailable
     case apiError(String)
 
-    static func from(error: Error?, response: URLResponse?) -> NetworkError {
+    static func from(error: Error?, response: URLResponse?) -> LocalNetworkError {
         // First handle NSError types
         if let nsError = error as NSError? {
             switch nsError.domain {
@@ -1253,14 +1253,27 @@ class BlueskyService {
                         {
                             let originalText = nsText.substring(with: replacement.range)
                             // Only replace if the original text appears truncated (contains ellipsis or is shorter)
+                            // AND the replacement URL is valid and doesn't already contain the original text
                             if originalText.contains("...")
-                                || originalText.count < replacement.fullURL.count
+                                || originalText.count < replacement.fullURL.count,
+                                !replacement.fullURL.contains(originalText),
+                                URL(string: replacement.fullURL) != nil
                             {
-                                fullTextWithLinks = nsText.replacingCharacters(
+                                let newText = nsText.replacingCharacters(
                                     in: replacement.range, with: replacement.fullURL)
-                                logger.info(
-                                    "[Bluesky] Replaced truncated URL '\(originalText)' with full URL '\(replacement.fullURL)'"
-                                )
+
+                                // Prevent URL concatenation by checking if the result looks malformed
+                                if !newText.contains("httpshttps") && !newText.contains("httphttp")
+                                {
+                                    fullTextWithLinks = newText
+                                    logger.info(
+                                        "[Bluesky] Replaced truncated URL '\(originalText)' with full URL '\(replacement.fullURL)'"
+                                    )
+                                } else {
+                                    logger.warning(
+                                        "[Bluesky] Skipped URL replacement to prevent concatenation: '\(originalText)' -> '\(replacement.fullURL)'"
+                                    )
+                                }
                             }
                         }
                     }
@@ -1402,8 +1415,22 @@ class BlueskyService {
                         let external = embed["external"] as? [String: Any],
                         let externalUri = external["uri"] as? String
                     {
-                        externalEmbedURL = externalUri
-                        logger.info("[Bluesky] Found external embed URL: \(externalUri)")
+                        // Check if this is a GIF URL - if so, treat it as media attachment instead of link preview
+                        if let gifURL = URL(string: externalUri), URLService.shared.isGIFURL(gifURL)
+                        {
+                            let alt =
+                                external["title"] as? String ?? external["description"] as? String
+                                ?? "Animated GIF"
+                            attachments.append(
+                                Post.Attachment(url: externalUri, type: .animatedGIF, altText: alt)
+                            )
+                            logger.info(
+                                "[Bluesky] Treated external GIF URL as animated attachment: \(externalUri)"
+                            )
+                        } else {
+                            externalEmbedURL = externalUri
+                            logger.info("[Bluesky] Found external embed URL: \(externalUri)")
+                        }
                     }
 
                     // Handle direct record embed (quote post) - check for app.bsky.embed.record#view
@@ -1783,7 +1810,7 @@ class BlueskyService {
     }
 
     private func convertBlueskyPostToOriginalPost(_ post: BlueskyPost) -> Post {
-        let quotedPostUri = post.embed?.record?.record.uri
+        let quotedPostUri = post.embed?.record?.uri
         let quotedPostAuthorHandle: String? = nil  // Not available from Bluesky API
         let authorName = post.author.displayName ?? post.author.handle
         let authorUsername = post.author.handle
@@ -1823,8 +1850,8 @@ class BlueskyService {
             mentions: mentions,
             tags: tags,
             originalPost: nil,
-            isReposted: post.viewer?.repostUri != nil,
-            isLiked: post.viewer?.likeUri != nil,
+            isReposted: post.viewer?.repost != nil,
+            isLiked: post.viewer?.like != nil,
             likeCount: post.likeCount,
             repostCount: post.repostCount,
             platformSpecificId: post.uri,
@@ -1835,8 +1862,8 @@ class BlueskyService {
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
             cid: cid,
-            blueskyLikeRecordURI: post.viewer?.likeUri,  // Use existing like URI if available
-            blueskyRepostRecordURI: post.viewer?.repostUri  // Use existing repost URI if available
+            blueskyLikeRecordURI: post.viewer?.like,  // Use existing like URI if available
+            blueskyRepostRecordURI: post.viewer?.repost  // Use existing repost URI if available
         )
     }
 
@@ -1921,7 +1948,7 @@ class BlueskyService {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2017,7 +2044,7 @@ class BlueskyService {
             }
         }
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2169,7 +2196,7 @@ class BlueskyService {
         }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2276,7 +2303,7 @@ class BlueskyService {
             }
         }
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2431,7 +2458,7 @@ class BlueskyService {
         }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
@@ -2517,7 +2544,7 @@ class BlueskyService {
         request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(BlueskyError.self, from: data) {
+            if let errorResponse = try? JSONDecoder().decode(BlueskyAPIErrorDTO.self, from: data) {
                 throw errorResponse
             }
             throw NSError(

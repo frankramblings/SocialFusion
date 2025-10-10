@@ -107,8 +107,8 @@ struct LaunchAnimationView: View {
                     bloomScale = 1.0
                     bloomOpacity = 0.85
                 }
-                // Allow more time for the complete animation sequence including the settle phase
-                try? await Task.sleep(nanoseconds: 1_080_000_000)  // 1.08 seconds (1.5 - 0.3 - 0.12)
+                // Allow time for the complete animation sequence including the settle phase
+                try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds for smoother daily use
                 onFinished()
             }
         }

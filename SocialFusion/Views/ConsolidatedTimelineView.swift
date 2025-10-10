@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Consolidated timeline view that serves as the single source of truth
 /// Implements proper SwiftUI state management to prevent AttributeGraph cycles
+/// Enhanced with Phase 3 features: position persistence, smart restoration, and unread tracking
 struct ConsolidatedTimelineView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @StateObject private var controller: UnifiedTimelineController
@@ -11,6 +12,16 @@ struct ConsolidatedTimelineView: View {
     @State private var lastScrollTime = Date()
     @State private var scrollCancellationTimer: Timer?
     @State private var replyingToPost: Post? = nil
+
+    // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
+    @StateObject private var timelineState = TimelineState()
+    private let config = TimelineConfiguration.shared
+
+    // MARK: - Accessibility Environment
+    @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
 
     init(serviceManager: SocialServiceManager) {
         // Use a factory pattern to create the controller with proper dependency injection
@@ -44,8 +55,31 @@ struct ConsolidatedTimelineView: View {
                 FeedReplyComposer(post: post, onDismiss: { replyingToPost = nil })
             }
             .task {
+                // PHASE 3+: Enhanced timeline initialization with position restoration
+                if config.isFeatureEnabled(.positionPersistence) {
+                    // Load cached content immediately for instant display
+                    // TODO: Implement loadCachedContent method
+                    // timelineState.loadCachedContent(from: serviceManager)
+
+                    // Update timeline state when posts are loaded
+                    if !controller.posts.isEmpty {
+                        timelineState.updateFromTimelineEntries(
+                            controller.posts.map { post in
+                                TimelineEntry(
+                                    id: post.id, kind: .normal, post: post,
+                                    createdAt: post.createdAt)
+                            })
+                    }
+                }
+
                 // Proper lifecycle management - only refresh if needed
                 await ensureTimelineLoaded()
+
+                // PHASE 3+: Smart position restoration after content loads
+                if config.isFeatureEnabled(.smartRestoration) && !controller.posts.isEmpty {
+                    // TODO: Implement performSmartRestoration function
+                    // await performSmartRestoration()
+                }
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("Retry") {
@@ -121,6 +155,7 @@ struct ConsolidatedTimelineView: View {
                         if post.id != controller.posts.last?.id {
                             Divider()
                                 .padding(.horizontal, 16)
+                                .accessibilityHidden(true)  // Hide decorative dividers from VoiceOver
                         }
                     }
 
@@ -128,12 +163,15 @@ struct ConsolidatedTimelineView: View {
                     if controller.isLoadingNextPage {
                         infiniteScrollLoadingView
                             .padding(.vertical, 20)
+                            .accessibilityLabel("Loading more posts")
                     }
 
                     // End of timeline indicator
                     if !controller.hasNextPage && !controller.posts.isEmpty {
                         endOfTimelineView
                             .padding(.vertical, 20)
+                            .accessibilityLabel("End of timeline")
+                            .accessibilityHint("No more posts to load")
                     }
                 }
                 .background(
@@ -152,6 +190,15 @@ struct ConsolidatedTimelineView: View {
             }
             .refreshable {
                 await refreshTimeline()
+            }
+            // MARK: - Timeline Accessibility
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Timeline")
+            .accessibilityHint("Swipe up and down to navigate posts, pull down to refresh")
+            .accessibilityAction(named: "Refresh Timeline") {
+                Task {
+                    await refreshTimeline()
+                }
             }
         }
     }

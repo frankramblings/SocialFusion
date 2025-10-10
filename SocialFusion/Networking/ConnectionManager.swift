@@ -141,7 +141,7 @@ class ConnectionManager {
                 if let dataString = String(data: data, encoding: .utf8)?.prefix(200) {
                     print("Response prefix: \(dataString)...")
                 }
-                throw NetworkError.decodingError(error)
+                throw NetworkError.decodingError
             }
         } catch {
             throw error  // Already converted to NetworkError in send method
@@ -316,57 +316,5 @@ class ConnectionManager {
     @objc private func appWillTerminate() {
         // Cancel all pending requests
         cancelAllRequests()
-    }
-}
-
-/// Network-related errors
-enum NetworkError: Error {
-    case requestFailed(Error)
-    case httpError(Int)
-    case noData
-    case decodingError(Error)
-    case invalidURL
-    case cancelled
-    case duplicateRequest
-    case timeout
-    case unsupportedResponse
-
-    static func from(error: Error?, response: HTTPURLResponse?) -> NetworkError {
-        if let error = error {
-            return .requestFailed(error)
-        } else if let response = response {
-            if (200...299).contains(response.statusCode) {
-                return .noData
-            } else {
-                return .httpError(response.statusCode)
-            }
-        } else {
-            return .noData
-        }
-    }
-}
-
-extension NetworkError: LocalizedError {
-    var errorDescription: String? {
-        switch self {
-        case .requestFailed(let error):
-            return "Request failed: \(error.localizedDescription)"
-        case .httpError(let statusCode):
-            return "HTTP error: \(statusCode)"
-        case .noData:
-            return "No data received"
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
-        case .invalidURL:
-            return "Invalid URL"
-        case .cancelled:
-            return "Request was cancelled"
-        case .duplicateRequest:
-            return "Duplicate request detected"
-        case .timeout:
-            return "Request timed out"
-        case .unsupportedResponse:
-            return "Unsupported response format"
-        }
     }
 }

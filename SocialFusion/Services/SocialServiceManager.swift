@@ -139,6 +139,9 @@ public final class SocialServiceManager: ObservableObject {
     private let mastodonService = MastodonService()
     private let blueskyService = BlueskyService()
 
+    // Edge case handling - temporarily disabled
+    // private let edgeCase = EdgeCaseHandler.shared
+
     // Cache for Mastodon parent posts to avoid redundant fetches
     private var mastodonPostCache: [String: (post: Post, timestamp: Date)] = [:]
     // Cache for Bluesky parent posts to avoid redundant fetches
@@ -272,6 +275,9 @@ public final class SocialServiceManager: ObservableObject {
             "🔧 SocialServiceManager: Updated account lists - Mastodon: \(mastodonAccounts.count), Bluesky: \(blueskyAccounts.count)"
         )
 
+        // Update edge case handler with authentication state - temporarily disabled
+        // updateAuthenticationState()
+
         // MIGRATION: Check for and migrate old DID-based Bluesky accounts
         migrateOldBlueskyAccounts()
 
@@ -304,6 +310,27 @@ public final class SocialServiceManager: ObservableObject {
         blueskyAccounts = accounts.filter { $0.platform == .bluesky }
     }
 
+    /// Update authentication state for edge case handling - temporarily disabled
+    /*
+    private func updateAuthenticationState() {
+        let totalAccounts = accounts.count
+        let authenticatedAccounts = accounts.filter { account in
+            // Check if account has valid tokens
+            switch account.platform {
+            case .mastodon:
+                return account.accessToken != nil && !account.accessToken!.isEmpty
+            case .bluesky:
+                return account.accessToken != nil && !account.accessToken!.isEmpty
+            }
+        }.count
+    
+        edgeCase.updateAuthenticationState(
+            totalAccounts: totalAccounts,
+            authenticatedAccounts: authenticatedAccounts
+        )
+    }
+    */
+
     /// Refresh profile information for all accounts
     private func refreshAccountProfiles() {
         print("🔄 SocialServiceManager: Refreshing profile images for all accounts...")
@@ -327,7 +354,7 @@ public final class SocialServiceManager: ObservableObject {
             }
 
             // Save updated accounts
-            await MainActor.run {
+            Task { @MainActor in
                 saveAccounts()
                 print("💾 Saved accounts after profile refresh")
             }
@@ -429,7 +456,7 @@ public final class SocialServiceManager: ObservableObject {
         )
 
         // Add the account to our collection
-        await MainActor.run {
+        Task { @MainActor in
             addAccount(account)
         }
 
@@ -446,7 +473,7 @@ public final class SocialServiceManager: ObservableObject {
         )
 
         // Add the account to our collection
-        await MainActor.run {
+        Task { @MainActor in
             addAccount(account)
         }
 
@@ -483,7 +510,7 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         // Add the account to our collection
-        await MainActor.run {
+        Task { @MainActor in
             addAccount(account)
         }
 
@@ -505,7 +532,7 @@ public final class SocialServiceManager: ObservableObject {
         )
 
         // Add the account to our collection
-        await MainActor.run {
+        Task { @MainActor in
             addAccount(account)
         }
 
@@ -884,7 +911,7 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         // Reset loading state
-        await MainActor.run {
+        Task { @MainActor in
             isLoadingTimeline = true
             timelineError = nil
         }
@@ -942,7 +969,7 @@ public final class SocialServiceManager: ObservableObject {
             return
         }
 
-        await MainActor.run {
+        Task { @MainActor in
             isLoadingNextPage = true
         }
 
@@ -957,7 +984,7 @@ public final class SocialServiceManager: ObservableObject {
             }
 
             guard !accountsToFetch.isEmpty else {
-                await MainActor.run {
+                Task { @MainActor in
                     isLoadingNextPage = false
                 }
                 return
@@ -999,7 +1026,7 @@ public final class SocialServiceManager: ObservableObject {
 
             let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
 
-            await MainActor.run {
+            Task { @MainActor in
                 // Deduplicate new posts against existing timeline before appending
                 let existingIds = Set(self.unifiedTimeline.map { $0.stableId })
                 let deduplicatedNewPosts = sortedNewPosts.filter {
@@ -1017,7 +1044,7 @@ public final class SocialServiceManager: ObservableObject {
             }
         } catch {
             print("❌ SocialServiceManager: Error loading next page: \(error)")
-            await MainActor.run {
+            Task { @MainActor in
                 self.isLoadingNextPage = false
             }
             throw error
@@ -1082,7 +1109,7 @@ public final class SocialServiceManager: ObservableObject {
                     )
 
                     // Store in cache
-                    await MainActor.run {
+                    Task { @MainActor in
                         self.mastodonPostCache[id] = (post: post, timestamp: Date())
                     }
                 } else {
@@ -1099,7 +1126,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Fetch posts for the specified account
     func fetchPosts(for account: SocialAccount? = nil) async throws -> [Post] {
-        await MainActor.run {
+        Task { @MainActor in
             isLoading = true
             error = nil
         }
@@ -1126,13 +1153,13 @@ public final class SocialServiceManager: ObservableObject {
             // Don't fall back to sample posts - if API calls fail, show empty timeline
             // posts.isEmpty is okay - we'll show the proper empty state in the UI
 
-            await MainActor.run {
+            Task { @MainActor in
                 isLoading = false
             }
 
             return posts
         } catch {
-            await MainActor.run {
+            Task { @MainActor in
                 self.error = error
                 isLoading = false
             }
@@ -1950,7 +1977,7 @@ public final class SocialServiceManager: ObservableObject {
         print("🔄 SocialServiceManager: Starting fetch for parent \(parentId) on \(platform)")
 
         // Mark as in progress
-        await MainActor.run {
+        Task { @MainActor in
             parentFetchInProgress.insert(cacheKey)
         }
 
@@ -1978,7 +2005,7 @@ public final class SocialServiceManager: ObservableObject {
 
             // Cache the result if successful
             if let parentPost = parentPost {
-                await MainActor.run {
+                Task { @MainActor in
                     PostParentCache.shared.cache[cacheKey] = parentPost
                 }
                 print("✅ SocialServiceManager: Cached parent post \(parentId) for \(platform)")
@@ -1991,7 +2018,6 @@ public final class SocialServiceManager: ObservableObject {
             // Don't throw - just log the error and continue
         }
     }
-
 
 }
 

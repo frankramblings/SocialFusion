@@ -123,7 +123,7 @@ struct ProfileToggleButton: View {
                 // Background glow effect for active accounts
                 if isSelected {
                     Circle()
-                        .fill(account.platform.color.opacity(0.1))
+                        .fill(Color(hex: account.platform.colorHex).opacity(0.1))
                         .frame(width: avatarSize + 8, height: avatarSize + 8)
                         .blur(radius: 8)
                 }
@@ -131,10 +131,10 @@ struct ProfileToggleButton: View {
                 // Selection ring positioned behind the profile image
                 if isSelected {
                     Circle()
-                        .stroke(account.platform.color, lineWidth: 3)
+                        .stroke(Color(hex: account.platform.colorHex), lineWidth: 3)
                         .frame(width: avatarSize + 6, height: avatarSize + 6)
                         .shadow(
-                            color: account.platform.color.opacity(0.3),
+                            color: Color(hex: account.platform.colorHex).opacity(0.3),
                             radius: 4,
                             x: 0,
                             y: 2
@@ -280,7 +280,7 @@ struct AccountSwitcherSheet: View {
 
                             if account.id == currentAccountId {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(platform.color)
+                                    .foregroundColor(Color(hex: platform.colorHex))
                             }
                         }
                         .contentShape(Rectangle())
@@ -293,7 +293,7 @@ struct AccountSwitcherSheet: View {
                         Image(platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
                             .resizable()
                             .renderingMode(.template)
-                            .foregroundStyle(platform.color)
+                            .foregroundStyle(Color(hex: platform.colorHex))
                             .frame(width: 16, height: 16)
 
                         Text("\(platform.rawValue.capitalized) Accounts")
@@ -318,7 +318,7 @@ struct AccountSwitcherSheet: View {
 #Preview {
     VStack {
         PostComposerTopBar(
-            socialServiceManager: SocialServiceManager.shared,
+            socialServiceManager: SocialServiceManager(),
             selectedAccountIds: .constant(["all"]),
             selectedVisibility: .constant(0)
         )

@@ -28,7 +28,13 @@ struct SocialFusionApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if appVersionManager.shouldShowLaunchAnimation {
+                LaunchAnimationView {
+                    // Animation completed, show main content
+                    withAnimation(.easeOut(duration: 0.5)) {
+                        appVersionManager.markLaunchAnimationCompleted()
+                    }
+                }
                 .environmentObject(serviceManager)
                 .environmentObject(appVersionManager)
                 .environmentObject(oauthManager)
@@ -40,28 +46,20 @@ struct SocialFusionApp: App {
                         handleOAuthCallback(url: url)
                     }
                 }
-                // Use NotificationCenter instead of onChange for backward compatibility
-                .onReceive(willResignActivePublisher) { _ in
-                    // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
-                    // Account saving will be handled through normal app lifecycle instead
-                }
-                .onReceive(willTerminatePublisher) { _ in
-                    // PHASE 3+: Removed state modification to prevent AttributeGraph cycles
-                    // Account saving will be handled through normal app lifecycle instead
-                }
-                .onChange(of: scenePhase) { _ in
-                    // PHASE 3+: Removed state modifications to prevent AttributeGraph cycles
-                    // App state management will be handled through normal lifecycle instead
-                }
-                .onReceive(
-                    NotificationCenter.default.publisher(
-                        for: UIApplication.didBecomeActiveNotification)
-                ) { _ in
-                    // Ensure timeline refreshes when app becomes active
-                    Task {
-                        await serviceManager.ensureTimelineRefresh()
+            } else {
+                ContentView()
+                    .environmentObject(serviceManager)
+                    .environmentObject(appVersionManager)
+                    .environmentObject(oauthManager)
+                    .onOpenURL { url in
+                        // Handle OAuth callback URLs
+                        if url.scheme == "socialfusion" {
+                            print("Received OAuth callback URL: \(url)")
+                            // Handle the OAuth callback
+                            handleOAuthCallback(url: url)
+                        }
                     }
-                }
+            }
         }
     }
 
@@ -80,7 +78,8 @@ struct SocialFusionApp: App {
             UserDefaults.standard.set(true, forKey: "AddAccountView.RecoveryInProgress")
 
             // Small delay to ensure the app is fully active
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds
                 NotificationCenter.default.post(
                     name: Notification.Name("shouldRepresentAddAccount"), object: nil,
                     userInfo: [

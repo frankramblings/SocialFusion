@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 /// Simplified wrapper that delegates to the main URLService
+// Duplicated wrapper – use the one in Utilities/LinkDetection.swift
 class URLServiceWrapper {
     static let shared = URLServiceWrapper()
 

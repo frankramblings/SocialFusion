@@ -16,171 +16,10 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>com.socialfusion.app</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>socialfusion</string>
-			</array>
-		</dict>
-	</array>
 	<key>CFBundleVersion</key>
-	<string>13</string>
+	<string>1</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSAllowsArbitraryLoadsInWebContent</key>
-		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>fediversereport.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>frankvemanuele.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-				<key>NSThirdPartyExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-				<false/>
-			</dict>
-			<key>gamespot.com</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>macstories.net</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>npr.org</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-			<key>secureserversites.net</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSExceptionMinimumTLSVersion</key>
-				<string>TLSv1.2</string>
-				<key>NSExceptionRequiresForwardSecrecy</key>
-				<false/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-				<key>NSThirdPartyExceptionAllowsInsecureHTTPLoads</key>
-				<false/>
-				<key>NSThirdPartyExceptionRequiresForwardSecrecy</key>
-				<false/>
-			</dict>
-		</dict>
-	</dict>
-	
-	<!-- Timeline State Configuration -->
-	<key>SocialFusionTimelineConfiguration</key>
-	<dict>
-		<!-- Position Persistence Settings -->
-		<key>PositionPersistence</key>
-		<dict>
-			<key>Enabled</key>
-			<true/>
-			<key>SmartRestoration</key>
-			<true/>
-			<key>MaxHistorySize</key>
-			<integer>10</integer>
-			<key>AutoSaveInterval</key>
-			<integer>5</integer>
-			<key>CrossSessionSync</key>
-			<true/>
-			<key>iCloudSyncEnabled</key>
-			<true/>
-			<key>FallbackStrategy</key>
-			<string>NearestContent</string>
-		</dict>
-		
-		<!-- Unread Tracking Settings -->
-		<key>UnreadTracking</key>
-		<dict>
-			<key>Enabled</key>
-			<true/>
-			<key>ReadOnViewport</key>
-			<true/>
-			<key>ViewportThreshold</key>
-			<real>0.5</real>
-			<key>ReadDelay</key>
-			<real>1.0</real>
-			<key>MaxUnreadHistory</key>
-			<integer>1000</integer>
-			<key>PersistAcrossLaunches</key>
-			<true/>
-		</dict>
-		
-		<!-- Timeline Cache Settings -->
-		<key>TimelineCache</key>
-		<dict>
-			<key>MaxCacheSize</key>
-			<integer>500</integer>
-			<key>CacheExpiration</key>
-			<integer>86400</integer>
-			<key>SmartCacheEviction</key>
-			<true/>
-			<key>OfflineMode</key>
-			<true/>
-		</dict>
-		
-		<!-- Performance Settings -->
-		<key>Performance</key>
-		<dict>
-			<key>LazyLoadingEnabled</key>
-			<true/>
-			<key>ScrollBufferSize</key>
-			<integer>20</integer>
-			<key>RenderAheadCount</key>
-			<integer>5</integer>
-			<key>MemoryWarningThreshold</key>
-			<real>0.8</real>
-		</dict>
-		
-		<!-- Debug & Logging -->
-		<key>Debug</key>
-		<dict>
-			<key>TimelineLogging</key>
-			<true/>
-			<key>PositionLogging</key>
-			<true/>
-			<key>PerformanceLogging</key>
-			<false/>
-			<key>VerboseMode</key>
-			<true/>
-		</dict>
-	</dict>
-	
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -192,27 +31,69 @@
 				<dict>
 					<key>UISceneConfigurationName</key>
 					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 				</dict>
 			</array>
 		</dict>
 	</dict>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
-	<key>UIRequiresFullScreen</key>
-	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
 	</array>
-	<key>UISupportedInterfaceOrientations~ipad</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-		<string>UIInterfaceOrientationPortraitUpsideDown</string>
-		<string>UIInterfaceOrientationLandscapeLeft</string>
-		<string>UIInterfaceOrientationLandscapeRight</string>
-	</array>
+	<key>SocialFusionTimelineConfiguration</key>
+	<dict>
+		<key>PositionPersistence</key>
+		<dict>
+			<key>Enabled</key>
+			<true/>
+			<key>SmartRestoration</key>
+			<true/>
+			<key>MaxHistorySize</key>
+			<integer>10</integer>
+			<key>AutoSaveInterval</key>
+			<integer>5</integer>
+		</dict>
+		<key>CrossSessionSync</key>
+		<dict>
+			<key>Enabled</key>
+			<false/>
+			<key>iCloudSync</key>
+			<false/>
+			<key>SyncInterval</key>
+			<integer>300</integer>
+		</dict>
+		<key>UnreadTracking</key>
+		<dict>
+			<key>Enabled</key>
+			<true/>
+			<key>MarkReadOnScroll</key>
+			<true/>
+			<key>MarkReadThreshold</key>
+			<real>0.5</real>
+		</dict>
+		<key>Performance</key>
+		<dict>
+			<key>MaxCacheSize</key>
+			<integer>500</integer>
+			<key>ScrollBufferSize</key>
+			<integer>50</integer>
+			<key>OfflineMode</key>
+			<true/>
+		</dict>
+		<key>Debug</key>
+		<dict>
+			<key>TimelineLogging</key>
+			<true/>
+			<key>PositionLogging</key>
+			<true/>
+			<key>PerformanceLogging</key>
+			<false/>
+			<key>VerboseMode</key>
+			<false/>
+		</dict>
+	</dict>
 </dict>
 </plist>

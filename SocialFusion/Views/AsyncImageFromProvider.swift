@@ -4,7 +4,7 @@ import UIKit
 
 /// Helper view to load images from LPImageProvider asynchronously
 struct AsyncImageFromProvider: View {
-    let imageProvider: LPImageProvider
+    let imageProvider: NSItemProvider
     @State private var uiImage: UIImage?
     @State private var isLoading = true
     @State private var loadFailed = false

@@ -33,84 +33,6 @@ public enum TokenError: Error, LocalizedError {
     }
 }
 
-// MARK: - Color Extension for Hex Colors
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a: UInt64
-        let r: UInt64
-        let g: UInt64
-        let b: UInt64
-        switch hex.count {
-        case 3:  // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6:  // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8:  // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue: Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-}
-
-// MARK: - SocialPlatform Definition
-/// An enum representing the supported social media platforms
-public enum SocialPlatform: String, Codable, CaseIterable {
-    case mastodon
-    case bluesky
-
-    /// Returns the platform's color for UI elements
-    public var color: Color {
-        switch self {
-        case .mastodon:
-            return Color(hex: "6364FF")
-        case .bluesky:
-            return Color(hex: "0085FF")
-        }
-    }
-
-    /// Returns whether the platform uses an SF Symbol or custom image
-    public var usesSFSymbol: Bool {
-        return false
-    }
-
-    /// Returns the platform-specific system symbol name
-    public var icon: String {
-        switch self {
-        case .mastodon:
-            return "person.crop.circle"
-        case .bluesky:
-            return "person.crop.circle"
-        }
-    }
-
-    /// Whether the SVG icon should be tinted with the platform color
-    public var shouldTintIcon: Bool {
-        return false
-    }
-
-    /// Fallback system symbol if needed
-    public var sfSymbol: String {
-        switch self {
-        case .mastodon:
-            return "person.crop.circle"
-        case .bluesky:
-            return "person.crop.circle"
-        }
-    }
-}
-
 // MARK: - Notification Names
 extension Notification.Name {
     public static let accountProfileImageUpdated = Notification.Name("AccountProfileImageUpdated")
@@ -125,47 +47,7 @@ private class CodablePublished<T: Codable>: ObservableObject {
     }
 }
 
-// Embedded Keychain extension to avoid import issues
-extension UserDefaults {
-    fileprivate static func saveAccessToken(_ token: String, for accountId: String) {
-        UserDefaults.standard.set(token, forKey: "accessToken-\(accountId)")
-    }
-
-    fileprivate static func saveRefreshToken(_ token: String, for accountId: String) {
-        UserDefaults.standard.set(token, forKey: "refreshToken-\(accountId)")
-    }
-
-    fileprivate static func saveClientCredentials(
-        clientId: String, clientSecret: String, for accountId: String
-    ) {
-        UserDefaults.standard.set(clientId, forKey: "clientId-\(accountId)")
-        UserDefaults.standard.set(clientSecret, forKey: "clientSecret-\(accountId)")
-    }
-
-    fileprivate static func loadAccessToken(for accountId: String) -> String? {
-        return UserDefaults.standard.string(forKey: "accessToken-\(accountId)")
-    }
-
-    fileprivate static func loadRefreshToken(for accountId: String) -> String? {
-        return UserDefaults.standard.string(forKey: "refreshToken-\(accountId)")
-    }
-
-    fileprivate static func loadClientCredentials(for accountId: String) -> (
-        clientId: String?, clientSecret: String?
-    ) {
-        let clientId = UserDefaults.standard.string(forKey: "clientId-\(accountId)")
-        let clientSecret = UserDefaults.standard.string(forKey: "clientSecret-\(accountId)")
-        return (clientId, clientSecret)
-    }
-
-    fileprivate static func deleteAllTokens(for accountId: String) {
-        UserDefaults.standard.removeObject(forKey: "accessToken-\(accountId)")
-        UserDefaults.standard.removeObject(forKey: "refreshToken-\(accountId)")
-        UserDefaults.standard.removeObject(forKey: "clientId-\(accountId)")
-        UserDefaults.standard.removeObject(forKey: "clientSecret-\(accountId)")
-        UserDefaults.standard.removeObject(forKey: "token-expiry-\(accountId)")
-    }
-}
+// NOTE: Duplicate UserDefaults token helpers removed to avoid redeclarations. Use canonical helpers in Extensions/UserDefaults+Keychain.swift if needed.
 
 // Helper functions for TokenManager until proper imports can be set up
 private func securelyStoreTokens(

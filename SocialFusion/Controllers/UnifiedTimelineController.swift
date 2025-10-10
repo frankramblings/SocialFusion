@@ -166,14 +166,17 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Apply optimistic update for immediate UI feedback
     private func applyOptimisticUpdate(for intent: PostActionIntent) {
-        updatePostInPlace(intent.postId) { post in
-            switch intent {
-            case .like:
-                post.isLiked.toggle()
-                post.likeCount += post.isLiked ? 1 : -1
-            case .repost:
-                post.isReposted.toggle()
-                post.repostCount += post.isReposted ? 1 : -1
+        // Defer state updates to prevent "Publishing changes from within view updates" warnings
+        Task { @MainActor in
+            updatePostInPlace(intent.postId) { post in
+                switch intent {
+                case .like:
+                    post.isLiked.toggle()
+                    post.likeCount += post.isLiked ? 1 : -1
+                case .repost:
+                    post.isReposted.toggle()
+                    post.repostCount += post.isReposted ? 1 : -1
+                }
             }
         }
     }
@@ -195,24 +198,30 @@ class UnifiedTimelineController: ObservableObject {
     /// Confirm optimistic update with server response
     private func confirmOptimisticUpdate(for intent: PostActionIntent, with updatedPost: Post) async
     {
-        updatePostInPlace(intent.postId) { post in
-            post.isLiked = updatedPost.isLiked
-            post.likeCount = updatedPost.likeCount
-            post.isReposted = updatedPost.isReposted
-            post.repostCount = updatedPost.repostCount
+        // Defer state updates to prevent "Publishing changes from within view updates" warnings
+        Task { @MainActor in
+            updatePostInPlace(intent.postId) { post in
+                post.isLiked = updatedPost.isLiked
+                post.likeCount = updatedPost.likeCount
+                post.isReposted = updatedPost.isReposted
+                post.repostCount = updatedPost.repostCount
+            }
         }
     }
 
     /// Revert optimistic update on failure
     private func revertOptimisticUpdate(for intent: PostActionIntent) async {
-        updatePostInPlace(intent.postId) { post in
-            switch intent {
-            case .like:
-                post.isLiked.toggle()
-                post.likeCount += post.isLiked ? 1 : -1
-            case .repost:
-                post.isReposted.toggle()
-                post.repostCount += post.isReposted ? 1 : -1
+        // Defer state updates to prevent "Publishing changes from within view updates" warnings
+        Task { @MainActor in
+            updatePostInPlace(intent.postId) { post in
+                switch intent {
+                case .like:
+                    post.isLiked.toggle()
+                    post.likeCount += post.isLiked ? 1 : -1
+                case .repost:
+                    post.isReposted.toggle()
+                    post.repostCount += post.isReposted ? 1 : -1
+                }
             }
         }
     }

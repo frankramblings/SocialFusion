@@ -64,8 +64,10 @@ struct UnifiedMediaGridView: View {
         .sheet(isPresented: $selection.showFullscreen) {
             if let selected = selection.selectedAttachment {
                 FullscreenMediaView(
-                    media: selected, allMedia: attachments,
-                    showAltTextInitially: selection.showAltTextInitially)
+                    attachment: selected,
+                    attachments: attachments,
+                    initialIndex: attachments.firstIndex(where: { $0.id == selected.id }) ?? 0
+                )
             } else {
                 Color.black  // fallback
             }
@@ -99,53 +101,35 @@ private struct SingleImageView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Use SmartMediaView for video content, AsyncImage for images
-            if attachment.type == .video {
+            // Use SmartMediaView for video, GIFV, and animated GIF content, AsyncImage for images
+            if attachment.type == .video || attachment.type == .gifv
+                || attachment.type == .animatedGIF
+            {
                 SmartMediaView(
                     attachment: attachment,
                     contentMode: SmartMediaView.ContentMode.fill,
+                    maxWidth: .infinity,
                     maxHeight: 500,
                     cornerRadius: 16,
                     onTap: onTap
                 )
             } else {
-                AsyncImage(url: stableURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: 500)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    case .failure(_):
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.15))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 280)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                VStack(spacing: 8) {
-                                    Image(systemName: "photo")
-                                        .font(.title2)
-                                        .foregroundColor(.secondary)
-                                    Text("Image unavailable")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                            )
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 280)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                ProgressView()
-                                    .scaleEffect(1.2)
-                            )
-                    @unknown default:
-                        EmptyView()
-                    }
+                CachedAsyncImage(url: stableURL, priority: .high) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: 500)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.1))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 280)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(1.2)
+                        )
                 }
                 .onTapGesture {
                     onTap()
@@ -227,8 +211,10 @@ private struct GridImageView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Use SmartMediaView for video content, AsyncImage for images
-            if attachment.type == .video {
+            // Use SmartMediaView for video, GIFV, and animated GIF content, AsyncImage for images
+            if attachment.type == .video || attachment.type == .gifv
+                || attachment.type == .animatedGIF
+            {
                 SmartMediaView(
                     attachment: attachment,
                     contentMode: SmartMediaView.ContentMode.fill,
@@ -238,36 +224,21 @@ private struct GridImageView: View {
                     onTap: { onTap(attachment) }
                 )
             } else {
-                AsyncImage(url: stableURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(width: gridSize, height: gridSize)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    case .failure(_):
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.15))
-                            .frame(width: gridSize, height: gridSize)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(
-                                Image(systemName: "photo")
-                                    .font(.title2)
-                                    .foregroundColor(.secondary)
-                            )
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.08))
-                            .frame(width: gridSize, height: gridSize)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(
-                                ProgressView()
-                                    .scaleEffect(1.0)
-                            )
-                    @unknown default:
-                        EmptyView()
-                    }
+                CachedAsyncImage(url: stableURL, priority: .high) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: gridSize, height: gridSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                } placeholder: {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.08))
+                        .frame(width: gridSize, height: gridSize)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(1.0)
+                        )
                 }
                 .onTapGesture {
                     onTap(attachment)

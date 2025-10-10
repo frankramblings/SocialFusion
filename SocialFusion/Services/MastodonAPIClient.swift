@@ -49,7 +49,7 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -58,11 +58,11 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode(MastodonPost.self, from: data)
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -74,18 +74,18 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -97,18 +97,18 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -120,18 +120,18 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -143,18 +143,18 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (_, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
         case 200:
             return
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -174,7 +174,7 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -183,11 +183,11 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode(MastodonPost.self, from: data)
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -199,7 +199,7 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -208,9 +208,9 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode([MastodonPost].self, from: data)
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 
@@ -244,7 +244,7 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
 
     private func makeURL(path: String) throws -> URL {
         guard let url = URL(string: "https://mastodon.social\(path)") else {
-            throw MastodonError.invalidURL
+            throw URLError(.badURL)
         }
         return url
     }
@@ -267,7 +267,7 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw MastodonError.invalidResponse
+            throw MastodonClientError.invalidResponse
         }
 
         switch httpResponse.statusCode {
@@ -276,17 +276,17 @@ public class MastodonAPIClientImpl: MastodonAPIClient {
             decoder.keyDecodingStrategy = .convertFromSnakeCase
             return try decoder.decode(MastodonPost.self, from: data)
         case 401:
-            throw MastodonError.unauthorized
+            throw MastodonClientError.unauthorized
         case 404:
-            throw MastodonError.notFound
+            throw MastodonClientError.notFound
         default:
-            throw MastodonError.serverError(httpResponse.statusCode)
+            throw MastodonClientError.serverError(httpResponse.statusCode)
         }
     }
 }
 
 // MARK: - Errors
-public enum MastodonError: Error {
+public enum MastodonClientError: Error {
     case invalidURL
     case invalidResponse
     case unauthorized
@@ -297,6 +297,6 @@ public enum MastodonError: Error {
 // MARK: - Preview Helper
 extension MastodonAPIClient {
     static var preview: MastodonAPIClient {
-        MastodonAPIClientImpl()
+        MastodonAPIClientImpl(postNormalizer: PostNormalizerImpl.shared)
     }
 }

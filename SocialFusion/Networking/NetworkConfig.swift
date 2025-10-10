@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 /// Global network configuration settings
 struct NetworkConfig {

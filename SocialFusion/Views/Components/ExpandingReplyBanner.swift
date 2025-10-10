@@ -63,14 +63,18 @@ class PostParentCache: ObservableObject {
                     post = try await serviceManager.fetchBlueskyPostByID(id)
                 }
 
-                await MainActor.run {
+                // Defer state updates to prevent AttributeGraph cycles
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                     self.fetching.remove(cacheKey)
                     if let post = post {
                         self.cache[cacheKey] = post
                     }
                 }
             } catch {
-                await MainActor.run {
+                // Defer state updates to prevent AttributeGraph cycles
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                     self.fetching.remove(cacheKey)
                 }
             }
@@ -387,8 +391,10 @@ struct ExpandingReplyBanner: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
         .onAppear {
-            // Check for proactively fetched parent posts with retry mechanism
+            // Defer cache check to prevent AttributeGraph cycles
             Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 5_000_000)  // 0.005 seconds
+
                 guard let parentId = parentId else { return }
 
                 let cacheKey = "\(network.rawValue):\(parentId)"
@@ -396,28 +402,18 @@ struct ExpandingReplyBanner: View {
                     "🔍 ExpandingReplyBanner: Checking cache for parent \(parentId) with key: \(cacheKey)"
                 )
 
-                // Try to find cached parent post with retries to account for background fetching
-                for attempt in 1...5 {
-                    if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
-                        parent = cachedPost
-                        print(
-                            "✅ ExpandingReplyBanner: Found cached parent on attempt \(attempt): \(cachedPost.authorUsername)"
-                        )
-                        return
-                    }
-
-                    // Wait a bit longer on each attempt to give background fetching time
-                    let delay = UInt64(attempt * 200_000_000)  // 0.2s, 0.4s, 0.6s, 0.8s, 1.0s
-                    try? await Task.sleep(nanoseconds: delay)
+                // Single cache check - no retry loop to prevent AttributeGraph cycles
+                if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
+                    parent = cachedPost
                     print(
-                        "🔄 ExpandingReplyBanner: Cache check attempt \(attempt) failed, retrying..."
+                        "✅ ExpandingReplyBanner: Found cached parent: \(cachedPost.authorUsername)"
                     )
+                } else {
+                    print(
+                        "🔍 ExpandingReplyBanner: No cached parent found for key: \(cacheKey)"
+                    )
+                    // Fallback fetching will be triggered when user expands the banner
                 }
-
-                print(
-                    "❌ ExpandingReplyBanner: No cached parent found after 5 attempts for key: \(cacheKey)"
-                )
-                // Fallback fetching will be triggered when user expands the banner
             }
         }
         .onChange(of: isExpanded) { newValue in

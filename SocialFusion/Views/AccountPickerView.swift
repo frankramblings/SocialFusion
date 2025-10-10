@@ -17,7 +17,7 @@ struct AccountPickerView: View {
                         selectedAccountId = nil
                         serviceManager.selectedAccountIds = ["all"]
                         Task {
-                            await serviceManager.refreshTimeline(force: false)
+                            try? await serviceManager.refreshTimeline(force: false)
                         }
                         isPresented = false
                     }) {
@@ -152,7 +152,7 @@ struct AccountPickerView: View {
                     .environmentObject(serviceManager)
             }
             .sheet(isPresented: $showAddAccountSheet) {
-                AddAccountView()
+                SimpleAddAccountSheet()
                     .environmentObject(serviceManager)
             }
         }
@@ -164,7 +164,7 @@ struct AccountPickerView: View {
             selectedAccountId = account.id
             serviceManager.selectedAccountIds = [account.id]
             Task {
-                await serviceManager.refreshTimeline(force: false)
+                try? await serviceManager.refreshTimeline(force: false)
             }
             isPresented = false
         }) {
@@ -173,7 +173,7 @@ struct AccountPickerView: View {
                     .frame(width: 40, height: 40)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(account.displayName)
+                    Text(account.displayName ?? account.username)
                         .font(.headline)
 
                     Text("@\(account.username)")
@@ -195,8 +195,8 @@ struct AccountPickerView: View {
     }
 }
 
-// A simple view to add a new account
-struct AddAccountView: View {
+// A simple view to add a new account (renamed to avoid duplicate with main AddAccountView)
+struct SimpleAddAccountSheet: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @Environment(\.presentationMode) var presentationMode
     @State private var selectedPlatform: SocialPlatform = .mastodon

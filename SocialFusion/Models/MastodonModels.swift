@@ -46,7 +46,7 @@ struct MastodonAccount: Codable {
     let id: String
     let username: String
     let acct: String
-    let displayName: String
+    let displayName: String?
     let note: String
     let url: String
     let avatar: String
@@ -160,8 +160,7 @@ class MastodonStatus: Codable {
     }
 }
 
-// Reblogged Status
-typealias MastodonReblog = MastodonStatus
+// Reblogged Status is modeled as a lightweight struct in `MastodonPost.swift`
 
 // Media Attachment
 struct MastodonMediaAttachment: Codable {
@@ -225,8 +224,8 @@ struct MastodonField: Codable {
     }
 }
 
-// Error Response
-struct MastodonError: Codable, Error {
+// Error Response DTO (renamed to avoid clash with public MastodonError)
+struct MastodonAPIError: Codable, Error {
     let error: String
     let errorDescription: String?
 
@@ -235,3 +234,6 @@ struct MastodonError: Codable, Error {
         case errorDescription = "error_description"
     }
 }
+
+// Back-compat alias for existing call sites
+typealias MastodonError = MastodonAPIError

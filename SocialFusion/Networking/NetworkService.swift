@@ -155,7 +155,7 @@ public class NetworkService {
             method: "GET",
             headers: headers,
             queryItems: queryItems,
-            body: nil,
+            body: nil as String?,
             responseType: responseType
         )
     }
@@ -208,7 +208,7 @@ public class NetworkService {
             method: "DELETE",
             headers: headers,
             queryItems: queryItems,
-            body: nil,
+            body: nil as String?,
             responseType: responseType
         )
     }

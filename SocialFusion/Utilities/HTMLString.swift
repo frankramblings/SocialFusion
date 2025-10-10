@@ -143,6 +143,29 @@ public struct EmojiTextApp: View {
         let mentionURLs = mentions.compactMap { URL(string: $0) }
         let tagURLs = tags.compactMap { URL(string: $0) }
 
+        // First, detect URLs in plain text (for Bluesky posts without HTML links)
+        if let detector = try? NSDataDetector(
+            types: NSTextCheckingResult.CheckingType.link.rawValue)
+        {
+            let fullText = String(attributed.characters)
+            let nsString = fullText as NSString
+            let matches = detector.matches(
+                in: fullText, options: [],
+                range: NSRange(location: 0, length: nsString.length))
+
+            for match in matches {
+                if let url = match.url {
+                    let urlText = nsString.substring(with: match.range)
+
+                    // Find this URL text in our AttributedString and make it a link
+                    if let range = attributed.range(of: urlText) {
+                        attributed[range].link = url
+                        attributed[range].foregroundColor = .accentColor
+                    }
+                }
+            }
+        }
+
         // Walk all runs and reassign links as needed
         for run in attributed.runs {
             if let url = run.link {
@@ -156,13 +179,16 @@ public struct EmojiTextApp: View {
                     attributed[run.range].link = URL(string: "socialfusion://tag/\(tag)")
                     attributed[run.range].foregroundColor = .accentColor
                 } else {
-                    // Real web link: style as link
+                    // Real web link: style as link (keep existing accent color)
                     attributed[run.range].foregroundColor = .accentColor
                 }
+                // Apply font but preserve link color
+                attributed[run.range].font = font
+            } else {
+                // Non-link text: apply font and standard color
+                attributed[run.range].font = font
+                attributed[run.range].foregroundColor = foregroundColor
             }
-            // Always apply font and color
-            attributed[run.range].font = font
-            attributed[run.range].foregroundColor = foregroundColor
         }
         return attributed
     }

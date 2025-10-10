@@ -317,7 +317,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
                 expiresAt: token.expirationDate,
                 accountId: userInfo.id,
                 username: userInfo.username,
-                displayName: userInfo.displayName,
+                displayName: userInfo.displayName ?? userInfo.username,
                 serverURL: server,
                 clientId: clientId,
                 clientSecret: clientSecret

@@ -2,8 +2,21 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-/// A SwiftUI view that displays animated GIFs properly
-struct AnimatedGIFView: UIViewRepresentable {
+/// A SwiftUI view that displays animated GIFs properly with accessibility support
+struct AnimatedGIFView: View {
+    let url: URL?
+
+    var body: some View {
+        AnimatedGIFViewRepresentable(url: url)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Animated GIF")
+            .accessibilityHint("This is an animated image that plays automatically")
+            .accessibilityAddTraits([.playsSound])
+    }
+}
+
+/// Internal UIViewRepresentable for GIF display
+private struct AnimatedGIFViewRepresentable: UIViewRepresentable {
     let url: URL?
 
     func makeUIView(context: Context) -> UIImageView {
@@ -43,64 +56,7 @@ struct AnimatedGIFView: UIViewRepresentable {
     }
 }
 
-extension UIImage {
-    /// Create an animated UIImage from GIF data
-    static func animatedImageWithData(_ data: Data) -> UIImage? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else {
-            return nil
-        }
-
-        let count = CGImageSourceGetCount(source)
-        var images: [UIImage] = []
-        var duration: TimeInterval = 0
-
-        for i in 0..<count {
-            guard let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) else {
-                continue
-            }
-
-            // Get frame duration
-            let frameDuration = getFrameDuration(from: source, at: i)
-            duration += frameDuration
-
-            let image = UIImage(cgImage: cgImage)
-            images.append(image)
-        }
-
-        guard !images.isEmpty else {
-            return nil
-        }
-
-        // Create animated image
-        return UIImage.animatedImage(with: images, duration: duration)
-    }
-
-    private static func getFrameDuration(from source: CGImageSource, at index: Int) -> TimeInterval
-    {
-        let defaultDuration: TimeInterval = 0.1
-
-        guard
-            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil)
-                as? [CFString: Any]
-        else {
-            return defaultDuration
-        }
-
-        guard let gifProperties = properties[kCGImagePropertyGIFDictionary] as? [CFString: Any]
-        else {
-            return defaultDuration
-        }
-
-        let unclampedDelayTime =
-            gifProperties[kCGImagePropertyGIFUnclampedDelayTime] as? TimeInterval
-        let delayTime = gifProperties[kCGImagePropertyGIFDelayTime] as? TimeInterval
-
-        let duration = unclampedDelayTime ?? delayTime ?? defaultDuration
-
-        // Ensure minimum duration for smooth animation
-        return max(duration, 0.02)
-    }
-}
+// Using shared UIImage.animatedImageWithData implementation from SmartMediaView
 
 #Preview {
     AnimatedGIFView(url: URL(string: "https://media.giphy.com/media/3o7aD2saalBwwftBIY/giphy.gif"))

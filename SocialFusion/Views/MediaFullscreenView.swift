@@ -1,5 +1,6 @@
 import AVKit
 import Combine
+import ImageIO
 import SwiftUI
 
 /// View for displaying media attachments in fullscreen mode
@@ -30,11 +31,13 @@ struct FullscreenMediaView: View {
     // Replace the task queues with a single serial queue
     private let serialQueue = DispatchQueue(label: "com.socialfusion.media", qos: .userInitiated)
 
-    private func updateState<T>(_ keyPath: WritableKeyPath<FullscreenMediaView, T>, value: T) {
-        DispatchQueue.main.async {
-            self[keyPath: keyPath] = value
-        }
-    }
+    // Note: updateState method removed as it's not compatible with SwiftUI's immutable view pattern
+    // Use @State variables instead for mutable state
+    // private func updateState<T>(_ keyPath: WritableKeyPath<FullscreenMediaView, T>, value: T) {
+    //     DispatchQueue.main.async {
+    //         self[keyPath: keyPath] = value
+    //     }
+    // }
 
     // Computed property to work with either single attachment or collection
     private var currentAttachments: [Post.Attachment] {
@@ -185,7 +188,7 @@ struct FullscreenMediaView: View {
                 if showControls {
                     VStack {
                         HStack {
-                            Button(action: dismiss) {
+                            Button(action: { dismiss() }) {
                                 Image(systemName: "xmark")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -200,8 +203,8 @@ struct FullscreenMediaView: View {
 
                             if let currentAttachment = currentAttachment,
                                 currentAttachment.type == .image,
-                                let imageURLString = currentAttachment.url,
-                                let imageURL = URL(string: imageURLString)
+                                !currentAttachment.url.isEmpty,
+                                let imageURL = URL(string: currentAttachment.url)
                             {
                                 Button(action: {
                                     shareImage(url: imageURL)
@@ -289,7 +292,7 @@ struct FullscreenMediaView: View {
     {
         switch attachment.type {
         case .image:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 AsyncImage(url: url) { phase in
                     switch phase {
                     case .empty:
@@ -465,7 +468,7 @@ struct FullscreenMediaView: View {
                 }
             }
         case .video:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 // Use our managed player
                 let player = videoPlayers[url] ?? createPlayer(for: url)
                 VideoPlayer(player: player)
@@ -479,7 +482,7 @@ struct FullscreenMediaView: View {
                     .foregroundColor(.white)
             }
         case .gifv:
-            if let urlString = attachment.url, let url = URL(string: urlString) {
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 // Use our managed player
                 let player = videoPlayers[url] ?? createPlayer(for: url)
                 VideoPlayer(player: player)
@@ -492,6 +495,30 @@ struct FullscreenMediaView: View {
                 Text("Invalid GIF URL")
                     .foregroundColor(.white)
             }
+        case .animatedGIF:
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
+                FullscreenAnimatedGIFView(url: url)
+                    .edgesIgnoringSafeArea(.all)
+            } else {
+                Text("Invalid GIF URL")
+                    .foregroundColor(.white)
+            }
+        case .audio:
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
+                ZStack {
+                    Color.black.edgesIgnoringSafeArea(.all)
+
+                    AudioPlayerView(
+                        url: url,
+                        title: attachment.altText?.isEmpty == false ? attachment.altText : "Audio",
+                        artist: nil
+                    )
+                    .padding(20)
+                }
+            } else {
+                Text("Invalid audio URL")
+                    .foregroundColor(.white)
+            }
         default:
             Text("Unsupported media type")
                 .foregroundColor(.white)
@@ -500,8 +527,8 @@ struct FullscreenMediaView: View {
 
     private func setupMedia() {
         guard let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString)
+            !currentAttachment.url.isEmpty,
+            let url = URL(string: currentAttachment.url)
         else {
             return
         }
@@ -512,7 +539,7 @@ struct FullscreenMediaView: View {
 
         if currentAttachment.type == .video || currentAttachment.type == .gifv {
             setupVideoPlayer(for: url)
-        } else if currentAttachment.type == .image {
+        } else if currentAttachment.type == .image || currentAttachment.type == .animatedGIF {
             setupImageLoading(for: url)
         }
     }
@@ -543,8 +570,7 @@ struct FullscreenMediaView: View {
         config.timeoutIntervalForResource = 30
 
         let session = URLSession(configuration: config)
-        let task = session.dataTask(with: url) { [weak self] data, response, error in
-            guard let self = self else { return }
+        let task = session.dataTask(with: url) { data, response, error in
 
             self.serialQueue.async {
                 if let error = error {
@@ -575,8 +601,8 @@ struct FullscreenMediaView: View {
 
     private func resumeVideoPlayback() {
         guard let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString),
+            !currentAttachment.url.isEmpty,
+            let url = URL(string: currentAttachment.url),
             let player = videoPlayers[url]
         else {
             return
@@ -595,8 +621,8 @@ struct FullscreenMediaView: View {
 
     private func retryLoading() {
         guard let currentAttachment = currentAttachment,
-            let urlString = currentAttachment.url,
-            let url = URL(string: urlString)
+            !currentAttachment.url.isEmpty,
+            let url = URL(string: currentAttachment.url)
         else {
             return
         }
@@ -660,8 +686,8 @@ struct FullscreenMediaView: View {
 
             // Clear caches
             self.currentAttachments.forEach { attachment in
-                if let urlString = attachment.url,
-                    let url = URL(string: urlString)
+                if !attachment.url.isEmpty,
+                    let url = URL(string: attachment.url)
                 {
                     URLCache.shared.removeCachedResponse(for: URLRequest(url: url))
                     if let cookies = HTTPCookieStorage.shared.cookies(for: url) {
@@ -768,6 +794,70 @@ struct MediaFullscreenView: View {
         // Redirect to the new FullscreenMediaView for better functionality
         FullscreenMediaView(
             attachment: attachment, attachments: attachments.isEmpty ? [] : attachments)
+    }
+}
+
+/// Fullscreen view for animated GIFs
+struct FullscreenAnimatedGIFView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> UIImageView {
+        let imageView = UIImageView()
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+        imageView.backgroundColor = .black
+        return imageView
+    }
+
+    func updateUIView(_ uiView: UIImageView, context: Context) {
+        // Load the GIF data
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+
+                await MainActor.run {
+                    // Create animated image from GIF data
+                    if let animatedImage = createAnimatedImage(from: data) {
+                        uiView.image = animatedImage
+                    } else {
+                        // Fallback to static image if animation fails
+                        uiView.image = UIImage(data: data)
+                    }
+                }
+            } catch {
+                print("❌ [FullscreenAnimatedGIFView] Failed to load GIF from \(url): \(error)")
+                await MainActor.run {
+                    uiView.image = nil
+                }
+            }
+        }
+    }
+
+    private func createAnimatedImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let count = CGImageSourceGetCount(source)
+        var frames: [UIImage] = []
+        var duration: Double = 0
+
+        for i in 0..<count {
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) else { continue }
+            let frameDuration = getFrameDuration(from: source, at: i)
+            duration += frameDuration
+            frames.append(UIImage(cgImage: cgImage))
+        }
+
+        guard !frames.isEmpty else { return nil }
+        return UIImage.animatedImage(with: frames, duration: duration)
+    }
+
+    private func getFrameDuration(from source: CGImageSource, at index: Int) -> Double {
+        guard
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil)
+                as NSDictionary?,
+            let gifProps = properties[kCGImagePropertyGIFDictionary as String] as? NSDictionary,
+            let delay = gifProps[kCGImagePropertyGIFDelayTime as String] as? NSNumber
+        else { return 0.1 }
+        return delay.doubleValue
     }
 }
 

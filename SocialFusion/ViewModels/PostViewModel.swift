@@ -245,13 +245,13 @@ extension PostViewModel {
                 createdAt: Date(),
                 platform: .bluesky,
                 originalURL: "https://example.com/post/1",
-                platformSpecificId: "preview-1",
+                attachments: [],
+                isReposted: false,
+                isLiked: false,
                 likeCount: 42,
                 repostCount: 12,
                 replyCount: 5,
-                isLiked: false,
-                isReposted: false,
-                attachments: []
+                platformSpecificId: "preview-1"
             ),
             serviceManager: SocialServiceManager()
         )
