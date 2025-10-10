@@ -1253,14 +1253,27 @@ class BlueskyService {
                         {
                             let originalText = nsText.substring(with: replacement.range)
                             // Only replace if the original text appears truncated (contains ellipsis or is shorter)
+                            // AND the replacement URL is valid and doesn't already contain the original text
                             if originalText.contains("...")
-                                || originalText.count < replacement.fullURL.count
+                                || originalText.count < replacement.fullURL.count,
+                                !replacement.fullURL.contains(originalText),
+                                URL(string: replacement.fullURL) != nil
                             {
-                                fullTextWithLinks = nsText.replacingCharacters(
+                                let newText = nsText.replacingCharacters(
                                     in: replacement.range, with: replacement.fullURL)
-                                logger.info(
-                                    "[Bluesky] Replaced truncated URL '\(originalText)' with full URL '\(replacement.fullURL)'"
-                                )
+
+                                // Prevent URL concatenation by checking if the result looks malformed
+                                if !newText.contains("httpshttps") && !newText.contains("httphttp")
+                                {
+                                    fullTextWithLinks = newText
+                                    logger.info(
+                                        "[Bluesky] Replaced truncated URL '\(originalText)' with full URL '\(replacement.fullURL)'"
+                                    )
+                                } else {
+                                    logger.warning(
+                                        "[Bluesky] Skipped URL replacement to prevent concatenation: '\(originalText)' -> '\(replacement.fullURL)'"
+                                    )
+                                }
                             }
                         }
                     }

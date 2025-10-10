@@ -152,16 +152,15 @@ struct ParentPostMediaView: View {
     private let maxHeight: CGFloat = 200  // Maximum height for parent post media
 
     var body: some View {
-        let imageAttachments = attachments.filter { $0.type == .image }
-
-        if !imageAttachments.isEmpty {
+        // Support all attachment types, not just images
+        if !attachments.isEmpty {
             ZStack(alignment: .bottom) {
-                mediaContent(for: imageAttachments)
+                mediaContent(for: attachments)
                     .frame(maxHeight: maxHeight)
                     .clipped()
 
                 // Only show gradient fade when content is actually truncated
-                if shouldShowGradientFade(for: imageAttachments) {
+                if shouldShowGradientFade(for: attachments) {
                     VStack(spacing: 0) {
                         Spacer()
 
@@ -187,64 +186,92 @@ struct ParentPostMediaView: View {
     }
 
     @ViewBuilder
-    private func mediaContent(for imageAttachments: [Post.Attachment]) -> some View {
-        switch imageAttachments.count {
-        case 1:
-            SingleParentImage(attachment: imageAttachments[0], maxHeight: maxHeight)
-        case 2:
-            HStack(spacing: 4) {
-                ForEach(imageAttachments.prefix(2), id: \.id) { attachment in
-                    ParentImageView(attachment: attachment)
+    private func mediaContent(for allAttachments: [Post.Attachment]) -> some View {
+        // Separate image and non-image attachments
+        let imageAttachments = allAttachments.filter { $0.type == .image }
+        let nonImageAttachments = allAttachments.filter { $0.type != .image }
+
+        VStack(spacing: 6) {
+            // Handle non-image media first (videos, GIFs, audio)
+            if !nonImageAttachments.isEmpty {
+                ForEach(nonImageAttachments.prefix(2), id: \.id) { attachment in
+                    SmartMediaView(
+                        attachment: attachment,
+                        contentMode: .fill,
+                        maxWidth: .infinity,
+                        maxHeight: maxHeight,
+                        cornerRadius: 8,
+                        onTap: nil
+                    )
+                    .frame(maxHeight: maxHeight)
+                }
+            }
+
+            // Then handle image attachments with existing grid layout
+            if !imageAttachments.isEmpty {
+                switch imageAttachments.count {
+                case 1:
+                    SingleParentImage(attachment: imageAttachments[0], maxHeight: maxHeight)
+                case 2:
+                    HStack(spacing: 4) {
+                        ForEach(imageAttachments.prefix(2), id: \.id) { attachment in
+                            ParentImageView(attachment: attachment)
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .frame(height: min(120, maxHeight))
+                case 3:
+                    HStack(spacing: 4) {
+                        ParentImageView(attachment: imageAttachments[0])
+                            .frame(maxWidth: .infinity)
+
+                        VStack(spacing: 4) {
+                            ForEach(imageAttachments[1...2], id: \.id) { attachment in
+                                ParentImageView(attachment: attachment)
+                            }
+                        }
                         .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(height: min(120, maxHeight))
-        case 3:
-            HStack(spacing: 4) {
-                ParentImageView(attachment: imageAttachments[0])
-                    .frame(maxWidth: .infinity)
-
-                VStack(spacing: 4) {
-                    ForEach(imageAttachments[1...2], id: \.id) { attachment in
-                        ParentImageView(attachment: attachment)
                     }
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .frame(height: min(120, maxHeight))
-        default:
-            // 4+ images: show first 3 with a "+X more" overlay on the last one
-            HStack(spacing: 4) {
-                ParentImageView(attachment: imageAttachments[0])
-                    .frame(maxWidth: .infinity)
+                    .frame(height: min(120, maxHeight))
+                default:
+                    // 4+ images: show first 3 with a "+X more" overlay on the last one
+                    HStack(spacing: 4) {
+                        ParentImageView(attachment: imageAttachments[0])
+                            .frame(maxWidth: .infinity)
 
-                VStack(spacing: 4) {
-                    ParentImageView(attachment: imageAttachments[1])
+                        VStack(spacing: 4) {
+                            ParentImageView(attachment: imageAttachments[1])
 
-                    ZStack {
-                        ParentImageView(attachment: imageAttachments[2])
+                            ZStack {
+                                ParentImageView(attachment: imageAttachments[2])
 
-                        // Overlay for additional images
-                        Rectangle()
-                            .fill(Color.black.opacity(0.6))
-                            .overlay(
-                                Text("+\(imageAttachments.count - 3)")
-                                    .font(.caption)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
-                            )
+                                // Overlay for additional images
+                                Rectangle()
+                                    .fill(Color.black.opacity(0.6))
+                                    .overlay(
+                                        Text("+\(imageAttachments.count - 3)")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.white)
+                                    )
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
                     }
+                    .frame(height: min(120, maxHeight))
                 }
-                .frame(maxWidth: .infinity)
             }
-            .frame(height: min(120, maxHeight))
         }
     }
 
-    private func shouldShowGradientFade(for imageAttachments: [Post.Attachment]) -> Bool {
-        // For single images, we can assume truncation if we're at maxHeight
-        // For multiple images, they're sized to fit within bounds so no truncation
-        return imageAttachments.count == 1
+    private func shouldShowGradientFade(for allAttachments: [Post.Attachment]) -> Bool {
+        // Show gradient fade for single media items that might be truncated
+        // For multiple items or grid layouts, they're sized to fit within bounds so no truncation
+        let imageAttachments = allAttachments.filter { $0.type == .image }
+        let nonImageAttachments = allAttachments.filter { $0.type != .image }
+
+        // Show fade if we have a single image or any non-image media (which uses full height)
+        return imageAttachments.count == 1 || !nonImageAttachments.isEmpty
     }
 
 }

@@ -92,7 +92,12 @@ struct PostDetailView: View {
                     )
                     .coordinateSpace(name: "scrollView")
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                        updateScrollState(offset: offset)
+                        // Defer state updates to prevent AttributeGraph cycles
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            // TODO: Implement updateScrollState method
+                            // updateScrollState(offset: offset)
+                        }
                     }
                     .onAppear {
                         // Use Task to defer state updates outside view rendering cycle

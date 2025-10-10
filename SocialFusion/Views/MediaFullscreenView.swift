@@ -503,6 +503,22 @@ struct FullscreenMediaView: View {
                 Text("Invalid GIF URL")
                     .foregroundColor(.white)
             }
+        case .audio:
+            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
+                ZStack {
+                    Color.black.edgesIgnoringSafeArea(.all)
+
+                    AudioPlayerView(
+                        url: url,
+                        title: attachment.altText?.isEmpty == false ? attachment.altText : "Audio",
+                        artist: nil
+                    )
+                    .padding(20)
+                }
+            } else {
+                Text("Invalid audio URL")
+                    .foregroundColor(.white)
+            }
         default:
             Text("Unsupported media type")
                 .foregroundColor(.white)

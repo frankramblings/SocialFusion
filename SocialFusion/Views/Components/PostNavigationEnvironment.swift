@@ -8,22 +8,31 @@ class PostNavigationEnvironment: ObservableObject {
     func navigateToPost(_ post: Post) {
         print("🧭 [PostNavigationEnvironment] Navigating to post: \(post.id) by \(post.authorName)")
 
-        // If this is a boost post, navigate to the original post but preserve boost info
-        if let originalPost = post.originalPost, let boostedBy = post.boostedBy {
-            print(
-                "🧭 [PostNavigationEnvironment] Boost detected - navigating to original post: \(originalPost.id)"
-            )
-            selectedPost = originalPost
-            boostInfo = (boostedBy: boostedBy, boostedAt: post.createdAt)
-        } else {
-            selectedPost = post
-            boostInfo = nil
+        // Defer state updates to prevent AttributeGraph cycles
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+
+            // If this is a boost post, navigate to the original post but preserve boost info
+            if let originalPost = post.originalPost, let boostedBy = post.boostedBy {
+                print(
+                    "🧭 [PostNavigationEnvironment] Boost detected - navigating to original post: \(originalPost.id)"
+                )
+                selectedPost = originalPost
+                boostInfo = (boostedBy: boostedBy, boostedAt: post.createdAt)
+            } else {
+                selectedPost = post
+                boostInfo = nil
+            }
         }
     }
 
     /// Clear navigation state
     func clearNavigation() {
-        selectedPost = nil
-        boostInfo = nil
+        // Defer state updates to prevent AttributeGraph cycles
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            selectedPost = nil
+            boostInfo = nil
+        }
     }
 }

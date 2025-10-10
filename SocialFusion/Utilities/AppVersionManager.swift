@@ -13,37 +13,30 @@ public final class AppVersionManager: ObservableObject {
         checkForVersionUpdate()
     }
 
-    /// Check if this is a new version/build and determine if launch animation should show
+    /// Always show launch animation on app start for beautiful user experience
     private func checkForVersionUpdate() {
         guard let currentVersion = getCurrentAppVersion(),
             let currentBuild = getCurrentBuildNumber()
         else {
-            // If we can't get version info, don't show animation
+            // If we can't get version info, still show animation for great UX
             // Direct assignment to avoid AttributeGraph cycles
-            self.shouldShowLaunchAnimation = false
+            self.shouldShowLaunchAnimation = true
             return
         }
 
         let lastVersion = userDefaults.string(forKey: lastVersionKey)
         let lastBuild = userDefaults.string(forKey: lastBuildKey)
 
-        // Show animation if:
-        // 1. First launch (no stored version)
-        // 2. Version changed
-        // 3. Build number changed (new development build)
-        let isFirstLaunch = lastVersion == nil
-        let isVersionUpdate = lastVersion != currentVersion
-        let isBuildUpdate = lastBuild != currentBuild
-
+        // Always show the beautiful launch animation for premium feel
         // Direct assignment to avoid AttributeGraph cycles
-        self.shouldShowLaunchAnimation = isFirstLaunch || isVersionUpdate || isBuildUpdate
+        self.shouldShowLaunchAnimation = true
 
-        // Update stored version/build
+        // Update stored version/build for potential future use
         userDefaults.set(currentVersion, forKey: lastVersionKey)
         userDefaults.set(currentBuild, forKey: lastBuildKey)
 
         print(
-            "AppVersionManager: Current: \(currentVersion) (\(currentBuild)), Last: \(lastVersion ?? "none") (\(lastBuild ?? "none")), Show animation: \(shouldShowLaunchAnimation)"
+            "AppVersionManager: Current: \(currentVersion) (\(currentBuild)), Last: \(lastVersion ?? "none") (\(lastBuild ?? "none")), Always showing launch animation for premium UX"
         )
     }
 
@@ -59,14 +52,14 @@ public final class AppVersionManager: ObservableObject {
 
     /// Call this after launch animation completes
     public func markLaunchAnimationCompleted() {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.shouldShowLaunchAnimation = false
         }
     }
 
     /// Force show launch animation (for testing purposes)
     public func forceShowLaunchAnimation() {
-        DispatchQueue.main.async {
+        Task { @MainActor in
             self.shouldShowLaunchAnimation = true
         }
     }

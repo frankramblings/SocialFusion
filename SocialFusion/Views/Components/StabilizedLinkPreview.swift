@@ -34,14 +34,16 @@ struct StabilizedLinkPreview: View {
             .fixedSize(horizontal: false, vertical: true)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
             .onAppear {
-                // Use Task to defer state updates outside view rendering cycle
+                // Defer state updates to prevent AttributeGraph cycles
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                    // Prevent AttributeGraph cycles by checking if already loading
+                    guard !isLoading || metadata == nil else { return }
                     loadMetadata()
                 }
             }
             .onDisappear {
-                // Use Task to defer state updates outside view rendering cycle
+                // Defer cleanup to prevent AttributeGraph cycles
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                     MetadataProviderManager.shared.cancelProvider(for: url)
@@ -82,19 +84,21 @@ struct StabilizedLinkPreview: View {
         isLoading = true
 
         // Add a timeout for metadata loading
-        let timeoutTask = DispatchWorkItem {
-            DispatchQueue.main.async {
-                print(
-                    "⏰ [StabilizedLinkPreview] Timeout reached for URL: \(self.url.absoluteString)")
-                self.isLoading = false
-                self.loadingFailed = true
-            }
+        let timeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)  // 10 seconds
+            print(
+                "⏰ [StabilizedLinkPreview] Timeout reached for URL: \(self.url.absoluteString)")
+            // Defer state updates to prevent AttributeGraph cycles
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            self.isLoading = false
+            self.loadingFailed = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0, execute: timeoutTask)
 
         MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
             timeoutTask.cancel()  // Cancel timeout if we get a response
-            DispatchQueue.main.async {
+            // Defer all state updates to prevent AttributeGraph cycles
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                 if let error = error {
                     print(
                         "❌ [StabilizedLinkPreview] Error fetching metadata for \(self.url): \(error)"
@@ -111,7 +115,8 @@ struct StabilizedLinkPreview: View {
                         print(
                             "🔄 [StabilizedLinkPreview] Will retry (\(self.retryCount)/\(self.maxRetries)) after delay for URL: \(self.url.absoluteString)"
                         )
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
                             self.loadMetadata()
                         }
                         return
@@ -220,12 +225,8 @@ private struct StabilizedLinkLoadingView: View {
         )
         .clipped()
         .onAppear {
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    phase = 1.3
-                }
+            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                phase = 1.3
             }
         }
     }
@@ -283,7 +284,14 @@ private struct StabilizedLinkContentView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .onAppear {
-            loadImageURL()
+            // Defer state updates to prevent AttributeGraph cycles
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                // Only load if we don't already have an image URL
+                if imageURL == nil {
+                    loadImageURL()
+                }
+            }
         }
     }
 
@@ -435,7 +443,7 @@ private struct StabilizedLinkContentView: View {
 
         print("📥 [StabilizedLinkPreview] Loading image from provider for \(url)")
         imageProvider.loadObject(ofClass: UIImage.self) { image, error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 if let error = error {
                     print("❌ [StabilizedLinkPreview] Error loading image for \(self.url): \(error)")
                     return

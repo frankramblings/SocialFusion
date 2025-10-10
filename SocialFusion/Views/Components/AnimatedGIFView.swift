@@ -2,8 +2,21 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-/// A SwiftUI view that displays animated GIFs properly
-struct AnimatedGIFView: UIViewRepresentable {
+/// A SwiftUI view that displays animated GIFs properly with accessibility support
+struct AnimatedGIFView: View {
+    let url: URL?
+
+    var body: some View {
+        AnimatedGIFViewRepresentable(url: url)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Animated GIF")
+            .accessibilityHint("This is an animated image that plays automatically")
+            .accessibilityAddTraits([.playsSound])
+    }
+}
+
+/// Internal UIViewRepresentable for GIF display
+private struct AnimatedGIFViewRepresentable: UIViewRepresentable {
     let url: URL?
 
     func makeUIView(context: Context) -> UIImageView {

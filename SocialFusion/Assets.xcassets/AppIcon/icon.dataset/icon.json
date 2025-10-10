@@ -1,0 +1,44 @@
+{
+  "fill-specializations" : [
+    {
+      "value" : "automatic"
+    },
+    {
+      "appearance" : "dark",
+      "value" : {
+        "solid" : "display-p3:0.07892,0.08972,0.19897,1.00000"
+      }
+    }
+  ],
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "hidden" : false,
+          "image-name" : "AppIcon-Rightcircle.png",
+          "name" : "AppIcon-Rightcircle"
+        },
+        {
+          "fill" : "none",
+          "glass" : true,
+          "image-name" : "AppIcon-Leftcircle.png",
+          "name" : "AppIcon-Leftcircle"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

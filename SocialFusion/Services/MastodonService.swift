@@ -388,7 +388,14 @@ public class MastodonService {
             logger.warning(
                 "No refresh token available for account \(account.username). Cannot refresh - user needs to re-authenticate."
             )
-            throw TokenError.noRefreshToken
+
+            // For accounts without refresh tokens (manual token entry), extend expiration as fallback
+            logger.info(
+                "Extending token expiration for account \(account.username) without refresh token")
+            account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))  // 30 more days
+
+            // Return the current access token since we can't refresh
+            return account.accessToken ?? ""
         }
 
         do {

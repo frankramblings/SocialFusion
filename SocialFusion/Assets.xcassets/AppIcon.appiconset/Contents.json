@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "Icon-iOS-TintedDark-1024x1024@1x.jpg",
+      "filename" : "AppIcon-Monochrome-1024 copy.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -34,5 +34,10 @@
   "info" : {
     "author" : "xcode",
     "version" : 1
+  },
+  "properties" : {
+    "layered-image" : {
+      "filename" : "AppIcon.layeredimage"
+    }
   }
 }

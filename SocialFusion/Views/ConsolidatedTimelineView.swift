@@ -17,6 +17,12 @@ struct ConsolidatedTimelineView: View {
     @StateObject private var timelineState = TimelineState()
     private let config = TimelineConfiguration.shared
 
+    // MARK: - Accessibility Environment
+    @Environment(\.dynamicTypeSize) var dynamicTypeSize
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Environment(\.accessibilityDifferentiateWithoutColor) var differentiateWithoutColor
+    @Environment(\.accessibilityReduceTransparency) var reduceTransparency
+
     init(serviceManager: SocialServiceManager) {
         // Use a factory pattern to create the controller with proper dependency injection
         _controller = StateObject(
@@ -149,6 +155,7 @@ struct ConsolidatedTimelineView: View {
                         if post.id != controller.posts.last?.id {
                             Divider()
                                 .padding(.horizontal, 16)
+                                .accessibilityHidden(true)  // Hide decorative dividers from VoiceOver
                         }
                     }
 
@@ -156,12 +163,15 @@ struct ConsolidatedTimelineView: View {
                     if controller.isLoadingNextPage {
                         infiniteScrollLoadingView
                             .padding(.vertical, 20)
+                            .accessibilityLabel("Loading more posts")
                     }
 
                     // End of timeline indicator
                     if !controller.hasNextPage && !controller.posts.isEmpty {
                         endOfTimelineView
                             .padding(.vertical, 20)
+                            .accessibilityLabel("End of timeline")
+                            .accessibilityHint("No more posts to load")
                     }
                 }
                 .background(
@@ -180,6 +190,15 @@ struct ConsolidatedTimelineView: View {
             }
             .refreshable {
                 await refreshTimeline()
+            }
+            // MARK: - Timeline Accessibility
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Timeline")
+            .accessibilityHint("Swipe up and down to navigate posts, pull down to refresh")
+            .accessibilityAction(named: "Refresh Timeline") {
+                Task {
+                    await refreshTimeline()
+                }
             }
         }
     }

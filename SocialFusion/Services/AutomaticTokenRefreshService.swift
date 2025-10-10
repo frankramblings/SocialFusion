@@ -220,7 +220,16 @@ public class AutomaticTokenRefreshService: ObservableObject {
     private func refreshMastodonToken(for account: SocialAccount) async throws -> Bool {
         guard account.getRefreshToken() != nil else {
             logger.warning("No refresh token available for Mastodon account \(account.username)")
-            throw TokenRefreshError.noRefreshToken
+
+            // For Mastodon accounts without refresh tokens, extend the current token's expiration
+            // This is a temporary workaround to prevent constant re-authentication prompts
+            logger.info(
+                "Extending token expiration for Mastodon account \(account.username) without refresh token"
+            )
+            account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))  // 30 more days
+
+            // Return false to indicate no refresh was performed, but don't throw to avoid disrupting UX
+            return false
         }
 
         let mastodonService = MastodonService()

@@ -147,7 +147,8 @@ struct FocusableTextEditor: UIViewRepresentable {
             // Check if the view is still in the view hierarchy
             guard uiView.window != nil else { return }
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
                 // Double-check the view is still valid before focusing
                 guard !Task.isCancelled,
                     uiView.window != nil,

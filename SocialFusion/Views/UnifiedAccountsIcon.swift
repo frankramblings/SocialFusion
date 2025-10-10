@@ -28,34 +28,10 @@ public struct UnifiedAccountsIcon: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.secondary)
             } else {
-                // Show account management icon with platform logos
-                VStack(spacing: 2) {
-                    // Main account icon
-                    Image(
-                        systemName: totalAccountCount == 1
-                            ? "person.circle.fill" : "person.2.circle.fill"
-                    )
-                    .font(.system(size: 16, weight: .medium))
+                // Show account management icon (SF Symbol only)
+                Image(systemName: "person.2")
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.primary)
-
-                    // Platform logo indicators
-                    HStack(spacing: 2) {
-                        if !mastodonAccounts.isEmpty {
-                            Image("MastodonLogo")
-                                .resizable()
-                                .renderingMode(.template)
-                                .foregroundStyle(Color.mastodonColor)
-                                .frame(width: 8, height: 8)
-                        }
-                        if !blueskyAccounts.isEmpty {
-                            Image("BlueskyLogo")
-                                .resizable()
-                                .renderingMode(.template)
-                                .foregroundStyle(Color.blueskyColor)
-                                .frame(width: 8, height: 8)
-                        }
-                    }
-                }
             }
 
             // Account count badge (only show if more than 2 accounts)
