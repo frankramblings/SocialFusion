@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Simple empty state view for basic edge case handling
-struct SimpleEmptyStateView: View {
+/// Simple empty state view for basic edge case handling - ConsolidatedTimeline version
+struct ConsolidatedTimelineEmptyStateView: View {
     enum StateType {
         case loading
         case noAccounts
@@ -195,7 +195,7 @@ struct ConsolidatedTimelineView: View {
     @ViewBuilder
     private var contentView: some View {
         if controller.posts.isEmpty && controller.isLoading {
-            SimpleEmptyStateView(
+            ConsolidatedTimelineEmptyStateView(
                 state: .loading,
                 onRetry: {
                     controller.refreshTimeline()
@@ -212,12 +212,12 @@ struct ConsolidatedTimelineView: View {
     private func determineEmptyState() -> some View {
         // Determine the appropriate empty state based on current conditions
         if serviceManager.accounts.isEmpty {
-            SimpleEmptyStateView(
+            ConsolidatedTimelineEmptyStateView(
                 state: .noAccounts,
                 onRetry: nil
             )
         } else {
-            SimpleEmptyStateView(
+            ConsolidatedTimelineEmptyStateView(
                 state: .noPostsYet,
                 onRetry: {
                     controller.refreshTimeline()

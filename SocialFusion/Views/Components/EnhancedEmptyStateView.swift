@@ -1,5 +1,11 @@
 import SwiftUI
 
+extension View {
+    func apply<Content: View>(@ViewBuilder _ transform: (Self) -> Content) -> Content {
+        transform(self)
+    }
+}
+
 /// Enhanced empty state view that handles various edge cases with helpful guidance
 struct EnhancedEmptyStateView: View {
     let state: EmptyState
@@ -9,7 +15,7 @@ struct EnhancedEmptyStateView: View {
     @EnvironmentObject private var edgeCase: EdgeCaseHandler
     @Environment(\.colorScheme) private var colorScheme
 
-    enum EmptyState {
+    enum EmptyState: Equatable {
         case noAccounts
         case noInternet
         case noPostsYet
@@ -18,6 +24,23 @@ struct EnhancedEmptyStateView: View {
         case loading
         case memoryPressure
         case rateLimited(retryAfter: TimeInterval?)
+
+        static func == (lhs: EmptyState, rhs: EmptyState) -> Bool {
+            switch (lhs, rhs) {
+            case (.noAccounts, .noAccounts),
+                (.noInternet, .noInternet),
+                (.noPostsYet, .noPostsYet),
+                (.authenticationExpired, .authenticationExpired),
+                (.serverError, .serverError),
+                (.loading, .loading),
+                (.memoryPressure, .memoryPressure):
+                return true
+            case (.rateLimited(let lhsRetry), .rateLimited(let rhsRetry)):
+                return lhsRetry == rhsRetry
+            default:
+                return false
+            }
+        }
 
         var icon: String {
             switch self {
@@ -177,7 +200,13 @@ struct EnhancedEmptyStateView: View {
                     Image(systemName: state.icon)
                         .font(.system(size: 64, weight: .light))
                         .foregroundColor(state.color)
-                        .symbolEffect(.pulse.byLayer, options: .repeating)
+                        .apply { view in
+                            if #available(iOS 17.0, *) {
+                                view.symbolEffect(.pulse.byLayer, options: .repeating)
+                            } else {
+                                view
+                            }
+                        }
                 }
             }
 

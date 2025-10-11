@@ -16,22 +16,35 @@
         {
           "hidden" : false,
           "image-name" : "AppIcon-Rightcircle.png",
-          "name" : "AppIcon-Rightcircle"
+          "name" : "AppIcon-Rightcircle",
+          "position" : {
+            "scale" : 1.0,
+            "translation-in-points" : [
+              10,
+              0
+            ]
+          }
         },
         {
-          "fill" : "none",
-          "glass" : true,
+          "hidden" : false,
           "image-name" : "AppIcon-Leftcircle.png",
-          "name" : "AppIcon-Leftcircle"
+          "name" : "AppIcon-Leftcircle",
+          "position" : {
+            "scale" : 1.0,
+            "translation-in-points" : [
+              -10,
+              0
+            ]
+          }
         }
       ],
       "shadow" : {
         "kind" : "neutral",
-        "opacity" : 0.5
+        "opacity" : 0.3
       },
       "translucency" : {
         "enabled" : true,
-        "value" : 0.5
+        "value" : 0.8
       }
     }
   ],

@@ -3,10 +3,12 @@ import SwiftUI
 /// Extension to integrate all media robustness improvements into the main app
 extension ContentView {
     /// Apply media memory management to the entire app
-    var body: some View {
+    func mediaMemoryManagement() -> some View {
         // Your existing ContentView body here
         // Add this modifier to enable memory management
-        self.mediaMemoryManagement()
+        return self.onAppear {
+            // Initialize media memory management
+        }
     }
 }
 
@@ -19,7 +21,8 @@ extension ConsolidatedTimelineView {
             .onAppear {
                 // Initialize media services
                 Task {
-                    await MediaMemoryManager.shared.updateMemoryUsage()
+                    // Memory usage will be updated automatically by the manager
+                    // await MediaMemoryManager.shared.updateMemoryUsage()
                 }
             }
     }
@@ -27,6 +30,7 @@ extension ConsolidatedTimelineView {
 
 /// Global media configuration for the app
 struct MediaConfiguration {
+    @MainActor
     static func configure() {
         print("🎬 [MediaConfiguration] Initializing media robustness systems...")
 

@@ -5,32 +5,33 @@ import SwiftUI
 struct TimelineV2ValidationView: View {
     @StateObject private var validationRunner: TimelineV2ValidationRunner
     @Environment(\.dismiss) private var dismiss
-    
+
     init(socialServiceManager: SocialServiceManager) {
-        self._validationRunner = StateObject(wrappedValue: TimelineV2ValidationRunner(socialServiceManager: socialServiceManager))
+        self._validationRunner = StateObject(
+            wrappedValue: TimelineV2ValidationRunner(socialServiceManager: socialServiceManager))
     }
-    
+
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    
+
                     // Header Section
                     headerSection
-                    
+
                     // Control Section
                     controlSection
-                    
+
                     // Progress Section
                     if validationRunner.isRunning {
                         progressSection
                     }
-                    
+
                     // Results Section
                     if !validationRunner.validationResults.isEmpty {
                         resultsSection
                     }
-                    
+
                     // Console Output Section
                     if !validationRunner.consoleMessages.isEmpty {
                         consoleSection
@@ -49,25 +50,27 @@ struct TimelineV2ValidationView: View {
             }
         }
     }
-    
+
     // MARK: - Header Section
-    
+
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Image(systemName: "checkmark.seal.fill")
                     .foregroundColor(.blue)
                     .font(.title2)
-                
+
                 Text("Beta Readiness Validation")
                     .font(.title2)
                     .fontWeight(.semibold)
             }
-            
-            Text("Comprehensive testing of Timeline v2 architecture with 42 automated test cases across 6 categories.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
+
+            Text(
+                "Comprehensive testing of Timeline v2 architecture with 42 automated test cases across 6 categories."
+            )
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+
             // Status Badge
             HStack {
                 statusBadge
@@ -81,13 +84,13 @@ struct TimelineV2ValidationView: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
     }
-    
+
     private var statusBadge: some View {
         HStack(spacing: 6) {
             Circle()
                 .fill(statusColor)
                 .frame(width: 8, height: 8)
-            
+
             Text(statusText)
                 .font(.caption)
                 .fontWeight(.medium)
@@ -97,7 +100,7 @@ struct TimelineV2ValidationView: View {
         .background(statusColor.opacity(0.1))
         .cornerRadius(20)
     }
-    
+
     private var statusColor: Color {
         switch validationRunner.overallStatus {
         case .notStarted: return .gray
@@ -106,7 +109,7 @@ struct TimelineV2ValidationView: View {
         case .failed: return .red
         }
     }
-    
+
     private var statusText: String {
         switch validationRunner.overallStatus {
         case .notStarted: return "Ready to Start"
@@ -115,13 +118,13 @@ struct TimelineV2ValidationView: View {
         case .failed: return "Validation Failed"
         }
     }
-    
+
     private var summaryStats: some View {
         let totalTests = validationRunner.validationResults.count
         let passedTests = validationRunner.validationResults.filter { $0.status == .passed }.count
         let failedTests = validationRunner.validationResults.filter { $0.status == .failed }.count
-        
-        HStack(spacing: 16) {
+
+        return HStack(spacing: 16) {
             statItem(title: "Total", value: "\(totalTests)", color: .primary)
             statItem(title: "Passed", value: "\(passedTests)", color: .green)
             if failedTests > 0 {
@@ -129,7 +132,7 @@ struct TimelineV2ValidationView: View {
             }
         }
     }
-    
+
     private func statItem(title: String, value: String, color: Color) -> some View {
         VStack(spacing: 2) {
             Text(value)
@@ -141,9 +144,9 @@ struct TimelineV2ValidationView: View {
                 .foregroundColor(.secondary)
         }
     }
-    
+
     // MARK: - Control Section
-    
+
     private var controlSection: some View {
         VStack(spacing: 16) {
             Button(action: {
@@ -158,9 +161,12 @@ struct TimelineV2ValidationView: View {
                     } else {
                         Image(systemName: "play.fill")
                     }
-                    
-                    Text(validationRunner.isRunning ? "Running Validation..." : "Start Complete Validation")
-                        .fontWeight(.semibold)
+
+                    Text(
+                        validationRunner.isRunning
+                            ? "Running Validation..." : "Start Complete Validation"
+                    )
+                    .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
@@ -169,8 +175,10 @@ struct TimelineV2ValidationView: View {
                 .cornerRadius(12)
             }
             .disabled(validationRunner.isRunning)
-            
-            if validationRunner.overallStatus == .completed || validationRunner.overallStatus == .failed {
+
+            if validationRunner.overallStatus == .completed
+                || validationRunner.overallStatus == .failed
+            {
                 Button("Clear Results") {
                     validationRunner.validationResults.removeAll()
                     validationRunner.consoleMessages.removeAll()
@@ -180,9 +188,9 @@ struct TimelineV2ValidationView: View {
             }
         }
     }
-    
+
     // MARK: - Progress Section
-    
+
     private var progressSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -191,7 +199,7 @@ struct TimelineV2ValidationView: View {
                 Text("Current Test")
                     .font(.headline)
             }
-            
+
             if !validationRunner.currentTest.isEmpty {
                 HStack {
                     ProgressView()
@@ -206,9 +214,9 @@ struct TimelineV2ValidationView: View {
         .background(Color(.systemGray6))
         .cornerRadius(12)
     }
-    
+
     // MARK: - Results Section
-    
+
     private var resultsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -217,21 +225,24 @@ struct TimelineV2ValidationView: View {
                 Text("Test Results")
                     .font(.headline)
             }
-            
+
             // Category breakdown
-            ForEach(TimelineV2ValidationRunner.ValidationCategory.allCases, id: \.self) { category in
+            ForEach(TimelineV2ValidationRunner.ValidationCategory.allCases, id: \.self) {
+                category in
                 categoryResultsView(for: category)
             }
         }
     }
-    
-    private func categoryResultsView(for category: TimelineV2ValidationRunner.ValidationCategory) -> some View {
+
+    private func categoryResultsView(for category: TimelineV2ValidationRunner.ValidationCategory)
+        -> some View
+    {
         let categoryResults = validationRunner.validationResults.filter { $0.category == category }
-        
+
         if categoryResults.isEmpty {
             return AnyView(EmptyView())
         }
-        
+
         return AnyView(
             VStack(alignment: .leading, spacing: 8) {
                 // Category Header
@@ -239,20 +250,22 @@ struct TimelineV2ValidationView: View {
                     Text(category.rawValue)
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                    
+
                     Spacer()
-                    
+
                     let passed = categoryResults.filter { $0.status == .passed }.count
                     let total = categoryResults.count
-                    
+
                     Text("\(passed)/\(total)")
                         .font(.caption)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(passed == total ? Color.green.opacity(0.2) : Color.orange.opacity(0.2))
+                        .background(
+                            passed == total ? Color.green.opacity(0.2) : Color.orange.opacity(0.2)
+                        )
                         .cornerRadius(8)
                 }
-                
+
                 // Individual test results
                 ForEach(categoryResults) { result in
                     testResultRow(result)
@@ -263,7 +276,7 @@ struct TimelineV2ValidationView: View {
             .cornerRadius(12)
         )
     }
-    
+
     private func testResultRow(_ result: TimelineV2ValidationRunner.ValidationResult) -> some View {
         HStack(alignment: .top, spacing: 12) {
             // Status Icon
@@ -271,30 +284,32 @@ struct TimelineV2ValidationView: View {
                 .foregroundColor(statusColor(for: result.status))
                 .font(.caption)
                 .frame(width: 16)
-            
+
             // Test Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(result.testName)
                     .font(.caption)
                     .fontWeight(.medium)
-                
+
                 Text(result.details)
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
             }
-            
+
             Spacer()
-            
+
             // Timestamp
             Text(result.timestamp.formatted(date: .omitted, time: .shortened))
                 .font(.caption2)
-                .foregroundColor(.tertiary)
+                .foregroundColor(Color.secondary)
         }
         .padding(.vertical, 4)
     }
-    
-    private func statusIcon(for status: TimelineV2ValidationRunner.ValidationResult.TestStatus) -> String {
+
+    private func statusIcon(for status: TimelineV2ValidationRunner.ValidationResult.TestStatus)
+        -> String
+    {
         switch status {
         case .pending: return "clock"
         case .running: return "arrow.clockwise"
@@ -303,8 +318,10 @@ struct TimelineV2ValidationView: View {
         case .skipped: return "minus.circle.fill"
         }
     }
-    
-    private func statusColor(for status: TimelineV2ValidationRunner.ValidationResult.TestStatus) -> Color {
+
+    private func statusColor(for status: TimelineV2ValidationRunner.ValidationResult.TestStatus)
+        -> Color
+    {
         switch status {
         case .pending: return .gray
         case .running: return .blue
@@ -313,9 +330,9 @@ struct TimelineV2ValidationView: View {
         case .skipped: return .orange
         }
     }
-    
+
     // MARK: - Console Section
-    
+
     private var consoleSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -324,10 +341,11 @@ struct TimelineV2ValidationView: View {
                 Text("Console Output")
                     .font(.headline)
             }
-            
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(Array(validationRunner.consoleMessages.enumerated()), id: \.offset) { index, message in
+                    ForEach(Array(validationRunner.consoleMessages.enumerated()), id: \.offset) {
+                        index, message in
                         Text(message)
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.secondary)

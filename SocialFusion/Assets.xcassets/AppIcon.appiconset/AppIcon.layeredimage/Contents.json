@@ -5,10 +5,10 @@
   },
   "layers" : [
     {
-      "filename" : "AppIcon-Leftcircle.png"
+      "filename" : "AppIcon-Rightcircle.png"
     },
     {
-      "filename" : "AppIcon-Rightcircle.png"
+      "filename" : "AppIcon-Leftcircle.png"
     }
   ]
 }

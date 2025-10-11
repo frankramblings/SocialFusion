@@ -5,7 +5,7 @@
         <deployment identifier="iOS"/>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21679"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
-        <capability name="System colors in document resources" minToolsVersion="11.0"/>
+        <capability name="Named colors" minToolsVersion="9.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
     </dependencies>
     <scenes>
@@ -16,31 +16,8 @@
                     <view key="view" contentMode="scaleToFill" id="Ze5-6b-2t3">
                         <rect key="frame" x="0.0" y="0.0" width="430" height="932"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                        <subviews>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="SocialFusion" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="faH-vM-5DY">
-                                <rect key="frame" x="20" y="446" width="390" height="40"/>
-                                <fontDescription key="fontDescription" style="UICTFontTextStyleTitle0"/>
-                                <nil key="textColor"/>
-                                <nil key="highlightedColor"/>
-                            </label>
-                            <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="bubble.left.and.bubble.right" catalog="system" translatesAutoresizingMaskIntoConstraints="NO" id="8Dg-2x-Tgp">
-                                <rect key="frame" x="165" y="368.33333333333331" width="100" height="99.999999999999943"/>
-                                <color key="tintColor" systemColor="systemBlueColor"/>
-                                <constraints>
-                                    <constraint firstAttribute="width" constant="100" id="XGZ-Rp-6Sf"/>
-                                    <constraint firstAttribute="height" constant="100" id="l2T-VH-eFi"/>
-                                </constraints>
-                            </imageView>
-                        </subviews>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
-                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
-                        <constraints>
-                            <constraint firstItem="8Dg-2x-Tgp" firstAttribute="centerX" secondItem="Ze5-6b-2t3" secondAttribute="centerX" id="4aY-5B-AUJ"/>
-                            <constraint firstItem="faH-vM-5DY" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="20" id="GHJ-iO-2ov"/>
-                            <constraint firstItem="faH-vM-5DY" firstAttribute="centerY" secondItem="Ze5-6b-2t3" secondAttribute="centerY" id="JEP-ab-N05"/>
-                            <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="faH-vM-5DY" secondAttribute="trailing" constant="20" id="cg2-2M-EuI"/>
-                            <constraint firstItem="faH-vM-5DY" firstAttribute="top" secondItem="8Dg-2x-Tgp" secondAttribute="bottom" constant="8" symbolic="YES" id="jS7-P9-Eho"/>
-                        </constraints>
+                        <color key="backgroundColor" name="LaunchBackground"/>
                     </view>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="iYj-Kq-Ea1" userLabel="First Responder" sceneMemberID="firstResponder"/>
@@ -49,12 +26,8 @@
         </scene>
     </scenes>
     <resources>
-        <image name="bubble.left.and.bubble.right" catalog="system" width="128" height="96"/>
-        <systemColor name="systemBackgroundColor">
-            <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
-        </systemColor>
-        <systemColor name="systemBlueColor">
-            <color red="0.0" green="0.47843137254901963" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-        </systemColor>
+        <namedColor name="LaunchBackground">
+            <color red="0.85098039215686272" green="0.94117647058823528" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </namedColor>
     </resources>
-</document> 
+</document>

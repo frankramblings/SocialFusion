@@ -36,7 +36,6 @@ targets:
       properties:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
-        UIMainStoryboardFile: Main
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         CFBundleShortVersionString: "1.0.0"

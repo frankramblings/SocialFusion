@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "AppIcon-Light-1024 copy.png",
+      "filename" : "AppIcon_10-8-25-iOS-Default-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "AppIcon-Dark-1024 copy.png",
+      "filename" : "AppIcon_10-8-25-iOS-Dark-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "AppIcon-Monochrome-1024 copy.png",
+      "filename" : "AppIcon_10-8-25-iOS-ClearDark-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -34,10 +34,5 @@
   "info" : {
     "author" : "xcode",
     "version" : 1
-  },
-  "properties" : {
-    "layered-image" : {
-      "filename" : "AppIcon.layeredimage"
-    }
   }
 }
