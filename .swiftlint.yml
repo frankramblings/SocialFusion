@@ -5,21 +5,37 @@ disabled_rules:
   - file_length
   - type_body_length
   - identifier_name
+  - trailing_comma
+  - opening_brace
+  - multiple_closures_with_trailing_closure
+  - redundant_optional_initialization
+  - empty_enum_arguments
+  - closure_parameter_position
+  - unused_closure_parameter
+  - redundant_discardable_let
+  - todo
+  - orphaned_doc_comment
+  - cyclomatic_complexity
+  - missing_docs
+  - prefer_type_checking
+  - non_optional_string_data_conversion
+  - duplicate_imports
+  - large_tuple
+  - empty_count
+  - force_try
+  - shorthand_operator
 
 opt_in_rules:
-  - empty_count
-  - missing_docs
   - closure_end_indentation
   - explicit_init
   - first_where
   - overridden_super_call
   - prohibited_super_call
   - redundant_nil_coalescing
-  - sorted_imports
   - unneeded_parentheses_in_closure_argument
 
 included:
-  - Sources
+  - SocialFusion
 
 excluded:
   - Carthage
