@@ -118,7 +118,7 @@ enum LocalNetworkError: Error {
 }
 
 /// Represents a service for interacting with the Bluesky social platform
-class BlueskyService {
+public class BlueskyService {
 
     // MARK: - Singleton
     static let shared = BlueskyService()
@@ -1392,6 +1392,8 @@ class BlueskyService {
                 var quotedPostAuthorHandle: String? = nil
                 var quotedPost: Post? = nil
                 var externalEmbedURL: String? = nil
+                var externalEmbedTitle: String? = nil
+                var externalEmbedDescription: String? = nil
 
                 if let embed = post["embed"] as? [String: Any] {
                     print(
@@ -1429,6 +1431,8 @@ class BlueskyService {
                             )
                         } else {
                             externalEmbedURL = externalUri
+                            externalEmbedTitle = external["title"] as? String
+                            externalEmbedDescription = external["description"] as? String
                             logger.info("[Bluesky] Found external embed URL: \(externalUri)")
                         }
                     }
@@ -1763,6 +1767,9 @@ class BlueskyService {
                     quotedPostUri: quotedPostUri,
                     quotedPostAuthorHandle: quotedPostAuthorHandle,
                     cid: cid,
+                    primaryLinkURL: externalEmbedURL != nil ? URL(string: externalEmbedURL!) : nil,
+                    primaryLinkTitle: externalEmbedTitle,
+                    primaryLinkDescription: externalEmbedDescription,
                     blueskyLikeRecordURI: viewer?["like"] as? String,  // Fixed: Use actual like URI
                     blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
                 )
@@ -1837,6 +1844,7 @@ class BlueskyService {
         let mentions: [String] = []  // TODO: Extract mentions from Bluesky post if available
         let tags: [String] = []  // TODO: Extract tags from Bluesky post if available
         let cid = post.cid  // Use the real cid from BlueskyPost
+        let external = post.embed?.external
         return Post(
             id: UUID().uuidString,
             content: content,
@@ -1862,6 +1870,9 @@ class BlueskyService {
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
             cid: cid,
+            primaryLinkURL: external?.uri != nil ? URL(string: external!.uri) : nil,
+            primaryLinkTitle: external?.title,
+            primaryLinkDescription: external?.description,
             blueskyLikeRecordURI: post.viewer?.like,  // Use existing like URI if available
             blueskyRepostRecordURI: post.viewer?.repost  // Use existing repost URI if available
         )
@@ -1908,6 +1919,17 @@ class BlueskyService {
             }
         }
 
+        // Extract external URLs from embeds for link preview
+        var externalEmbedURL: String? = nil
+        if let embed = post["embed"] as? [String: Any],
+            let embedType = embed["$type"] as? String,
+            embedType == "app.bsky.embed.external#view",
+            let external = embed["external"] as? [String: Any],
+            let externalUri = external["uri"] as? String
+        {
+            externalEmbedURL = externalUri
+        }
+
         return Post(
             id: uri,
             content: text,
@@ -1925,7 +1947,8 @@ class BlueskyService {
             repostCount: repostCount,
             replyCount: replyCount,
             platformSpecificId: uri,
-            cid: post["cid"] as? String
+            cid: post["cid"] as? String,
+            primaryLinkURL: externalEmbedURL != nil ? URL(string: externalEmbedURL!) : nil
         )
     }
 

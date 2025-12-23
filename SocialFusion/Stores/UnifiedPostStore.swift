@@ -47,10 +47,11 @@ public class UnifiedPostStore {
 
             // Sort posts by date
             allPosts.sort { $0.createdAt > $1.createdAt }
+            let postsSnapshot = allPosts
 
             // Update state
             await MainActor.run {
-                self.posts = allPosts
+                self.posts = postsSnapshot
                 self.isLoading = false
             }
 
@@ -79,10 +80,11 @@ public class UnifiedPostStore {
             // Update local state
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
-                    var updatedPost = posts[index]
-                    updatedPost.isLiked = true
-                    updatedPost.likeCount += 1
-                    posts[index] = updatedPost
+                    let updatedPost = posts[index]
+                    var modifiedPost = updatedPost
+                    modifiedPost.isLiked = true
+                    modifiedPost.likeCount += 1
+                    posts[index] = modifiedPost
                 }
             }
         } catch {
@@ -106,10 +108,11 @@ public class UnifiedPostStore {
             // Update local state
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
-                    var updatedPost = posts[index]
-                    updatedPost.isLiked = false
-                    updatedPost.likeCount -= 1
-                    posts[index] = updatedPost
+                    let updatedPost = posts[index]
+                    var modifiedPost = updatedPost
+                    modifiedPost.isLiked = false
+                    modifiedPost.likeCount -= 1
+                    posts[index] = modifiedPost
                 }
             }
         } catch {
@@ -133,10 +136,11 @@ public class UnifiedPostStore {
             // Update local state
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
-                    var updatedPost = posts[index]
-                    updatedPost.isReposted = true
-                    updatedPost.repostCount += 1
-                    posts[index] = updatedPost
+                    let updatedPost = posts[index]
+                    var modifiedPost = updatedPost
+                    modifiedPost.isReposted = true
+                    modifiedPost.repostCount += 1
+                    posts[index] = modifiedPost
                 }
             }
         } catch {
@@ -160,10 +164,11 @@ public class UnifiedPostStore {
             // Update local state
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
-                    var updatedPost = posts[index]
-                    updatedPost.isReposted = false
-                    updatedPost.repostCount -= 1
-                    posts[index] = updatedPost
+                    let updatedPost = posts[index]
+                    var modifiedPost = updatedPost
+                    modifiedPost.isReposted = false
+                    modifiedPost.repostCount -= 1
+                    posts[index] = modifiedPost
                 }
             }
         } catch {
@@ -189,9 +194,10 @@ public class UnifiedPostStore {
             // Update local state
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
-                    var updatedPost = posts[index]
-                    updatedPost.replyCount += 1
-                    posts[index] = updatedPost
+                    let updatedPost = posts[index]
+                    var modifiedPost = updatedPost
+                    modifiedPost.replyCount += 1
+                    posts[index] = modifiedPost
                 }
                 posts.insert(reply, at: 0)
             }

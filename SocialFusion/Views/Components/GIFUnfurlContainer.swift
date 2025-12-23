@@ -68,6 +68,7 @@ public struct GIFUnfurlContainer: View {
 
     @State private var animatedImage: UIImage?
     @State private var isLoading: Bool = false
+    @State private var imageAspectRatio: CGFloat?
 
     public init(
         url: URL,
@@ -86,33 +87,44 @@ public struct GIFUnfurlContainer: View {
     }
 
     public var body: some View {
-        Group {
-            if FeatureFlags.enableGIFUnfurling {
-                ZStack {
-                    if let animatedImage {
-                        AnimatedImageView(image: animatedImage, contentMode: .scaleAspectFit)
-                            .aspectRatio(
-                                contentMode: contentMode == .scaleAspectFill ? .fill : .fit)
-                    } else {
-                        ProgressView()
+        GeometryReader { geometry in
+            Group {
+                if FeatureFlags.enableGIFUnfurling {
+                    ZStack {
+                        if let animatedImage {
+                            AnimatedImageView(image: animatedImage, contentMode: .scaleAspectFit)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        } else {
+                            ProgressView()
+                        }
                     }
+                    .onAppear(perform: loadIfNeeded)
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.08))
+                        .overlay(
+                            Text("GIF unfurling disabled")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        )
                 }
-                .onAppear(perform: loadIfNeeded)
-            } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.08))
-                    .overlay(
-                        Text("GIF unfurling disabled")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    )
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: calculatedHeight(for: geometry.size.width))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .contentShape(Rectangle())
+            .onTapGesture { onTap?() }
         }
-        .frame(maxWidth: .infinity)
         .frame(maxHeight: maxHeight)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .contentShape(Rectangle())
-        .onTapGesture { onTap?() }
+    }
+    
+    private func calculatedHeight(for width: CGFloat) -> CGFloat {
+        guard let aspectRatio = imageAspectRatio, width > 0, aspectRatio > 0 else {
+            // Fallback to a reasonable aspect ratio while loading
+            return min(width / 1.5, maxHeight)
+        }
+        let calculatedHeight = width / aspectRatio
+        return min(calculatedHeight, maxHeight)
     }
 
     private func loadIfNeeded() {
@@ -123,7 +135,14 @@ public struct GIFUnfurlContainer: View {
             do {
                 let unfurled = try await GIFUnfurlingService.shared.unfurl(url: url)
                 if let image = Self.makeAnimatedImage(from: unfurled.data) {
-                    animatedImage = image
+                    await MainActor.run {
+                        animatedImage = image
+                        // Calculate aspect ratio to eliminate empty space
+                        let size = image.size
+                        if size.height > 0 {
+                            imageAspectRatio = size.width / size.height
+                        }
+                    }
                 }
             } catch {
                 // Keep placeholder; remain silent to avoid log noise in production

@@ -107,7 +107,19 @@ class URLService {
                 return validatedURL
             }
 
-            return results
+            // Deduplicate URLs while preserving order
+            var seen = Set<String>()
+            var uniqueResults = [URL]()
+            for url in results {
+                let urlString = url.absoluteString.lowercased().trimmingCharacters(
+                    in: CharacterSet(charactersIn: "/"))
+                if !seen.contains(urlString) {
+                    seen.insert(urlString)
+                    uniqueResults.append(url)
+                }
+            }
+
+            return uniqueResults
         }
     }
 
@@ -189,7 +201,7 @@ class URLService {
 
     /// Check if a URL points to a social media post
     func isSocialMediaPostURL(_ url: URL) -> Bool {
-        return isBlueskyPostURL(url) || isMastodonPostURL(url)
+        return isBlueskyPostURL(url) || isFediversePostURL(url)
     }
 
     /// Check if a URL is valid and safe to make a request to

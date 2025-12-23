@@ -117,7 +117,7 @@ public struct MediaAttachment: Codable, Identifiable, Equatable {
 }
 
 // MARK: - Post class
-public class Post: Identifiable, Codable, Equatable, ObservableObject {
+public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecked Sendable {
     public let id: String
     public let content: String
     public let authorName: String
@@ -142,12 +142,36 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             }
         }
     }
-    @Published public var isReposted: Bool = false
-    @Published public var isLiked: Bool = false
-    @Published public var isReplied: Bool = false
-    @Published public var likeCount: Int = 0
-    @Published public var repostCount: Int = 0
-    @Published public var replyCount: Int = 0
+    @Published public var isReposted: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var isLiked: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var isReplied: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var likeCount: Int = 0 {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var repostCount: Int = 0 {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var replyCount: Int = 0 {
+        didSet {
+            objectWillChange.send()
+        }
+    }
 
     // Properties for reply and boost functionality - these should NOT be @Published
     // to prevent cycles when Posts contain other Posts
@@ -178,6 +202,11 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
     let quotedPostAuthorHandle: String?
 
     public var cid: String?  // Bluesky only, optional for backward compatibility
+
+    // Pre-extracted primary link for previews (e.g. Bluesky external embed or Mastodon card)
+    public var primaryLinkURL: URL?
+    public var primaryLinkTitle: String?
+    public var primaryLinkDescription: String?
 
     // Bluesky AT Protocol record URIs for unlike/unrepost functionality
     public var blueskyLikeRecordURI: String?  // URI of the like record created by this user
@@ -239,6 +268,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         case quotedPostUri
         case quotedPostAuthorHandle
         case cid
+        case primaryLinkURL
+        case primaryLinkTitle
+        case primaryLinkDescription
         case quotedPost
         case blueskyLikeRecordURI
         case blueskyRepostRecordURI
@@ -321,6 +353,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         let quotedPostAuthorHandle = try container.decodeIfPresent(
             String.self, forKey: .quotedPostAuthorHandle)
         let cid = try container.decodeIfPresent(String.self, forKey: .cid)
+        let primaryLinkURL = try container.decodeIfPresent(URL.self, forKey: .primaryLinkURL)
+        let primaryLinkTitle = try container.decodeIfPresent(String.self, forKey: .primaryLinkTitle)
+        let primaryLinkDescription = try container.decodeIfPresent(String.self, forKey: .primaryLinkDescription)
         let quotedPost = try container.decodeIfPresent(Post.self, forKey: .quotedPost)
         let blueskyLikeRecordURI = try container.decodeIfPresent(
             String.self, forKey: .blueskyLikeRecordURI)
@@ -354,10 +389,16 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
             quotedPostAuthorHandle: quotedPostAuthorHandle,
             quotedPost: quotedPost,
             cid: cid,
+            primaryLinkURL: primaryLinkURL,
+            primaryLinkTitle: primaryLinkTitle,
+            primaryLinkDescription: primaryLinkDescription,
             blueskyLikeRecordURI: blueskyLikeRecordURI,
             blueskyRepostRecordURI: blueskyRepostRecordURI
         )
         self.cid = cid
+        self.primaryLinkURL = primaryLinkURL
+        self.primaryLinkTitle = primaryLinkTitle
+        self.primaryLinkDescription = primaryLinkDescription
         self.quotedPost = quotedPost
     }
 
@@ -389,6 +430,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         try container.encodeIfPresent(quotedPostUri, forKey: .quotedPostUri)
         try container.encodeIfPresent(quotedPostAuthorHandle, forKey: .quotedPostAuthorHandle)
         try container.encodeIfPresent(cid, forKey: .cid)
+        try container.encodeIfPresent(primaryLinkURL, forKey: .primaryLinkURL)
+        try container.encodeIfPresent(primaryLinkTitle, forKey: .primaryLinkTitle)
+        try container.encodeIfPresent(primaryLinkDescription, forKey: .primaryLinkDescription)
         try container.encodeIfPresent(quotedPost, forKey: .quotedPost)
         try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
         try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
@@ -422,6 +466,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         quotedPostAuthorHandle: String? = nil,
         quotedPost: Post? = nil,
         cid: String? = nil,
+        primaryLinkURL: URL? = nil,
+        primaryLinkTitle: String? = nil,
+        primaryLinkDescription: String? = nil,
         blueskyLikeRecordURI: String? = nil,
         blueskyRepostRecordURI: String? = nil
     ) {
@@ -450,6 +497,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject {
         self.quotedPostAuthorHandle = quotedPostAuthorHandle
         self.quotedPost = quotedPost
         self.cid = cid
+        self.primaryLinkURL = primaryLinkURL
+        self.primaryLinkTitle = primaryLinkTitle
+        self.primaryLinkDescription = primaryLinkDescription
         self.blueskyLikeRecordURI = blueskyLikeRecordURI
         self.blueskyRepostRecordURI = blueskyRepostRecordURI
         // Defensive: prevent self-reference on construction
@@ -1058,3 +1108,6 @@ extension Post.Attachment.AttachmentType {
         }
     }
 }
+
+// MARK: - Concurrency Support
+// Post already conforms to @unchecked Sendable in its class declaration (line 120)

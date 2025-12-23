@@ -8,11 +8,6 @@ struct AccountsView: View {
 
     @State private var accountToDelete: SocialAccount? = nil
     @State private var showDeleteConfirmation = false
-    @State private var showingAddTokenView = false
-    @State private var tokenServerURL = ""
-    @State private var tokenAccessToken = ""
-    @State private var isTokenLoading = false
-    @State private var tokenErrorMessage: String? = nil
     @State private var showDebugInfo = false
 
     var body: some View {
@@ -75,14 +70,6 @@ struct AccountsView: View {
                         }) {
                             Label("Add Mastodon Account", systemImage: "plus.circle")
                         }
-
-                        // Use a button instead of NavigationLink
-                        Button(action: {
-                            showingAddTokenView = true
-                        }) {
-                            Label("Add with Access Token", systemImage: "key")
-                                .foregroundColor(.blue)
-                        }
                     } else {
                         ForEach(serviceManager.mastodonAccounts) { account in
                             accountSelectionRow(account)
@@ -93,14 +80,6 @@ struct AccountsView: View {
                             showingAddAccount = true
                         }) {
                             Label("Add Another Mastodon Account", systemImage: "plus.circle")
-                        }
-
-                        // Use a button instead of NavigationLink
-                        Button(action: {
-                            showingAddTokenView = true
-                        }) {
-                            Label("Add with Access Token", systemImage: "key")
-                                .foregroundColor(.blue)
                         }
                     }
                 }
@@ -155,66 +134,6 @@ struct AccountsView: View {
             .sheet(isPresented: $showingAddAccount) {
                 AddAccountView()
                     .environmentObject(serviceManager)
-            }
-            .sheet(isPresented: $showingAddTokenView) {
-                NavigationView {
-                    Form {
-                        Section(header: Text("Server Information")) {
-                            TextField("Server URL (e.g. mastodon.social)", text: $tokenServerURL)
-                                .autocapitalization(.none)
-                                .keyboardType(.URL)
-                                .disableAutocorrection(true)
-                        }
-
-                        Section(header: Text("Authentication")) {
-                            SecureField("Access Token", text: $tokenAccessToken)
-                                .autocapitalization(.none)
-                                .disableAutocorrection(true)
-
-                            Text(
-                                "You can obtain an access token from your Mastodon's instance settings page, under Development → Your applications."
-                            )
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        }
-
-                        Section {
-                            Button(action: addAccountWithToken) {
-                                if isTokenLoading {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                } else {
-                                    Text("Add Account")
-                                        .frame(maxWidth: .infinity)
-                                        .foregroundColor(.white)
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(isTokenFormValid ? Color.blue : Color.gray)
-                            .cornerRadius(10)
-                            .disabled(isTokenLoading || !isTokenFormValid)
-                        }
-
-                        if let error = tokenErrorMessage {
-                            Section {
-                                Text(error)
-                                    .foregroundColor(.red)
-                                    .font(.footnote)
-                            }
-                        }
-                    }
-
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Cancel") {
-                                showingAddTokenView = false
-                            }
-                        }
-                    }
-                }
             }
             .alert("Remove Account", isPresented: $showDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
@@ -407,43 +326,6 @@ struct AccountsView: View {
         }
     }
 
-    private var isTokenFormValid: Bool {
-        !tokenServerURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !tokenAccessToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func addAccountWithToken() {
-        isTokenLoading = true
-        tokenErrorMessage = nil
-
-        // Clean up the inputs
-        let trimmedServer = tokenServerURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedToken = tokenAccessToken.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        Task {
-            do {
-                let _ = try await serviceManager.addMastodonAccountWithToken(
-                    serverURL: trimmedServer,
-                    accessToken: trimmedToken
-                )
-
-                await MainActor.run {
-                    isTokenLoading = false
-                    tokenServerURL = ""
-                    tokenAccessToken = ""
-                    showingAddTokenView = false
-
-                    // Refresh selections to include the new account
-                    refreshAccountSelections()
-                }
-            } catch {
-                await MainActor.run {
-                    isTokenLoading = false
-                    tokenErrorMessage = "Failed to add account: \(error.localizedDescription)"
-                }
-            }
-        }
-    }
 
     // Row for accounts needing re-authentication
     private func reauthenticationRow(

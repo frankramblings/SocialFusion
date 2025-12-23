@@ -13,8 +13,9 @@
             "args": [],
             "cwd": "${workspaceFolder:SocialFusion}",
             "name": "Debug SocialFusion",
-            "program": "${workspaceFolder:SocialFusion}/.build/debug/SocialFusion",
-            "preLaunchTask": "swift: Build Debug SocialFusion"
+            "preLaunchTask": "swift: Build Debug SocialFusion",
+            "target": "SocialFusion",
+            "configuration": "debug"
         },
         {
             "type": "swift",
@@ -22,8 +23,9 @@
             "args": [],
             "cwd": "${workspaceFolder:SocialFusion}",
             "name": "Release SocialFusion",
-            "program": "${workspaceFolder:SocialFusion}/.build/release/SocialFusion",
-            "preLaunchTask": "swift: Build Release SocialFusion"
+            "preLaunchTask": "swift: Build Release SocialFusion",
+            "target": "SocialFusion",
+            "configuration": "release"
         }
     ]
 }

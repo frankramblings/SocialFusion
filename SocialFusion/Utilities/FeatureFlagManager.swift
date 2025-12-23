@@ -22,6 +22,13 @@ final class FeatureFlagManager: ObservableObject {
     /// Controls whether to use the new social service manager
     @AppStorage("useNewSocialServiceManager") private(set) var useNewSocialServiceManager = false
 
+    /// Controls whether to use the unified post actions coordinator flow
+#if DEBUG
+    @AppStorage("postActionsV2") private(set) var postActionsV2 = true
+#else
+    @AppStorage("postActionsV2") private(set) var postActionsV2 = false
+#endif
+
     // MARK: - Debug Flags
 
     /// Controls whether debug mode is enabled
@@ -66,6 +73,8 @@ final class FeatureFlagManager: ObservableObject {
             useNewBlueskyService = true
         case .newSocialServiceManager:
             useNewSocialServiceManager = true
+        case .postActionsV2:
+            postActionsV2 = true
         case .debugMode:
             debugModeEnabled = true
         case .verboseLogging:
@@ -94,6 +103,8 @@ final class FeatureFlagManager: ObservableObject {
             useNewBlueskyService = false
         case .newSocialServiceManager:
             useNewSocialServiceManager = false
+        case .postActionsV2:
+            postActionsV2 = false
         case .debugMode:
             debugModeEnabled = false
         case .verboseLogging:
@@ -130,6 +141,7 @@ final class FeatureFlagManager: ObservableObject {
             "newViewModel": useNewViewModel,
             "newBlueskyService": useNewBlueskyService,
             "newSocialServiceManager": useNewSocialServiceManager,
+            "postActionsV2": postActionsV2,
             "debugMode": debugModeEnabled,
             "verboseLogging": verboseLogging,
             "performanceTracking": trackPerformance,
@@ -137,6 +149,32 @@ final class FeatureFlagManager: ObservableObject {
         ]
 
         return stats
+    }
+
+    /// Convenience helper to check a flag's enabled state
+    static func isEnabled(_ flag: FeatureFlag) -> Bool {
+        switch flag {
+        case .newArchitecture:
+            return shared.useNewArchitecture
+        case .newPostCard:
+            return shared.useNewPostCard
+        case .newViewModel:
+            return shared.useNewViewModel
+        case .newBlueskyService:
+            return shared.useNewBlueskyService
+        case .newSocialServiceManager:
+            return shared.useNewSocialServiceManager
+        case .postActionsV2:
+            return shared.postActionsV2
+        case .debugMode:
+            return shared.debugModeEnabled
+        case .verboseLogging:
+            return shared.verboseLogging
+        case .performanceTracking:
+            return shared.trackPerformance
+        case .gifUnfurling:
+            return shared.enableGIFUnfurling
+        }
     }
 
     // MARK: - Private Methods
@@ -174,6 +212,7 @@ enum FeatureFlag: String {
     case newViewModel = "new_view_model"
     case newBlueskyService = "new_bluesky_service"
     case newSocialServiceManager = "new_social_service_manager"
+    case postActionsV2 = "post_actions_v2"
     case debugMode = "debug_mode"
     case verboseLogging = "verbose_logging"
     case performanceTracking = "performance_tracking"
@@ -195,6 +234,7 @@ extension View {
                 .newViewModel where manager.useNewViewModel,
                 .newBlueskyService where manager.useNewBlueskyService,
                 .newSocialServiceManager where manager.useNewSocialServiceManager,
+                .postActionsV2 where manager.postActionsV2,
                 .debugMode where manager.debugModeEnabled,
                 .verboseLogging where manager.verboseLogging,
                 .performanceTracking where manager.trackPerformance,

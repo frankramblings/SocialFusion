@@ -14,10 +14,8 @@ struct AddAccountView: View {
     @State private var server = ""
     @State private var username = ""
     @State private var password = ""
-    @State private var accessToken = ""
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
-    @State private var authMethod: AuthMethod = .oauth
     @State private var platformSelected = true
     @State private var isOAuthFlow = true
     @State private var isAuthCodeEntered = false
@@ -39,15 +37,6 @@ struct AddAccountView: View {
         let server: String
         let username: String
         let password: String
-        let accessToken: String
-        let authMethod: AuthMethod
-    }
-
-    enum AuthMethod: String, CaseIterable, Identifiable, Codable {
-        case oauth = "OAuth"
-        case manual = "Access Token"
-
-        var id: String { self.rawValue }
     }
 
     var body: some View {
@@ -74,21 +63,9 @@ struct AddAccountView: View {
                         // Set default server for Bluesky or clear for Mastodon
                         if selectedPlatform == .bluesky {
                             server = "bsky.social"
-                            authMethod = .oauth  // Bluesky only uses username/password
                         } else {
                             server = ""
                         }
-                    }
-                }
-
-                if selectedPlatform == .mastodon {
-                    Section(header: Text("Authentication Method")) {
-                        Picker("Auth Method", selection: $authMethod) {
-                            ForEach(AuthMethod.allCases) { method in
-                                Text(method.rawValue).tag(method)
-                            }
-                        }
-                        .pickerStyle(SegmentedPickerStyle())
                     }
                 }
 
@@ -103,19 +80,6 @@ struct AddAccountView: View {
                             .keyboardType(.URL)
                             .disableAutocorrection(true)
                             .submitLabel(.done)
-
-                        if authMethod == .manual {
-                            Text("Paste your access token from your Mastodon app settings")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .padding(.top, 8)
-
-                            SecureField("Access Token", text: $accessToken)
-                                .autocapitalization(.none)
-                                .disableAutocorrection(true)
-                                .autocorrectionDisabled(true)
-                                .textInputAutocapitalization(.never)
-                        }
                     } else {
                         Text("Enter your Bluesky credentials")
                             .font(.caption)
@@ -181,9 +145,7 @@ struct AddAccountView: View {
                                 .padding(.vertical, 4)
                             }
                         }
-                        .disabled(
-                            isLoading || server.isEmpty
-                                || (authMethod == .manual && accessToken.isEmpty))
+                        .disabled(isLoading || server.isEmpty)
                     } else {
                         Button(action: addAccount) {
                             if isLoading {
@@ -293,24 +255,16 @@ struct AddAccountView: View {
                     )
                 }
 
-                if authMethod == .manual {
-                    // Use access token authentication
-                    _ = try await serviceManager.addMastodonAccountWithToken(
-                        serverURL: url.absoluteString,
-                        accessToken: accessToken
-                    )
-                } else {
-                    // Use OAuth flow
-                    let credentials = try await withCheckedThrowingContinuation { continuation in
-                        oauthManager.authenticateMastodon(server: url.absoluteString) { result in
-                            continuation.resume(with: result)
-                        }
+                // Use OAuth flow
+                let credentials = try await withCheckedThrowingContinuation { continuation in
+                    oauthManager.authenticateMastodon(server: url.absoluteString) { result in
+                        continuation.resume(with: result)
                     }
-
-                    // Add account with proper OAuth credentials
-                    _ = try await serviceManager.addMastodonAccountWithOAuth(
-                        credentials: credentials)
                 }
+
+                // Add account with proper OAuth credentials
+                _ = try await serviceManager.addMastodonAccountWithOAuth(
+                    credentials: credentials)
 
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
@@ -504,8 +458,6 @@ struct AddAccountView: View {
         server = formData.server
         username = formData.username
         password = formData.password
-        accessToken = formData.accessToken
-        authMethod = formData.authMethod
 
         print("🔐 [AddAccountView] Restored form data for platform: \\(formData.selectedPlatform)")
 
@@ -518,9 +470,7 @@ struct AddAccountView: View {
             selectedPlatform: selectedPlatform,
             server: server,
             username: username,
-            password: password,
-            accessToken: accessToken,
-            authMethod: authMethod
+            password: password
         )
 
         if let encoded = try? JSONEncoder().encode(formData) {

@@ -19,6 +19,7 @@ struct ContentView: View {
 
     @State private var showComposeView = false
     @State private var showValidationView = false
+    @State private var showAddAccountView = false
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -234,35 +235,64 @@ struct ContentView: View {
                                     .font(.system(size: 50))
                                     .foregroundColor(.gray.opacity(0.3))
 
-                                Text("No Account Selected")
-                                    .font(.title3)
-                                    .fontWeight(.medium)
+                                if serviceManager.accounts.isEmpty {
+                                    Text("No Accounts Added")
+                                        .font(.title3)
+                                        .fontWeight(.medium)
 
-                                Text("Select an account to view profile")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .multilineTextAlignment(.center)
-                                    .padding(.horizontal, 40)
+                                    Text("Add your Mastodon or Bluesky accounts to get started")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
 
-                                Button(action: {
-                                    // Show account picker
-                                    showAccountPicker = true
-                                }) {
-                                    Text("Select Account")
-                                        .font(.headline)
-                                        .foregroundColor(.white)
-                                        .padding(.horizontal, 20)
-                                        .padding(.vertical, 12)
-                                        .background(Color.blue)
-                                        .cornerRadius(25)
-                                }
-                                .padding(.top, 10)
-                                .sheet(isPresented: $showAccountPicker) {
-                                    AccountPickerSheet(
-                                        selectedAccountId: $selectedAccountId,
-                                        previousAccountId: $previousAccountId,
-                                        isPresented: $showAccountPicker
-                                    )
+                                    Button(action: {
+                                        showAddAccountView = true
+                                    }) {
+                                        Text("Add Account")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 12)
+                                            .background(Color.blue)
+                                            .cornerRadius(25)
+                                    }
+                                    .padding(.top, 10)
+                                    .sheet(isPresented: $showAddAccountView) {
+                                        AddAccountView()
+                                            .environmentObject(serviceManager)
+                                    }
+                                } else {
+                                    Text("No Account Selected")
+                                        .font(.title3)
+                                        .fontWeight(.medium)
+
+                                    Text("Select an account to view profile")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+
+                                    Button(action: {
+                                        // Show account picker
+                                        showAccountPicker = true
+                                    }) {
+                                        Text("Select Account")
+                                            .font(.headline)
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 20)
+                                            .padding(.vertical, 12)
+                                            .background(Color.blue)
+                                            .cornerRadius(25)
+                                    }
+                                    .padding(.top, 10)
+                                    .sheet(isPresented: $showAccountPicker) {
+                                        AccountPickerSheet(
+                                            selectedAccountId: $selectedAccountId,
+                                            previousAccountId: $previousAccountId,
+                                            isPresented: $showAccountPicker
+                                        )
+                                    }
                                 }
                             }
                         }

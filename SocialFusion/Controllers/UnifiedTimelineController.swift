@@ -20,13 +20,25 @@ class UnifiedTimelineController: ObservableObject {
     // MARK: - Private Properties
 
     private let serviceManager: SocialServiceManager
+    private let actionStore: PostActionStore?
+    private let actionCoordinator: PostActionCoordinator?
     private var cancellables = Set<AnyCancellable>()
     private var isInitialized = false
+
+    var postActionStore: PostActionStore? { actionStore }
+    var postActionCoordinator: PostActionCoordinator? { actionCoordinator }
 
     // MARK: - Initialization
 
     init(serviceManager: SocialServiceManager) {
         self.serviceManager = serviceManager
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            self.actionStore = serviceManager.postActionStore
+            self.actionCoordinator = serviceManager.postActionCoordinator
+        } else {
+            self.actionStore = nil
+            self.actionCoordinator = nil
+        }
         setupBindings()
     }
 
@@ -81,6 +93,11 @@ class UnifiedTimelineController: ObservableObject {
         guard self.posts != newPosts else { return }
 
         self.posts = newPosts
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            newPosts.forEach { post in
+                actionStore?.ensureState(for: post)
+            }
+        }
         self.lastRefreshDate = Date()
 
         if !isInitialized {
@@ -118,6 +135,12 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Like or unlike a post - proper event-driven pattern
     func likePost(_ post: Post) {
+        if FeatureFlagManager.isEnabled(.postActionsV2), let coordinator = actionCoordinator {
+            actionStore?.ensureState(for: post)
+            coordinator.toggleLike(for: post)
+            return
+        }
+
         // Create intent for the action
         let intent = PostActionIntent.like(post: post)
         processPostAction(intent)
@@ -125,6 +148,12 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Repost or unrepost a post - proper event-driven pattern
     func repostPost(_ post: Post) {
+        if FeatureFlagManager.isEnabled(.postActionsV2), let coordinator = actionCoordinator {
+            actionStore?.ensureState(for: post)
+            coordinator.toggleRepost(for: post)
+            return
+        }
+
         // Create intent for the action
         let intent = PostActionIntent.repost(post: post)
         processPostAction(intent)
@@ -223,7 +252,30 @@ class UnifiedTimelineController: ObservableObject {
                     post.repostCount += post.isReposted ? 1 : -1
                 }
             }
+
+            // Show error to user
+            showInteractionError(for: intent)
         }
+    }
+
+    /// Show error feedback for failed interactions
+    private func showInteractionError(for intent: PostActionIntent) {
+        // Set error state for UI to display
+        let actionName: String
+        switch intent {
+        case .like:
+            actionName = "like"
+        case .repost:
+            actionName = "repost"
+        }
+
+        error = ServiceError.networkError(
+            underlying: NSError(
+                domain: "InteractionError", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to \(actionName) post. Please try again."
+                ]))
     }
 
     /// Update a specific post in place

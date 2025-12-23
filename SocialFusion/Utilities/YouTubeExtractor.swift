@@ -51,7 +51,7 @@ class YouTubeExtractor {
         let (data, _) = try await URLSession.shared.data(from: url)
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let thumbnailURL = json["thumbnail_url"] as? String
+            json["thumbnail_url"] != nil
         else {
             throw YouTubeExtractionError.parsingFailed
         }
@@ -166,7 +166,6 @@ class YouTubeExtractor {
         for stream in streams {
             let params = stream.components(separatedBy: "&")
             var streamURL: String?
-            var quality: String?
 
             for param in params {
                 let keyValue = param.components(separatedBy: "=")
@@ -177,8 +176,6 @@ class YouTubeExtractor {
                     switch key {
                     case "url":
                         streamURL = value
-                    case "quality":
-                        quality = value
                     default:
                         break
                     }

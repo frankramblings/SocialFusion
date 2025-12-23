@@ -22,6 +22,9 @@ public class PostViewModel: ObservableObject {
 
     private let serviceManager: SocialServiceManager
     private var cancellables = Set<AnyCancellable>()
+    private var storeCancellable: AnyCancellable?
+    private let postActionStore: PostActionStore?
+    private let postActionCoordinator: PostActionCoordinator?
 
     // MARK: - Initialization
 
@@ -41,10 +44,23 @@ public class PostViewModel: ObservableObject {
             self.quotedPostViewModel = PostViewModel(
                 post: quotedPost, serviceManager: serviceManager)
         }
+
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            self.postActionStore = serviceManager.postActionStore
+            self.postActionCoordinator = serviceManager.postActionCoordinator
+            // Initialize state in store without triggering updates
+            // Views will read directly from store, not from PostViewModel when V2 is enabled
+            self.postActionStore?.ensureState(for: post)
+            // Don't observe store changes - views read directly from store to avoid cycles
+        } else {
+            self.postActionStore = nil
+            self.postActionCoordinator = nil
+        }
     }
 
     deinit {
         cancellables.removeAll()
+        storeCancellable?.cancel()
         quotedPostViewModel = nil
     }
 
@@ -54,6 +70,14 @@ public class PostViewModel: ObservableObject {
     public func like() {
         guard !isLoading else { return }
 
+        if FeatureFlagManager.isEnabled(.postActionsV2),
+            let coordinator = postActionCoordinator
+        {
+            postActionStore?.ensureState(for: post)
+            coordinator.toggleLike(for: post)
+            return
+        }
+
         let intent = PostActionIntent.like(originalState: isLiked, originalCount: likeCount)
         processPostAction(intent)
     }
@@ -61,6 +85,14 @@ public class PostViewModel: ObservableObject {
     /// Toggle repost/unrepost the post - proper intent-based pattern
     public func repost() {
         guard !isLoading else { return }
+
+        if FeatureFlagManager.isEnabled(.postActionsV2),
+            let coordinator = postActionCoordinator
+        {
+            postActionStore?.ensureState(for: post)
+            coordinator.toggleRepost(for: post)
+            return
+        }
 
         let intent = PostActionIntent.repost(originalState: isReposted, originalCount: repostCount)
         processPostAction(intent)
@@ -80,6 +112,7 @@ public class PostViewModel: ObservableObject {
             self.replyCount += 1
             self.post.replyCount += 1
             self.post.isReplied = true
+            self.postActionCoordinator?.registerReplySuccess(for: self.post)
 
             self.isLoading = false
             return reply
@@ -192,16 +225,33 @@ public class PostViewModel: ObservableObject {
 
     /// Revert optimistic update on failure
     private func revertOptimisticUpdate(for intent: PostActionIntent) async {
+        // Revert the optimistic changes
         switch intent {
         case .like(let originalState, let originalCount):
-            self.isLiked = originalState
-            self.likeCount = originalCount
+            isLiked = originalState
+            likeCount = originalCount
         case .repost(let originalState, let originalCount):
-            self.isReposted = originalState
-            self.repostCount = originalCount
+            isReposted = originalState
+            repostCount = originalCount
         }
 
         self.isLoading = false
+
+        let actionName: String
+        switch intent {
+        case .like:
+            actionName = "like"
+        case .repost:
+            actionName = "repost"
+        }
+
+        self.error = ServiceError.networkError(
+            underlying: NSError(
+                domain: "InteractionError", code: 1,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Failed to \(actionName) post. Please try again."
+                ]))
     }
 
     /// Set error state safely

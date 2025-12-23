@@ -25,7 +25,7 @@ jobs:
     - name: Build
       run: |
         export IBTOOL_DISABLE_INITIALIZE_WEBVIEW=YES
-        xcodebuild -scheme SocialFusion -destination "platform=iOS Simulator,name=iPhone 16 Pro" build -allowProvisioningUpdates
+        xcodebuild -scheme SocialFusion -destination "platform=iOS Simulator,name=iPhone 16 Pro" build -allowProvisioningUpdates -configuration Debug
       
     - name: Run SwiftLint
       run: |
@@ -65,4 +65,124 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.lcov
-        fail_ci_if_error: true 
+        fail_ci_if_error: true
+        token: ${{ secrets.CODECOV_TOKEN }}
+
+  testflight-deploy:
+    name: TestFlight Deployment
+    runs-on: macos-latest
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        lfs: true
+    
+    - name: Fetch LFS objects
+      run: git lfs pull
+    
+    - name: Select Xcode
+      run: sudo xcode-select -s /Applications/Xcode.app
+    
+    - name: Setup Apple Developer Credentials
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        TEAM_ID: ${{ secrets.TEAM_ID }}
+      run: |
+        # Create secure temporary keychain
+        KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security default-keychain -s build.keychain
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security set-keychain-settings -t 1800 -u build.keychain  # 30 minutes
+        
+        # Import certificate with secure handling
+        echo "${{ secrets.CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
+        security import certificate.p12 -k build.keychain -P "${{ secrets.CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
+        
+        # Set secure partition list
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+        
+        # Create provisioning profile
+        echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+        
+        # Clean up sensitive files immediately
+        rm -f certificate.p12 profile.mobileprovision
+    
+    - name: Build and Archive
+      env:
+        IBTOOL_DISABLE_INITIALIZE_WEBVIEW: YES
+      run: |
+        # Clean build folder
+        xcodebuild clean -scheme SocialFusion -configuration Release
+        
+        # Build and archive
+        xcodebuild archive \
+          -scheme SocialFusion \
+          -configuration Release \
+          -destination "generic/platform=iOS" \
+          -archivePath SocialFusion.xcarchive \
+          -allowProvisioningUpdates \
+          CODE_SIGN_STYLE=Automatic \
+          DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" \
+          PRODUCT_BUNDLE_IDENTIFIER="com.emanueledigital.socialfusion"
+    
+    - name: Export IPA
+      run: |
+        # Create export options plist
+        cat > ExportOptions.plist << EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>${{ secrets.TEAM_ID }}</string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+        </dict>
+        </plist>
+        EOF
+        
+        # Export IPA
+        xcodebuild -exportArchive \
+          -archivePath SocialFusion.xcarchive \
+          -exportPath . \
+          -exportOptionsPlist ExportOptions.plist \
+          -allowProvisioningUpdates
+    
+    - name: Upload to TestFlight
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      run: |
+        # Upload to App Store Connect
+        xcrun altool --upload-app \
+          --type ios \
+          --file SocialFusion.ipa \
+          --username "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD"
+    
+    - name: Cleanup Sensitive Data
+      if: always()
+      run: |
+        # Remove keychain
+        security delete-keychain build.keychain 2>/dev/null || true
+        
+        # Remove provisioning profiles
+        rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision 2>/dev/null || true
+        
+        # Remove build artifacts
+        rm -f SocialFusion.ipa SocialFusion.xcarchive ExportOptions.plist 2>/dev/null || true
+        
+        # Clear environment variables
+        unset APPLE_ID APPLE_ID_PASSWORD TEAM_ID KEYCHAIN_PASSWORD 

@@ -33,66 +33,37 @@ struct ActionBar: View {
         }
     }
 
+    // Track operation state per button
+    @State private var isLikeProcessing = false
+    @State private var isRepostProcessing = false
+
     var body: some View {
         HStack {
             // Reply button
-            Button {
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-
-                onAction(.reply)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "bubble.left")
-                        .font(.system(size: iconSize))
-                        .foregroundColor(post.isReplied ? platformColor : .secondary)
-                        .scaleEffect(post.isReplied ? 1.05 : 1.0)
-                        .animation(
-                            .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
-                            value: post.isReplied)
-                    if post.replyCount > 0 {
-                        Text("\(post.replyCount)")
-                            .font(.caption)
-                            .foregroundColor(post.isReplied ? platformColor : .secondary)
-                            .animation(
-                                .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
-                                value: post.isReplied)
-                    }
-                }
-            }
-            .buttonStyle(SmoothScaleButtonStyle())
+            UnifiedReplyButton(
+                count: post.replyCount,
+                isReplied: post.isReplied,
+                platform: post.platform,
+                onTap: { onAction(.reply) }
+            )
             .accessibilityLabel("Reply")
 
             Spacer()
 
             // Repost button
-            Button {
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-
-                onAction(.repost)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.2.squarepath")
-                        .font(.system(size: iconSize))
-                        .foregroundColor(post.isReposted ? .green : .secondary)
-                        .scaleEffect(post.isReposted ? 1.1 : 1.0)
-                        .animation(
-                            .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
-                            value: post.isReposted)
-                    if post.repostCount > 0 {
-                        Text("\(post.repostCount)")
-                            .font(.caption)
-                            .foregroundColor(post.isReposted ? .green : .secondary)
-                            .animation(
-                                .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
-                                value: post.isReposted)
+            UnifiedRepostButton(
+                isReposted: post.isReposted,
+                count: post.repostCount,
+                isProcessing: isRepostProcessing,
+                onTap: {
+                    isRepostProcessing = true
+                    onAction(.repost)
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        isRepostProcessing = false
                     }
                 }
-            }
-            .buttonStyle(SmoothScaleButtonStyle())
+            )
             .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
 
             Spacer()
@@ -115,32 +86,19 @@ struct ActionBar: View {
             Spacer()
 
             // Like button
-            Button {
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-
-                onAction(.like)
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: post.isLiked ? "heart.fill" : "heart")
-                        .font(.system(size: iconSize))
-                        .foregroundColor(post.isLiked ? .red : .secondary)
-                        .scaleEffect(post.isLiked ? 1.1 : 1.0)
-                        .animation(
-                            .spring(response: 0.4, dampingFraction: 0.6, blendDuration: 0.1),
-                            value: post.isLiked)
-                    if post.likeCount > 0 {
-                        Text("\(post.likeCount)")
-                            .font(.caption)
-                            .foregroundColor(post.isLiked ? .red : .secondary)
-                            .animation(
-                                .spring(response: 0.35, dampingFraction: 0.7, blendDuration: 0.1),
-                                value: post.isLiked)
+            UnifiedLikeButton(
+                isLiked: post.isLiked,
+                count: post.likeCount,
+                isProcessing: isLikeProcessing,
+                onTap: {
+                    isLikeProcessing = true
+                    onAction(.like)
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        isLikeProcessing = false
                     }
                 }
-            }
-            .buttonStyle(SmoothScaleButtonStyle())
+            )
             .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
 
             Spacer()
@@ -211,6 +169,89 @@ struct ActionBar: View {
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: iconSize))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("More options")
+        }
+        .padding(.vertical, 2)
+        .padding(.horizontal, 16)
+    }
+}
+
+struct ActionBarV2: View {
+    @ObservedObject var post: Post
+    @ObservedObject var store: PostActionStore
+    let coordinator: PostActionCoordinator
+    let onReply: () -> Void
+    let onShare: () -> Void
+    let onOpenInBrowser: () -> Void
+    let onCopyLink: () -> Void
+    let onReport: () -> Void
+
+    private var quoteButton: some View {
+        Button {
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+        } label: {
+            Image(systemName: "quote.opening")
+                .font(.system(size: 18))
+                .foregroundColor(.secondary)
+        }
+        .buttonStyle(SmoothScaleButtonStyle())
+        .accessibilityLabel("Quote Post")
+    }
+
+    var body: some View {
+        HStack {
+            UnifiedInteractionButtons(
+                post: post,
+                store: store,
+                coordinator: coordinator,
+                onReply: onReply,
+                onShare: onShare,
+                includeShare: false
+            )
+
+            Spacer()
+
+            quoteButton
+
+            Spacer()
+
+            Button {
+                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                impactFeedback.impactOccurred()
+                onShare()
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 18))
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(SmoothScaleButtonStyle())
+            .accessibilityLabel("Share")
+
+            Spacer()
+
+            Menu {
+                Button(action: onOpenInBrowser) {
+                    Label("Open in Browser", systemImage: "arrow.up.right.square")
+                }
+                Button(action: onCopyLink) {
+                    Label("Copy Link", systemImage: "link")
+                }
+                Button(action: onShare) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+
+                Divider()
+
+                Button(role: .destructive, action: onReport) {
+                    Label("Report", systemImage: "exclamationmark.triangle")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 18))
                     .foregroundColor(.secondary)
             }
             .buttonStyle(PlainButtonStyle())

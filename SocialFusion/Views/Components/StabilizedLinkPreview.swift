@@ -3,8 +3,11 @@ import SwiftUI
 import UIKit
 
 /// A link preview component that maintains stable dimensions to prevent layout shifts
+/// Mirrors the nuanced behaviors of Ivory and Bluesky.
 struct StabilizedLinkPreview: View {
     let url: URL
+    let title: String?
+    let description: String?
     let idealHeight: CGFloat
 
     @State private var metadata: LPLinkMetadata?
@@ -15,23 +18,16 @@ struct StabilizedLinkPreview: View {
 
     private let maxRetries = 2
 
-    init(url: URL, idealHeight: CGFloat = 200) {
+    init(url: URL, title: String? = nil, description: String? = nil, idealHeight: CGFloat = 200) {
         self.url = url
+        self.title = title
+        self.description = description
         self.idealHeight = idealHeight
-        print(
-            "🎯 [StabilizedLinkPreview] Created for URL: \(url.absoluteString) with height: \(idealHeight)"
-        )
-        #if targetEnvironment(simulator)
-            print("🎯 [StabilizedLinkPreview] Running on iOS Simulator")
-        #else
-            print("🎯 [StabilizedLinkPreview] Running on device")
-        #endif
     }
 
     var body: some View {
         contentView
-            .frame(maxWidth: .infinity, idealHeight: idealHeight, maxHeight: idealHeight)
-            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
             .onAppear {
                 // Defer state updates to prevent AttributeGraph cycles
@@ -55,100 +51,64 @@ struct StabilizedLinkPreview: View {
     private var contentView: some View {
         if isLoading && retryCount == 0 {
             StabilizedLinkLoadingView(height: idealHeight)
-        } else if let metadata = metadata,
-            metadata.title != nil || metadata.iconProvider != nil || metadata.imageProvider != nil
-        {
-            // Show rich content if we have meaningful metadata
-            StabilizedLinkContentView(
-                metadata: metadata,
-                url: url,
-                height: idealHeight
-            )
+        } else if let metadata = metadata {
+            if metadata.imageProvider != nil || metadata.iconProvider != nil
+                || metadata.title != nil
+            {
+                // Favor Large Mode (Ivory/Bluesky style) for everything with metadata
+                StabilizedLinkRichContentView(
+                    metadata: metadata,
+                    url: url,
+                    passedTitle: title,
+                    passedDescription: description
+                )
+            } else {
+                StabilizedLinkFallbackView(url: url)
+            }
         } else {
             // Always show fallback - better than nothing!
-            StabilizedLinkFallbackView(url: url, height: idealHeight)
+            StabilizedLinkFallbackView(url: url)
         }
     }
 
     private func loadMetadata() {
         guard retryCount <= maxRetries else {
-            print("🎯 [StabilizedLinkPreview] Max retries exceeded for URL: \(url.absoluteString)")
             isLoading = false
             loadingFailed = true
             return
         }
 
-        print(
-            "🎯 [StabilizedLinkPreview] Starting metadata load for URL: \(url.absoluteString) (attempt \(retryCount + 1))"
-        )
         isLoading = true
 
         // Add a timeout for metadata loading
         let timeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 10_000_000_000)  // 10 seconds
-            print(
-                "⏰ [StabilizedLinkPreview] Timeout reached for URL: \(self.url.absoluteString)")
-            // Defer state updates to prevent AttributeGraph cycles
-            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-            self.isLoading = false
-            self.loadingFailed = true
+            try? await Task.sleep(nanoseconds: 8_000_000_000)  // 8 seconds
+            if self.isLoading {
+                self.isLoading = false
+                self.loadingFailed = true
+            }
         }
 
         MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
-            timeoutTask.cancel()  // Cancel timeout if we get a response
-            // Defer all state updates to prevent AttributeGraph cycles
+            timeoutTask.cancel()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                 if let error = error {
-                    print(
-                        "❌ [StabilizedLinkPreview] Error fetching metadata for \(self.url): \(error)"
-                    )
-                    print(
-                        "❌ [StabilizedLinkPreview] Error domain: \((error as NSError).domain), code: \((error as NSError).code)"
-                    )
-                    print(
-                        "❌ [StabilizedLinkPreview] Error localizedDescription: \(error.localizedDescription)"
-                    )
-
                     if self.retryCount < self.maxRetries && self.isTransientError(error) {
                         self.retryCount += 1
-                        print(
-                            "🔄 [StabilizedLinkPreview] Will retry (\(self.retryCount)/\(self.maxRetries)) after delay for URL: \(self.url.absoluteString)"
-                        )
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
                             self.loadMetadata()
                         }
                         return
                     }
-
-                    print(
-                        "❌ [StabilizedLinkPreview] Failed to load metadata for URL: \(self.url.absoluteString) after \(self.retryCount) retries"
-                    )
                     self.isLoading = false
                     self.loadingFailed = true
                     return
                 }
 
-                print(
-                    "✅ [StabilizedLinkPreview] Successfully loaded metadata for URL: \(self.url.absoluteString)"
-                )
-                if let metadata = metadata {
-                    print("🎯 [StabilizedLinkPreview] Metadata title: \(metadata.title ?? "nil")")
-                    print(
-                        "🎯 [StabilizedLinkPreview] Metadata URL: \(metadata.url?.absoluteString ?? "nil")"
-                    )
-                    print("🎯 [StabilizedLinkPreview] Has icon: \(metadata.iconProvider != nil)")
-                    print("🎯 [StabilizedLinkPreview] Has image: \(metadata.imageProvider != nil)")
-                } else {
-                    print(
-                        "⚠️ [StabilizedLinkPreview] Metadata is nil but no error - treating as success with fallback"
-                    )
-                }
-
                 self.metadata = metadata
                 self.isLoading = false
-                // Even if metadata is nil, don't mark as failed - use fallback view instead
                 self.loadingFailed = false
             }
         }
@@ -163,7 +123,9 @@ struct StabilizedLinkPreview: View {
     }
 }
 
-/// Loading state with shimmer effect and consistent height
+// MARK: - Supporting Views
+
+/// Loading state with shimmer effect
 private struct StabilizedLinkLoadingView: View {
     let height: CGFloat
     @State private var phase: CGFloat = 0
@@ -171,7 +133,6 @@ private struct StabilizedLinkLoadingView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Image placeholder on top (Ivory style)
             Rectangle()
                 .fill(shimmerGradient)
                 .frame(maxWidth: .infinity)
@@ -179,51 +140,34 @@ private struct StabilizedLinkLoadingView: View {
                 .clipShape(
                     UnevenRoundedRectangle(
                         cornerRadii: .init(
-                            topLeading: 16,
+                            topLeading: 12,
                             bottomLeading: 0,
                             bottomTrailing: 0,
-                            topTrailing: 16
+                            topTrailing: 12
                         )
                     )
                 )
 
-            // Text placeholders below image
-            VStack(alignment: .leading, spacing: 6) {
-                // Title placeholder
+            VStack(alignment: .leading, spacing: 8) {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(Color.gray.opacity(0.2))
                     .frame(height: 16)
                     .frame(maxWidth: .infinity)
                     .cornerRadius(4)
 
-                // Description placeholder
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(height: 14)
-                    .frame(maxWidth: .infinity)
-                    .cornerRadius(4)
-
-                // URL placeholder
                 Rectangle()
                     .fill(Color.gray.opacity(0.15))
                     .frame(height: 12)
-                    .frame(maxWidth: 120)
+                    .frame(maxWidth: 180)
                     .cornerRadius(4)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
+            .padding(12)
         }
-        .frame(maxWidth: .infinity, idealHeight: height, maxHeight: height + 50)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
-        )
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color(.separator), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: 12).stroke(
+                Color(.separator).opacity(0.3), lineWidth: 0.5)
         )
-        .clipped()
         .onAppear {
             withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                 phase = 1.3
@@ -234,9 +178,9 @@ private struct StabilizedLinkLoadingView: View {
     private var shimmerGradient: LinearGradient {
         LinearGradient(
             stops: [
-                .init(color: Color.gray.opacity(0.1), location: phase - 0.3),
-                .init(color: Color.gray.opacity(0.3), location: phase),
-                .init(color: Color.gray.opacity(0.1), location: phase + 0.3),
+                .init(color: Color.gray.opacity(0.05), location: phase - 0.3),
+                .init(color: Color.gray.opacity(0.15), location: phase),
+                .init(color: Color.gray.opacity(0.05), location: phase + 0.3),
             ],
             startPoint: .leading,
             endPoint: .trailing
@@ -244,326 +188,286 @@ private struct StabilizedLinkLoadingView: View {
     }
 }
 
-/// Content view with Ivory-style vertical layout (image above, text below)
-private struct StabilizedLinkContentView: View {
+/// Rich Large Content View (Image on top)
+private struct StabilizedLinkRichContentView: View {
     let metadata: LPLinkMetadata
     let url: URL
-    let height: CGFloat
-
+    let passedTitle: String?
+    let passedDescription: String?
     @State private var imageURL: URL?
+    @State private var iconURL: URL?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        Button(action: {
+        Button {
             UIApplication.shared.open(url)
-        }) {
+        } label: {
             VStack(alignment: .leading, spacing: 0) {
-                // Image on top - full width, edge to edge, matching Bluesky style
-                imageSection
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 140)  // Slightly reduced height to prevent squishing
-                    .clipped()
+                // Image Section
+                ZStack {
+                    if let imageURL = imageURL {
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(maxHeight: 180)
+                                    .clipped()
+                            default:
+                                imagePlaceholder
+                            }
+                        }
+                    } else if let iconURL = iconURL {
+                        // Use icon in large slot if no featured image (Bluesky/Ivory style)
+                        ZStack {
+                            Color.gray.opacity(0.05)
 
-                // Text content below image - Bluesky style
-                textSection
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)  // Increased vertical padding for more breathing room
-            }
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        colorScheme == .dark
-                            ? Color(.systemGray6) : Color(.systemGray6).opacity(0.3))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.separator).opacity(0.3), lineWidth: 1)
-            )
-            .clipped()
-        }
-        .buttonStyle(PlainButtonStyle())
-        .onAppear {
-            // Defer state updates to prevent AttributeGraph cycles
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                // Only load if we don't already have an image URL
-                if imageURL == nil {
-                    loadImageURL()
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var imageSection: some View {
-        if let imageURL = imageURL {
-            AsyncImage(url: imageURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .frame(maxHeight: 140)
-                        .clipped()
-                        .clipShape(
-                            UnevenRoundedRectangle(
-                                cornerRadii: .init(
-                                    topLeading: 12,
-                                    bottomLeading: 0,
-                                    bottomTrailing: 0,
-                                    topTrailing: 12
-                                )
-                            )
-                        )
-                case .failure(_):
-                    failureImageView
-                case .empty:
-                    loadingImageView
-                @unknown default:
-                    EmptyView()
-                }
-            }
-        } else {
-            placeholderImageView
-        }
-    }
-
-    private var failureImageView: some View {
-        Rectangle()
-            .fill(Color.gray.opacity(0.15))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: 12,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 12
-                    )
-                )
-            )
-            .overlay(
-                Image(systemName: "photo")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
-            )
-    }
-
-    private var loadingImageView: some View {
-        Rectangle()
-            .fill(Color.gray.opacity(0.1))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: 12,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 12
-                    )
-                )
-            )
-            .overlay(
-                ProgressView()
-                    .scaleEffect(0.8)
-            )
-    }
-
-    private var placeholderImageView: some View {
-        Rectangle()
-            .fill(Color.gray.opacity(0.15))
-            .clipShape(
-                UnevenRoundedRectangle(
-                    cornerRadii: .init(
-                        topLeading: 12,
-                        bottomLeading: 0,
-                        bottomTrailing: 0,
-                        topTrailing: 12
-                    )
-                )
-            )
-            .overlay(
-                Image(systemName: "link")
-                    .font(.title2)
-                    .foregroundColor(.secondary)
-            )
-    }
-
-    private var textSection: some View {
-        VStack(alignment: .leading, spacing: 6) {  // Increased spacing for breathing room
-            // Title - Bluesky style with proper line height
-            if let title = metadata.title, !title.isEmpty {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .lineSpacing(2)  // Add proper line spacing
-                    .lineLimit(2)
-                    .foregroundColor(.primary)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // Description - Bluesky style
-            if let description = metadata.value(forKey: "_summary") as? String,
-                !description.isEmpty
-            {
-                Text(description)
-                    .font(.system(size: 13))
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            // Domain - Bluesky style with subtle styling
-            HStack(spacing: 4) {
-                Image(systemName: "link")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-
-                Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-        }
-    }
-
-    private func loadImageURL() {
-        print("🔍 [StabilizedLinkPreview] Loading image for URL: \(url)")
-
-        guard let imageProvider = metadata.imageProvider ?? metadata.iconProvider else {
-            print("❌ [StabilizedLinkPreview] No image provider found for \(url)")
-            return
-        }
-
-        if let cachedURL = LinkPreviewCache.shared.getImageURL(for: url) {
-            print("✅ [StabilizedLinkPreview] Using cached image for \(url)")
-            self.imageURL = cachedURL
-            return
-        }
-
-        print("📥 [StabilizedLinkPreview] Loading image from provider for \(url)")
-        imageProvider.loadObject(ofClass: UIImage.self) { image, error in
-            Task { @MainActor in
-                if let error = error {
-                    print("❌ [StabilizedLinkPreview] Error loading image for \(self.url): \(error)")
-                    return
-                }
-
-                guard let image = image as? UIImage else {
-                    print("❌ [StabilizedLinkPreview] Invalid image type for \(self.url)")
-                    return
-                }
-
-                print("✅ [StabilizedLinkPreview] Successfully loaded image for \(self.url)")
-
-                // Create a temporary file URL for the image
-                let tempDir = FileManager.default.temporaryDirectory
-                let tempURL = tempDir.appendingPathComponent(UUID().uuidString)
-                    .appendingPathExtension("jpg")
-
-                if let imageData = image.jpegData(compressionQuality: 0.8) {
-                    do {
-                        try imageData.write(to: tempURL)
-                        LinkPreviewCache.shared.cacheImage(url: tempURL, for: self.url)
-                        self.imageURL = tempURL
-                        print("💾 [StabilizedLinkPreview] Cached image at: \(tempURL)")
-                    } catch {
-                        print("❌ [StabilizedLinkPreview] Failed to write image data: \(error)")
+                            AsyncImage(url: iconURL) { phase in
+                                if let image = phase.image {
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 80, height: 80)
+                                        .cornerRadius(12)
+                                        .shadow(color: .black.opacity(0.1), radius: 10)
+                                } else {
+                                    imagePlaceholder
+                                }
+                            }
+                        }
+                        .frame(height: 180)
+                    } else {
+                        imagePlaceholder
                     }
                 }
-            }
-        }
-    }
-}
-
-/// Fallback view with Ivory-style vertical layout
-private struct StabilizedLinkFallbackView: View {
-    let url: URL
-    let height: CGFloat
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Button(action: {
-            UIApplication.shared.open(url)
-        }) {
-            VStack(alignment: .leading, spacing: 0) {
-                // Icon placeholder on top - Bluesky style
-                Rectangle()
-                    .fill(Color.gray.opacity(0.15))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 140)
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            cornerRadii: .init(
-                                topLeading: 12,
-                                bottomLeading: 0,
-                                bottomTrailing: 0,
-                                topTrailing: 12
-                            )
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        cornerRadii: .init(
+                            topLeading: 12,
+                            bottomLeading: 0,
+                            bottomTrailing: 0,
+                            topTrailing: 12
                         )
                     )
-                    .overlay(
-                        Image(systemName: "link")
-                            .font(.title2)
+                )
+
+                // Text Section
+                VStack(alignment: .leading, spacing: 4) {
+                    let title = passedTitle ?? metadata.title
+                    if let title = title, !title.isEmpty, title != url.host {
+                        Text(title)
+                            .font(.system(size: 15, weight: .semibold))
+                            .lineLimit(2)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    let description = passedDescription ?? extractDescription(from: metadata)
+                    if let description = description, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 13))
+                            .lineLimit(2)
                             .foregroundColor(.secondary)
-                    )
+                            .multilineTextAlignment(.leading)
+                    }
 
-                // Text content below - Bluesky style
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // Show more of the URL path for better context
                     HStack(spacing: 4) {
                         Image(systemName: "link")
                             .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-
-                        Text(url.path.isEmpty ? "External Link" : url.path)
+                        Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
                             .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                    }
+                    .foregroundColor(.secondary)
+                    .padding(.top, 2)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12).stroke(
+                    Color(.separator).opacity(0.3), lineWidth: 1))
+        }
+        .buttonStyle(PlainButtonStyle())
+        .onAppear {
+            if imageURL == nil && iconURL == nil {
+                loadMedia()
+            }
+        }
+    }
+
+    private var imagePlaceholder: some View {
+        Rectangle()
+            .fill(Color.gray.opacity(0.1))
+            .frame(height: 120)
+            .overlay(
+                Image(systemName: "link")
+                    .font(.title)
+                    .foregroundColor(.secondary.opacity(0.3))
+            )
+    }
+
+    private func loadMedia() {
+        // Try to load image first
+        if let imageProvider = metadata.imageProvider {
+            if let cached = LinkPreviewCache.shared.getImageURL(for: url) {
+                self.imageURL = cached
+            } else {
+                imageProvider.loadObject(ofClass: UIImage.self) { image, _ in
+                    guard let image = image as? UIImage else { return }
+                    Task { @MainActor in
+                        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                            UUID().uuidString + ".jpg")
+                        if let data = image.jpegData(compressionQuality: 0.8) {
+                            try? data.write(to: tempURL)
+                            LinkPreviewCache.shared.cacheImage(url: tempURL, for: self.url)
+                            self.imageURL = tempURL
+                        }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 16)
             }
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(
-                        colorScheme == .dark
-                            ? Color(.systemGray6) : Color(.systemGray6).opacity(0.3))
-            )
+        }
+
+        // Also try to load icon as fallback
+        if let iconProvider = metadata.iconProvider {
+            iconProvider.loadObject(ofClass: UIImage.self) { image, _ in
+                guard let image = image as? UIImage else { return }
+                Task { @MainActor in
+                    let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                        UUID().uuidString + ".png")
+                    if let data = image.pngData() {
+                        try? data.write(to: tempURL)
+                        self.iconURL = tempURL
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Compact Content View (Horizontal)
+private struct StabilizedLinkCompactContentView: View {
+    let metadata: LPLinkMetadata
+    let url: URL
+    let passedTitle: String?
+    @State private var iconURL: URL?
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Button {
+            UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 12) {
+                // Icon Section
+                if let iconURL = iconURL {
+                    AsyncImage(url: iconURL) { phase in
+                        if let image = phase.image {
+                            image.resizable().aspectRatio(contentMode: .fit)
+                        } else {
+                            Image(systemName: "link").foregroundColor(.secondary)
+                        }
+                    }
+                    .frame(width: 44, height: 44)
+                    .background(Color.gray.opacity(0.1))
+                    .cornerRadius(8)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.1))
+                        Image(systemName: "link").foregroundColor(.secondary)
+                    }
+                    .frame(width: 44, height: 44)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    let title = passedTitle ?? metadata.title ?? url.host ?? "Link"
+                    Text(title)
+                        .font(.system(size: 14, weight: .medium))
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+
+                    Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "External Link")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.secondary.opacity(0.5))
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.separator).opacity(0.3), lineWidth: 1)
-            )
-            .clipped()
+                RoundedRectangle(cornerRadius: 12).stroke(
+                    Color(.separator).opacity(0.3), lineWidth: 0.5))
+        }
+        .buttonStyle(PlainButtonStyle())
+        .onAppear {
+            if iconURL == nil { loadIcon() }
+        }
+    }
+
+    private func loadIcon() {
+        guard let provider = metadata.iconProvider else { return }
+        provider.loadObject(ofClass: UIImage.self) { image, _ in
+            guard let image = image as? UIImage else { return }
+            Task { @MainActor in
+                let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+                    UUID().uuidString + ".png")
+                if let data = image.pngData() {
+                    try? data.write(to: tempURL)
+                    self.iconURL = tempURL
+                }
+            }
+        }
+    }
+}
+
+/// Fallback Content View
+private struct StabilizedLinkFallbackView: View {
+    let url: URL
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Button {
+            UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "link.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.primary)
+
+                    Text("External Link")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12).stroke(
+                    Color(.separator).opacity(0.3), lineWidth: 0.5))
         }
         .buttonStyle(PlainButtonStyle())
     }
 }
 
-#Preview {
-    VStack(spacing: 16) {
-        StabilizedLinkPreview(
-            url: URL(string: "https://apple.com")!,
-            idealHeight: 180
-        )
+// MARK: - Utilities
 
-        StabilizedLinkPreview(
-            url: URL(string: "https://github.com")!,
-            idealHeight: 180
-        )
-
-        StabilizedLinkPreview(
-            url: URL(string: "https://invalid-url.com")!,
-            idealHeight: 180
-        )
-    }
-    .padding()
+private func extractDescription(from metadata: LPLinkMetadata) -> String? {
+    // Try some common internal keys since LPMetadataProvider's public API is limited
+    if let summary = metadata.value(forKey: "_summary") as? String { return summary }
+    if let selectedText = metadata.value(forKey: "selectedText") as? String { return selectedText }
+    return nil
 }

@@ -20,6 +20,8 @@ struct PostCardView: View {
     let onReport: () -> Void
     let onPostTap: () -> Void
     let onParentPostTap: (Post) -> Void
+    let postActionStore: PostActionStore?
+    let postActionCoordinator: PostActionCoordinator?
 
     // Optional boost information
     let boostedBy: String?
@@ -54,6 +56,8 @@ struct PostCardView: View {
     init(
         entry: TimelineEntry,
         viewModel: PostViewModel? = nil,
+        postActionStore: PostActionStore? = nil,
+        postActionCoordinator: PostActionCoordinator? = nil,
         onPostTap: @escaping () -> Void = {},
         onParentPostTap: @escaping (Post) -> Void = { _ in },
         onReply: @escaping () -> Void = {},
@@ -80,6 +84,8 @@ struct PostCardView: View {
         self.onPostTap = onPostTap
         self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
+        self.postActionStore = postActionStore
+        self.postActionCoordinator = postActionCoordinator
 
         // Extract boost information from TimelineEntry
         if case .boost(let boostedBy) = entry.kind {
@@ -109,7 +115,9 @@ struct PostCardView: View {
         onReport: @escaping () -> Void,
         onPostTap: @escaping () -> Void,
         onParentPostTap: @escaping (Post) -> Void = { _ in },
-        viewModel: PostViewModel? = nil
+        viewModel: PostViewModel? = nil,
+        postActionStore: PostActionStore? = nil,
+        postActionCoordinator: PostActionCoordinator? = nil
     ) {
         self.post = post
         self.replyCount = replyCount
@@ -131,6 +139,8 @@ struct PostCardView: View {
         self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
         self.boostedBy = nil
+        self.postActionStore = postActionStore
+        self.postActionCoordinator = postActionCoordinator
     }
 
     var body: some View {
@@ -184,33 +194,11 @@ struct PostCardView: View {
             if !displayPost.attachments.isEmpty {
                 UnifiedMediaGridView(attachments: displayPost.attachments)
                     .padding(.horizontal, 4)
-                    .padding(.top, 6)
             }
 
-            // Action bar (using the working ActionBar)
-            ActionBar(
-                post: displayPost,
-                onAction: { action in
-                    switch action {
-                    case .reply:
-                        onReply()
-                    case .repost:
-                        onRepost()
-                    case .like:
-                        onLike()
-                    case .share:
-                        onShare()
-                    case .quote:
-                        // TODO: Implement quote post functionality
-                        print("🔗 Quote action triggered for post: \(displayPost.id)")
-                    }
-                },
-                onOpenInBrowser: onOpenInBrowser,
-                onCopyLink: onCopyLink,
-                onReport: onReport
-            )
-            .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-            .padding(.top, 6)  // Apple standard: 6pt separation from content
+            actionBarView
+                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
+                .padding(.top, 6)  // Apple standard: 6pt separation from content
         }
         .padding(.horizontal, 12)  // Reduced from 16 to give more space for content
         .padding(.vertical, 12)  // Apple standard: 12pt container padding
@@ -238,6 +226,48 @@ struct PostCardView: View {
         }
         .accessibilityAction(named: "Share") {
             onShare()
+        }
+    }
+
+    // MARK: - Action Bar View
+    
+    @ViewBuilder
+    private var actionBarView: some View {
+        if FeatureFlagManager.isEnabled(.postActionsV2),
+            let store = postActionStore,
+            let coordinator = postActionCoordinator
+        {
+            ActionBarV2(
+                post: post,
+                store: store,
+                coordinator: coordinator,
+                onReply: onReply,
+                onShare: onShare,
+                onOpenInBrowser: onOpenInBrowser,
+                onCopyLink: onCopyLink,
+                onReport: onReport
+            )
+        } else {
+            ActionBar(
+                post: displayPost,
+                onAction: { action in
+                    switch action {
+                    case .reply:
+                        onReply()
+                    case .repost:
+                        onRepost()
+                    case .like:
+                        onLike()
+                    case .share:
+                        onShare()
+                    case .quote:
+                        print("🔗 Quote action triggered for post: \(displayPost.id)")
+                    }
+                },
+                onOpenInBrowser: onOpenInBrowser,
+                onCopyLink: onCopyLink,
+                onReport: onReport
+            )
         }
     }
 

@@ -43,7 +43,13 @@ struct AccountTimelineView: View {
                     LazyVStack(spacing: 12) {
                         ForEach(Array(timelineEntries.enumerated()), id: \.element.id) {
                             index, entry in
-                            PostCardView(entry: entry)
+                            PostCardView(
+                                entry: entry,
+                                postActionStore: FeatureFlagManager.isEnabled(.postActionsV2)
+                                    ? serviceManager.postActionStore : nil,
+                                postActionCoordinator: FeatureFlagManager.isEnabled(.postActionsV2)
+                                    ? serviceManager.postActionCoordinator : nil
+                            )
                                 .id(entry.id)
                                 .padding(.horizontal)
                                 .onAppear {

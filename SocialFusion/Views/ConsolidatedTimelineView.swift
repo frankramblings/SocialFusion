@@ -12,6 +12,7 @@ struct ConsolidatedTimelineEmptyStateView: View {
 
     let state: StateType
     let onRetry: (() -> Void)?
+    let onAddAccount: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -29,7 +30,18 @@ struct ConsolidatedTimelineEmptyStateView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
-            if let onRetry = onRetry, state != .loading {
+            if state == .noAccounts, let onAddAccount = onAddAccount {
+                Button(action: onAddAccount) {
+                    Text("Add Account")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(Color.blue)
+                        .cornerRadius(25)
+                }
+                .padding(.top, 8)
+            } else if let onRetry = onRetry, state != .loading {
                 Button("Retry") {
                     onRetry()
                 }
@@ -101,6 +113,7 @@ struct ConsolidatedTimelineView: View {
     @State private var lastScrollTime = Date()
     @State private var scrollCancellationTimer: Timer?
     @State private var replyingToPost: Post? = nil
+    @State private var showAddAccountView = false
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
     @StateObject private var timelineState = TimelineState()
@@ -142,6 +155,10 @@ struct ConsolidatedTimelineView: View {
             )
             .sheet(item: $replyingToPost) { post in
                 FeedReplyComposer(post: post, onDismiss: { replyingToPost = nil })
+            }
+            .sheet(isPresented: $showAddAccountView) {
+                AddAccountView()
+                    .environmentObject(serviceManager)
             }
             .task {
                 // PHASE 3+: Enhanced timeline initialization with position restoration
@@ -199,7 +216,8 @@ struct ConsolidatedTimelineView: View {
                 state: .loading,
                 onRetry: {
                     controller.refreshTimeline()
-                }
+                },
+                onAddAccount: nil
             )
         } else if controller.posts.isEmpty && !controller.isLoading {
             determineEmptyState()
@@ -214,14 +232,18 @@ struct ConsolidatedTimelineView: View {
         if serviceManager.accounts.isEmpty {
             ConsolidatedTimelineEmptyStateView(
                 state: .noAccounts,
-                onRetry: nil
+                onRetry: nil,
+                onAddAccount: {
+                    showAddAccountView = true
+                }
             )
         } else {
             ConsolidatedTimelineEmptyStateView(
                 state: .noPostsYet,
                 onRetry: {
                     controller.refreshTimeline()
-                }
+                },
+                onAddAccount: nil
             )
         }
     }
@@ -338,6 +360,8 @@ struct ConsolidatedTimelineView: View {
 
         return PostCardView(
             entry: entry,
+            postActionStore: controller.postActionStore,
+            postActionCoordinator: controller.postActionCoordinator,
             onPostTap: { navigationEnvironment.navigateToPost(post) },
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onReply: { replyingToPost = post },
@@ -467,6 +491,9 @@ struct FeedReplyComposer: View, Identifiable {
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
                     post.isReplied = true
+                }
+                if FeatureFlagManager.isEnabled(.postActionsV2) {
+                    serviceManager.postActionCoordinator.registerReplySuccess(for: post)
                 }
                 onDismiss()
             } catch {

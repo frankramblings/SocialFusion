@@ -29,6 +29,8 @@ public class MastodonService {
     private let session = URLSession.shared
     private let logger = Logger(subsystem: "com.socialfusion.app", category: "MastodonService")
 
+    public init() {}
+
     // MARK: - Authentication Utilities
 
     /// Creates an authenticated request with automatic token refresh
@@ -2076,52 +2078,43 @@ public class MastodonService {
         let finalRequest = request
 
         do {
-            // Execute the request with a high priority for better UI responsiveness
-            return try await Task.detached(priority: .userInitiated) {
-                // Log the actual request
-                self.logger.info("Sending request to fetch Mastodon status: \(url.absoluteString)")
+            logger.info("Sending request to fetch Mastodon status: \(url.absoluteString)")
 
-                let (data, response) = try await self.session.data(for: finalRequest)
+            let (data, response) = try await session.data(for: finalRequest)
 
-                guard let httpResponse = response as? HTTPURLResponse,
-                    httpResponse.statusCode == 200
-                else {
-                    if let errorMessage = String(data: data, encoding: .utf8) {
-                        self.logger.error(
-                            "Error response (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorMessage)"
-                        )
-                    }
-                    throw NSError(
-                        domain: "MastodonService",
-                        code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                        userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status"])
+            guard let httpResponse = response as? HTTPURLResponse,
+                httpResponse.statusCode == 200
+            else {
+                if let errorMessage = String(data: data, encoding: .utf8) {
+                    logger.error(
+                        "Error response (\((response as? HTTPURLResponse)?.statusCode ?? 0)): \(errorMessage)"
+                    )
                 }
+                throw NSError(
+                    domain: "MastodonService",
+                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status"])
+            }
 
-                // Log the response for debugging
-                if let responseStr = String(data: data, encoding: .utf8) {
-                    self.logger.debug(
-                        "Raw response from Mastodon API: \(responseStr.prefix(200))...")
-                }
+            if let responseStr = String(data: data, encoding: .utf8) {
+                logger.debug("Raw response from Mastodon API: \(responseStr.prefix(200))...")
+            }
 
-                // Decode the status
-                let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-                self.logger.info(
-                    "Successfully decoded Mastodon status: id=\(status.id), in_reply_to_id=\(status.inReplyToId ?? "nil")"
-                )
+            let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
+            logger.info(
+                "Successfully decoded Mastodon status: id=\(status.id), in_reply_to_id=\(status.inReplyToId ?? "nil")"
+            )
 
-                // Convert to our Post model using the existing convertMastodonStatusToPost method
-                let post = await self.convertMastodonStatusToPost(status, account: account)
-                self.logger.info(
-                    "Converted to Post model: id=\(post.id), inReplyToID=\(post.inReplyToID ?? "nil")"
-                )
+            let post = await convertMastodonStatusToPost(status, account: account)
+            logger.info(
+                "Converted to Post model: id=\(post.id), inReplyToID=\(post.inReplyToID ?? "nil")"
+            )
 
-                // Store in cache
-                await MainActor.run {
-                    self.statusCache[id] = (post: post, timestamp: Date())
-                }
+            await MainActor.run {
+                self.statusCache[id] = (post: post, timestamp: Date())
+            }
 
-                return post
-            }.value
+            return post
         } catch {
             logger.error("Error fetching status: \(error.localizedDescription)")
             throw error
@@ -2145,7 +2138,7 @@ public class MastodonService {
             // Find an account to use
             guard let account = await findValidAccount() else {
                 logger.error("No valid account found for fetching status")
-                DispatchQueue.main.async {
+                await MainActor.run {
                     completion(nil)
                 }
                 return
@@ -2153,21 +2146,19 @@ public class MastodonService {
 
             do {
                 let post = try await fetchStatus(id: id, account: account)
-                // Copy the post to a local variable to avoid Sendable capture issues
-                let finalPost = post
 
-                if let post = post {
-                    // Store in cache (no need to use MainActor here since we're calling from non-UI code)
-                    statusCache[id] = (post: post, timestamp: Date())
+                if let post {
+                    await MainActor.run {
+                        self.statusCache[id] = (post: post, timestamp: Date())
+                    }
                 }
 
-                // Call completion on main thread for UI updates
-                DispatchQueue.main.async {
-                    completion(finalPost)
+                await MainActor.run {
+                    completion(post)
                 }
             } catch {
                 logger.error("Error fetching status: \(error.localizedDescription)")
-                DispatchQueue.main.async {
+                await MainActor.run {
                     completion(nil)
                 }
             }

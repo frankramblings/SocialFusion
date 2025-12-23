@@ -159,12 +159,25 @@ extension Post {
     fileprivate var regularLinkPreviewsOnly: some View {
         let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
         let allLinks = URLService.shared.extractLinks(from: plainText)
+
+        // Prioritize primaryLinkURL if available (from official embeds/cards)
+        let primaryLink = primaryLinkURL
         let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
         let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
         let regularLinks = allLinks.filter {
             !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
         }
         let firstYouTubeLink = youtubeLinks.first
+
+        // Calculate which link to preview
+        let finalPreviewLink: URL? = {
+            // NEVER render a social media post as a regular link preview
+            if let primary = primaryLink, !URLService.shared.isSocialMediaPostURL(primary) {
+                return primary
+            }
+            let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
+            return regularLinks.first { !excludedLinks.contains($0) }
+        }()
 
         // Show first YouTube video as inline player
         if let firstYouTubeLink = firstYouTubeLink,
@@ -176,16 +189,16 @@ extension Post {
             .padding(.vertical, 12)
         }
 
-        // Show remaining links as previews (limit to first 2 for performance)
-        // Exclude social media links and YouTube links as they're handled separately
-        let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
-        let previewLinks = regularLinks.filter { link in
-            !excludedLinks.contains(link)
-        }
-
-        ForEach(Array(previewLinks.prefix(2)), id: \.absoluteString) { url in
-            StabilizedLinkPreview(url: url, idealHeight: 200)
-                .padding(.vertical, 12)
+        // Limit to ONE preview total (excluding YouTube which is handled as a player)
+        // This mirrors Ivory/Bluesky behavior of showing one primary rich card
+        if let firstLink = finalPreviewLink {
+            StabilizedLinkPreview(
+                url: firstLink,
+                title: firstLink == primaryLinkURL ? primaryLinkTitle : nil,
+                description: firstLink == primaryLinkURL ? primaryLinkDescription : nil,
+                idealHeight: 200
+            )
+            .padding(.vertical, 12)
         }
     }
 
@@ -202,48 +215,34 @@ extension Post {
                 }
             }
             .padding(.top, 8)
-            .onAppear {
-                print("🔗 [Post+ContentView] Displaying hydrated quoted post: \(quotedPost.id)")
-                print("🔗 [Post+ContentView] Quoted post content: \(quotedPost.content.prefix(100))")
-                print(
-                    "🔗 [Post+ContentView] Quoted post attachments: \(quotedPost.attachments.count)")
-                for (index, attachment) in quotedPost.attachments.enumerated() {
-                    print(
-                        "🔗 [Post+ContentView] Quote attachment \(index): \(attachment.url) (type: \(attachment.type))"
-                    )
-                }
-            }
         } else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
             FetchQuotePostView(
                 url: quotedPostURL,
                 onQuotePostTap: onQuotePostTap
             )
             .padding(.top, 8)
-            .onAppear {
-                print("🔗 [Post+ContentView] Using FetchQuotePostView for URL: \(quotedPostURL)")
-                print("🔗 [Post+ContentView] Parent post ID: \(self.id)")
-                print("🔗 [Post+ContentView] quotedPostUri: \(self.quotedPostUri ?? "nil")")
-                print(
-                    "🔗 [Post+ContentView] quotedPostAuthorHandle: \(self.quotedPostAuthorHandle ?? "nil")"
-                )
-            }
         } else {
             let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
             let allLinks = URLService.shared.extractLinks(from: plainText)
-            // Find the first valid Fediverse post link (not self-link)
-            if let firstFediverseLink = allLinks.first(where: {
-                URLService.shared.isFediversePostURL($0) && $0.absoluteString != self.originalURL
-            }) {
+
+            // Find the first valid social media post link (not self-link)
+            let firstSocialLink: URL? = {
+                var candidateLinks = allLinks
+                if let primary = primaryLinkURL {
+                    candidateLinks.insert(primary, at: 0)
+                }
+                return candidateLinks.first(where: {
+                    URLService.shared.isSocialMediaPostURL($0)
+                        && $0.absoluteString != self.originalURL
+                })
+            }()
+
+            if let firstSocialLink = firstSocialLink {
                 FetchQuotePostView(
-                    url: firstFediverseLink,
+                    url: firstSocialLink,
                     onQuotePostTap: onQuotePostTap
                 )
                 .padding(.top, 8)
-                .onAppear {
-                    print(
-                        "🔗 [Post+ContentView] Displaying fediverse link as quote: \(firstFediverseLink)"
-                    )
-                }
             }
         }
     }
@@ -902,7 +901,9 @@ struct ExpandableTextView: View {
             print(
                 "🔗 [Mastodon URL Processing] Found \(previewableLinks.count) previewable links, \(post.attachments.count) attachments"
             )
-            print("🔗 [Mastodon URL Processing] Will remove URLs: \(post.attachments.isEmpty && !previewableLinks.isEmpty)")
+            print(
+                "🔗 [Mastodon URL Processing] Will remove URLs: \(post.attachments.isEmpty && !previewableLinks.isEmpty)"
+            )
             for (i, link) in previewableLinks.enumerated() {
                 print("🔗 [Mastodon URL Removal] Link \(i): \(link.absoluteString)")
             }
@@ -964,10 +965,14 @@ struct ExpandableTextView: View {
                     "🔗 [Mastodon URL Processing] ✅ Preserving URLs because post has \(post.attachments.count) media attachments"
                 )
             } else if previewableLinks.isEmpty {
-                print("🔗 [Mastodon URL Processing] No previewable links found, keeping original content")
+                print(
+                    "🔗 [Mastodon URL Processing] No previewable links found, keeping original content"
+                )
             }
         } else if platform == .bluesky {
-            print("🔗 [Bluesky URL Processing] ✅ Preserving all URLs (matches native Bluesky behavior)")
+            print(
+                "🔗 [Bluesky URL Processing] ✅ Preserving all URLs (matches native Bluesky behavior)"
+            )
         }
 
         if shouldTruncate && !isExpanded {

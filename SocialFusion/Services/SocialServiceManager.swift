@@ -136,8 +136,14 @@ public final class SocialServiceManager: ObservableObject {
     private var paginationTokens: [String: String] = [:]  // accountId -> nextPageToken
 
     // Services for each platform
-    private let mastodonService = MastodonService()
-    private let blueskyService = BlueskyService()
+    private let mastodonService: MastodonService
+    private let blueskyService: BlueskyService
+    private let actionLogger = Logger(subsystem: "com.socialfusion", category: "PostActions")
+
+    // Post action V2 infrastructure - accessible within module
+    internal lazy var postActionStore = PostActionStore()
+    internal lazy var postActionCoordinator = PostActionCoordinator(
+        store: postActionStore, service: self)
 
     // Edge case handling - temporarily disabled
     // private let edgeCase = EdgeCaseHandler.shared
@@ -155,7 +161,12 @@ public final class SocialServiceManager: ObservableObject {
     // MARK: - Initialization
 
     // Make initializer public so it can be used in SocialFusionApp
-    public init() {
+    public init(
+        mastodonService: MastodonService = MastodonService(),
+        blueskyService: BlueskyService = BlueskyService()
+    ) {
+        self.mastodonService = mastodonService
+        self.blueskyService = blueskyService
         print("🔧 SocialServiceManager: Starting initialization...")
 
         // Load saved accounts first
@@ -834,7 +845,7 @@ public final class SocialServiceManager: ObservableObject {
         var allPosts: [Post] = []
 
         // Use Task.detached to prevent cancellation during navigation
-        return try await Task.detached(priority: .userInitiated) {
+        return await Task.detached(priority: .userInitiated) {
             await withTaskGroup(of: [Post].self) { group in
                 for account in accounts {
                     group.addTask {
@@ -976,81 +987,73 @@ public final class SocialServiceManager: ObservableObject {
             isLoadingNextPage = true
         }
 
-        do {
-            // Determine which accounts to fetch based on selection
-            var accountsToFetch: [SocialAccount] = []
+        // Determine which accounts to fetch based on selection
+        var accountsToFetch: [SocialAccount] = []
 
-            if selectedAccountIds.contains("all") {
-                accountsToFetch = accounts
-            } else {
-                accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
+        if selectedAccountIds.contains("all") {
+            accountsToFetch = accounts
+        } else {
+            accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
+        }
+
+        guard !accountsToFetch.isEmpty else {
+            Task { @MainActor in
+                isLoadingNextPage = false
             }
+            return
+        }
 
-            guard !accountsToFetch.isEmpty else {
-                Task { @MainActor in
-                    isLoadingNextPage = false
-                }
-                return
-            }
+        var allNewPosts: [Post] = []
+        var hasMorePages = false
 
-            var allNewPosts: [Post] = []
-            var hasMorePages = false
-
-            // Fetch next page from each account
-            for account in accountsToFetch {
-                do {
-                    let result = try await fetchNextPageForAccount(account)
-                    allNewPosts.append(contentsOf: result.posts)
-                    if result.pagination.hasNextPage {
-                        hasMorePages = true
-                        // Store pagination token for this account
-                        if let token = result.pagination.nextPageToken {
-                            paginationTokens[account.id] = token
-                        }
-                    }
-                } catch {
-                    print("Error fetching next page for \(account.username): \(error)")
-                    // Continue with other accounts even if one fails
-                }
-            }
-
-            // Process and append new posts
-            let uniquePosts = allNewPosts.map { post -> Post in
-                if let original = post.originalPost {
-                    let boostId = "boost-\(post.authorUsername)-\(original.id)"
-                    if post.id == original.id {
-                        let patched = post.copy(with: boostId)
-                        patched.originalPost = original
-                        return patched
+        // Fetch next page from each account
+        for account in accountsToFetch {
+            do {
+                let result = try await fetchNextPageForAccount(account)
+                allNewPosts.append(contentsOf: result.posts)
+                if result.pagination.hasNextPage {
+                    hasMorePages = true
+                    // Store pagination token for this account
+                    if let token = result.pagination.nextPageToken {
+                        paginationTokens[account.id] = token
                     }
                 }
-                return post
+            } catch {
+                print("Error fetching next page for \(account.username): \(error)")
+                // Continue with other accounts even if one fails
             }
+        }
 
-            let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
-
-            Task { @MainActor in
-                // Deduplicate new posts against existing timeline before appending
-                let existingIds = Set(self.unifiedTimeline.map { $0.stableId })
-                let deduplicatedNewPosts = sortedNewPosts.filter {
-                    !existingIds.contains($0.stableId)
+        // Process and append new posts
+        let uniquePosts = allNewPosts.map { post -> Post in
+            if let original = post.originalPost {
+                let boostId = "boost-\(post.authorUsername)-\(original.id)"
+                if post.id == original.id {
+                    let patched = post.copy(with: boostId)
+                    patched.originalPost = original
+                    return patched
                 }
-
-                print(
-                    "📊 SocialServiceManager: Deduplicating \(sortedNewPosts.count) new posts -> \(deduplicatedNewPosts.count) unique posts"
-                )
-
-                // Append new posts to existing timeline
-                self.unifiedTimeline.append(contentsOf: deduplicatedNewPosts)
-                self.hasNextPage = hasMorePages
-                self.isLoadingNextPage = false
             }
-        } catch {
-            print("❌ SocialServiceManager: Error loading next page: \(error)")
-            Task { @MainActor in
-                self.isLoadingNextPage = false
+            return post
+        }
+
+        let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
+
+        Task { @MainActor in
+            // Deduplicate new posts against existing timeline before appending
+            let existingIds = Set(self.unifiedTimeline.map { $0.stableId })
+            let deduplicatedNewPosts = sortedNewPosts.filter {
+                !existingIds.contains($0.stableId)
             }
-            throw error
+
+            print(
+                "📊 SocialServiceManager: Deduplicating \(sortedNewPosts.count) new posts -> \(deduplicatedNewPosts.count) unique posts"
+            )
+
+            // Append new posts to existing timeline
+            self.unifiedTimeline.append(contentsOf: deduplicatedNewPosts)
+            self.hasNextPage = hasMorePages
+            self.isLoadingNextPage = false
         }
     }
 
@@ -1243,48 +1246,45 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Like a post
-    public func likePost(_ post: Post) async throws -> Post {
-        print("🔄 [SocialServiceManager] likePost called for platform: \(post.platform)")
+    /// Retry wrapper for network operations
+    private func withRetry<T>(
+        maxAttempts: Int = 2,
+        operation: @escaping () async throws -> T
+    ) async throws -> T {
+        var lastError: Error?
+
+        for attempt in 1...maxAttempts {
+            do {
+                return try await operation()
+            } catch {
+                lastError = error
+                if attempt < maxAttempts {
+                    try? await Task.sleep(nanoseconds: UInt64(attempt) * 500_000_000)
+                }
+            }
+        }
+
+        throw lastError ?? ServiceError.unknown("Retry failed")
+    }
+
+    private func sendLike(_ post: Post) async throws -> Post {
+        actionLogger.debug("sendLike invoked for \(post.stableId, privacy: .public)")
 
         switch post.platform {
         case .mastodon:
-            print("🔄 [SocialServiceManager] Processing Mastodon like request")
-            print("🔄 [SocialServiceManager] Available Mastodon accounts: \(mastodonAccounts.count)")
-
-            for (index, account) in mastodonAccounts.enumerated() {
-                print(
-                    "🔄 [SocialServiceManager] Mastodon account \(index): \(account.username) (ID: \(account.id))"
-                )
-                print(
-                    "🔄 [SocialServiceManager] Account has access token: \(account.getAccessToken() != nil)"
-                )
-                print("🔄 [SocialServiceManager] Account token expired: \(account.isTokenExpired)")
-            }
-
+            actionLogger.debug("Processing Mastodon like request")
             guard let account = mastodonAccounts.first else {
-                print("❌ [SocialServiceManager] No Mastodon account available")
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
 
-            print("✅ [SocialServiceManager] Using Mastodon account: \(account.username)")
-
             do {
-                print("🔄 [SocialServiceManager] Calling mastodonService.likePost")
                 let result = try await mastodonService.likePost(post, account: account)
-                print("✅ [SocialServiceManager] mastodonService.likePost succeeded")
                 return result
             } catch {
-                print("❌ [SocialServiceManager] mastodonService.likePost failed: \(error)")
-
-                // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
                     || error.localizedDescription.contains("No refresh token available")
                 {
-                    print(
-                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
-                    )
                     throw ServiceError.authenticationExpired(
                         "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
                     )
@@ -1293,48 +1293,30 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         case .bluesky:
-            print("🔄 [SocialServiceManager] Processing Bluesky like request")
             guard let account = blueskyAccounts.first else {
-                print("❌ [SocialServiceManager] No Bluesky account available")
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
-            print("✅ [SocialServiceManager] Using Bluesky account: \(account.username)")
             return try await blueskyService.likePost(post, account: account)
         }
     }
 
-    /// Unlike a post
-    func unlikePost(_ post: Post) async throws -> Post {
-        print("🔄 [SocialServiceManager] unlikePost called for platform: \(post.platform)")
+    private func sendUnlike(_ post: Post) async throws -> Post {
+        actionLogger.debug("sendUnlike invoked for \(post.stableId, privacy: .public)")
 
         switch post.platform {
         case .mastodon:
-            print("🔄 [SocialServiceManager] Processing Mastodon unlike request")
-            print("🔄 [SocialServiceManager] Available Mastodon accounts: \(mastodonAccounts.count)")
-
             guard let account = mastodonAccounts.first else {
-                print("❌ [SocialServiceManager] No Mastodon account available")
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
 
-            print("✅ [SocialServiceManager] Using Mastodon account: \(account.username)")
-
             do {
-                print("🔄 [SocialServiceManager] Calling mastodonService.unlikePost")
                 let result = try await mastodonService.unlikePost(post, account: account)
-                print("✅ [SocialServiceManager] mastodonService.unlikePost succeeded")
                 return result
             } catch {
-                print("❌ [SocialServiceManager] mastodonService.unlikePost failed: \(error)")
-
-                // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
                     || error.localizedDescription.contains("No refresh token available")
                 {
-                    print(
-                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
-                    )
                     throw ServiceError.authenticationExpired(
                         "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
                     )
@@ -1343,34 +1325,30 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         case .bluesky:
-            print("🔄 [SocialServiceManager] Processing Bluesky unlike request")
             guard let account = blueskyAccounts.first else {
-                print("❌ [SocialServiceManager] No Bluesky account available")
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
-            print("✅ [SocialServiceManager] Using Bluesky account: \(account.username)")
             return try await blueskyService.unlikePost(post, account: account)
         }
     }
 
-    /// Repost a post (Mastodon or Bluesky)
-    public func repostPost(_ post: Post) async throws -> Post {
+    private func sendRepost(_ post: Post) async throws -> Post {
+        actionLogger.debug("sendRepost invoked for \(post.stableId, privacy: .public)")
+
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
+
             do {
-                return try await mastodonService.repostPost(post, account: account)
+                let result = try await mastodonService.repostPost(post, account: account)
+                return result
             } catch {
-                // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
                     || error.localizedDescription.contains("No refresh token available")
                 {
-                    print(
-                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
-                    )
                     throw ServiceError.authenticationExpired(
                         "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
                     )
@@ -1386,24 +1364,23 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Unrepost a post (Mastodon or Bluesky)
-    func unrepostPost(_ post: Post) async throws -> Post {
+    private func sendUnrepost(_ post: Post) async throws -> Post {
+        actionLogger.debug("sendUnrepost invoked for \(post.stableId, privacy: .public)")
+
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
+
             do {
-                return try await mastodonService.unrepostPost(post, account: account)
+                let result = try await mastodonService.unrepostPost(post, account: account)
+                return result
             } catch {
-                // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
                     || error.localizedDescription.contains("No refresh token available")
                 {
-                    print(
-                        "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
-                    )
                     throw ServiceError.authenticationExpired(
                         "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
                     )
@@ -1417,6 +1394,213 @@ public final class SocialServiceManager: ObservableObject {
             }
             return try await blueskyService.unrepostPost(post, account: account)
         }
+    }
+
+    private func sendFetchActions(_ post: Post) async throws -> Post {
+        actionLogger.debug("sendFetchActions invoked for \(post.stableId, privacy: .public)")
+
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            if let refreshed = try await fetchMastodonStatus(
+                id: post.platformSpecificId, account: account)
+            {
+                return refreshed
+            }
+            return post
+        case .bluesky:
+            if let refreshed = try await fetchBlueskyPostByID(post.platformSpecificId) {
+                return refreshed
+            }
+            return post
+        }
+    }
+
+    private func apply(_ state: PostActionState, to post: Post) {
+        post.isLiked = state.isLiked
+        post.isReposted = state.isReposted
+        post.likeCount = state.likeCount
+        post.repostCount = state.repostCount
+        post.replyCount = state.replyCount
+    }
+
+    private func isTransientError(_ error: Error) -> Bool {
+        if let networkError = error as? NetworkError {
+            return networkError.isRetriable
+        }
+
+        if let serviceError = error as? ServiceError {
+            switch serviceError {
+            case .networkError, .timeout, .rateLimitError:
+                return true
+            default:
+                break
+            }
+        }
+
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            return nsError.code == NSURLErrorTimedOut
+                || nsError.code == NSURLErrorCannotConnectToHost
+                || nsError.code == NSURLErrorNetworkConnectionLost
+                || nsError.code == NSURLErrorNotConnectedToInternet
+        }
+
+        return false
+    }
+
+    private func withExponentialBackoff<T>(
+        operationName: String,
+        maxAttempts: Int = 3,
+        initialDelay: TimeInterval = 0.4,
+        maxDelay: TimeInterval = 3.0,
+        execute: @escaping () async throws -> T
+    ) async throws -> T {
+        var attempt = 0
+        var delay = initialDelay
+
+        while attempt < maxAttempts {
+            do {
+                return try await execute()
+            } catch {
+                attempt += 1
+                if !isTransientError(error) || attempt >= maxAttempts {
+                    throw error
+                }
+
+                let jitter = Double.random(in: 0...(delay * 0.25))
+                let waitTime = min(maxDelay, delay) + jitter
+
+                actionLogger.warning(
+                    "Retrying \(operationName, privacy: .public) in \(waitTime, privacy: .public)s (attempt \(attempt + 1) of \(maxAttempts))"
+                )
+
+                try await Task.sleep(nanoseconds: UInt64(waitTime * 1_000_000_000))
+                delay = min(maxDelay, delay * 2)
+            }
+        }
+
+        throw ServiceError.unknown("Exceeded retry attempts for \(operationName)")
+    }
+
+    private func performBackoffAction(
+        for post: Post,
+        name: String,
+        execute: @escaping () async throws -> Post
+    ) async throws -> Post {
+        try await withExponentialBackoff(operationName: name) {
+            try await execute()
+        }
+    }
+
+    private func performPostActionWithBackoff(
+        for post: Post,
+        name: String,
+        execute: @escaping () async throws -> Post
+    ) async throws -> (Post, PostActionState) {
+        let updatedPost = try await performBackoffAction(for: post, name: name, execute: execute)
+        let state = PostActionState(post: updatedPost)
+        apply(state, to: post)
+        return (updatedPost, state)
+    }
+
+    /// Like a post
+    public func likePost(_ post: Post) async throws -> Post {
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            let (updatedPost, _) = try await performPostActionWithBackoff(for: post, name: "like") {
+                try await self.sendLike(post)
+            }
+            return updatedPost
+        }
+
+        return try await withRetry { [self] in
+            try await self.sendLike(post)
+        }
+    }
+
+    /// Unlike a post
+    func unlikePost(_ post: Post) async throws -> Post {
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            let (updatedPost, _) = try await performPostActionWithBackoff(for: post, name: "unlike")
+            {
+                try await self.sendUnlike(post)
+            }
+            return updatedPost
+        }
+
+        return try await withRetry { [self] in
+            try await self.sendUnlike(post)
+        }
+    }
+
+    /// Repost a post (Mastodon or Bluesky)
+    public func repostPost(_ post: Post) async throws -> Post {
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            let (updatedPost, _) = try await performPostActionWithBackoff(for: post, name: "repost")
+            {
+                try await self.sendRepost(post)
+            }
+            return updatedPost
+        }
+
+        return try await withRetry { [self] in
+            try await self.sendRepost(post)
+        }
+    }
+
+    /// Unrepost a post (Mastodon or Bluesky)
+    func unrepostPost(_ post: Post) async throws -> Post {
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            let (updatedPost, _) = try await performPostActionWithBackoff(
+                for: post, name: "unrepost"
+            ) {
+                try await self.sendUnrepost(post)
+            }
+            return updatedPost
+        }
+
+        return try await withRetry { [self] in
+            try await self.sendUnrepost(post)
+        }
+    }
+
+    // MARK: - V2 Post Actions
+
+    public func like(post: Post) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: "like") {
+            try await self.sendLike(post)
+        }
+        return state
+    }
+
+    public func unlike(post: Post) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: "unlike") {
+            try await self.sendUnlike(post)
+        }
+        return state
+    }
+
+    public func repost(post: Post) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: "repost") {
+            try await self.sendRepost(post)
+        }
+        return state
+    }
+
+    public func unrepost(post: Post) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: "unrepost") {
+            try await self.sendUnrepost(post)
+        }
+        return state
+    }
+
+    public func fetchActions(for post: Post) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: "fetch_actions") {
+            try await self.sendFetchActions(post)
+        }
+        return state
     }
 
     // MARK: - Post Creation
@@ -2032,3 +2216,7 @@ extension Array {
         }
     }
 }
+
+// MARK: - PostActionNetworking Conformance
+
+extension SocialServiceManager: PostActionNetworking {}

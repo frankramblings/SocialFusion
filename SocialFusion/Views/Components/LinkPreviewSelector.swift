@@ -108,5 +108,4 @@ struct LinkPreviewSelector: View {
         LinkPreviewSelector(links: [], postId: "preview-3")
     }
     .padding()
-    .previewLayout(.sizeThatFits)
 }

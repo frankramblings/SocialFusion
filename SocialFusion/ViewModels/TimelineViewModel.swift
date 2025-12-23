@@ -61,7 +61,7 @@ public final class TimelineViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let serialQueue = DispatchQueue(label: "TimelineViewModel.serial", qos: .userInitiated)
     private var refreshTask: Task<Void, Never>?
-    private var rateLimitTimer: Timer?
+    private var rateLimitTask: Task<Void, Never>?
 
     public init(socialServiceManager: SocialServiceManager? = nil) {
         self.socialServiceManager = socialServiceManager ?? SocialServiceManager()
@@ -71,6 +71,7 @@ public final class TimelineViewModel: ObservableObject {
 
     deinit {
         refreshTask?.cancel()
+        rateLimitTask?.cancel()
         cancellables.removeAll()
     }
 
@@ -650,33 +651,25 @@ public final class TimelineViewModel: ObservableObject {
     }
 
     private func startRateLimitCountdown(seconds: TimeInterval) {
-        // Clean up any existing timer
-        rateLimitTimer?.invalidate()
+        // Cancel any existing countdown task
+        rateLimitTask?.cancel()
 
-        // Set initial remaining time
-        retryAfter = seconds
+        rateLimitTask = Task { @MainActor [seconds] in
+            var remaining = seconds
+            retryAfter = remaining
 
-        // Create and schedule a timer to count down
-        rateLimitTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
-            [weak self] timer in
-            guard let self = self else {
-                timer.invalidate()
-                return
+            while remaining > 0 && !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                remaining -= 1
+                retryAfter = max(remaining, 0)
             }
 
-            self.retryAfter -= 1
+            guard !Task.isCancelled else { return }
 
-            // When countdown reaches zero, reset state and timer
-            if self.retryAfter <= 0 {
-                timer.invalidate()
-                self.rateLimitTimer = nil
-
-                // Reset state to idle so user can try again
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
-                    self.state = .idle
-                }
-            }
+            // Small delay to prevent sudden UI jumps, mirroring previous behaviour
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            state = .idle
+            rateLimitTask = nil
         }
     }
 }

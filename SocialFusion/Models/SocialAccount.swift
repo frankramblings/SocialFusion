@@ -540,3 +540,6 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 // MARK: - Property Wrapper for Codable Ignore
 
 // Property wrapper for CodableIgnore is no longer needed since we're using a class with normal properties
+
+// MARK: - Concurrency Support
+extension SocialAccount: @unchecked Sendable {}

@@ -20,8 +20,9 @@ class SimpleEdgeCaseMonitor: ObservableObject {
 
     private func setupNetworkMonitoring() {
         networkMonitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
             Task { @MainActor in
-                self?.isNetworkAvailable = path.status == .satisfied
+                self.isNetworkAvailable = path.status == .satisfied
             }
         }
         networkMonitor.start(queue: networkQueue)
@@ -33,23 +34,22 @@ class SimpleEdgeCaseMonitor: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in
-                self?.isLowMemory = true
+            guard let self else { return }
+            Task {
+                await MainActor.run {
+                    self.isLowMemory = true
+                }
                 // Reset after 30 seconds
-                Task {
-                    try? await Task.sleep(nanoseconds: 30_000_000_000)
-                    await MainActor.run {
-                        self?.isLowMemory = false
-                    }
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                await MainActor.run {
+                    self.isLowMemory = false
                 }
             }
         }
     }
 
     func updateAccountStatus(hasAccounts: Bool) {
-        Task { @MainActor in
-            self.hasAccounts = hasAccounts
-        }
+        self.hasAccounts = hasAccounts
     }
 
     deinit {

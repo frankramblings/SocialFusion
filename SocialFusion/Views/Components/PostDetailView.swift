@@ -30,9 +30,13 @@ struct PostDetailView: View {
 
     // UI state
     @State private var hasScrolledToSelectedPost: Bool = false
+    @State private var didInitialJump: Bool = false
+    @State private var isInitialPositioned: Bool = false
     @State private var showParentIndicator: Bool = false
     @State private var scrollOffset: CGFloat = 0
     @State private var scrollProxy: ScrollViewProxy?
+    @State private var measuredTopInset: CGFloat = 0
+    @State private var anchorHeight: CGFloat = 150
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -72,13 +76,45 @@ struct PostDetailView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            // Reserve generous space for the transparent nav/gradient + status bar + dynamic island
+            let topInset = geometry.safeAreaInsets.top + 90
+
             ZStack(alignment: .bottom) {
                 // Main content with ScrollViewReader for auto-scroll
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 0) {
-                            threadContentView
-                                .padding(.bottom, 100)  // Bottom padding for scroll behavior
+                            threadContentView(anchorHeight: anchorHeight)
+                                .padding(.bottom, 600)  // Significantly increased bottom padding
+                        }
+                        // Global top inset so the first visible item sits below the nav/gradient
+                        .padding(.top, topInset)
+                    }
+                    .background(alignment: .topLeading) {
+                        if !parentPosts.isEmpty {
+                            // Polished, subtle thread continuation line to hint there are parents above
+                            LinearGradient(
+                                colors: [
+                                    Color.gray.opacity(0.16),
+                                    Color.gray.opacity(0.08),
+                                    Color.gray.opacity(0),
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(width: 2, height: topInset + 20)
+                            .clipShape(Capsule())
+                            .padding(.leading, 24)  // align with thread line used in PostRow
+                            .padding(.top, 6)  // slight inset for a more refined look
+                            .allowsHitTesting(false)
+                        }
+                    }
+                    .opacity(isInitialPositioned ? 1 : 0)
+                    .allowsHitTesting(isInitialPositioned)
+                    .overlay(alignment: .top) {
+                        if !isInitialPositioned {
+                            ProgressView()
+                                .padding(.top, topInset + 16)
                         }
                     }
                     .background(
@@ -95,17 +131,18 @@ struct PostDetailView: View {
                         // Defer state updates to prevent AttributeGraph cycles
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                            // TODO: Implement updateScrollState method
-                            // updateScrollState(offset: offset)
+                            updateScrollState(offset: offset)
                         }
                     }
                     .onAppear {
-                        // Use Task to defer state updates outside view rendering cycle
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                            loadThreadContext()
-                            scrollProxy = proxy
-                        }
+                        measuredTopInset = topInset
+                        anchorHeight = max(topInset + 30, 150)
+
+                        // Set the proxy first
+                        scrollProxy = proxy
+
+                        // Load thread context which will trigger scroll when finished
+                        loadThreadContext()
                     }
                 }
 
@@ -156,40 +193,25 @@ struct PostDetailView: View {
                     }
                 }
             }
+
+            if FeatureFlagManager.isEnabled(.postActionsV2) {
+                serviceManager.postActionStore.ensureState(for: viewModel.post)
+                serviceManager.postActionCoordinator.refreshIfStale(for: viewModel.post)
+            }
         }
     }
 
     // MARK: - Thread Content View
 
     @ViewBuilder
-    private var threadContentView: some View {
+    private func threadContentView(anchorHeight: CGFloat) -> some View {
         VStack(spacing: 0) {
-            // Boost banner (if this post was boosted)
-            if let boostInfo = navigationEnvironment.boostInfo {
-                // Invisible anchor for selected post area (including boost banner)
-                Color.clear
-                    .frame(height: 1)
-                    .id(selectedPostAreaID)
+            // Anchor for scrolling to top
+            Color.clear
+                .frame(height: 1)
+                .id(topScrollID)
 
-                HStack {
-                    BoostBanner(
-                        handle: boostInfo.boostedBy,
-                        platform: viewModel.post.platform
-                    )
-                    Spacer()
-                }
-                .padding(.horizontal, 12)  // Apple standard: 12pt for content - match feed alignment
-                .padding(.vertical, 6)  // Adequate touch target - match feed alignment
-            }
-
-            // Anchor for selected post area when no boost banner
-            if navigationEnvironment.boostInfo == nil {
-                Color.clear
-                    .frame(height: 1)
-                    .id(selectedPostAreaID)
-            }
-
-            // Parent posts (above selected post) - MOVED BACK TO TOP
+            // 1. Parent posts (above selected post)
             if !parentPosts.isEmpty {
                 ForEach(Array(parentPosts.enumerated()), id: \.offset) { index, post in
                     let isLastParent = index == parentPosts.count - 1
@@ -223,65 +245,79 @@ struct PostDetailView: View {
                             .padding(.leading, 52)
                     }
                 }
-            }
 
-            // Divider before anchor post (if there are parent posts)
-            if !parentPosts.isEmpty {
+                // Divider before anchor post - reduced vertical padding
                 Divider()
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 16)  // Even spacing above and below separator
+                    .padding(.top, 16)
             }
 
-            // Selected post (anchor) - Ivory-style layout
+            // 2. Selected post (anchor) section
             VStack(spacing: 0) {
-                // Selected post content - extends to top for transparent navigation effect
-                SelectedPostView(
-                    post: viewModel.post,
-                    showThreadLine: !parentPosts.isEmpty || !replyPosts.isEmpty,
-                    dateFormatter: dateFormatter
-                )
-                .id(selectedPostScrollID)
-                .layoutPriority(1000)  // Ivory-style: Highest priority for anchor post
-                // Remove top padding to allow content to flow behind navigation
+                // Anchor used for scroll positioning
+                Color.clear
+                    .frame(height: anchorHeight)  // match/extend topInset to guarantee clearance
+                    .id(selectedPostAreaID)
 
-                // Action bar for selected post
-                PostActionBar(
-                    post: viewModel.post,
-                    replyCount: viewModel.replyCount,
-                    repostCount: viewModel.repostCount,
-                    likeCount: viewModel.likeCount,
-                    isReplying: isReplying,
-                    isReposted: viewModel.isReposted,
-                    isLiked: viewModel.isLiked,
-                    isReplied: viewModel.post.isReplied,
-                    onReply: { handleAction(.reply) },
-                    onRepost: { handleAction(.repost) },
-                    onLike: { handleAction(.like) },
-                    onShare: { handleAction(.share) }
-                )
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                VStack(spacing: 0) {
+                    // Boost banner (if this post was boosted)
+                    if let boostInfo = navigationEnvironment.boostInfo {
+                        HStack {
+                            BoostBanner(
+                                handle: boostInfo.boostedBy,
+                                platform: viewModel.post.platform
+                            )
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
 
-                // Full timestamp section for anchor post
-                HStack {
-                    Text(dateFormatter.string(from: viewModel.post.createdAt))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    // Selected post content
+                    SelectedPostView(
+                        post: viewModel.post,
+                        showThreadLine: !parentPosts.isEmpty || !replyPosts.isEmpty,
+                        dateFormatter: dateFormatter
+                    )
+                    .id(selectedPostScrollID)
+                    .layoutPriority(1000)
 
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 16)
-
-                // Divider after anchor post
-                Divider()
+                    // Action bar for selected post
+                    PostActionBarWithViewModel(
+                        viewModel: viewModel,
+                        isReplying: isReplying,
+                        onReply: { handleAction(.reply) },
+                        onRepost: { handleAction(.repost) },
+                        onLike: { handleAction(.like) },
+                        onShare: { handleAction(.share) },
+                        postActionStore: FeatureFlagManager.isEnabled(.postActionsV2)
+                            ? serviceManager.postActionStore : nil,
+                        postActionCoordinator: FeatureFlagManager.isEnabled(.postActionsV2)
+                            ? serviceManager.postActionCoordinator : nil
+                    )
                     .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+
+                    // Full timestamp section for anchor post
+                    HStack {
+                        Text(dateFormatter.string(from: viewModel.post.createdAt))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+
+                    // Divider after anchor post
+                    Divider()
+                        .padding(.horizontal, 16)
+                }
             }
 
-            // Replies header (if there are replies)
+            // 3. Replies header (if there are replies)
             if !replyPosts.isEmpty {
                 VStack(spacing: 0) {
-                    // Replies header
                     HStack {
                         Text("REPLIES")
                             .font(.caption)
@@ -299,7 +335,7 @@ struct PostDetailView: View {
                 .background(Color(.systemGroupedBackground))
             }
 
-            // Reply posts (below selected post)
+            // 5. Reply posts (below selected post)
             if !replyPosts.isEmpty {
                 ForEach(Array(replyPosts.enumerated()), id: \.offset) { index, post in
                     let isLastReply = index == replyPosts.count - 1
@@ -348,7 +384,7 @@ struct PostDetailView: View {
             }
 
             // Thread error state
-            if let error = threadError {
+            if threadError != nil {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.title3)
@@ -473,9 +509,19 @@ struct PostDetailView: View {
                 isReplying = true
             }
         case .repost:
-            Task { await viewModel.repost() }
+            if FeatureFlagManager.isEnabled(.postActionsV2) {
+                serviceManager.postActionStore.ensureState(for: viewModel.post)
+                serviceManager.postActionCoordinator.toggleRepost(for: viewModel.post)
+            } else {
+                Task { await viewModel.repost() }
+            }
         case .like:
-            Task { await viewModel.like() }
+            if FeatureFlagManager.isEnabled(.postActionsV2) {
+                serviceManager.postActionStore.ensureState(for: viewModel.post)
+                serviceManager.postActionCoordinator.toggleLike(for: viewModel.post)
+            } else {
+                Task { await viewModel.like() }
+            }
         case .share:
             viewModel.share()
         case .quote:
@@ -491,6 +537,9 @@ struct PostDetailView: View {
 
                 // Update the post's isReplied state
                 self.viewModel.post.isReplied = true
+                if FeatureFlagManager.isEnabled(.postActionsV2) {
+                    serviceManager.postActionCoordinator.registerReplySuccess(for: viewModel.post)
+                }
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.isReplying = false
                     self.replyText = ""
@@ -541,25 +590,64 @@ struct PostDetailView: View {
             do {
                 let context = try await serviceManager.fetchThreadContext(for: viewModel.post)
 
-                self.parentPosts = context.ancestors
-                self.replyPosts = context.descendants
-                self.isLoadingThread = false
-                self.hasLoadedInitialThread = true
+                await MainActor.run {
+                    self.parentPosts = context.ancestors
+                    self.replyPosts = context.descendants
+                    self.isLoadingThread = false
+                    self.hasLoadedInitialThread = true
 
-                print(
-                    "📊 PostDetailView: Thread context loaded - \(context.ancestors.count) ancestors, \(context.descendants.count) descendants"
-                )
+                    print(
+                        "📊 PostDetailView: Thread context loaded - \(context.ancestors.count) ancestors, \(context.descendants.count) descendants"
+                    )
+
+                    // Auto-jump to selected post after thread is loaded (no visible animation)
+                    if !didInitialJump {
+                        scrollToSelectedPost(animated: false)
+                        didInitialJump = true
+                        hasScrolledToSelectedPost = true
+                    } else {
+                        isInitialPositioned = true
+                    }
+                }
 
             } catch {
-                print("📊 PostDetailView: Failed to load thread context: \(error)")
-                self.threadError = error
-                self.isLoadingThread = false
+                await MainActor.run {
+                    print("📊 PostDetailView: Failed to load thread context: \(error)")
+                    self.threadError = error
+                    self.isLoadingThread = false
+                }
             }
+        }
+    }
+
+    private func scrollToSelectedPost(animated: Bool = true) {
+        guard let proxy = scrollProxy else { return }
+
+        // Use a task with a small delay to ensure the layout is ready
+        Task { @MainActor in
+            // Small delay to allow layout to settle
+            try? await Task.sleep(nanoseconds: 120_000_000)
+
+            print("📊 PostDetailView: Executing scroll to selected post \(viewModel.post.id)")
+
+            if animated {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                    proxy.scrollTo(selectedPostAreaID, anchor: .top)
+                }
+            } else {
+                proxy.scrollTo(selectedPostAreaID, anchor: .top)
+            }
+
+            hasScrolledToSelectedPost = true
+            isInitialPositioned = true
         }
     }
 
     private func refreshThreadContext() {
         hasLoadedInitialThread = false
+        hasScrolledToSelectedPost = false
+        didInitialJump = false
+        isInitialPositioned = false
         parentPosts = []
         replyPosts = []
         loadThreadContext()
@@ -594,11 +682,13 @@ struct PostDetailView: View {
     private func updateScrollState(offset: CGFloat) {
         scrollOffset = offset
 
-        // Show indicator if we've scrolled down and there are parent posts
-        let shouldShow = offset < -50 && !parentPosts.isEmpty
+        // Show indicator if we've scrolled down past the top margin and there are parent posts
+        let shouldShow = offset < -120 && !parentPosts.isEmpty
 
-        withAnimation(.easeInOut(duration: 0.2)) {
-            showParentIndicator = shouldShow
+        if showParentIndicator != shouldShow {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showParentIndicator = shouldShow
+            }
         }
     }
 
@@ -654,7 +744,7 @@ struct SelectedPostView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             // Author header section - moderately prominent
             HStack(spacing: 12) {  // Reasonable spacing
                 PostAuthorImageView(
