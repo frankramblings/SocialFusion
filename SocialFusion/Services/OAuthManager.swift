@@ -85,10 +85,17 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
     // MARK: - ASWebAuthenticationPresentationContextProviding
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        let scenes = UIApplication.shared.connectedScenes
-        let windowScene = scenes.first as? UIWindowScene
-        let window = windowScene?.windows.first ?? UIWindow()
-        return window
+        if let window = UIApplication.shared.connectedScenes
+            .filter({ $0.activationState == .foregroundActive })
+            .compactMap({ $0 as? UIWindowScene })
+            .first?.windows
+            .filter({ $0.isKeyWindow })
+            .first {
+            return window
+        }
+        
+        // Fallback for cases where the above might fail
+        return UIApplication.shared.windows.first { $0.isKeyWindow } ?? UIWindow()
     }
 
     // MARK: - Public Methods
@@ -98,7 +105,14 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
         server: String,
         completion: @escaping (Result<OAuthCredentials, Error>) -> Void
     ) {
-        guard !isAuthenticating else { return }
+        NSLog("🔐 [OAuth] authenticateMastodon called for: %@", server)
+        guard !isAuthenticating else {
+            NSLog("⚠️ [OAuth] Already authenticating, ignoring request for: %@", server)
+            completion(.failure(OAuthError.serverError(error: "busy", description: "Authentication already in progress")))
+            return
+        }
+        
+        NSLog("🔐 [OAuth] Starting authentication process...")
 
         self.isAuthenticating = true
         self.authenticationError = nil
@@ -111,10 +125,13 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
 
         Task {
             do {
+                NSLog("🔐 [OAuth] Step 1: Registering app or getting cached credentials...")
                 // Step 1: Register app with server (or get cached credentials)
                 let (clientId, clientSecret) = try await getOrRegisterApp(server: currentServer!)
                 self.clientId = clientId
                 self.clientSecret = clientSecret
+                
+                NSLog("🔐 [OAuth] Step 2: Starting OAuth flow with clientId: %@", clientId)
 
                 // Step 2: Start OAuth flow
                 await MainActor.run {
@@ -122,6 +139,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
                 }
 
             } catch {
+                NSLog("❌ [OAuth] Authentication failed during registration: \(error.localizedDescription)")
                 await MainActor.run {
                     self.isAuthenticating = false
                     self.authenticationError = error
@@ -134,7 +152,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
     /// Handle callback URL from OAuth redirect
     func handleCallback(url: URL) {
         guard let completionHandler = self.completionHandler else {
-            print("No completion handler available for OAuth callback")
+            NSLog("No completion handler available for OAuth callback")
             return
         }
 
@@ -179,9 +197,11 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
     ) {
         // Check cache first
         if let cached = appRegistrationCache[server] {
+            NSLog("🔐 [OAuth] Using cached app credentials for: %@", server)
             return cached
         }
 
+        NSLog("🔐 [OAuth] No cached credentials, registering new app for: %@", server)
         // Register new app
         let credentials = try await registerApp(server: server)
         appRegistrationCache[server] = credentials
@@ -192,28 +212,43 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
     private func registerApp(server: String) async throws -> (
         clientId: String, clientSecret: String
     ) {
+        NSLog("🔐 [OAuth] Registering app with server: %@", server)
         guard let url = URL(string: "\(server)/api/v1/apps") else {
+            NSLog("❌ [OAuth] Invalid URL for app registration: %@", server)
             throw OAuthError.invalidServerURL
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("SocialFusion/1.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30.0 // Increased to 30 seconds
 
         let parameters: [String: Any] = [
             "client_name": "SocialFusion",
             "redirect_uris": "socialfusion://oauth",
             "scopes": "read write follow push",
-            "website": "https://github.com/yourusername/socialfusion",  // Update with actual repo
+            "website": "https://github.com/frankramblings/SocialFusion",
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
 
+        NSLog("🔐 [OAuth] Sending app registration request to: %@", url.absoluteString)
         let (data, response) = try await URLSession.shared.data(for: request)
+        NSLog("🔐 [OAuth] Received response from app registration")
 
-        guard let httpResponse = response as? HTTPURLResponse,
-            httpResponse.statusCode == 200
-        else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            NSLog("❌ [OAuth] Registration failed: No HTTP response")
+            throw OAuthError.registrationFailed
+        }
+        
+        NSLog("🔐 [OAuth] Registration response status code: %d", httpResponse.statusCode)
+        
+        if httpResponse.statusCode != 200 {
+            NSLog("❌ [OAuth] Registration failed with status: %d", httpResponse.statusCode)
+            if let errorString = String(data: data, encoding: .utf8) {
+                NSLog("❌ [OAuth] Registration error body: %@", errorString)
+            }
             throw OAuthError.registrationFailed
         }
 
@@ -223,9 +258,13 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
 
     /// Start the OAuth authorization flow
     private func startOAuthFlow(clientId: String) {
-        guard let server = currentServer else { return }
+        guard let server = currentServer else {
+            NSLog("❌ [OAuth] Error: No current server set")
+            return
+        }
 
         let authURL = buildAuthorizationURL(server: server, clientId: clientId)
+        NSLog("🔐 [OAuth] Building ASWebAuthenticationSession with URL: \(authURL.absoluteString)")
 
         authenticationSession = ASWebAuthenticationSession(
             url: authURL,
@@ -234,6 +273,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             guard let self = self else { return }
 
             if let error = error {
+                NSLog("❌ [OAuth] ASWebAuthenticationSession returned error: \(error.localizedDescription)")
                 if (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin {
                     self.authenticationError = OAuthError.authenticationCancelled
                 } else {
@@ -245,13 +285,23 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             }
 
             if let callbackURL = callbackURL {
+                NSLog("✅ [OAuth] Received callback URL: \(callbackURL.absoluteString)")
                 self.handleCallback(url: callbackURL)
             }
         }
 
         authenticationSession?.presentationContextProvider = self
         authenticationSession?.prefersEphemeralWebBrowserSession = false
-        authenticationSession?.start()
+        
+        NSLog("🔐 [OAuth] Starting ASWebAuthenticationSession...")
+        let started = authenticationSession?.start() ?? false
+        if !started {
+            NSLog("❌ [OAuth] Failed to start ASWebAuthenticationSession")
+            self.isAuthenticating = false
+            self.completionHandler?(.failure(OAuthError.registrationFailed))
+        } else {
+            NSLog("✅ [OAuth] ASWebAuthenticationSession started successfully")
+        }
     }
 
     /// Build the authorization URL
@@ -285,6 +335,8 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.setValue("SocialFusion/1.0 (iOS)", forHTTPHeaderField: "User-Agent")
+            request.timeoutInterval = 30.0
 
             let parameters: [String: Any] = [
                 "client_id": clientId,
@@ -346,6 +398,8 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("SocialFusion/1.0 (iOS)", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 30.0
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -360,11 +414,19 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
 
     /// Formats a server URL to ensure it has the correct scheme
     private func formatServerURL(_ server: String) -> String {
-        let lowercasedServer = server.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        if !lowercasedServer.hasPrefix("http://") && !lowercasedServer.hasPrefix("https://") {
-            return "https://" + lowercasedServer
+        var formatted = server.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Ensure scheme
+        if !formatted.hasPrefix("http://") && !formatted.hasPrefix("https://") {
+            formatted = "https://" + formatted
         }
-        return lowercasedServer
+        
+        // Remove trailing slashes
+        while formatted.hasSuffix("/") {
+            formatted.removeLast()
+        }
+        
+        return formatted
     }
 
     // Helper method to generate random state string for CSRF protection

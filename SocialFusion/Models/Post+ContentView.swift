@@ -597,7 +597,7 @@ struct YouTubeVideoPreview: View {
                         .offset(x: 2)  // Slight offset for visual centering
                 }
 
-                VStack(spacing: 4) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("YouTube Video")
                         .font(.headline)
                         .fontWeight(.semibold)
@@ -608,7 +608,7 @@ struct YouTubeVideoPreview: View {
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.9))
                             .lineLimit(3)  // Increased from 2 to 3 lines for consistency
-                            .multilineTextAlignment(.center)
+                            .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)  // Allow text to expand vertically
                             .padding(.horizontal, 20)  // Slightly more padding for better readability
                     }

@@ -115,7 +115,7 @@ struct AddAccountView: View {
 
                 Section {
                     if selectedPlatform == .mastodon {
-                        Button(action: addMastodonAccount) {
+                        Button(action: addAccount) {
                             if isLoading {
                                 HStack {
                                     Spacer()
@@ -223,6 +223,7 @@ struct AddAccountView: View {
     }
 
     private func addAccount() {
+        NSLog("🔘 [AddAccountView] addAccount() called for platform: %@", selectedPlatform.rawValue)
         isLoading = true
         errorMessage = nil
 
@@ -234,34 +235,41 @@ struct AddAccountView: View {
     }
 
     private func addMastodonAccount() {
+        NSLog("🐘 [AddAccountView] addMastodonAccount() called for server: \(server)")
         Task {
             do {
                 // Handle test account creation
                 if username == "test" && password == "test" {
+                    NSLog("🧪 [AddAccountView] Using test credentials")
                     createTestMastodonAccount()
                     return
                 }
 
                 // Check if the URL is valid
+                NSLog("🐘 [AddAccountView] Validating URL for: \(server)")
                 guard
                     let url = URL(
                         string: server.hasPrefix("https://") ? server : "https://" + server),
                     url.scheme == "https",
                     url.host != nil
                 else {
+                    NSLog("❌ [AddAccountView] Invalid URL: \(server)")
                     throw NSError(
                         domain: "AddAccountView", code: 400,
                         userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"]
                     )
                 }
 
+                NSLog("🐘 [AddAccountView] Requesting authentication from OAuthManager...")
                 // Use OAuth flow
                 let credentials = try await withCheckedThrowingContinuation { continuation in
                     oauthManager.authenticateMastodon(server: url.absoluteString) { result in
+                        NSLog("🐘 [AddAccountView] Received result from OAuthManager: \(result)")
                         continuation.resume(with: result)
                     }
                 }
 
+                NSLog("✅ [AddAccountView] Authentication successful for: \(credentials.username)")
                 // Add account with proper OAuth credentials
                 _ = try await serviceManager.addMastodonAccountWithOAuth(
                     credentials: credentials)
@@ -284,6 +292,7 @@ struct AddAccountView: View {
                 await MainActor.run {
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                    self.showError = true
                 }
             }
         }
@@ -331,6 +340,7 @@ struct AddAccountView: View {
                 await MainActor.run {
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                    self.showError = true
                 }
             }
         }
@@ -350,7 +360,7 @@ struct AddAccountView: View {
         // Add the account to the service manager directly
         DispatchQueue.main.async {
             self.serviceManager.mastodonAccounts.append(tempAccount)
-            print("Added test Mastodon account")
+            NSLog("Added test Mastodon account")
             self.isLoading = false
 
             // Set this account as selected
@@ -375,7 +385,7 @@ struct AddAccountView: View {
         // Add the account to the service manager directly
         DispatchQueue.main.async {
             self.serviceManager.blueskyAccounts.append(tempAccount)
-            print("Added test Bluesky account")
+            NSLog("Added test Bluesky account")
             self.isLoading = false
 
             // Set this account as selected
@@ -416,20 +426,20 @@ struct AddAccountView: View {
             preserveFormData()
             UserDefaults.standard.set(true, forKey: presentationStateKey)
             UserDefaults.standard.set(true, forKey: "AddAccountView.WasPresentedDuringBackground")
-            print(
+            NSLog(
                 "🔐 [AddAccountView] App went to background - preserving form state and presentation flag"
             )
 
         case .active:
             // App returned to foreground
             if wasInBackground {
-                print("🔐 [AddAccountView] App returned to foreground - checking for autofill")
+                NSLog("🔐 [AddAccountView] App returned to foreground - checking for autofill")
 
                 // Small delay to allow autofill to complete
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     // Re-enable normal navigation after autofill completes
                     preserveFormState = false
-                    print("🔐 [AddAccountView] Form state preservation disabled")
+                    NSLog("🔐 [AddAccountView] Form state preservation disabled")
 
                     // Clear the presentation state since we're still here
                     UserDefaults.standard.removeObject(forKey: presentationStateKey)
@@ -449,7 +459,7 @@ struct AddAccountView: View {
         guard let data = UserDefaults.standard.data(forKey: formDataKey),
             let formData = try? JSONDecoder().decode(FormData.self, from: data)
         else {
-            print("🔐 [AddAccountView] No preserved form data found")
+            NSLog("🔐 [AddAccountView] No preserved form data found")
             return
         }
 
@@ -459,7 +469,7 @@ struct AddAccountView: View {
         username = formData.username
         password = formData.password
 
-        print("🔐 [AddAccountView] Restored form data for platform: \\(formData.selectedPlatform)")
+        NSLog("🔐 [AddAccountView] Restored form data for platform: \\(formData.selectedPlatform)")
 
         // Clear the preserved data after restoration
         UserDefaults.standard.removeObject(forKey: formDataKey)
@@ -475,7 +485,7 @@ struct AddAccountView: View {
 
         if let encoded = try? JSONEncoder().encode(formData) {
             UserDefaults.standard.set(encoded, forKey: formDataKey)
-            print("🔐 [AddAccountView] Preserved form data for platform: \\(selectedPlatform)")
+            NSLog("🔐 [AddAccountView] Preserved form data for platform: \\(selectedPlatform)")
         }
     }
 }
