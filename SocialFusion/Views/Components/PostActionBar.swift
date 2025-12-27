@@ -14,7 +14,7 @@ struct PostActionBar: View {
     let onRepost: () -> Void
     let onLike: () -> Void
     let onShare: () -> Void
-    let postActionStore: PostActionStore?
+    @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
 
     init(
@@ -30,7 +30,7 @@ struct PostActionBar: View {
         onRepost: @escaping () -> Void,
         onLike: @escaping () -> Void,
         onShare: @escaping () -> Void,
-        postActionStore: PostActionStore? = nil,
+        postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil
     ) {
         self.post = post
@@ -71,58 +71,170 @@ struct PostActionBar: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 0) {
             if FeatureFlagManager.isEnabled(.postActionsV2),
-                let store = postActionStore,
                 let coordinator = postActionCoordinator
             {
-                UnifiedInteractionButtons(
-                    post: post,
-                    store: store,
-                    coordinator: coordinator,
-                    onReply: onReply,
-                    onShare: onShare,
-                    includeShare: false
+                // We use flattened buttons with maxWidth: .infinity for even spacing
+                let actionKey = post.stableId
+                let state = postActionStore.state(for: post)
+                let isProcessing = postActionStore.inflightKeys.contains(actionKey)
+
+                UnifiedReplyButton(
+                    count: state.replyCount,
+                    isReplied: post.isReplied,
+                    platform: post.platform,
+                    onTap: onReply
                 )
+                .accessibilityLabel("Reply")
+                .frame(maxWidth: .infinity)
+
+                UnifiedRepostButton(
+                    isReposted: state.isReposted,
+                    count: state.repostCount,
+                    isProcessing: isProcessing,
+                    onTap: { coordinator.toggleRepost(for: post) }
+                )
+                .accessibilityLabel(state.isReposted ? "Undo Repost" : "Repost")
+                .frame(maxWidth: .infinity)
+
+                UnifiedLikeButton(
+                    isLiked: state.isLiked,
+                    count: state.likeCount,
+                    isProcessing: isProcessing,
+                    onTap: { coordinator.toggleLike(for: post) }
+                )
+                .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
+                .frame(maxWidth: .infinity)
 
                 PostShareButton(
                     post: post,
                     onTap: onShare
                 )
+                .frame(maxWidth: .infinity)
             } else {
-            UnifiedReplyButton(
-                count: replyCount,
-                isReplied: isReplied,
-                platform: post.platform,
-                onTap: onReply
-            )
-            .accessibilityLabel("Reply")
+                UnifiedReplyButton(
+                    count: replyCount,
+                    isReplied: isReplied,
+                    platform: post.platform,
+                    onTap: onReply
+                )
+                .accessibilityLabel("Reply")
+                .frame(maxWidth: .infinity)
 
-            UnifiedRepostButton(
-                isReposted: isReposted,
-                count: repostCount,
+                UnifiedRepostButton(
+                    isReposted: isReposted,
+                    count: repostCount,
                     isProcessing: false,
-                onTap: onRepost
-            )
-            .accessibilityLabel(isReposted ? "Undo Repost" : "Repost")
+                    onTap: onRepost
+                )
+                .accessibilityLabel(isReposted ? "Undo Repost" : "Repost")
+                .frame(maxWidth: .infinity)
 
-            UnifiedLikeButton(
-                isLiked: isLiked,
-                count: likeCount,
+                UnifiedLikeButton(
+                    isLiked: isLiked,
+                    count: likeCount,
                     isProcessing: false,
-                onTap: onLike
-            )
-            .accessibilityLabel(isLiked ? "Unlike" : "Like")
+                    onTap: onLike
+                )
+                .accessibilityLabel(isLiked ? "Unlike" : "Like")
+                .frame(maxWidth: .infinity)
 
-            PostShareButton(
-                post: post,
-                onTap: onShare
-            )
+                PostShareButton(
+                    post: post,
+                    onTap: onShare
+                )
+                .frame(maxWidth: .infinity)
             }
-
-            Spacer()
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 2)
+    }
+}
+
+/// A smaller version of the action bar for use in thread rows
+struct SmallPostActionBar: View {
+    let post: Post
+    let onReply: () -> Void
+    let onRepost: () -> Void
+    let onLike: () -> Void
+    let onShare: () -> Void
+    @ObservedObject var postActionStore: PostActionStore
+    let postActionCoordinator: PostActionCoordinator?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            if FeatureFlagManager.isEnabled(.postActionsV2),
+                let coordinator = postActionCoordinator
+            {
+                // We use flattened buttons with maxWidth: .infinity for even spacing
+                let actionKey = post.stableId
+                let state = postActionStore.state(for: post)
+                let isProcessing = postActionStore.inflightKeys.contains(actionKey)
+
+                SmallUnifiedReplyButton(
+                    count: state.replyCount,
+                    isReplied: post.isReplied,
+                    platform: post.platform,
+                    onTap: onReply
+                )
+                .frame(maxWidth: .infinity)
+
+                SmallUnifiedRepostButton(
+                    isReposted: state.isReposted,
+                    count: state.repostCount,
+                    isProcessing: isProcessing,
+                    onTap: { coordinator.toggleRepost(for: post) }
+                )
+                .frame(maxWidth: .infinity)
+
+                SmallUnifiedLikeButton(
+                    isLiked: state.isLiked,
+                    count: state.likeCount,
+                    isProcessing: isProcessing,
+                    onTap: { coordinator.toggleLike(for: post) }
+                )
+                .frame(maxWidth: .infinity)
+
+                Button(action: onShare) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                // Legacy / fallback small buttons
+                SmallUnifiedReplyButton(
+                    count: post.replyCount,
+                    isReplied: post.isReplied,
+                    platform: post.platform,
+                    onTap: onReply
+                )
+                .frame(maxWidth: .infinity)
+
+                SmallUnifiedRepostButton(
+                    isReposted: post.isReposted,
+                    count: post.repostCount,
+                    onTap: onRepost
+                )
+                .frame(maxWidth: .infinity)
+
+                SmallUnifiedLikeButton(
+                    isLiked: post.isLiked,
+                    count: post.likeCount,
+                    onTap: onLike
+                )
+                .frame(maxWidth: .infinity)
+
+                Button(action: onShare) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(.top, 4)
+        .padding(.bottom, 4)
     }
 }
 
@@ -134,7 +246,7 @@ struct PostActionBarWithViewModel: View {
     let onRepost: () -> Void
     let onLike: () -> Void
     let onShare: () -> Void
-    let postActionStore: PostActionStore?
+    @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
 
     init(
@@ -144,7 +256,7 @@ struct PostActionBarWithViewModel: View {
         onRepost: @escaping () -> Void,
         onLike: @escaping () -> Void,
         onShare: @escaping () -> Void,
-        postActionStore: PostActionStore? = nil,
+        postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil
     ) {
         self.viewModel = viewModel
@@ -158,58 +270,83 @@ struct PostActionBarWithViewModel: View {
     }
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 0) {
             if FeatureFlagManager.isEnabled(.postActionsV2),
-                let store = postActionStore,
                 let coordinator = postActionCoordinator
             {
-                UnifiedInteractionButtons(
-                    post: viewModel.post,
-                    store: store,
-                    coordinator: coordinator,
-                    onReply: onReply,
-                    onShare: onShare,
-                    includeShare: false
+                // We use flattened buttons with maxWidth: .infinity for even spacing
+                let actionKey = viewModel.post.stableId
+                let state = postActionStore.state(for: viewModel.post)
+                let isProcessing = postActionStore.inflightKeys.contains(actionKey)
+
+                UnifiedReplyButton(
+                    count: state.replyCount,
+                    isReplied: viewModel.post.isReplied,
+                    platform: viewModel.post.platform,
+                    onTap: onReply
                 )
+                .accessibilityLabel("Reply")
+                .frame(maxWidth: .infinity)
+
+                UnifiedRepostButton(
+                    isReposted: state.isReposted,
+                    count: state.repostCount,
+                    isProcessing: isProcessing,
+                    onTap: { coordinator.toggleRepost(for: viewModel.post) }
+                )
+                .accessibilityLabel(state.isReposted ? "Undo Repost" : "Repost")
+                .frame(maxWidth: .infinity)
+
+                UnifiedLikeButton(
+                    isLiked: state.isLiked,
+                    count: state.likeCount,
+                    isProcessing: isProcessing,
+                    onTap: { coordinator.toggleLike(for: viewModel.post) }
+                )
+                .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
+                .frame(maxWidth: .infinity)
 
                 PostShareButton(
                     post: viewModel.post,
                     onTap: onShare
                 )
+                .frame(maxWidth: .infinity)
             } else {
-            UnifiedReplyButton(
-                count: viewModel.replyCount,
-                isReplied: viewModel.post.isReplied,
-                platform: viewModel.post.platform,
-                onTap: onReply
-            )
-            .accessibilityLabel("Reply")
+                UnifiedReplyButton(
+                    count: viewModel.replyCount,
+                    isReplied: viewModel.post.isReplied,
+                    platform: viewModel.post.platform,
+                    onTap: onReply
+                )
+                .accessibilityLabel("Reply")
+                .frame(maxWidth: .infinity)
 
-            UnifiedRepostButton(
-                isReposted: viewModel.isReposted,
-                count: viewModel.repostCount,
-                isProcessing: viewModel.isLoading,
-                onTap: onRepost
-            )
-            .accessibilityLabel(viewModel.isReposted ? "Undo Repost" : "Repost")
+                UnifiedRepostButton(
+                    isReposted: viewModel.isReposted,
+                    count: viewModel.repostCount,
+                    isProcessing: viewModel.isLoading,
+                    onTap: onRepost
+                )
+                .accessibilityLabel(viewModel.isReposted ? "Undo Repost" : "Repost")
+                .frame(maxWidth: .infinity)
 
-            UnifiedLikeButton(
-                isLiked: viewModel.isLiked,
-                count: viewModel.likeCount,
-                isProcessing: viewModel.isLoading,
-                onTap: onLike
-            )
-            .accessibilityLabel(viewModel.isLiked ? "Unlike" : "Like")
+                UnifiedLikeButton(
+                    isLiked: viewModel.isLiked,
+                    count: viewModel.likeCount,
+                    isProcessing: viewModel.isLoading,
+                    onTap: onLike
+                )
+                .accessibilityLabel(viewModel.isLiked ? "Unlike" : "Like")
+                .frame(maxWidth: .infinity)
 
-            PostShareButton(
-                post: viewModel.post,
-                onTap: onShare
-            )
+                PostShareButton(
+                    post: viewModel.post,
+                    onTap: onShare
+                )
+                .frame(maxWidth: .infinity)
             }
-
-            Spacer()
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 2)
     }
 }
 
@@ -247,6 +384,8 @@ private struct PostActionIconButton: View {
 // MARK: - Preview
 struct PostActionBar_Previews: PreviewProvider {
     static var previews: some View {
+        let store = PostActionStore()
+        
         VStack(spacing: 16) {
             // Bluesky post with all actions
             PostActionBar(
@@ -271,7 +410,8 @@ struct PostActionBar_Previews: PreviewProvider {
                 onReply: {},
                 onRepost: {},
                 onLike: {},
-                onShare: {}
+                onShare: {},
+                postActionStore: store
             )
 
             // Mastodon post with no interactions
@@ -297,7 +437,8 @@ struct PostActionBar_Previews: PreviewProvider {
                 onReply: {},
                 onRepost: {},
                 onLike: {},
-                onShare: {}
+                onShare: {},
+                postActionStore: store
             )
         }
         .padding()

@@ -38,7 +38,7 @@ struct ActionBar: View {
     @State private var isRepostProcessing = false
 
     var body: some View {
-        HStack {
+        HStack(spacing: 0) {
             // Reply button
             UnifiedReplyButton(
                 count: post.replyCount,
@@ -47,8 +47,7 @@ struct ActionBar: View {
                 onTap: { onAction(.reply) }
             )
             .accessibilityLabel("Reply")
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Repost button
             UnifiedRepostButton(
@@ -65,8 +64,7 @@ struct ActionBar: View {
                 }
             )
             .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Quote button
             Button {
@@ -82,8 +80,7 @@ struct ActionBar: View {
             }
             .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel("Quote Post")
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Like button
             UnifiedLikeButton(
@@ -100,8 +97,7 @@ struct ActionBar: View {
                 }
             )
             .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Share button
             Button {
@@ -117,8 +113,7 @@ struct ActionBar: View {
             }
             .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel("Share")
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             // Menu button (three dots)
             Menu {
@@ -170,12 +165,15 @@ struct ActionBar: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: iconSize))
                     .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
+            .frame(maxWidth: .infinity)
         }
         .padding(.vertical, 2)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 0)
     }
 }
 
@@ -188,6 +186,11 @@ struct ActionBarV2: View {
     let onOpenInBrowser: () -> Void
     let onCopyLink: () -> Void
     let onReport: () -> Void
+
+    private var actionKey: String { post.stableId }
+    private var state: PostActionState { store.state(for: post) }
+    private var isProcessing: Bool { store.inflightKeys.contains(actionKey) }
+    private var isPending: Bool { store.pendingKeys.contains(actionKey) }
 
     private var quoteButton: some View {
         Button {
@@ -203,21 +206,36 @@ struct ActionBarV2: View {
     }
 
     var body: some View {
-        HStack {
-            UnifiedInteractionButtons(
-                post: post,
-                store: store,
-                coordinator: coordinator,
-                onReply: onReply,
-                onShare: onShare,
-                includeShare: false
+        HStack(spacing: 0) {
+            UnifiedReplyButton(
+                count: state.replyCount,
+                isReplied: post.isReplied,
+                platform: post.platform,
+                onTap: onReply
             )
+            .accessibilityLabel(post.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+            .frame(maxWidth: .infinity)
 
-            Spacer()
+            UnifiedRepostButton(
+                isReposted: state.isReposted,
+                count: state.repostCount,
+                isProcessing: isProcessing,
+                onTap: { coordinator.toggleRepost(for: post) }
+            )
+            .accessibilityLabel(state.isReposted ? "Reposted. Double tap to undo repost" : "Repost. Double tap to repost")
+            .frame(maxWidth: .infinity)
+
+            UnifiedLikeButton(
+                isLiked: state.isLiked,
+                count: state.likeCount,
+                isProcessing: isProcessing,
+                onTap: { coordinator.toggleLike(for: post) }
+            )
+            .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
+            .frame(maxWidth: .infinity)
 
             quoteButton
-
-            Spacer()
+                .frame(maxWidth: .infinity)
 
             Button {
                 let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -230,8 +248,7 @@ struct ActionBarV2: View {
             }
             .buttonStyle(SmoothScaleButtonStyle())
             .accessibilityLabel("Share")
-
-            Spacer()
+            .frame(maxWidth: .infinity)
 
             Menu {
                 Button(action: onOpenInBrowser) {
@@ -253,12 +270,16 @@ struct ActionBarV2: View {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 18))
                     .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
+            .frame(maxWidth: .infinity)
         }
+        .opacity(isPending ? 0.7 : 1.0)
         .padding(.vertical, 2)
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 0)
     }
 }
 

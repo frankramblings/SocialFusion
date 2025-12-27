@@ -20,7 +20,7 @@ struct PostCardView: View {
     let onReport: () -> Void
     let onPostTap: () -> Void
     let onParentPostTap: (Post) -> Void
-    let postActionStore: PostActionStore?
+    @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
 
     // Optional boost information
@@ -56,7 +56,7 @@ struct PostCardView: View {
     init(
         entry: TimelineEntry,
         viewModel: PostViewModel? = nil,
-        postActionStore: PostActionStore? = nil,
+        postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil,
         onPostTap: @escaping () -> Void = {},
         onParentPostTap: @escaping (Post) -> Void = { _ in },
@@ -116,7 +116,7 @@ struct PostCardView: View {
         onPostTap: @escaping () -> Void,
         onParentPostTap: @escaping (Post) -> Void = { _ in },
         viewModel: PostViewModel? = nil,
-        postActionStore: PostActionStore? = nil,
+        postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil
     ) {
         self.post = post
@@ -198,7 +198,7 @@ struct PostCardView: View {
 
             actionBarView
                 .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 6)  // Apple standard: 6pt separation from content
+                .padding(.top, 2)  // Reduced from 6 to close vertical gap
         }
         .padding(.horizontal, 12)  // Reduced from 16 to give more space for content
         .padding(.vertical, 12)  // Apple standard: 12pt container padding
@@ -234,12 +234,11 @@ struct PostCardView: View {
     @ViewBuilder
     private var actionBarView: some View {
         if FeatureFlagManager.isEnabled(.postActionsV2),
-            let store = postActionStore,
             let coordinator = postActionCoordinator
         {
             ActionBarV2(
                 post: post,
-                store: store,
+                store: postActionStore,
                 coordinator: coordinator,
                 onReply: onReply,
                 onShare: onShare,
@@ -346,6 +345,8 @@ struct PostCardView: View {
 // MARK: - Preview
 struct PostCardView_Previews: PreviewProvider {
     static var previews: some View {
+        let store = PostActionStore()
+        
         VStack(spacing: 16) {
             // Simple test - basic post using TimelineEntry
             PostCardView(
@@ -356,6 +357,7 @@ struct PostCardView_Previews: PreviewProvider {
                     createdAt: Date()
                 ),
                 viewModel: nil,
+                postActionStore: store,
                 onPostTap: {}
             )
         }

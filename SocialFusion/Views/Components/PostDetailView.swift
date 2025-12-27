@@ -17,6 +17,7 @@ struct PostDetailView: View {
     @State private var isLoadingThread: Bool = false
     @State private var threadError: Error?
     @State private var hasLoadedInitialThread: Bool = false
+    @State private var activeReplyPost: Post?
 
     // Reply composer state
     @State private var replyText: String = ""
@@ -99,7 +100,7 @@ struct PostDetailView: View {
                             )
                             .frame(width: 2, height: 80)
                             .clipShape(Capsule())
-                            .padding(.leading, 30) // Perfectly centered in the 60pt column
+                            .padding(.leading, 30)  // Perfectly centered in the 60pt column
                             .padding(.top, geometry.safeAreaInsets.top + 10)
                             .allowsHitTesting(false)
                         }
@@ -214,11 +215,17 @@ struct PostDetailView: View {
                             rowType: .parent,
                             isLastParent: false,
                             showThreadLine: true,
-                            onPostTap: { _ in }
+                            onPostTap: { _ in },
+                            onReply: { handleAction(.reply, for: post) },
+                            onRepost: { handleAction(.repost, for: post) },
+                            onLike: { handleAction(.like, for: post) },
+                            onShare: { handleAction(.share, for: post) },
+                            postActionStore: serviceManager.postActionStore,
+                            postActionCoordinator: serviceManager.postActionCoordinator
                         )
                     }
                     .buttonStyle(.plain)
-                    
+
                     // Note: No Dividers between connected thread items for a continuous look
                 }
             }
@@ -243,14 +250,13 @@ struct PostDetailView: View {
                     onRepost: { handleAction(.repost) },
                     onLike: { handleAction(.like) },
                     onShare: { handleAction(.share) },
-                    postActionStore: FeatureFlagManager.isEnabled(.postActionsV2)
-                        ? serviceManager.postActionStore : nil,
-                    postActionCoordinator: FeatureFlagManager.isEnabled(.postActionsV2)
-                        ? serviceManager.postActionCoordinator : nil
+                    postActionStore: serviceManager.postActionStore,
+                    postActionCoordinator: serviceManager.postActionCoordinator
                 )
                 .padding(.leading, 60)
                 .padding(.trailing, 16)
-                .padding(.vertical, 12)
+                .padding(.top, 2)  // Reduced to close gap
+                .padding(.bottom, 2)
 
                 // Full timestamp
                 HStack {
@@ -260,7 +266,7 @@ struct PostDetailView: View {
                     Spacer()
                 }
                 .padding(.leading, 60)
-                .padding(.bottom, 16)
+                .padding(.bottom, 12)
 
                 Divider()
             }
@@ -278,7 +284,7 @@ struct PostDetailView: View {
                 .padding(.leading, 60)
                 .padding(.vertical, 14)
                 .background(Color.primary.opacity(0.03))
-                
+
                 Divider()
             }
 
@@ -302,7 +308,13 @@ struct PostDetailView: View {
                             rowType: .reply,
                             isLastParent: false,
                             showThreadLine: true,
-                            onPostTap: { _ in }
+                            onPostTap: { _ in },
+                            onReply: { handleAction(.reply, for: post) },
+                            onRepost: { handleAction(.repost, for: post) },
+                            onLike: { handleAction(.like, for: post) },
+                            onShare: { handleAction(.share, for: post) },
+                            postActionStore: serviceManager.postActionStore,
+                            postActionCoordinator: serviceManager.postActionCoordinator
                         )
                     }
                     .buttonStyle(.plain)
@@ -331,7 +343,7 @@ struct PostDetailView: View {
                 .padding(.top, 8)
 
             HStack {
-                Text("Reply to @\(viewModel.post.authorUsername)")
+                Text("Reply to @\((activeReplyPost ?? viewModel.post).authorUsername)")
                     .font(.headline)
                     .foregroundColor(.primary)
 
@@ -406,49 +418,104 @@ struct PostDetailView: View {
 
     // MARK: - Actions
 
-    private func handleAction(_ action: PostAction) {
+    private func handleAction(_ action: PostAction, for post: Post? = nil) {
+        let targetPost = post ?? viewModel.post
+
         switch action {
         case .reply:
+            activeReplyPost = targetPost
             withAnimation(.easeInOut(duration: 0.3)) {
                 isReplying = true
             }
         case .repost:
             if FeatureFlagManager.isEnabled(.postActionsV2) {
-                serviceManager.postActionStore.ensureState(for: viewModel.post)
-                serviceManager.postActionCoordinator.toggleRepost(for: viewModel.post)
+                serviceManager.postActionStore.ensureState(for: targetPost)
+                serviceManager.postActionCoordinator.toggleRepost(for: targetPost)
             } else {
-                Task { await viewModel.repost() }
+                if targetPost.id == viewModel.post.id {
+                    Task { viewModel.repost() }
+                } else {
+                    Task {
+                        do {
+                            _ = try await serviceManager.repost(post: targetPost)
+                        } catch {
+                            NSLog(
+                                "📊 PostDetailView: Failed to repost: %@", error.localizedDescription
+                            )
+                        }
+                    }
+                }
             }
         case .like:
             if FeatureFlagManager.isEnabled(.postActionsV2) {
-                serviceManager.postActionStore.ensureState(for: viewModel.post)
-                serviceManager.postActionCoordinator.toggleLike(for: viewModel.post)
+                serviceManager.postActionStore.ensureState(for: targetPost)
+                serviceManager.postActionCoordinator.toggleLike(for: targetPost)
             } else {
-                Task { await viewModel.like() }
+                if targetPost.id == viewModel.post.id {
+                    Task { viewModel.like() }
+                } else {
+                    Task {
+                        do {
+                            _ = try await serviceManager.like(post: targetPost)
+                        } catch {
+                            NSLog(
+                                "📊 PostDetailView: Failed to like: %@", error.localizedDescription)
+                        }
+                    }
+                }
             }
         case .share:
-            viewModel.share()
+            if targetPost.id == viewModel.post.id {
+                viewModel.share()
+            } else {
+                // Generic share for context posts
+                let urlString = targetPost.originalURL
+                if let url = URL(string: urlString) {
+                    let activityVC = UIActivityViewController(
+                        activityItems: [url], applicationActivities: nil)
+                    if let windowScene = UIApplication.shared.connectedScenes.first
+                        as? UIWindowScene,
+                        let window = windowScene.windows.first,
+                        let rootVC = window.rootViewController
+                    {
+                        rootVC.present(activityVC, animated: true)
+                    }
+                }
+            }
         case .quote:
-            NSLog("Quote action for post: %@", viewModel.post.id)
+            NSLog("📊 PostDetailView: Quote action for post: %@", targetPost.id)
         }
     }
 
     private func sendReply() {
+        let targetPost = activeReplyPost ?? viewModel.post
+
         Task {
             do {
-                let _ = try await serviceManager.replyToPost(viewModel.post, content: replyText)
-                self.viewModel.post.isReplied = true
+                let _ = try await serviceManager.replyToPost(targetPost, content: replyText)
+
+                // Update local state if it's the main post
+                if targetPost.id == viewModel.post.id {
+                    self.viewModel.post.isReplied = true
+                }
+
                 if FeatureFlagManager.isEnabled(.postActionsV2) {
-                    serviceManager.postActionCoordinator.registerReplySuccess(for: viewModel.post)
+                    serviceManager.postActionCoordinator.registerReplySuccess(for: targetPost)
                 }
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.isReplying = false
-                    self.replyText = ""
+
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        self.isReplying = false
+                        self.replyText = ""
+                        self.activeReplyPost = nil
+                    }
                 }
-                await loadReplies()
+                loadReplies()
             } catch {
                 NSLog("📊 PostDetailView: Failed to send reply: %@", error.localizedDescription)
-                self.replyError = error
+                await MainActor.run {
+                    self.replyError = error
+                }
             }
         }
     }
@@ -457,6 +524,7 @@ struct PostDetailView: View {
         withAnimation(.easeInOut(duration: 0.2)) {
             isReplying = false
             replyText = ""
+            activeReplyPost = nil
         }
     }
 
@@ -489,12 +557,16 @@ struct PostDetailView: View {
                     self.replyPosts = context.descendants
                     self.isLoadingThread = false
                     self.hasLoadedInitialThread = true
-                    NSLog("📊 PostDetailView: Thread context loaded - %d ancestors, %d descendants", context.ancestors.count, context.descendants.count)
+                    NSLog(
+                        "📊 PostDetailView: Thread context loaded - %d ancestors, %d descendants",
+                        context.ancestors.count, context.descendants.count)
                     finalizeInitialPositioning()
                 }
             } catch {
                 await MainActor.run {
-                    NSLog("📊 PostDetailView: Failed to load thread context: %@", error.localizedDescription)
+                    NSLog(
+                        "📊 PostDetailView: Failed to load thread context: %@",
+                        error.localizedDescription)
                     self.threadError = error
                     self.isLoadingThread = false
                 }
@@ -521,22 +593,22 @@ struct PostDetailView: View {
             // TRIPLE-TAP SCROLL: We fire the scroll multiple times to "win" against SwiftUI layout updates
             // as parent posts are measured and physical height is calculated.
             proxy.scrollTo(selectedPostScrollID, anchor: .top)
-            
+
             // Second tap after a tiny layout tick
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
                 proxy.scrollTo(selectedPostScrollID, anchor: .top)
             }
-            
+
             // Third tap to be absolutely sure
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 proxy.scrollTo(selectedPostScrollID, anchor: .top)
-                
+
                 // Finally reveal the view
                 withAnimation(.easeIn(duration: 0.2)) {
                     isInitialPositioned = true
                 }
             }
-            
+
             hasScrolledToSelectedPost = true
         }
 
@@ -649,16 +721,16 @@ struct SelectedPostView: View {
                         Rectangle()
                             .fill(threadLineColor)
                             .frame(width: 2)
-                            .padding(.top, -40) // Ensure continuity from parent post
+                            .padding(.top, -40)  // Ensure continuity from parent post
                     }
-                    
+
                     PostAuthorImageView(
                         authorProfilePictureURL: post.authorProfilePictureURL,
                         platform: post.platform,
                         authorName: post.authorName
                     )
                     .frame(width: 48, height: 48)
-                    .background(Color(.systemBackground)) // Solid punch-out
+                    .background(Color(.systemBackground))  // Solid punch-out
                     .clipShape(Circle())
                 }
                 .frame(width: 60)
@@ -677,7 +749,7 @@ struct SelectedPostView: View {
                         .lineLimit(1)
                 }
                 .padding(.top, 4)
-                
+
                 Spacer()
             }
             .padding(.horizontal, 0)
@@ -705,7 +777,7 @@ struct SelectedPostView: View {
             }
             .padding(.leading, 60)
             .padding(.trailing, 16)
-            .padding(.bottom, 16)
+            .padding(.bottom, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(
@@ -728,6 +800,14 @@ struct PostRow: View {
     let isLastParent: Bool
     let showThreadLine: Bool
     let onPostTap: (Post) -> Void
+
+    // Action bar support
+    var onReply: (() -> Void)? = nil
+    var onRepost: (() -> Void)? = nil
+    var onLike: (() -> Void)? = nil
+    var onShare: (() -> Void)? = nil
+    @ObservedObject var postActionStore: PostActionStore
+    let postActionCoordinator: PostActionCoordinator?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -764,14 +844,14 @@ struct PostRow: View {
                         .frame(width: 2)
                         .frame(maxHeight: .infinity)
                 }
-                
+
                 PostAuthorImageView(
                     authorProfilePictureURL: post.authorProfilePictureURL,
                     platform: post.platform,
                     authorName: post.authorName
                 )
                 .frame(width: profileImageSize, height: profileImageSize)
-                .background(Color(.systemBackground)) // Punch-out
+                .background(Color(.systemBackground))  // Punch-out
                 .clipShape(Circle())
             }
             .frame(width: 60)
@@ -801,19 +881,33 @@ struct PostRow: View {
 
                 post.contentView(
                     lineLimit: rowType == .reply ? 4 : nil,
-                    showLinkPreview: false,
+                    showLinkPreview: true,
                     font: contentFont,
                     onQuotePostTap: { onPostTap($0) },
                     allowTruncation: rowType == .reply
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                if !post.attachments.isEmpty && post.attachments.count <= 2 {
+                if !post.attachments.isEmpty {
                     UnifiedMediaGridView(
                         attachments: post.attachments,
                         maxHeight: 200
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
+                // Optional action bar for context posts
+                if onReply != nil {
+                    SmallPostActionBar(
+                        post: post,
+                        onReply: { onReply?() },
+                        onRepost: { onRepost?() },
+                        onLike: { onLike?() },
+                        onShare: { onShare?() },
+                        postActionStore: postActionStore,
+                        postActionCoordinator: postActionCoordinator
+                    )
+                    .padding(.top, 4)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -882,7 +976,8 @@ struct LegacyPostDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                SelectedPostView(post: viewModel.post, showThreadLine: false, dateFormatter: dateFormatter)
+                SelectedPostView(
+                    post: viewModel.post, showThreadLine: false, dateFormatter: dateFormatter)
                 Spacer()
             }
         }

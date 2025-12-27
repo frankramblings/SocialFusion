@@ -45,10 +45,8 @@ struct AccountTimelineView: View {
                             index, entry in
                             PostCardView(
                                 entry: entry,
-                                postActionStore: FeatureFlagManager.isEnabled(.postActionsV2)
-                                    ? serviceManager.postActionStore : nil,
-                                postActionCoordinator: FeatureFlagManager.isEnabled(.postActionsV2)
-                                    ? serviceManager.postActionCoordinator : nil
+                                postActionStore: serviceManager.postActionStore,
+                                postActionCoordinator: serviceManager.postActionCoordinator
                             )
                                 .id(entry.id)
                                 .padding(.horizontal)

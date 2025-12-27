@@ -20,25 +20,20 @@ class UnifiedTimelineController: ObservableObject {
     // MARK: - Private Properties
 
     private let serviceManager: SocialServiceManager
-    private let actionStore: PostActionStore?
-    private let actionCoordinator: PostActionCoordinator?
+    private let actionStore: PostActionStore
+    private let actionCoordinator: PostActionCoordinator
     private var cancellables = Set<AnyCancellable>()
     private var isInitialized = false
 
-    var postActionStore: PostActionStore? { actionStore }
-    var postActionCoordinator: PostActionCoordinator? { actionCoordinator }
+    var postActionStore: PostActionStore { actionStore }
+    var postActionCoordinator: PostActionCoordinator { actionCoordinator }
 
     // MARK: - Initialization
 
     init(serviceManager: SocialServiceManager) {
         self.serviceManager = serviceManager
-        if FeatureFlagManager.isEnabled(.postActionsV2) {
-            self.actionStore = serviceManager.postActionStore
-            self.actionCoordinator = serviceManager.postActionCoordinator
-        } else {
-            self.actionStore = nil
-            self.actionCoordinator = nil
-        }
+        self.actionStore = serviceManager.postActionStore
+        self.actionCoordinator = serviceManager.postActionCoordinator
         setupBindings()
     }
 
@@ -95,7 +90,7 @@ class UnifiedTimelineController: ObservableObject {
         self.posts = newPosts
         if FeatureFlagManager.isEnabled(.postActionsV2) {
             newPosts.forEach { post in
-                actionStore?.ensureState(for: post)
+                actionStore.ensureState(for: post)
             }
         }
         self.lastRefreshDate = Date()
@@ -135,9 +130,9 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Like or unlike a post - proper event-driven pattern
     func likePost(_ post: Post) {
-        if FeatureFlagManager.isEnabled(.postActionsV2), let coordinator = actionCoordinator {
-            actionStore?.ensureState(for: post)
-            coordinator.toggleLike(for: post)
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            actionStore.ensureState(for: post)
+            actionCoordinator.toggleLike(for: post)
             return
         }
 
@@ -148,9 +143,9 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Repost or unrepost a post - proper event-driven pattern
     func repostPost(_ post: Post) {
-        if FeatureFlagManager.isEnabled(.postActionsV2), let coordinator = actionCoordinator {
-            actionStore?.ensureState(for: post)
-            coordinator.toggleRepost(for: post)
+        if FeatureFlagManager.isEnabled(.postActionsV2) {
+            actionStore.ensureState(for: post)
+            actionCoordinator.toggleRepost(for: post)
             return
         }
 
