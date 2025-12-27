@@ -2244,6 +2244,43 @@ public class MastodonService {
             throw error
         }
     }
+
+    /// Fetch following accounts for a Mastodon account
+    public func fetchFollowing(for account: SocialAccount) async throws -> Set<UserID> {
+        guard let serverURLString = account.serverURL else {
+            throw ServiceError.invalidAccount(reason: "No server URL")
+        }
+        
+        let serverUrl = formatServerURL(serverURLString.absoluteString)
+        let accountId = account.platformSpecificId
+        
+        guard !accountId.isEmpty else {
+            throw ServiceError.invalidAccount(reason: "Account ID not found")
+        }
+        
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(accountId)/following?limit=80") else {
+            throw ServiceError.invalidInput(reason: "Invalid URL")
+        }
+        
+        let request = try await createAuthenticatedRequest(url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch following")
+        }
+        
+        struct MastodonAccount: Codable {
+            let acct: String
+        }
+        
+        let following = try JSONDecoder().decode([MastodonAccount].self, from: data)
+        let instanceDomain = serverUrl.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: "")
+        
+        return Set(following.map { mastodonAccount in
+            let handle = mastodonAccount.acct.contains("@") ? mastodonAccount.acct : "\(mastodonAccount.acct)@\(instanceDomain)"
+            return UserID(value: handle, platform: .mastodon)
+        })
+    }
 }
 
 // MARK: - Mastodon Status Context Models
@@ -2268,3 +2305,36 @@ enum MastodonVisibility: String, Codable {
     case `private` = "private"
     case direct = "direct"
 }
+
+/// Resolver for Mastodon thread participants
+public class MastodonThreadResolver: ThreadParticipantResolver {
+    private let service: MastodonService
+    private let accountProvider: () -> SocialAccount?
+    
+    public init(service: MastodonService, accountProvider: @escaping () -> SocialAccount?) {
+        self.service = service
+        self.accountProvider = accountProvider
+    }
+    
+    public func getThreadParticipants(for post: Post) async throws -> Set<UserID> {
+        guard let account = accountProvider() else { return [] }
+        let context = try await service.fetchStatusContext(statusId: post.platformSpecificId, account: account)
+        
+        var participants = Set<UserID>()
+        // Add author of current post
+        participants.insert(UserID(value: post.authorUsername, platform: .mastodon))
+        
+        // Add authors of ancestors
+        for ancestor in context.ancestors {
+            participants.insert(UserID(value: ancestor.authorUsername, platform: .mastodon))
+        }
+        
+        // Add authors of descendants
+        for descendant in context.descendants {
+            participants.insert(UserID(value: descendant.authorUsername, platform: .mastodon))
+        }
+        
+        return participants
+    }
+}
+

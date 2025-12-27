@@ -2,6 +2,8 @@ import SwiftUI
 import UIKit
 
 struct SettingsView: View {
+    @EnvironmentObject private var serviceManager: SocialServiceManager
+    @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
     @AppStorage("autoRefreshTimeline") private var autoRefreshTimeline = true
@@ -39,6 +41,27 @@ struct SettingsView: View {
                     }
 
                     Toggle("Show Content Warnings", isOn: $showContentWarnings)
+                }
+
+                Section(header: Text("Feed Filtering")) {
+                    Toggle(
+                        "Enable Reply Filtering",
+                        isOn: Binding(
+                            get: { featureFlagManager.enableReplyFiltering },
+                            set: { enabled in
+                                if enabled {
+                                    featureFlagManager.enableFeature(.replyFiltering)
+                                } else {
+                                    featureFlagManager.disableFeature(.replyFiltering)
+                                }
+                            }
+                        ))
+
+                    Text(
+                        "Only show replies if at least 2 participants in the thread are followed accounts (Bluesky style)."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
 
                 Section(header: Text("Posting")) {

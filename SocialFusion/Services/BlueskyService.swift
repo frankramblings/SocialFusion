@@ -2732,10 +2732,84 @@ public class BlueskyService {
         return descendants
     }
 
+    /// Fetch following accounts for a Bluesky account
+    public func fetchFollowing(for account: SocialAccount) async throws -> Set<UserID> {
+        let accessToken = try await account.getValidAccessToken()
+        
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if !serverURLString.hasPrefix("https://") && !serverURLString.hasPrefix("http://") {
+            serverURLString = "https://\(serverURLString)"
+        }
+        
+        // Ensure we're using the base URL for XRPC
+        let xrpcBase: String
+        if serverURLString.contains("bsky.social") {
+            xrpcBase = "https://bsky.social/xrpc"
+        } else {
+            xrpcBase = serverURLString.hasSuffix("/xrpc") ? serverURLString : "\(serverURLString)/xrpc"
+        }
+        
+        guard let url = URL(string: "\(xrpcBase)/app.bsky.graph.getFollows?actor=\(account.username)&limit=100") else {
+            throw ServiceError.invalidInput(reason: "Invalid URL")
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch following from Bluesky")
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let follows = json["follows"] as? [[String: Any]] else {
+            return []
+        }
+        
+        return Set(follows.compactMap { follow in
+            guard let handle = follow["handle"] as? String else { return nil }
+            return UserID(value: handle, platform: .bluesky)
+        })
+    }
+
 }
 
 extension URL {
     fileprivate func asURLString() -> String {
         return self.absoluteString
+    }
+}
+
+/// Resolver for Bluesky thread participants
+public class BlueskyThreadResolver: ThreadParticipantResolver {
+    private let service: BlueskyService
+    private let accountProvider: () -> SocialAccount?
+    
+    public init(service: BlueskyService, accountProvider: @escaping () -> SocialAccount?) {
+        self.service = service
+        self.accountProvider = accountProvider
+    }
+    
+    public func getThreadParticipants(for post: Post) async throws -> Set<UserID> {
+        guard let account = accountProvider() else { return [] }
+        let context = try await service.fetchPostThreadContext(postId: post.platformSpecificId, account: account)
+        
+        var participants = Set<UserID>()
+        // Add author of current post
+        participants.insert(UserID(value: post.authorUsername, platform: .bluesky))
+        
+        // Add authors of ancestors
+        for ancestor in context.ancestors {
+            participants.insert(UserID(value: ancestor.authorUsername, platform: .bluesky))
+        }
+        
+        // Add authors of descendants
+        for descendant in context.descendants {
+            participants.insert(UserID(value: descendant.authorUsername, platform: .bluesky))
+        }
+        
+        return participants
     }
 }

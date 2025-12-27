@@ -2,6 +2,7 @@ import Combine
 import SwiftUI
 
 struct DebugOptionsView: View {
+    @EnvironmentObject private var serviceManager: SocialServiceManager
     @State private var testingEnabled = UserDefaults.standard.bool(
         forKey: "ArchitectureTestingEnabled")
     @State private var showingRestartAlert = false
@@ -48,6 +49,27 @@ struct DebugOptionsView: View {
                         .font(.caption)
                         .foregroundColor(.orange)
                 }
+            }
+
+            Section(header: Text("Feed Filtering")) {
+                Toggle(
+                    "Enable Reply Filtering",
+                    isOn: Binding(
+                        get: { featureFlagManager.enableReplyFiltering },
+                        set: { enabled in
+                            if enabled {
+                                featureFlagManager.enableFeature(.replyFiltering)
+                            } else {
+                                featureFlagManager.disableFeature(.replyFiltering)
+                            }
+                        }
+                    ))
+
+                Text(
+                    "Only show replies if at least 2 participants in the thread are followed accounts (Bluesky style)."
+                )
+                .font(.caption)
+                .foregroundColor(.secondary)
             }
 
             Section(header: Text("Instructions")) {

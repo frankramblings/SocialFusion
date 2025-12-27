@@ -158,6 +158,20 @@ public final class SocialServiceManager: ObservableObject {
     // Automatic token refresh service
     public var automaticTokenRefreshService: AutomaticTokenRefreshService?
 
+    // Reply filtering
+    private lazy var postFeedFilter: PostFeedFilter = {
+        let mastodonResolver = MastodonThreadResolver(service: mastodonService) { [weak self] in
+            self?.mastodonAccounts.first
+        }
+        let blueskyResolver = BlueskyThreadResolver(service: blueskyService) { [weak self] in
+            self?.blueskyAccounts.first
+        }
+        let filter = PostFeedFilter(mastodonResolver: mastodonResolver, blueskyResolver: blueskyResolver)
+        // Sync initial state from feature flag
+        filter.isReplyFilteringEnabled = FeatureFlagManager.isEnabled(.replyFiltering)
+        return filter
+    }()
+
     // MARK: - Initialization
 
     // Make initializer public so it can be used in SocialFusionApp
@@ -882,6 +896,82 @@ public final class SocialServiceManager: ObservableObject {
         }.value
     }
 
+    /// Get all followed accounts across all platforms
+    private func getFollowedAccounts() async -> Set<UserID> {
+        var followedAccounts = Set<UserID>()
+
+        await withTaskGroup(of: Set<UserID>.self) { group in
+            for account in accounts {
+                group.addTask {
+                    do {
+                        switch account.platform {
+                        case .mastodon:
+                            return try await self.mastodonService.fetchFollowing(for: account)
+                        case .bluesky:
+                            return try await self.blueskyService.fetchFollowing(for: account)
+                        }
+                    } catch {
+                        print(
+                            "⚠️ Error fetching following for \(account.username): \(error.localizedDescription)"
+                        )
+                        return []
+                    }
+                }
+            }
+
+            for await accountFollows in group {
+                followedAccounts.formUnion(accountFollows)
+            }
+        }
+
+        // Also add our own accounts as followed
+        for account in accounts {
+            followedAccounts.insert(UserID(value: account.username, platform: account.platform))
+        }
+
+        return followedAccounts
+    }
+
+    /// Filter replies in the timeline based on following rules
+    private func filterRepliesInTimeline(_ posts: [Post]) async -> [Post] {
+        let isEnabled = FeatureFlagManager.isEnabled(.replyFiltering)
+        postFeedFilter.isReplyFilteringEnabled = isEnabled
+        
+        guard isEnabled else { return posts }
+
+        print("🔍 SocialServiceManager: Starting reply filtering for \(posts.count) posts")
+        let startTime = Date()
+
+        let followedAccounts = await getFollowedAccounts()
+        var filteredPosts: [Post] = []
+
+        await withTaskGroup(of: (Post, Bool).self) { group in
+            for post in posts {
+                group.addTask {
+                    let shouldInclude = await self.postFeedFilter.shouldIncludeReply(
+                        post, followedAccounts: followedAccounts)
+                    return (post, shouldInclude)
+                }
+            }
+
+            for await (post, shouldInclude) in group {
+                if shouldInclude {
+                    filteredPosts.append(post)
+                }
+            }
+        }
+
+        // Sorting is lost in task group, so re-sort by date
+        filteredPosts.sort { $0.createdAt > $1.createdAt }
+
+        let duration = Date().timeIntervalSince(startTime)
+        print(
+            "✅ SocialServiceManager: Filtering complete. Filtered \(posts.count) -> \(filteredPosts.count) posts in \(String(format: "%.2f", duration))s"
+        )
+
+        return filteredPosts
+    }
+
     /// Fetch the unified timeline for all accounts
     private func fetchTimeline(force: Bool = false) async throws {
         print("🔄 SocialServiceManager: fetchTimeline(force: \(force)) called")
@@ -940,8 +1030,11 @@ public final class SocialServiceManager: ObservableObject {
             let collectedPosts = try await refreshTimeline(accounts: accountsToFetch)
             print("🔄 SocialServiceManager: Collected \(collectedPosts.count) posts from accounts")
 
+            // Filter replies if enabled
+            let filteredPosts = await filterRepliesInTimeline(collectedPosts)
+
             // Process and update timeline
-            let sortedPosts = collectedPosts.sorted { $0.createdAt > $1.createdAt }
+            let sortedPosts = filteredPosts.sorted { $0.createdAt > $1.createdAt }
             print("🔄 SocialServiceManager: Sorted posts, updating timeline...")
 
             // Update UI on main thread with proper delay to prevent rapid updates and AttributeGraph cycles

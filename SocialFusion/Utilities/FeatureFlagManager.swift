@@ -45,6 +45,9 @@ final class FeatureFlagManager: ObservableObject {
     /// Controls whether GIF unfurling is enabled
     @AppStorage("enableGIFUnfurling") private(set) var enableGIFUnfurling = true
 
+    /// Controls whether reply filtering is enabled (Bluesky style)
+    @AppStorage("enableReplyFiltering") private(set) var enableReplyFiltering = true
+
     // MARK: - Analytics
 
     /// Tracks when features were enabled
@@ -83,6 +86,8 @@ final class FeatureFlagManager: ObservableObject {
             trackPerformance = true
         case .gifUnfurling:
             enableGIFUnfurling = true
+        case .replyFiltering:
+            enableReplyFiltering = true
         }
 
         // Track when feature was enabled
@@ -113,6 +118,8 @@ final class FeatureFlagManager: ObservableObject {
             trackPerformance = false
         case .gifUnfurling:
             enableGIFUnfurling = false
+        case .replyFiltering:
+            enableReplyFiltering = false
         }
 
         saveAnalyticsData()
@@ -146,6 +153,7 @@ final class FeatureFlagManager: ObservableObject {
             "verboseLogging": verboseLogging,
             "performanceTracking": trackPerformance,
             "gifUnfurling": enableGIFUnfurling,
+            "replyFiltering": enableReplyFiltering,
         ]
 
         return stats
@@ -174,6 +182,8 @@ final class FeatureFlagManager: ObservableObject {
             return shared.trackPerformance
         case .gifUnfurling:
             return shared.enableGIFUnfurling
+        case .replyFiltering:
+            return shared.enableReplyFiltering
         }
     }
 
@@ -217,6 +227,7 @@ enum FeatureFlag: String {
     case verboseLogging = "verbose_logging"
     case performanceTracking = "performance_tracking"
     case gifUnfurling = "gif_unfurling"
+    case replyFiltering = "reply_filtering"
 }
 
 // MARK: - SwiftUI View Extension
@@ -238,7 +249,8 @@ extension View {
                 .debugMode where manager.debugModeEnabled,
                 .verboseLogging where manager.verboseLogging,
                 .performanceTracking where manager.trackPerformance,
-                .gifUnfurling where manager.enableGIFUnfurling:
+                .gifUnfurling where manager.enableGIFUnfurling,
+                .replyFiltering where manager.enableReplyFiltering:
                 content()
             default:
                 EmptyView()

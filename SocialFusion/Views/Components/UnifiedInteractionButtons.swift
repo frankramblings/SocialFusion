@@ -397,3 +397,56 @@ struct UnifiedInteractionButtons: View {
     }
     .padding()
 }
+
+// MARK: - Small Unified Buttons (Convenience Wrappers)
+
+struct SmallUnifiedReplyButton: View {
+    let count: Int
+    let isReplied: Bool
+    let platform: SocialPlatform
+    let onTap: () -> Void
+    
+    var body: some View {
+        UnifiedReplyButton(
+            count: count,
+            isReplied: isReplied,
+            platform: platform,
+            onTap: onTap
+        )
+        .scaleEffect(0.85) // Make it smaller
+    }
+}
+
+struct SmallUnifiedRepostButton: View {
+    let isReposted: Bool
+    let count: Int
+    var isProcessing: Bool = false
+    let onTap: () -> Void
+    
+    var body: some View {
+        UnifiedRepostButton(
+            isReposted: isReposted,
+            count: count,
+            isProcessing: isProcessing,
+            onTap: { onTap() }
+        )
+        .scaleEffect(0.85)
+    }
+}
+
+struct SmallUnifiedLikeButton: View {
+    let isLiked: Bool
+    let count: Int
+    var isProcessing: Bool = false
+    let onTap: () -> Void
+    
+    var body: some View {
+        UnifiedLikeButton(
+            isLiked: isLiked,
+            count: count,
+            isProcessing: isProcessing,
+            onTap: { onTap() }
+        )
+        .scaleEffect(0.85)
+    }
+}
