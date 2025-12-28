@@ -152,6 +152,23 @@ public class PostFeedFilter {
         self.blueskyResolver = blueskyResolver
     }
 
+    private func getCachedParticipants(for key: String) -> Set<UserID>? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = participantCache[key],
+            Date().timeIntervalSince(cached.timestamp) < cacheTTL
+        {
+            return cached.participants
+        }
+        return nil
+    }
+
+    private func updateCache(for key: String, participants: Set<UserID>) {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        participantCache[key] = (participants, Date())
+    }
+
     /// Determines if a post should be included in the feed
     public func shouldIncludePost(_ post: Post, followedAccounts: Set<UserID>) async -> Bool {
         // Keyword filtering
@@ -212,14 +229,9 @@ public class PostFeedFilter {
         let cacheKey = post.stableId
 
         // Check cache
-        cacheLock.lock()
-        if let cached = participantCache[cacheKey],
-            Date().timeIntervalSince(cached.timestamp) < cacheTTL
-        {
-            cacheLock.unlock()
-            return cached.participants
+        if let cached = getCachedParticipants(for: cacheKey) {
+            return cached
         }
-        cacheLock.unlock()
 
         // Resolve based on platform
         let participants: Set<UserID>
@@ -233,9 +245,7 @@ public class PostFeedFilter {
         }
 
         // Update cache
-        cacheLock.lock()
-        participantCache[cacheKey] = (participants, Date())
-        cacheLock.unlock()
+        updateCache(for: cacheKey, participants: participants)
 
         return participants
     }

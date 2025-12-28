@@ -2421,19 +2421,31 @@ public final class MastodonService: @unchecked Sendable {
     private let statusCacheLock = NSLock()
     private var statusCache: [String: (post: Post, timestamp: Date)] = [:]
 
+    private func getCachedStatus(id: String) -> Post? {
+        statusCacheLock.lock()
+        defer { statusCacheLock.unlock() }
+        if let cached = statusCache[id], Date().timeIntervalSince(cached.timestamp) < 300 {
+            return cached.post
+        }
+        return nil
+    }
+
+    private func updateStatusCache(id: String, post: Post) {
+        statusCacheLock.lock()
+        defer { statusCacheLock.unlock() }
+        statusCache[id] = (post: post, timestamp: Date())
+    }
+
     /// Fetches a status by its ID
     /// - Parameter id: The ID of the status to fetch
     /// - Parameter account: The account to use for authentication
     /// - Returns: The post if found, nil otherwise
     func fetchStatus(id: String, account: SocialAccount) async throws -> Post? {
         // Check cache first - posts are valid for 5 minutes
-        statusCacheLock.lock()
-        if let cached = statusCache[id], Date().timeIntervalSince(cached.timestamp) < 300 {
-            statusCacheLock.unlock()
+        if let cached = getCachedStatus(id: id) {
             logger.info("Using cached Mastodon status for ID: \(id)")
-            return cached.post
+            return cached
         }
-        statusCacheLock.unlock()
 
         guard let serverURLString = account.serverURL else {
             logger.error("No server URL for Mastodon account")
@@ -2493,9 +2505,7 @@ public final class MastodonService: @unchecked Sendable {
                 "Converted to Post model: id=\(post.id), inReplyToID=\(post.inReplyToID ?? "nil")"
             )
 
-            statusCacheLock.lock()
-            self.statusCache[id] = (post: post, timestamp: Date())
-            statusCacheLock.unlock()
+            updateStatusCache(id: id, post: post)
 
             return post
         } catch {
@@ -2510,9 +2520,9 @@ public final class MastodonService: @unchecked Sendable {
     ///   - completion: Completion handler called with the result
     func fetchStatus(id: String, completion: @escaping (Post?) -> Void) {
         // Check cache first
-        if let cached = statusCache[id], Date().timeIntervalSince(cached.timestamp) < 300 {
+        if let cached = getCachedStatus(id: id) {
             logger.info("Using cached Mastodon status for callback API: \(id)")
-            completion(cached.post)
+            completion(cached)
             return
         }
 
@@ -2531,9 +2541,7 @@ public final class MastodonService: @unchecked Sendable {
                 let post = try await fetchStatus(id: id, account: account)
 
                 if let post {
-                    statusCacheLock.lock()
-                    self.statusCache[id] = (post: post, timestamp: Date())
-                    statusCacheLock.unlock()
+                    updateStatusCache(id: id, post: post)
                 }
 
                 await MainActor.run {
