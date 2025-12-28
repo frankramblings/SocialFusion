@@ -103,6 +103,9 @@ jobs:
         APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
         TEAM_ID: ${{ secrets.TEAM_ID }}
       run: |
+        # Export TEAM_ID for use in build steps
+        echo "TEAM_ID=${{ secrets.TEAM_ID }}" >> $GITHUB_ENV
+        
         # Create secure temporary keychain
         KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
         security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
