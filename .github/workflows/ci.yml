@@ -22,6 +22,12 @@ jobs:
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode.app
       
+    - name: Install xcodegen
+      run: brew install xcodegen
+
+    - name: Generate Project
+      run: xcodegen generate
+      
     - name: Build
       run: |
         export IBTOOL_DISABLE_INITIALIZE_WEBVIEW=YES
@@ -85,6 +91,12 @@ jobs:
     - name: Select Xcode
       run: sudo xcode-select -s /Applications/Xcode.app
     
+    - name: Install xcodegen
+      run: brew install xcodegen
+
+    - name: Generate Project
+      run: xcodegen generate
+    
     - name: Setup Apple Developer Credentials
       env:
         APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -110,18 +122,25 @@ jobs:
         
         # Import provisioning profile
         echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
-        # Get UUID from the profile to name it correctly (macOS/iOS profiles are XML)
-        UUID=$(grep -aA1 "UUID" profile.mobileprovision | grep -o "[-A-Z0-9]\{36\}")
+        
+        # Extract UUID and Name from profile using security tool for robustness
+        # First decode the CMS signed data
+        security cms -D -i profile.mobileprovision > profile_decoded.plist
+        
+        UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" profile_decoded.plist)
+        PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" profile_decoded.plist)
+        
         if [ -n "$UUID" ]; then
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
-          echo "Imported profile with UUID: $UUID"
+          echo "Imported profile: $PROFILE_NAME ($UUID)"
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
         else
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/temp.mobileprovision
-          echo "Warning: Could not extract UUID from profile"
+          echo "Error: Could not extract UUID from profile"
+          exit 1
         fi
         
         # Clean up sensitive files immediately
-        rm -f certificate.p12 profile.mobileprovision
+        rm -f certificate.p12 profile.mobileprovision profile_decoded.plist
     
     - name: Build and Archive
       env:
@@ -130,8 +149,7 @@ jobs:
         # Clean build folder
         xcodebuild clean -scheme SocialFusion -configuration Release
         
-        # Build and archive with Manual signing for CI stability
-        # We use CODE_SIGN_STYLE=Manual and specify the identity
+        # Build and archive with Manual signing and unique build number
         xcodebuild archive \
           -scheme SocialFusion \
           -configuration Release \
@@ -140,12 +158,12 @@ jobs:
           CODE_SIGN_STYLE=Manual \
           DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" \
           CODE_SIGN_IDENTITY="Apple Distribution" \
-          PRODUCT_BUNDLE_IDENTIFIER="com.emanueledigital.socialfusion"
+          PRODUCT_BUNDLE_IDENTIFIER="com.emanueledigital.socialfusion" \
+          CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER
     
     - name: Export IPA
       run: |
         # Create export options plist for Manual signing
-        # Note: 'provisioningProfiles' mapping is required for manual signing
         cat > ExportOptions.plist << EOF
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -166,7 +184,7 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
                 <key>com.emanueledigital.socialfusion</key>
-                <string>SocialFusion AppStore Distribution</string>
+                <string>${{ env.PROFILE_NAME }}</string>
             </dict>
         </dict>
         </plist>
@@ -191,13 +209,13 @@ jobs:
           exit 1
         fi
         
-        # Upload to App Store Connect using altool
-        # Note: APPLE_ID_PASSWORD must be an App-Specific Password
+        # Upload to App Store Connect using altool with verbose output
         xcrun altool --upload-app \
           --type ios \
           --file "$IPA_PATH" \
           --username "$APPLE_ID" \
-          --password "$APPLE_ID_PASSWORD"
+          --password "$APPLE_ID_PASSWORD" \
+          --verbose
     
     - name: Cleanup Sensitive Data
       if: always()
