@@ -24,7 +24,7 @@ targets:
           - Views/TestingView.swift
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.emanueledigital.socialfusion
+        PRODUCT_BUNDLE_IDENTIFIER: com.socialfusionapp.app
         PRODUCT_NAME: SocialFusion
         SWIFT_VERSION: 5.0
         DEVELOPMENT_TEAM: $(TEAM_ID)

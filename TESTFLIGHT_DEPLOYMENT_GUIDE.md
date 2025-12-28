@@ -10,7 +10,7 @@ This guide provides step-by-step instructions for deploying SocialFusion to Test
 - ✅ Archive successfully created (`SocialFusion.xcarchive`)
 
 ## Current Configuration Status
-- **Bundle Identifier**: `com.emanueledigital.socialfusion`
+- **Bundle Identifier**: `com.socialfusionapp.app`
 - **Development Team**: 9XH4G9XR8X
 - **Signing Identity**: Apple Development: Francis Emanuele (APN37S2B8F)
 - **Provisioning Profile**: iOS Team Provisioning Profile (37ad586c-65e3-417f-8703-d307ebf23011)
@@ -103,7 +103,7 @@ xcrun altool --upload-app \
 - **Problem**: App doesn't exist in App Store Connect
 - **Solution**:
   - Create a new app in App Store Connect
-  - Use the same bundle identifier: `com.emanueledigital.socialfusion`
+  - Use the same bundle identifier: `com.socialfusionapp.app`
   - Fill in required metadata (name, description, etc.)
 
 ## App Store Connect Metadata Requirements

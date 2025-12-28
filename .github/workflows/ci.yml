@@ -163,7 +163,7 @@ jobs:
           DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" \
           CODE_SIGN_IDENTITY="Apple Distribution" \
           PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
-          PRODUCT_BUNDLE_IDENTIFIER="com.emanueledigital.socialfusion" \
+          PRODUCT_BUNDLE_IDENTIFIER="com.socialfusionapp.app" \
           CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER
     
     - name: Export IPA
@@ -188,7 +188,7 @@ jobs:
             <string>manual</string>
             <key>provisioningProfiles</key>
             <dict>
-                <key>com.emanueledigital.socialfusion</key>
+                <key>com.socialfusionapp.app</key>
                 <string>${{ env.PROFILE_NAME }}</string>
             </dict>
         </dict>
