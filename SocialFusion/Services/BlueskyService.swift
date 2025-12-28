@@ -3685,7 +3685,7 @@ extension BlueskyService {
 
         let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.listConvos"
         guard let url = URL(string: apiURL) else {
-            throw NetworkError.invalidURL
+            throw BlueskyTokenError.invalidServerURL
         }
 
         var request = URLRequest(url: url)
@@ -3705,7 +3705,7 @@ extension BlueskyService {
 
         let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getMessages?convoId=\(convoId)"
         guard let url = URL(string: apiURL) else {
-            throw NetworkError.invalidURL
+            throw BlueskyTokenError.invalidServerURL
         }
 
         var request = URLRequest(url: url)
@@ -3725,7 +3725,7 @@ extension BlueskyService {
 
         let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.sendMessage"
         guard let url = URL(string: apiURL) else {
-            throw NetworkError.invalidURL
+            throw BlueskyTokenError.invalidServerURL
         }
 
         var request = URLRequest(url: url)
