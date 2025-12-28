@@ -187,13 +187,15 @@ class MediaMemoryManager: ObservableObject {
             return image
         }
 
-        // Resize image
-        UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
-        defer { UIGraphicsEndImageContext() }
-
-        image.draw(in: CGRect(origin: .zero, size: newSize))
-
-        return UIGraphicsGetImageFromCurrentImageContext() ?? image
+        // Resize image using modern renderer
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0  // Use exact pixels for better memory control
+        format.opaque = false
+        
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
     }
 
     private func calculateImageMemoryCost(_ image: UIImage) -> Int {

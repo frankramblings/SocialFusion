@@ -130,6 +130,19 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     private var _refreshToken: String?
     private var _tokenExpirationDate: Date?
 
+    /// Log out of this account and delete all stored tokens
+    public func logout() {
+        print("🔐 Logging out account: \(username) (ID: \(id))")
+
+        // Clear transient tokens
+        _accessToken = nil
+        _refreshToken = nil
+        _tokenExpirationDate = nil
+
+        // Delete tokens from persistent storage
+        deleteTokens(for: id)
+    }
+
     // Account details from the platform
     public var accountDetails: [String: String]?
 

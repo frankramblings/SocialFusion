@@ -103,54 +103,34 @@ public class ImageCache: ObservableObject {
             .subscribe(on: DispatchQueue.global(qos: qosForPriority(priority)))
             .map { [weak self] data, response -> UIImage? in
                 guard let httpResponse = response as? HTTPURLResponse else {
-                    print("❌ [ImageCache] Invalid response type for: \(url.lastPathComponent)")
                     return nil
                 }
 
                 guard httpResponse.statusCode == 200 else {
-                    print(
-                        "❌ [ImageCache] HTTP \(httpResponse.statusCode) for: \(url.lastPathComponent)"
-                    )
                     return nil
                 }
 
                 guard let image = UIImage(data: data) else {
-                    print(
-                        "❌ [ImageCache] Failed to decode image data for: \(url.lastPathComponent)")
                     return nil
                 }
 
-                print(
-                    "✅ [ImageCache] Successfully loaded: \(url.lastPathComponent) (priority: \(priority))"
-                )
+                // Optimize image if it's large
+                let optimizedImage = self?.optimizeImageIfNeeded(image) ?? image
 
                 // Cache with priority-based cost
-                self?.cacheImage(image, forKey: key, priority: priority)
+                self?.cacheImage(optimizedImage, forKey: key, priority: priority)
 
-                return image
+                return optimizedImage
             }
             .replaceError(with: nil)
             .handleEvents(
-                receiveOutput: { image in
-                    if image == nil {
-                        print("⚠️ [ImageCache] No image to cache for: \(url.lastPathComponent)")
-                    }
-                },
-                receiveCompletion: { [weak self] completion in
+                receiveCompletion: { [weak self] _ in
                     // Clean up tracking
                     self?.requestQueue.async {
                         self?.inFlightRequests.removeValue(forKey: url)
                         self?.priorityLock.lock()
                         self?.requestPriorities.removeValue(forKey: url)
                         self?.priorityLock.unlock()
-                    }
-
-                    switch completion {
-                    case .finished:
-                        print("🏁 [ImageCache] Request completed for: \(url.lastPathComponent)")
-                    case .failure(let error):
-                        print(
-                            "❌ [ImageCache] Request failed for \(url.lastPathComponent): \(error)")
                     }
                 }
             )
@@ -161,6 +141,32 @@ public class ImageCache: ObservableObject {
         inFlightRequests[url] = publisher
 
         return publisher
+    }
+
+    private func optimizeImageIfNeeded(_ image: UIImage) -> UIImage {
+        let maxDimension: CGFloat = 1024
+        let size = image.size
+        
+        if size.width <= maxDimension && size.height <= maxDimension {
+            return image
+        }
+        
+        let aspectRatio = size.width / size.height
+        var newSize: CGSize
+        if size.width > size.height {
+            newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
+        } else {
+            newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+        
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1.0
+        format.opaque = false
+        
+        let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: newSize))
+        }
     }
 
     /// Cache image with priority-based placement
@@ -233,16 +239,14 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     private let stableID: String
 
     @StateObject private var imageCache = ImageCache.shared
-    @StateObject private var memoryManager = MediaMemoryManager.shared
     @State private var image: UIImage?
     @State private var isLoading = false
     @State private var hasError = false
     @State private var retryCount = 0
     @State private var cancellables = Set<AnyCancellable>()
-    @State private var viewAppearCount = 0
     @State private var isVisible = false
 
-    private let maxRetries = 3
+    private let maxRetries = 2
 
     init(
         url: URL?,
@@ -263,148 +267,70 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         Group {
             if let image = image {
                 content(Image(uiImage: image))
-            } else if isLoading {
-                placeholder()
-            } else if hasError && retryCount >= maxRetries {
-                // Show error state after max retries
-                placeholder()
-                    .overlay(
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                            .background(Circle().fill(Color.white).frame(width: 16, height: 16))
-                            .offset(x: 6, y: 6),
-                        alignment: .bottomTrailing
-                    )
             } else {
                 placeholder()
-                    .onAppear {
-                        if !isLoading {
-                            // Use Task to defer state updates outside view rendering cycle
-                            Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                                loadImageWithPriority()
-                            }
-                        }
-                    }
+                    .overlay(errorOverlay)
             }
         }
         .id(stableID)
         .onAppear {
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                isVisible = true
-                viewAppearCount += 1
-
-                // Load with high priority when visible
-                if image == nil && !isLoading {
-                    let loadPriority: ImageLoadPriority = isVisible ? .high : priority
-                    let delay = viewAppearCount > 1 ? 0.05 : 0.0  // Reduced delay for responsiveness
-
-                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    loadImageWithPriority(loadPriority)
-                }
+            isVisible = true
+            if image == nil && !isLoading {
+                loadImage()
             }
         }
         .onDisappear {
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                isVisible = false
-                // Don't cancel immediately - keep some requests for smooth scrolling back
-            }
+            isVisible = false
         }
-        .onChange(of: url) { newURL in
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                // Reset state when URL changes
-                image = nil
-                hasError = false
-                retryCount = 0
-                isLoading = false
-                viewAppearCount = 0
-
-                if newURL != nil {
-                    loadImageWithPriority()
-                }
-            }
+        .onChange(of: url) { _ in
+            image = nil
+            hasError = false
+            retryCount = 0
+            loadImage()
         }
     }
 
-    private func loadImageWithPriority(_ overridePriority: ImageLoadPriority? = nil) {
-        guard let url = url else {
-            return
+    @ViewBuilder
+    private var errorOverlay: some View {
+        if hasError && retryCount >= maxRetries {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.caption2)
+                .foregroundColor(.orange)
+                .background(Circle().fill(Color.white).frame(width: 16, height: 16))
+                .offset(x: 6, y: 6)
         }
+    }
 
-        guard !isLoading else {
-            return
-        }
-
-        let loadPriority = overridePriority ?? (isVisible ? .high : priority)
+    private func loadImage() {
+        guard let url = url, !isLoading else { return }
+        
         isLoading = true
         hasError = false
-        let startTime = Date()
-
-        Task {
-            do {
-                // Determine target size if it's a profile image (usually small)
-                // We'll assume if it's high priority and we're in a list, it's likely a profile image or thumbnail
-                // For now, let's just use the optimized loader
-                let loadedImage = try await memoryManager.loadOptimizedImage(from: url)
-
-                await MainActor.run {
-                    self.isLoading = false
+        
+        imageCache.loadImage(from: url, priority: isVisible ? .high : priority)
+            .receive(on: DispatchQueue.main)
+            .sink { [stableID] loadedImage in
+                self.isLoading = false
+                if let loadedImage = loadedImage {
                     self.image = loadedImage
                     self.onImageLoad?(loadedImage)
-                    self.hasError = false
-                    self.retryCount = 0
-
-                    let loadTime = Date().timeIntervalSince(startTime)
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("ProfileImageLoadAttempt"),
-                        object: nil,
-                        userInfo: [
-                            "url": url.absoluteString,
-                            "success": true,
-                            "loadTime": loadTime,
-                            "priority": loadPriority.rawValue,
-                        ]
-                    )
-                }
-            } catch {
-                await MainActor.run {
-                    self.isLoading = false
+                } else {
                     self.hasError = true
-
-                    let loadTime = Date().timeIntervalSince(startTime)
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("ProfileImageLoadAttempt"),
-                        object: nil,
-                        userInfo: [
-                            "url": url.absoluteString,
-                            "success": false,
-                            "loadTime": loadTime,
-                            "priority": loadPriority.rawValue,
-                        ]
-                    )
-
-                    // Smart retry logic based on priority and visibility
-                    if self.retryCount < self.maxRetries && self.isVisible {
-                        self.retryCount += 1
-                        let baseDelay = Double(self.retryCount * self.retryCount) * 0.3
-                        let jitter = Double.random(in: 0.05...0.15)
-                        let delay = baseDelay + jitter
-
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            if self.isVisible {
-                                self.loadImageWithPriority(loadPriority)
-                            }
-                        }
-                    }
+                    self.handleRetry()
                 }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func handleRetry() {
+        guard retryCount < maxRetries && isVisible else { return }
+        
+        retryCount += 1
+        let delay = Double(retryCount) * 1.0
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            if self.isVisible {
+                self.loadImage()
             }
         }
     }

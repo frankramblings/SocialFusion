@@ -3,6 +3,7 @@ import SwiftUI
 /// A view that displays platform-specific actions for a post
 struct PostMenu: View {
     let post: Post
+    let onAction: (PostAction) -> Void
     let onOpenInBrowser: () -> Void
     let onCopyLink: () -> Void
     let onShare: () -> Void
@@ -45,15 +46,15 @@ struct PostMenu: View {
 
     private var blueskyActions: some View {
         Group {
-            Button(action: {}) {
+            Button(action: { onAction(.follow) }) {
                 Label("Follow", systemImage: "person.badge.plus")
             }
 
-            Button(action: {}) {
+            Button(action: { onAction(.mute) }) {
                 Label("Mute", systemImage: "speaker.slash")
             }
 
-            Button(action: {}) {
+            Button(action: { onAction(.block) }) {
                 Label("Block", systemImage: "hand.raised")
             }
         }
@@ -61,19 +62,19 @@ struct PostMenu: View {
 
     private var mastodonActions: some View {
         Group {
-            Button(action: {}) {
+            Button(action: { onAction(.follow) }) {
                 Label("Follow", systemImage: "person.badge.plus")
             }
 
-            Button(action: {}) {
+            Button(action: { onAction(.mute) }) {
                 Label("Mute", systemImage: "speaker.slash")
             }
 
-            Button(action: {}) {
+            Button(action: { onAction(.block) }) {
                 Label("Block", systemImage: "hand.raised")
             }
 
-            Button(action: {}) {
+            Button(action: { onAction(.addToList) }) {
                 Label("Add to Lists", systemImage: "list.bullet")
             }
         }
@@ -97,6 +98,7 @@ struct PostMenu_Previews: PreviewProvider {
                     originalURL: "",
                     attachments: []
                 ),
+                onAction: { _ in },
                 onOpenInBrowser: {},
                 onCopyLink: {},
                 onShare: {},
@@ -116,6 +118,7 @@ struct PostMenu_Previews: PreviewProvider {
                     originalURL: "",
                     attachments: []
                 ),
+                onAction: { _ in },
                 onOpenInBrowser: {},
                 onCopyLink: {},
                 onShare: {},

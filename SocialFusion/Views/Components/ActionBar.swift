@@ -119,26 +119,26 @@ struct ActionBar: View {
             Menu {
                 // Platform-specific actions
                 if post.platform == .bluesky {
-                    Button(action: {}) {
+                    Button(action: { onAction(.follow) }) {
                         Label("Follow", systemImage: "person.badge.plus")
                     }
-                    Button(action: {}) {
+                    Button(action: { onAction(.mute) }) {
                         Label("Mute", systemImage: "speaker.slash")
                     }
-                    Button(action: {}) {
+                    Button(action: { onAction(.block) }) {
                         Label("Block", systemImage: "hand.raised")
                     }
                 } else if post.platform == .mastodon {
-                    Button(action: {}) {
+                    Button(action: { onAction(.follow) }) {
                         Label("Follow", systemImage: "person.badge.plus")
                     }
-                    Button(action: {}) {
+                    Button(action: { onAction(.mute) }) {
                         Label("Mute", systemImage: "speaker.slash")
                     }
-                    Button(action: {}) {
+                    Button(action: { onAction(.block) }) {
                         Label("Block", systemImage: "hand.raised")
                     }
-                    Button(action: {}) {
+                    Button(action: { onAction(.addToList) }) {
                         Label("Add to Lists", systemImage: "list.bullet")
                     }
                 }
@@ -181,6 +181,7 @@ struct ActionBarV2: View {
     @ObservedObject var post: Post
     @ObservedObject var store: PostActionStore
     let coordinator: PostActionCoordinator
+    let onAction: (PostAction) -> Void
     let onReply: () -> Void
     let onShare: () -> Void
     let onOpenInBrowser: () -> Void
@@ -251,6 +252,34 @@ struct ActionBarV2: View {
             .frame(maxWidth: .infinity)
 
             Menu {
+                // Platform-specific actions
+                if post.platform == .bluesky {
+                    Button(action: { onAction(.follow) }) {
+                        Label("Follow", systemImage: "person.badge.plus")
+                    }
+                    Button(action: { onAction(.mute) }) {
+                        Label("Mute", systemImage: "speaker.slash")
+                    }
+                    Button(action: { onAction(.block) }) {
+                        Label("Block", systemImage: "hand.raised")
+                    }
+                } else if post.platform == .mastodon {
+                    Button(action: { onAction(.follow) }) {
+                        Label("Follow", systemImage: "person.badge.plus")
+                    }
+                    Button(action: { onAction(.mute) }) {
+                        Label("Mute", systemImage: "speaker.slash")
+                    }
+                    Button(action: { onAction(.block) }) {
+                        Label("Block", systemImage: "hand.raised")
+                    }
+                    Button(action: { onAction(.addToList) }) {
+                        Label("Add to Lists", systemImage: "list.bullet")
+                    }
+                }
+
+                Divider()
+
                 Button(action: onOpenInBrowser) {
                     Label("Open in Browser", systemImage: "arrow.up.right.square")
                 }

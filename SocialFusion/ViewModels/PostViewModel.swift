@@ -77,13 +77,16 @@ public class PostViewModel: ObservableObject {
         self.likeCount = newPost.likeCount
         self.repostCount = newPost.repostCount
         self.replyCount = newPost.replyCount
-        
+
         // Also update quoted post if needed
         if let quotedPost = newPost.quotedPost {
-            if let existingQuotedVM = self.quotedPostViewModel, existingQuotedVM.post.id == quotedPost.id {
+            if let existingQuotedVM = self.quotedPostViewModel,
+                existingQuotedVM.post.id == quotedPost.id
+            {
                 existingQuotedVM.updatePost(quotedPost)
             } else {
-                self.quotedPostViewModel = PostViewModel(post: quotedPost, serviceManager: serviceManager)
+                self.quotedPostViewModel = PostViewModel(
+                    post: quotedPost, serviceManager: serviceManager)
             }
         } else {
             self.quotedPostViewModel = nil
@@ -180,6 +183,89 @@ public class PostViewModel: ObservableObject {
             }
 
             topController.present(activityViewController, animated: true)
+        }
+    }
+
+    /// Follow the author of the post
+    public func followUser() async {
+        guard !isLoading else { return }
+
+        if FeatureFlagManager.isEnabled(.postActionsV2),
+            let coordinator = postActionCoordinator
+        {
+            postActionStore?.ensureState(for: post)
+            coordinator.follow(for: post, shouldFollow: !post.isFollowingAuthor)
+            return
+        }
+
+        isLoading = true
+        error = nil
+        do {
+            try await serviceManager.followUser(post)
+            isLoading = false
+        } catch {
+            self.error = error
+            isLoading = false
+        }
+    }
+
+    /// Mute the author of the post
+    public func muteUser() async {
+        guard !isLoading else { return }
+
+        if FeatureFlagManager.isEnabled(.postActionsV2),
+            let coordinator = postActionCoordinator
+        {
+            postActionStore?.ensureState(for: post)
+            coordinator.mute(for: post, shouldMute: !post.isMutedAuthor)
+            return
+        }
+
+        isLoading = true
+        error = nil
+        do {
+            try await serviceManager.muteUser(post)
+            isLoading = false
+        } catch {
+            self.error = error
+            isLoading = false
+        }
+    }
+
+    /// Block the author of the post
+    public func blockUser() async {
+        guard !isLoading else { return }
+
+        if FeatureFlagManager.isEnabled(.postActionsV2),
+            let coordinator = postActionCoordinator
+        {
+            postActionStore?.ensureState(for: post)
+            coordinator.block(for: post, shouldBlock: !post.isBlockedAuthor)
+            return
+        }
+
+        isLoading = true
+        error = nil
+        do {
+            try await serviceManager.blockUser(post)
+            isLoading = false
+        } catch {
+            self.error = error
+            isLoading = false
+        }
+    }
+
+    /// Report the post
+    public func reportPost(reason: String? = nil) async {
+        guard !isLoading else { return }
+        isLoading = true
+        error = nil
+        do {
+            try await serviceManager.reportPost(post, reason: reason)
+            isLoading = false
+        } catch {
+            self.error = error
+            isLoading = false
         }
     }
 

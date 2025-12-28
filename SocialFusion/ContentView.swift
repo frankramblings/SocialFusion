@@ -38,268 +38,290 @@ struct ContentView: View {
     // Migration manager for architecture switching
     @StateObject private var migrationManager = GradualMigrationManager.shared
 
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @State private var sidebarSelection: Int? = 0
+
     var body: some View {
-        ZStack {
-            TabView(selection: $selectedTab) {
-                // Home Tab - Timeline implementation
-                NavigationView {
-                    ZStack {
-                        // Use the single, consolidated timeline view
-                        ConsolidatedTimelineView(serviceManager: serviceManager)
-
-                        // Dropdown overlay positioned correctly
-                        if showAccountDropdown {
-                            ZStack {
-                                // Backdrop to dismiss dropdown
-                                Color.clear
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
-                                            showAccountDropdown = false
-                                        }
-                                    }
-
-                                VStack {
-                                    HStack {
-                                        SimpleAccountDropdown(
-                                            selectedAccountId: $selectedAccountId,
-                                            previousAccountId: $previousAccountId,
-                                            isVisible: $showAccountDropdown
-                                        )
-                                        .environmentObject(serviceManager)
-                                        Spacer()
-                                    }
-                                    .padding(.leading, 16)
-                                    .padding(.top, 8)
-                                    Spacer()
-                                }
-                            }
-                            .zIndex(1000)
-                        }
-                    }
-                    .toolbarBackground(.clear, for: .navigationBar)
-                    .navigationBarItems(
-                        leading: Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                showAccountDropdown.toggle()
-                            }
-                        }) {
-                            // Show current account image or unified icon
-                            getCurrentAccountImage()
-                                .frame(width: 24, height: 24)
-                        }
-                        .accessibilityLabel("Account selector")
-                        .accessibilityHint(
-                            "Tap to switch between accounts or view unified timeline"),
-                        trailing: HStack {
-                            // Debug validation button (long press to access)
-                            Image(systemName: "square.and.pencil")
-                                .font(.system(size: 18))
-                                .foregroundColor(.primary)
-                                .onTapGesture {
-                                    showComposeView = true
-                                }
-                                .onLongPressGesture(minimumDuration: 1.0) {
-                                    showValidationView = true
-                                }
-                                .accessibilityLabel("Compose new post")
-                                .accessibilityHint(
-                                    "Tap to compose a new post, long press for debug options")
-                        }
-                    )
-                    .sheet(isPresented: $showComposeView) {
-                        ComposeView()
-                            .environmentObject(serviceManager)
-                    }
-                    .sheet(isPresented: $showValidationView) {
-                        TimelineValidationDebugView(serviceManager: serviceManager)
-                    }
-                }
-                .tabItem {
-                    Label("Home", systemImage: "house")
-                }
-                .tag(0)
-
-                // Notifications Tab - with a modern design
-                NavigationView {
-                    NotificationsView()
-                        .environmentObject(serviceManager)
-                }
-                .tabItem {
-                    Label("Notifications", systemImage: "bell")
-                }
-                .tag(1)
-
-                // Search Tab - with a modern design
-                NavigationView {
-                    SearchView()
-                        .environmentObject(serviceManager)
-                }
-                .tabItem {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                .tag(2)
-
-                // Profile Tab - with a modern design
-                NavigationView {
-                    ZStack {
-                        Color(UIColor.systemBackground)
-                            .ignoresSafeArea()
-
-                        if let account = getCurrentAccount() {
-                            ProfileView(account: account)
-                                .environmentObject(serviceManager)
-                        } else {
-                            VStack(spacing: 20) {
-                                Image(systemName: "person.crop.circle")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.gray.opacity(0.3))
-
-                                if serviceManager.accounts.isEmpty {
-                                    Text("No Accounts Added")
-                                        .font(.title3)
-                                        .fontWeight(.medium)
-
-                                    Text("Add your Mastodon or Bluesky accounts to get started")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-
-                                    Button(action: {
-                                        showAddAccountView = true
-                                    }) {
-                                        Text("Add Account")
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 12)
-                                            .background(Color.blue)
-                                            .cornerRadius(25)
-                                    }
-                                    .padding(.top, 10)
-                                    .sheet(isPresented: $showAddAccountView) {
-                                        AddAccountView()
-                                            .environmentObject(serviceManager)
-                                    }
-                                } else {
-                                    Text("No Account Selected")
-                                        .font(.title3)
-                                        .fontWeight(.medium)
-
-                                    Text("Select an account to view profile")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 40)
-
-                                    Button(action: {
-                                        // Show account picker
-                                        showAccountPicker = true
-                                    }) {
-                                        Text("Select Account")
-                                            .font(.headline)
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 20)
-                                            .padding(.vertical, 12)
-                                            .background(Color.blue)
-                                            .cornerRadius(25)
-                                    }
-                                    .padding(.top, 10)
-                                    .sheet(isPresented: $showAccountPicker) {
-                                        AccountPickerSheet(
-                                            selectedAccountId: $selectedAccountId,
-                                            previousAccountId: $previousAccountId,
-                                            isPresented: $showAccountPicker
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
-                }
-                .tabItem {
-                    Label("Profile", systemImage: "person")
-                }
-                .tag(3)
+        if horizontalSizeClass == .regular {
+            NavigationSplitView {
+                sidebar
+                    .navigationTitle("SocialFusion")
+            } detail: {
+                detailView
             }
-            .accentColor(Color("AppPrimaryColor"))
-            .toolbarBackground(.ultraThinMaterial, for: .tabBar)
-            .toolbarBackground(.visible, for: .tabBar)
-            .onAppear {
-                setupTabBarDelegate()
+        } else {
+            tabView
+        }
+    }
 
-                print("🔧 ContentView: onAppear called")
-                print(
-                    "🔧 ContentView: serviceManager.accounts.count = \(serviceManager.accounts.count)"
-                )
-                print(
-                    "🔧 ContentView: serviceManager.unifiedTimeline.count = \(serviceManager.unifiedTimeline.count)"
-                )
-                print(
-                    "🔧 ContentView: serviceManager.selectedAccountIds = \(serviceManager.selectedAccountIds)"
-                )
+    private var sidebar: some View {
+        List(selection: $sidebarSelection) {
+            NavigationLink(value: 0) {
+                Label("Home", systemImage: "house")
+            }
+            NavigationLink(value: 1) {
+                Label("Notifications", systemImage: "bell")
+            }
+            NavigationLink(value: 2) {
+                Label("Messages", systemImage: "bubble.left.and.bubble.right")
+            }
+            NavigationLink(value: 3) {
+                Label("Search", systemImage: "magnifyingglass")
+            }
+            NavigationLink(value: 4) {
+                Label("Profile", systemImage: "person")
+            }
+            
+            Section("Accounts") {
+                Button(action: {
+                    showAccountPicker = true
+                }) {
+                    HStack {
+                        getCurrentAccountImage()
+                            .frame(width: 24, height: 24)
+                        Text(selectedAccountId == nil ? "All Accounts" : getCurrentAccount()?.displayName ?? "Account")
+                    }
+                }
+            }
+        }
+    }
 
-                // Ensure account selection is properly initialized
-                if selectedAccountId == nil && !serviceManager.accounts.isEmpty {
-                    print(
-                        "🔧 ContentView: No account selected but accounts exist - setting to unified view"
+    @ViewBuilder
+    private var detailView: some View {
+        switch sidebarSelection {
+        case 0:
+            NavigationView {
+                ZStack {
+                    ConsolidatedTimelineView(serviceManager: serviceManager)
+                    if showAccountDropdown {
+                        accountDropdownOverlay
+                    }
+                }
+                .navigationTitle("Home")
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        accountButton
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        composeButton
+                    }
+                }
+            }
+        case 1:
+            NavigationView {
+                NotificationsView()
+                    .environmentObject(serviceManager)
+            }
+        case 2:
+            NavigationView {
+                DirectMessagesView()
+                    .environmentObject(serviceManager)
+            }
+        case 3:
+            NavigationView {
+                SearchView()
+                    .environmentObject(serviceManager)
+            }
+        case 4:
+            NavigationView {
+                profileContent
+            }
+        default:
+            Text("Select an item")
+        }
+    }
+
+    private var tabView: some View {
+        TabView(selection: $selectedTab) {
+            // Home Tab
+            NavigationView {
+                ZStack {
+                    ConsolidatedTimelineView(serviceManager: serviceManager)
+                    if showAccountDropdown {
+                        accountDropdownOverlay
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        accountButton
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        composeButton
+                    }
+                }
+            }
+            .tabItem {
+                Label("Home", systemImage: "house")
+            }
+            .tag(0)
+
+            // Notifications Tab
+            NavigationView {
+                NotificationsView()
+                    .environmentObject(serviceManager)
+            }
+            .tabItem {
+                Label("Notifications", systemImage: "bell")
+            }
+            .tag(1)
+
+            // Messages Tab
+            NavigationView {
+                DirectMessagesView()
+                    .environmentObject(serviceManager)
+            }
+            .tabItem {
+                Label("Messages", systemImage: "bubble.left.and.bubble.right")
+            }
+            .tag(2)
+
+            // Search Tab
+            NavigationView {
+                SearchView()
+                    .environmentObject(serviceManager)
+            }
+            .tabItem {
+                Label("Search", systemImage: "magnifyingglass")
+            }
+            .tag(3)
+
+            // Profile Tab
+            NavigationView {
+                profileContent
+            }
+            .tabItem {
+                Label("Profile", systemImage: "person")
+            }
+            .tag(4)
+        }
+        .accentColor(Color("AppPrimaryColor"))
+        .onAppear {
+            setupTabBarDelegate()
+            initializeSelection()
+            requestNotificationPermissions()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+            serviceManager.automaticTokenRefreshService?.handleAppWillEnterForeground()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+            serviceManager.automaticTokenRefreshService?.handleAppDidEnterBackground()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped)) { _ in
+            handleHomeTabDoubleTap()
+        }
+        .environment(\.openURL, OpenURLAction { url in
+            if navigationEnvironment.canHandle(url) {
+                navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
+                return .handled
+            }
+            return .systemAction
+        })
+    }
+
+    private var accountButton: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showAccountDropdown.toggle()
+            }
+        }) {
+            getCurrentAccountImage()
+                .frame(width: 24, height: 24)
+        }
+        .accessibilityLabel("Account selector")
+    }
+
+    private var composeButton: some View {
+        Image(systemName: "square.and.pencil")
+            .font(.system(size: 18))
+            .foregroundColor(.primary)
+            .onTapGesture {
+                showComposeView = true
+            }
+            .onLongPressGesture(minimumDuration: 1.0) {
+                showValidationView = true
+            }
+            .sheet(isPresented: $showComposeView) {
+                ComposeView().environmentObject(serviceManager)
+            }
+            .sheet(isPresented: $showValidationView) {
+                TimelineValidationDebugView(serviceManager: serviceManager)
+            }
+    }
+
+    private var accountDropdownOverlay: some View {
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showAccountDropdown = false
+                    }
+                }
+            VStack {
+                HStack {
+                    SimpleAccountDropdown(
+                        selectedAccountId: $selectedAccountId,
+                        previousAccountId: $previousAccountId,
+                        isVisible: $showAccountDropdown
                     )
-                    selectedAccountId = nil  // This represents "All" accounts
-                    serviceManager.selectedAccountIds = ["all"]
-                } else if let selectedId = selectedAccountId {
-                    print("🔧 ContentView: Account selection already set to: \(selectedId)")
-                    // Ensure service manager is in sync
-                    if !serviceManager.selectedAccountIds.contains(selectedId)
-                        && selectedId != "all"
-                    {
-                        serviceManager.selectedAccountIds = [selectedId]
-                        print(
-                            "🔧 ContentView: Updated serviceManager.selectedAccountIds to match UI selection"
+                    .environmentObject(serviceManager)
+                    Spacer()
+                }
+                .padding(.leading, 16)
+                .padding(.top, 8)
+                Spacer()
+            }
+        }
+        .zIndex(1000)
+    }
+
+    private var profileContent: some View {
+        ZStack {
+            Color(UIColor.systemBackground).ignoresSafeArea()
+            if let account = getCurrentAccount() {
+                ProfileView(account: account).environmentObject(serviceManager)
+            } else {
+                noAccountView
+            }
+        }
+    }
+
+    private var noAccountView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 50))
+                .foregroundColor(.gray.opacity(0.3))
+            
+            if serviceManager.accounts.isEmpty {
+                Text("No Accounts Added").font(.title3).fontWeight(.medium)
+                Button("Add Account") { showAddAccountView = true }
+                    .buttonStyle(.borderedProminent)
+                    .sheet(isPresented: $showAddAccountView) {
+                        AddAccountView().environmentObject(serviceManager)
+                    }
+            } else {
+                Text("No Account Selected").font(.title3).fontWeight(.medium)
+                Button("Select Account") { showAccountPicker = true }
+                    .buttonStyle(.borderedProminent)
+                    .sheet(isPresented: $showAccountPicker) {
+                        AccountPickerSheet(
+                            selectedAccountId: $selectedAccountId,
+                            previousAccountId: $previousAccountId,
+                            isPresented: $showAccountPicker
                         )
                     }
-                    print("🔧 ContentView: Account selections are already in sync")
-                }
-
-                // Ensure timeline is refreshed when app opens
-                Task {
-                    await serviceManager.ensureTimelineRefresh()
-                }
-
-                // Request notification permissions for showing token refresh alerts
-                requestNotificationPermissions()
             }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: UIApplication.willEnterForegroundNotification)
-            ) { _ in
-                serviceManager.automaticTokenRefreshService?.handleAppWillEnterForeground()
-            }
-            .onReceive(
-                NotificationCenter.default.publisher(
-                    for: UIApplication.didEnterBackgroundNotification)
-            ) { _ in
-                serviceManager.automaticTokenRefreshService?.handleAppDidEnterBackground()
-            }
-            .onReceive(
-                NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped)
-            ) { _ in
-                handleHomeTabDoubleTap()
-            }
-
         }
-        .environment(
-            \.openURL,
-            OpenURLAction { url in
-                if navigationEnvironment.canHandle(url) {
-                    navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
-                    return .handled
-                }
-                return .systemAction
-            })
+    }
+
+    private func initializeSelection() {
+        if selectedAccountId == nil && !serviceManager.accounts.isEmpty {
+            selectedAccountId = nil
+            serviceManager.selectedAccountIds = ["all"]
+        }
+        Task {
+            await serviceManager.ensureTimelineRefresh()
+        }
     }
 
     /// Request notification permissions for showing token refresh alerts

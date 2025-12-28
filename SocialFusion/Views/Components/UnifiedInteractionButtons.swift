@@ -103,7 +103,7 @@ struct UnifiedRepostButton: View {
             Task { await onTap() }
         } label: {
             HStack(spacing: 4) {
-                Image(systemName: isReposted ? "arrow.2.squarepath.fill" : "arrow.2.squarepath")
+                Image(systemName: isReposted ? "arrow.2.squarepath" : "arrow.2.squarepath")
                     .font(.system(size: 18))
                     .foregroundColor(isReposted ? .green : .secondary)
                     .scaleEffect(isReposted ? 1.1 : 1.0)

@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct ProfileView: View {
@@ -9,32 +10,79 @@ struct ProfileView: View {
     @State private var error: Error? = nil
     @State private var cursor: String? = nil
     @State private var canLoadMore = true
-    
+    @State private var showEditProfile = false
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
                 // Profile Header
                 VStack(spacing: 16) {
-                    ProfileImageView(account: account)
-                        .frame(width: 80, height: 80)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                        )
-                        .padding(.top, 20)
+                    HStack(alignment: .top, spacing: 16) {
+                        ProfileImageView(account: account)
+                            .frame(width: 80, height: 80)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
 
-                    VStack(spacing: 4) {
-                        Text(account.displayName ?? account.username)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(account.displayName ?? account.username)
+                                .font(.title2)
+                                .fontWeight(.bold)
 
-                        Text("@\(account.username)")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            Text("@\(account.username)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+
+                            HStack(spacing: 16) {
+                                VStack {
+                                    Text("\(account.followersCount)")
+                                        .fontWeight(.bold)
+                                    Text("Followers")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                VStack {
+                                    Text("\(account.followingCount)")
+                                        .fontWeight(.bold)
+                                    Text("Following")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                VStack {
+                                    Text("\(account.postsCount)")
+                                        .fontWeight(.bold)
+                                    Text("Posts")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding(.top, 4)
+                        }
+
+                        Spacer()
                     }
+                    .padding(.horizontal)
+
+                    if let bio = account.bio, !bio.isEmpty {
+                        Text(bio)
+                            .font(.body)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal)
+                    }
+
+                    Button(action: { showEditProfile = true }) {
+                        Text("Edit Profile")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                    }
+                    .padding(.horizontal)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 20)
+                .padding(.vertical, 20)
                 .background(Color(.secondarySystemBackground))
 
                 // Posts Feed
@@ -78,7 +126,7 @@ struct ProfileView: View {
                             }
                             Divider().padding(.horizontal)
                         }
-                        
+
                         if isLoadingMore {
                             ProgressView()
                                 .padding()
@@ -89,6 +137,9 @@ struct ProfileView: View {
         }
         .navigationTitle(account.displayName ?? account.username)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showEditProfile) {
+            EditProfileView(account: account)
+        }
         .onAppear {
             if posts.isEmpty {
                 Task {
@@ -97,7 +148,7 @@ struct ProfileView: View {
             }
         }
     }
-    
+
     private func fetchPosts() async {
         isLoading = true
         error = nil
@@ -109,7 +160,8 @@ struct ProfileView: View {
                 avatarURL: account.profileImageURL?.absoluteString,
                 platform: account.platform
             )
-            let (newPosts, nextCursor) = try await serviceManager.fetchUserPosts(user: searchUser, account: account)
+            let (newPosts, nextCursor) = try await serviceManager.fetchUserPosts(
+                user: searchUser, account: account)
             posts = newPosts
             cursor = nextCursor
             canLoadMore = nextCursor != nil && !newPosts.isEmpty
@@ -119,10 +171,10 @@ struct ProfileView: View {
         }
         isLoading = false
     }
-    
+
     private func fetchMorePosts() async {
         guard let currentCursor = cursor, canLoadMore else { return }
-        
+
         isLoadingMore = true
         do {
             let searchUser = SearchUser(
@@ -132,8 +184,9 @@ struct ProfileView: View {
                 avatarURL: account.profileImageURL?.absoluteString,
                 platform: account.platform
             )
-            let (newPosts, nextCursor) = try await serviceManager.fetchUserPosts(user: searchUser, account: account, cursor: currentCursor)
-            
+            let (newPosts, nextCursor) = try await serviceManager.fetchUserPosts(
+                user: searchUser, account: account, cursor: currentCursor)
+
             if newPosts.isEmpty {
                 canLoadMore = false
             } else {
@@ -148,3 +201,127 @@ struct ProfileView: View {
     }
 }
 
+struct EditProfileView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var serviceManager: SocialServiceManager
+    let account: SocialAccount
+
+    @State private var displayName: String
+    @State private var bio: String
+    @State private var selectedItem: PhotosPickerItem? = nil
+    @State private var selectedImageData: Data? = nil
+    @State private var isLoading = false
+    @State private var error: String? = nil
+
+    init(account: SocialAccount) {
+        self.account = account
+        _displayName = State(initialValue: account.displayName ?? "")
+        _bio = State(initialValue: account.bio ?? "")
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Profile Image")) {
+                    HStack {
+                        Spacer()
+                        VStack {
+                            if let selectedImageData, let uiImage = UIImage(data: selectedImageData)
+                            {
+                                Image(uiImage: uiImage)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 100, height: 100)
+                                    .clipShape(Circle())
+                            } else {
+                                ProfileImageView(account: account)
+                                    .frame(width: 100, height: 100)
+                            }
+
+                            PhotosPicker(selection: $selectedItem, matching: .images) {
+                                Text("Change Photo")
+                                    .font(.subheadline)
+                            }
+                            .onChange(of: selectedItem) { newItem in
+                                Task {
+                                    if let data = try? await newItem?.loadTransferable(
+                                        type: Data.self)
+                                    {
+                                        selectedImageData = data
+                                    }
+                                }
+                            }
+                        }
+                        Spacer()
+                    }
+                    .padding(.vertical)
+                }
+
+                Section(header: Text("Basic Info")) {
+                    TextField("Display Name", text: $displayName)
+                    ZStack(alignment: .topLeading) {
+                        if bio.isEmpty {
+                            Text("Bio")
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding(.top, 8)
+                                .padding(.leading, 4)
+                        }
+                        TextEditor(text: $bio)
+                            .frame(minHeight: 100)
+                    }
+                }
+
+                if let error = error {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .navigationTitle("Edit Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if isLoading {
+                        ProgressView()
+                    } else {
+                        Button("Save") {
+                            saveProfile()
+                        }
+                        .fontWeight(.bold)
+                    }
+                }
+            }
+        }
+    }
+
+    private func saveProfile() {
+        isLoading = true
+        error = nil
+
+        Task {
+            do {
+                _ = try await serviceManager.updateProfile(
+                    account: account,
+                    displayName: displayName,
+                    bio: bio,
+                    avatarData: selectedImageData
+                )
+                await MainActor.run {
+                    isLoading = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                    isLoading = false
+                }
+            }
+        }
+    }
+}

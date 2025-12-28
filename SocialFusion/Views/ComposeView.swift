@@ -1,4 +1,5 @@
 import Combine
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -7,6 +8,8 @@ public struct ThreadPost: Identifiable {
     public let id = UUID()
     public var text: String = ""
     public var images: [UIImage] = []
+    public var pollOptions: [String] = []
+    public var showPoll: Bool = false
 }
 
 /// A view that shows context for what post is being replied to
@@ -520,6 +523,54 @@ struct ComposeView: View {
                     .padding(.bottom, 8)
                 }
 
+                // Poll creation section
+                if threadPosts[activePostIndex].showPoll {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Poll")
+                                .font(.headline)
+                            Spacer()
+                            Button(action: {
+                                threadPosts[activePostIndex].showPoll = false
+                                threadPosts[activePostIndex].pollOptions = []
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) { index in
+                            HStack {
+                                TextField("Option \(index + 1)", text: $threadPosts[activePostIndex].pollOptions[index])
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                
+                                if threadPosts[activePostIndex].pollOptions.count > 2 {
+                                    Button(action: {
+                                        threadPosts[activePostIndex].pollOptions.remove(at: index)
+                                    }) {
+                                        Image(systemName: "minus.circle.fill")
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if threadPosts[activePostIndex].pollOptions.count < 4 {
+                            Button(action: {
+                                threadPosts[activePostIndex].pollOptions.append("")
+                            }) {
+                                Label("Add Option", systemImage: "plus.circle")
+                                    .font(.subheadline)
+                            }
+                        }
+                    }
+                    .padding()
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
+
                 // Selected images preview
                 if !threadPosts[activePostIndex].images.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -586,6 +637,22 @@ struct ComposeView: View {
                             .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
                             .clipShape(Circle())
                     }
+
+                    // Add poll button
+                    Button(action: {
+                        if !threadPosts[activePostIndex].showPoll {
+                            threadPosts[activePostIndex].showPoll = true
+                            threadPosts[activePostIndex].pollOptions = ["", ""]
+                        }
+                    }) {
+                        Image(systemName: "chart.bar")
+                            .font(.system(size: 20))
+                            .foregroundColor(.secondary)
+                            .padding(8)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                            .clipShape(Circle())
+                    }
+                    .disabled(threadPosts[activePostIndex].showPoll)
 
                     Spacer()
 
@@ -702,7 +769,7 @@ struct ComposeView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .keyboardAdaptive()
             .sheet(isPresented: $showImagePicker) {
-                ImagePicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
+                PhotoPicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
             .alert(isPresented: $showAlert) {
                 Alert(
@@ -801,6 +868,8 @@ struct ComposeView: View {
                             content: threadPost.text,
                             platforms: selectedPlatforms,
                             mediaAttachments: mediaData,
+                            pollOptions: threadPost.pollOptions.filter { !$0.isEmpty },
+                            pollExpiresIn: 86400, // 24 hours
                             visibility: visibilityString
                         )
                         previousPost = createdPosts.first
@@ -896,146 +965,6 @@ struct PlatformToggleButton: View {
     }
 }
 
-// A more realistic implementation of the ImagePicker
-struct ImagePicker: View {
-    @Binding var selectedImages: [UIImage]
-    let maxImages: Int
-    @Environment(\.presentationMode) var presentationMode
-    @Environment(\.colorScheme) private var colorScheme
-
-    // Sample images for demonstration
-    private let sampleImages: [UIImage] = [
-        UIImage(systemName: "photo")?.withTintColor(.blue, renderingMode: .alwaysOriginal)
-            ?? UIImage(),
-        UIImage(systemName: "camera")?.withTintColor(.green, renderingMode: .alwaysOriginal)
-            ?? UIImage(),
-        UIImage(systemName: "doc.text.image")?.withTintColor(
-            .orange, renderingMode: .alwaysOriginal) ?? UIImage(),
-        UIImage(systemName: "photo.on.rectangle")?.withTintColor(
-            .purple, renderingMode: .alwaysOriginal) ?? UIImage(),
-        UIImage(systemName: "square.and.arrow.up")?.withTintColor(
-            .red, renderingMode: .alwaysOriginal) ?? UIImage(),
-        UIImage(systemName: "square.and.arrow.down")?.withTintColor(
-            .cyan, renderingMode: .alwaysOriginal) ?? UIImage(),
-    ]
-
-    // Track selected state for each image
-    @State private var selectedIndices: Set<Int> = []
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // Selection info
-                HStack {
-                    Text("\(selectedIndices.count) selected")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    Text("\(maxImages - selectedIndices.count) remaining")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.secondarySystemBackground))
-
-                // Photo grid
-                ScrollView {
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible()),
-                            GridItem(.flexible()),
-                        ], spacing: 8
-                    ) {
-                        ForEach(0..<sampleImages.count, id: \.self) { index in
-                            ZStack(alignment: .topTrailing) {
-                                Image(uiImage: sampleImages[index])
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(
-                                        width: (UIScreen.main.bounds.width - 32) / 3,
-                                        height: (UIScreen.main.bounds.width - 32) / 3
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(
-                                                selectedIndices.contains(index)
-                                                    ? Color.blue : Color.clear, lineWidth: 3)
-                                    )
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        toggleSelection(index)
-                                    }
-
-                                if selectedIndices.contains(index) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(Color.blue)
-                                            .frame(width: 24, height: 24)
-
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundColor(.white)
-                                    }
-                                    .padding(6)
-                                }
-                            }
-                        }
-                    }
-                    .padding()
-                }
-
-                Divider()
-
-                // Action buttons
-                HStack {
-                    Button(action: {
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Text("Cancel")
-                            .foregroundColor(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button(action: {
-                        // Add selected images to the selectedImages array
-                        selectedImages = selectedIndices.map { sampleImages[$0] }
-                        presentationMode.wrappedValue.dismiss()
-                    }) {
-                        Text("Add \(selectedIndices.count) Photos")
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                            .background(
-                                selectedIndices.isEmpty ? Color.gray.opacity(0.5) : Color.blue
-                            )
-                            .cornerRadius(20)
-                    }
-                    .disabled(selectedIndices.isEmpty)
-                }
-                .padding()
-            }
-
-        }
-    }
-
-    private func toggleSelection(_ index: Int) {
-        if selectedIndices.contains(index) {
-            selectedIndices.remove(index)
-        } else {
-            if selectedIndices.count < maxImages {
-                selectedIndices.insert(index)
-            }
-        }
-    }
-}
-
 struct ComposeView_Previews: PreviewProvider {
     static var previews: some View {
         ComposeView()
@@ -1111,3 +1040,62 @@ struct DraftsListView: View {
         }
     }
 }
+
+struct PhotoPicker: UIViewControllerRepresentable {
+    @Binding var selectedImages: [UIImage]
+    let maxImages: Int
+    
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var configuration = PHPickerConfiguration()
+        configuration.filter = .images
+        configuration.selectionLimit = maxImages
+        
+        let picker = PHPickerViewController(configuration: configuration)
+        picker.delegate = context.coordinator
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: PhotoPicker
+        
+        init(_ parent: PhotoPicker) {
+            self.parent = parent
+        }
+        
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            
+            let group = DispatchGroup()
+            var newImages: [UIImage] = []
+            
+            for result in results {
+                group.enter()
+                if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
+                    result.itemProvider.loadObject(ofClass: UIImage.self) { image, error in
+                        if let image = image as? UIImage {
+                            newImages.append(image)
+                        }
+                        group.leave()
+                    }
+                } else {
+                    group.leave()
+                }
+            }
+            
+            group.notify(queue: .main) {
+                self.parent.selectedImages.append(contentsOf: newImages)
+                // Limit to maxImages
+                if self.parent.selectedImages.count > self.parent.maxImages {
+                    self.parent.selectedImages = Array(self.parent.selectedImages.prefix(self.parent.maxImages))
+                }
+            }
+        }
+    }
+}
+

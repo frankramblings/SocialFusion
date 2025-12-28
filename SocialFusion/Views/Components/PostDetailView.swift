@@ -32,11 +32,12 @@ struct PostDetailView: View {
     @State private var didInitialJump: Bool = false
     @State private var showParentIndicator: Bool = false
     @State private var scrollOffset: CGFloat = 0
-    @State private var scrollProxy: ScrollViewProxy?
     @State private var measuredTopInset: CGFloat = 0
     @State private var pendingInitialScrollTask: Task<Void, Never>?
     @State private var anchorReady: Bool = false
     @State private var isInitialPositioned: Bool = false
+    @State private var scrollTargetID: String? = nil
+    @State private var scrollTrigger: Int = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -110,12 +111,17 @@ struct PostDetailView: View {
                     .coordinateSpace(name: "scrollView")
                     .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
                         Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_000_000)
                             updateScrollState(offset: offset)
                         }
                     }
+                    .onChange(of: scrollTrigger) { _ in
+                        if let targetID = scrollTargetID {
+                            withAnimation(.easeInOut(duration: 0.1)) {
+                                proxy.scrollTo(targetID, anchor: .top)
+                            }
+                        }
+                    }
                     .onAppear {
-                        scrollProxy = proxy
                         loadThreadContext()
                     }
                 }
@@ -415,6 +421,23 @@ struct PostDetailView: View {
             }
         case .quote:
             NSLog("📊 PostDetailView: Quote action for post: %@", targetPost.id)
+        case .follow:
+            Task {
+                await viewModel.followUser()
+            }
+        case .mute:
+            Task {
+                await viewModel.muteUser()
+            }
+        case .block:
+            Task {
+                await viewModel.blockUser()
+            }
+        case .addToList:
+            // Handled via separate UI path
+            break
+        @unknown default:
+            break
         }
     }
 
@@ -477,38 +500,29 @@ struct PostDetailView: View {
     }
 
     private func performScrollToSelected(animated: Bool) {
-        guard let proxy = scrollProxy, hasLoadedInitialThread, anchorReady else {
+        guard hasLoadedInitialThread, anchorReady else {
             scheduleInitialScroll(animated: animated, delay: 150_000_000)
             return
         }
 
-        NSLog("📊 PostDetailView: Executing scroll to selected post %@", viewModel.post.id)
+        NSLog("📊 PostDetailView: Triggering scroll to selected post %@", viewModel.post.id)
 
-        let action = {
-            // TRIPLE-TAP SCROLL: We fire the scroll multiple times to "win" against SwiftUI layout updates
-            // as parent posts are measured and physical height is calculated.
-            proxy.scrollTo(selectedPostScrollID, anchor: .top)
+        // Triple-trigger strategy via state changes to avoid direct proxy access
+        scrollTargetID = selectedPostScrollID
+        scrollTrigger += 1
 
-            // Second tap after a tiny layout tick
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                proxy.scrollTo(selectedPostScrollID, anchor: .top)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            scrollTrigger += 1
+
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            scrollTrigger += 1
+
+            // Finally reveal the view
+            withAnimation(.easeIn(duration: 0.2)) {
+                isInitialPositioned = true
             }
-
-            // Third tap to be absolutely sure
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                proxy.scrollTo(selectedPostScrollID, anchor: .top)
-
-                // Finally reveal the view
-                withAnimation(.easeIn(duration: 0.2)) {
-                    isInitialPositioned = true
-                }
-            }
-
             hasScrolledToSelectedPost = true
-        }
-
-        DispatchQueue.main.async {
-            action()
         }
     }
 
@@ -565,12 +579,9 @@ struct PostDetailView: View {
     @ViewBuilder
     private func parentPostsIndicator() -> some View {
         Button(action: {
-            Task { @MainActor in
-                withAnimation(.easeInOut(duration: 0.5)) {
-                    scrollProxy?.scrollTo(topScrollID, anchor: .top)
-                    showParentIndicator = false
-                }
-            }
+            scrollTargetID = topScrollID
+            scrollTrigger += 1
+            showParentIndicator = false
         }) {
             ZStack {
                 Circle()
@@ -595,6 +606,7 @@ struct SelectedPostView: View {
     let showThreadLine: Bool
     let dateFormatter: DateFormatter
 
+    @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) private var colorScheme
 
     // Platform color
@@ -674,6 +686,20 @@ struct SelectedPostView: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
+
+                // Poll section
+                if let poll = post.poll {
+                    PostPollView(poll: poll, onVote: { optionIndex in
+                        Task {
+                            do {
+                                try await serviceManager.voteInPoll(post: post, optionIndex: optionIndex)
+                            } catch {
+                                print("❌ Failed to vote: \(error.localizedDescription)")
+                            }
+                        }
+                    })
+                    .padding(.vertical, 8)
+                }
             }
             .padding(.leading, 60)
             .padding(.trailing, 16)
@@ -700,6 +726,8 @@ struct PostRow: View {
     let isLastParent: Bool
     let showThreadLine: Bool
     let onPostTap: (Post) -> Void
+
+    @EnvironmentObject var serviceManager: SocialServiceManager
 
     // Action bar support
     var onReply: (() -> Void)? = nil
@@ -794,6 +822,20 @@ struct PostRow: View {
                         maxHeight: 300
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+
+                // Poll section
+                if let poll = post.poll {
+                    PostPollView(poll: poll, onVote: { optionIndex in
+                        Task {
+                            do {
+                                try await serviceManager.voteInPoll(post: post, optionIndex: optionIndex)
+                            } catch {
+                                print("❌ Failed to vote: \(error.localizedDescription)")
+                            }
+                        }
+                    })
+                    .padding(.top, 4)
                 }
 
                 // Optional action bar for context posts

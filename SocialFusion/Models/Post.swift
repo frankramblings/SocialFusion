@@ -11,6 +11,10 @@ public enum PostAction {
     case like
     case share
     case quote
+    case follow
+    case mute
+    case block
+    case addToList
 }
 
 // MARK: - Post visibility level
@@ -122,6 +126,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     public let content: String
     public let authorName: String
     public let authorUsername: String
+    public let authorId: String
     public let authorProfilePictureURL: String
     public let createdAt: Date
     public let platform: SocialPlatform
@@ -172,6 +177,21 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             objectWillChange.send()
         }
     }
+    @Published public var isFollowingAuthor: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var isMutedAuthor: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var isBlockedAuthor: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
 
     // Properties for reply and boost functionality - these should NOT be @Published
     // to prevent cycles when Posts contain other Posts
@@ -189,6 +209,13 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
 
     // Quoted post support - NOT @Published to prevent cycles
     public var quotedPost: Post? = nil
+
+    // Poll support
+    @Published public var poll: Poll? = nil {
+        didSet {
+            objectWillChange.send()
+        }
+    }
 
     // Computed properties for convenience
     public var authorHandle: String {
@@ -267,6 +294,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case content
         case authorName
         case authorUsername
+        case authorId
         case authorProfilePictureURL
         case createdAt
         case platform
@@ -281,6 +309,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case repostCount
         case likeCount
         case replyCount
+        case isFollowingAuthor
+        case isMutedAuthor
+        case isBlockedAuthor
         case platformSpecificId
         case boostedBy
         case parent
@@ -294,13 +325,14 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case primaryLinkDescription
         case primaryLinkThumbnailURL
         case quotedPost
+        case poll
         case blueskyLikeRecordURI
         case blueskyRepostRecordURI
     }
 
     // MARK: - Poll Support (nested types for UI components)
-    public struct Poll: Identifiable, Equatable {
-        public struct PollOption: Identifiable, Equatable {
+    public struct Poll: Identifiable, Equatable, Codable {
+        public struct PollOption: Identifiable, Equatable, Codable {
             public var id: String { title }
             public let title: String
             public let votesCount: Int?
@@ -350,6 +382,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let content = try container.decode(String.self, forKey: .content)
         let authorName = try container.decode(String.self, forKey: .authorName)
         let authorUsername = try container.decode(String.self, forKey: .authorUsername)
+        let authorId = try container.decodeIfPresent(String.self, forKey: .authorId) ?? authorUsername
         let authorProfilePictureURL = try container.decode(
             String.self, forKey: .authorProfilePictureURL)
         let createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -365,6 +398,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let likeCount = try container.decode(Int.self, forKey: .likeCount)
         let repostCount = try container.decode(Int.self, forKey: .repostCount)
         let replyCount = try container.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
+        let isFollowingAuthor = try container.decodeIfPresent(Bool.self, forKey: .isFollowingAuthor) ?? false
+        let isMutedAuthor = try container.decodeIfPresent(Bool.self, forKey: .isMutedAuthor) ?? false
+        let isBlockedAuthor = try container.decodeIfPresent(Bool.self, forKey: .isBlockedAuthor) ?? false
         let platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
         let boostedBy = try container.decodeIfPresent(String.self, forKey: .boostedBy)
         let parent = try container.decodeIfPresent(Post.self, forKey: .parent)
@@ -380,6 +416,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let primaryLinkDescription = try container.decodeIfPresent(String.self, forKey: .primaryLinkDescription)
         let primaryLinkThumbnailURL = try container.decodeIfPresent(URL.self, forKey: .primaryLinkThumbnailURL)
         let quotedPost = try container.decodeIfPresent(Post.self, forKey: .quotedPost)
+        let poll = try container.decodeIfPresent(Poll.self, forKey: .poll)
         let blueskyLikeRecordURI = try container.decodeIfPresent(
             String.self, forKey: .blueskyLikeRecordURI)
         let blueskyRepostRecordURI = try container.decodeIfPresent(
@@ -403,6 +440,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             likeCount: likeCount,
             repostCount: repostCount,
             replyCount: replyCount,
+            isFollowingAuthor: isFollowingAuthor,
+            isMutedAuthor: isMutedAuthor,
+            isBlockedAuthor: isBlockedAuthor,
             platformSpecificId: platformSpecificId,
             boostedBy: boostedBy,
             parent: parent,
@@ -411,6 +451,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,
             quotedPost: quotedPost,
+            poll: poll,
             cid: cid,
             primaryLinkURL: primaryLinkURL,
             primaryLinkTitle: primaryLinkTitle,
@@ -432,6 +473,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encode(content, forKey: .content)
         try container.encode(authorName, forKey: .authorName)
         try container.encode(authorUsername, forKey: .authorUsername)
+        try container.encode(authorId, forKey: .authorId)
         try container.encode(authorProfilePictureURL, forKey: .authorProfilePictureURL)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(platform, forKey: .platform)
@@ -446,6 +488,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encode(likeCount, forKey: .likeCount)
         try container.encode(repostCount, forKey: .repostCount)
         try container.encode(replyCount, forKey: .replyCount)
+        try container.encode(isFollowingAuthor, forKey: .isFollowingAuthor)
+        try container.encode(isMutedAuthor, forKey: .isMutedAuthor)
+        try container.encode(isBlockedAuthor, forKey: .isBlockedAuthor)
         try container.encode(platformSpecificId, forKey: .platformSpecificId)
         try container.encodeIfPresent(boostedBy, forKey: .boostedBy)
         try container.encodeIfPresent(parent, forKey: .parent)
@@ -459,6 +504,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encodeIfPresent(primaryLinkDescription, forKey: .primaryLinkDescription)
         try container.encodeIfPresent(primaryLinkThumbnailURL, forKey: .primaryLinkThumbnailURL)
         try container.encodeIfPresent(quotedPost, forKey: .quotedPost)
+        try container.encodeIfPresent(poll, forKey: .poll)
         try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
         try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
     }
@@ -468,6 +514,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         content: String,
         authorName: String,
         authorUsername: String,
+        authorId: String = "",
         authorProfilePictureURL: String,
         createdAt: Date,
         platform: SocialPlatform,
@@ -482,6 +529,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         likeCount: Int = 0,
         repostCount: Int = 0,
         replyCount: Int = 0,
+        isFollowingAuthor: Bool = false,
+        isMutedAuthor: Bool = false,
+        isBlockedAuthor: Bool = false,
         platformSpecificId: String = "",
         boostedBy: String? = nil,
         parent: Post? = nil,
@@ -490,6 +540,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         quotedPostUri: String? = nil,
         quotedPostAuthorHandle: String? = nil,
         quotedPost: Post? = nil,
+        poll: Poll? = nil,
         cid: String? = nil,
         primaryLinkURL: URL? = nil,
         primaryLinkTitle: String? = nil,
@@ -502,6 +553,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.content = content
         self.authorName = authorName
         self.authorUsername = authorUsername
+        self.authorId = authorId.isEmpty ? authorUsername : authorId
         self.authorProfilePictureURL = authorProfilePictureURL
         self.createdAt = createdAt
         self.platform = platform
@@ -515,6 +567,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.likeCount = likeCount
         self.repostCount = repostCount
         self.replyCount = replyCount
+        self.isFollowingAuthor = isFollowingAuthor
+        self.isMutedAuthor = isMutedAuthor
+        self.isBlockedAuthor = isBlockedAuthor
         self.platformSpecificId = platformSpecificId.isEmpty ? id : platformSpecificId
         self.boostedBy = boostedBy
         self.inReplyToID = inReplyToID
@@ -522,6 +577,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.quotedPostUri = quotedPostUri
         self.quotedPostAuthorHandle = quotedPostAuthorHandle
         self.quotedPost = quotedPost
+        self.poll = poll
         self.cid = cid
         self.primaryLinkURL = primaryLinkURL
         self.primaryLinkTitle = primaryLinkTitle
@@ -555,6 +611,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: "This is a sample post from Mastodon. #SocialFusion",
             authorName: "User One",
             authorUsername: "user1@mastodon.social",
+            authorId: "user1-id",
             authorProfilePictureURL: "https://picsum.photos/200",
             createdAt: Date().addingTimeInterval(-3600),
             platform: .mastodon,
@@ -566,7 +623,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             likeCount: 5,
             repostCount: 2,
             replyCount: 0,
-            platformSpecificId: "",
+            platformSpecificId: "1",
             quotedPostUri: nil,
             quotedPostAuthorHandle: nil
         ),
@@ -575,6 +632,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: "Hello from Bluesky! Testing out the SocialFusion app.",
             authorName: "User Two",
             authorUsername: "user2.bsky.social",
+            authorId: "did:plc:user2",
             authorProfilePictureURL: "https://picsum.photos/201",
             createdAt: Date().addingTimeInterval(-7200),
             platform: .bluesky,
@@ -590,7 +648,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             tags: [],
             likeCount: 3,
             repostCount: 1,
-            platformSpecificId: "",
+            platformSpecificId: "at://did:plc:user2/app.bsky.feed.post/abcdef",
             quotedPostUri: nil,
             quotedPostAuthorHandle: nil
         ),
@@ -600,6 +658,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: "This is a great point! Quoting this for visibility.",
             authorName: "Quote User",
             authorUsername: "quoteuser.bsky.social",
+            authorId: "did:plc:quoteuser",
             authorProfilePictureURL: "https://picsum.photos/204",
             createdAt: Date().addingTimeInterval(-1200),
             platform: .bluesky,
@@ -609,8 +668,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             tags: [],
             likeCount: 8,
             repostCount: 3,
-            platformSpecificId: "at://did:plc:example/app.bsky.feed.post/quoteid",
-            quotedPostUri: "at://did:plc:example/app.bsky.feed.post/originalid",
+            platformSpecificId: "at://did:plc:quoteuser/app.bsky.feed.post/quoteid",
+            quotedPostUri: "at://did:plc:originalauthor/app.bsky.feed.post/originalid",
             quotedPostAuthorHandle: "original.bsky.social",
             quotedPost: Post(
                 id: "quoted-original",
@@ -618,6 +677,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                     "Quote posts are a powerful way to add context and commentary to existing posts. They help facilitate meaningful discussions!",
                 authorName: "Original Author",
                 authorUsername: "original.bsky.social",
+                authorId: "did:plc:originalauthor",
                 authorProfilePictureURL: "https://picsum.photos/205",
                 createdAt: Date().addingTimeInterval(-3600),
                 platform: .bluesky,
@@ -633,7 +693,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                 tags: [],
                 likeCount: 15,
                 repostCount: 7,
-                platformSpecificId: "at://did:plc:example/app.bsky.feed.post/originalid"
+                platformSpecificId: "at://did:plc:originalauthor/app.bsky.feed.post/originalid"
             )
         ),
         // Sample boosted post (Mastodon)
@@ -642,6 +702,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: "",
             authorName: "User Three",
             authorUsername: "user3@mastodon.social",
+            authorId: "user3-id",
             authorProfilePictureURL: "https://picsum.photos/202",
             createdAt: Date().addingTimeInterval(-1800),
             platform: .mastodon,
@@ -655,6 +716,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                     "This is the original post that was boosted. It contains original content from another user. #Mastodon",
                 authorName: "Original User",
                 authorUsername: "original@mastodon.social",
+                authorId: "original-id",
                 authorProfilePictureURL: "https://picsum.photos/203",
                 createdAt: Date().addingTimeInterval(-5400),
                 platform: .mastodon,
@@ -670,13 +732,13 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                 tags: ["Mastodon"],
                 likeCount: 12,
                 repostCount: 5,
-                platformSpecificId: "",
+                platformSpecificId: "4",
                 quotedPostUri: nil,
                 quotedPostAuthorHandle: nil
             ),
             isReposted: true,
             repostCount: 5,
-            platformSpecificId: "",
+            platformSpecificId: "3",
             quotedPostUri: nil,
             quotedPostAuthorHandle: nil
         ),
@@ -686,6 +748,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: "",
             authorName: "User Four",
             authorUsername: "user4.bsky.social",
+            authorId: "did:plc:user4",
             authorProfilePictureURL: "https://picsum.photos/204",
             createdAt: Date().addingTimeInterval(-900),
             platform: .bluesky,
@@ -698,6 +761,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                 content: "Check out this photo from my latest hike! #Bluesky #Outdoors",
                 authorName: "Original Bluesky User",
                 authorUsername: "hiker.bsky.social",
+                authorId: "did:plc:hiker",
                 authorProfilePictureURL: "https://picsum.photos/205",
                 createdAt: Date().addingTimeInterval(-10800),
                 platform: .bluesky,
@@ -714,15 +778,11 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                 isLiked: true,
                 likeCount: 25,
                 repostCount: 8,
-                platformSpecificId: "",
-                quotedPostUri: nil,
-                quotedPostAuthorHandle: nil
+                platformSpecificId: "at://did:plc:hiker/app.bsky.feed.post/ghijkl"
             ),
             isReposted: true,
             repostCount: 8,
-            platformSpecificId: "",
-            quotedPostUri: nil,
-            quotedPostAuthorHandle: nil
+            platformSpecificId: "at://did:plc:user4/app.bsky.feed.repost/repostid"
         ),
     ]
 
@@ -733,6 +793,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: self.content,
             authorName: self.authorName,
             authorUsername: self.authorUsername,
+            authorId: self.authorId,
             authorProfilePictureURL: self.authorProfilePictureURL,
             createdAt: self.createdAt,
             platform: self.platform,
@@ -747,6 +808,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             likeCount: self.likeCount,
             repostCount: self.repostCount,
             replyCount: self.replyCount,
+            isFollowingAuthor: self.isFollowingAuthor,
+            isMutedAuthor: self.isMutedAuthor,
+            isBlockedAuthor: self.isBlockedAuthor,
             platformSpecificId: newId,  // Update the platform-specific ID too
             boostedBy: self.boostedBy,
             parent: self.parent,
@@ -755,6 +819,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             quotedPostUri: self.quotedPostUri,
             quotedPostAuthorHandle: self.quotedPostAuthorHandle,
             quotedPost: self.quotedPost,
+            poll: self.poll,
             cid: self.cid,
             primaryLinkURL: self.primaryLinkURL,
             primaryLinkTitle: self.primaryLinkTitle,
@@ -770,6 +835,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: self.content,
             authorName: self.authorName,
             authorUsername: self.authorUsername,
+            authorId: self.authorId,
             authorProfilePictureURL: self.authorProfilePictureURL,
             createdAt: self.createdAt,
             platform: self.platform,
@@ -784,6 +850,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             likeCount: self.likeCount,
             repostCount: self.repostCount,
             replyCount: self.replyCount,
+            isFollowingAuthor: self.isFollowingAuthor,
+            isMutedAuthor: self.isMutedAuthor,
+            isBlockedAuthor: self.isBlockedAuthor,
             platformSpecificId: self.platformSpecificId,
             boostedBy: self.boostedBy,
             parent: self.parent?.deepCopy(),  // Deep copy parent too
@@ -1151,3 +1220,52 @@ extension Post.Attachment.AttachmentType {
 
 // MARK: - Concurrency Support
 // Post already conforms to @unchecked Sendable in its class declaration (line 120)
+
+public struct NotificationAccount: Sendable, Codable {
+    public let id: String
+    public let username: String
+    public let displayName: String?
+    public let avatarURL: String?
+    
+    public init(id: String, username: String, displayName: String? = nil, avatarURL: String? = nil) {
+        self.id = id
+        self.username = username
+        self.displayName = displayName
+        self.avatarURL = avatarURL
+    }
+}
+
+public struct DirectMessage: Identifiable, Codable, Sendable {
+    public let id: String
+    public let sender: NotificationAccount
+    public let recipient: NotificationAccount
+    public let content: String
+    public let createdAt: Date
+    public let platform: SocialPlatform
+    
+    public init(id: String, sender: NotificationAccount, recipient: NotificationAccount, content: String, createdAt: Date, platform: SocialPlatform) {
+        self.id = id
+        self.sender = sender
+        self.recipient = recipient
+        self.content = content
+        self.createdAt = createdAt
+        self.platform = platform
+    }
+}
+
+public struct DMConversation: Identifiable, Codable, Sendable {
+    public let id: String
+    public let participant: NotificationAccount
+    public let lastMessage: DirectMessage
+    public let unreadCount: Int
+    public let platform: SocialPlatform
+    
+    public init(id: String, participant: NotificationAccount, lastMessage: DirectMessage, unreadCount: Int, platform: SocialPlatform) {
+        self.id = id
+        self.participant = participant
+        self.lastMessage = lastMessage
+        self.unreadCount = unreadCount
+        self.platform = platform
+    }
+}
+

@@ -9,6 +9,9 @@ public struct PostActionState: Codable, Equatable {
     public var likeCount: Int
     public var repostCount: Int
     public var replyCount: Int
+    public var isFollowingAuthor: Bool
+    public var isMutedAuthor: Bool
+    public var isBlockedAuthor: Bool
     public var lastUpdatedAt: Date
 
     public init(
@@ -19,6 +22,9 @@ public struct PostActionState: Codable, Equatable {
         likeCount: Int,
         repostCount: Int,
         replyCount: Int,
+        isFollowingAuthor: Bool = false,
+        isMutedAuthor: Bool = false,
+        isBlockedAuthor: Bool = false,
         lastUpdatedAt: Date = Date()
     ) {
         self.stableId = stableId
@@ -28,6 +34,9 @@ public struct PostActionState: Codable, Equatable {
         self.likeCount = likeCount
         self.repostCount = repostCount
         self.replyCount = replyCount
+        self.isFollowingAuthor = isFollowingAuthor
+        self.isMutedAuthor = isMutedAuthor
+        self.isBlockedAuthor = isBlockedAuthor
         self.lastUpdatedAt = lastUpdatedAt
     }
 }
@@ -43,6 +52,9 @@ extension PostActionState {
             likeCount: post.likeCount,
             repostCount: post.repostCount,
             replyCount: post.replyCount,
+            isFollowingAuthor: post.isFollowingAuthor,
+            isMutedAuthor: post.isMutedAuthor,
+            isBlockedAuthor: post.isBlockedAuthor,
             lastUpdatedAt: timestamp
         )
     }

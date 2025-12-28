@@ -203,7 +203,7 @@ public struct MastodonSearchResult: Codable {
     public let accounts: [MastodonAccount]
     public let statuses: [MastodonStatus]
     public let hashtags: [MastodonTag]
-    
+
     public init(accounts: [MastodonAccount], statuses: [MastodonStatus], hashtags: [MastodonTag]) {
         self.accounts = accounts
         self.statuses = statuses
@@ -218,7 +218,7 @@ public struct MastodonNotification: Codable {
     public let createdAt: String
     public let account: MastodonAccount
     public let status: MastodonStatus?
-    
+
     public enum CodingKeys: String, CodingKey {
         case id, type, account, status
         case createdAt = "created_at"
@@ -251,6 +251,31 @@ public struct MastodonField: Codable {
     }
 }
 
+// Relationship (Follow status, etc.)
+public struct MastodonRelationship: Codable {
+    public let id: String
+    public let following: Bool
+    public let followedBy: Bool
+    public let blocking: Bool
+    public let blockedBy: Bool
+    public let muting: Bool
+    public let mutingNotifications: Bool
+    public let requested: Bool
+    public let domainBlocking: Bool
+    public let showingReblogs: Bool
+    public let endorsing: Bool
+    public let note: String?
+
+    public enum CodingKeys: String, CodingKey {
+        case id, following, blocking, muting, requested, endorsing, note
+        case followedBy = "followed_by"
+        case blockedBy = "blocked_by"
+        case mutingNotifications = "muting_notifications"
+        case domainBlocking = "domain_blocking"
+        case showingReblogs = "showing_reblogs"
+    }
+}
+
 // Error Response DTO (renamed to avoid clash with public MastodonError)
 public struct MastodonAPIError: Codable, Error {
     public let error: String
@@ -264,3 +289,28 @@ public struct MastodonAPIError: Codable, Error {
 
 // Back-compat alias for existing call sites
 public typealias MastodonError = MastodonAPIError
+
+// List
+public struct MastodonList: Codable, Identifiable {
+    public let id: String
+    public let title: String
+    public let repliesPolicy: String
+
+    public enum CodingKeys: String, CodingKey {
+        case id, title
+        case repliesPolicy = "replies_policy"
+    }
+}
+
+// Conversation (DM)
+public struct MastodonConversation: Codable, Identifiable {
+    public let id: String
+    public let unread: Bool
+    public let accounts: [MastodonAccount]
+    public let lastStatus: MastodonStatus
+
+    public enum CodingKeys: String, CodingKey {
+        case id, unread, accounts
+        case lastStatus = "last_status"
+    }
+}

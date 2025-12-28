@@ -59,7 +59,7 @@ public struct SearchResult: Sendable {
     public let posts: [Post]
     public let users: [SearchUser]
     public let tags: [SearchTag]
-    
+
     public init(posts: [Post] = [], users: [SearchUser] = [], tags: [SearchTag] = []) {
         self.posts = posts
         self.users = users
@@ -73,8 +73,11 @@ public struct SearchUser: Identifiable, Sendable {
     public let displayName: String?
     public let avatarURL: String?
     public let platform: SocialPlatform
-    
-    public init(id: String, username: String, displayName: String? = nil, avatarURL: String? = nil, platform: SocialPlatform) {
+
+    public init(
+        id: String, username: String, displayName: String? = nil, avatarURL: String? = nil,
+        platform: SocialPlatform
+    ) {
         self.id = id
         self.username = username
         self.displayName = displayName
@@ -87,7 +90,7 @@ public struct SearchTag: Identifiable, Sendable {
     public let id: String
     public let name: String
     public let platform: SocialPlatform
-    
+
     public init(id: String, name: String, platform: SocialPlatform) {
         self.id = id
         self.name = name
@@ -102,7 +105,7 @@ public struct AppNotification: Identifiable, Sendable {
     public let account: SocialAccount
     public let fromAccount: NotificationAccount
     public let post: Post?
-    
+
     public enum NotificationType: String, Sendable {
         case mention
         case repost
@@ -111,28 +114,17 @@ public struct AppNotification: Identifiable, Sendable {
         case poll
         case update
     }
-    
-    public init(id: String, type: NotificationType, createdAt: Date, account: SocialAccount, fromAccount: NotificationAccount, post: Post? = nil) {
+
+    public init(
+        id: String, type: NotificationType, createdAt: Date, account: SocialAccount,
+        fromAccount: NotificationAccount, post: Post? = nil
+    ) {
         self.id = id
         self.type = type
         self.createdAt = createdAt
         self.account = account
         self.fromAccount = fromAccount
         self.post = post
-    }
-}
-
-public struct NotificationAccount: Sendable {
-    public let id: String
-    public let username: String
-    public let displayName: String?
-    public let avatarURL: String?
-    
-    public init(id: String, username: String, displayName: String? = nil, avatarURL: String? = nil) {
-        self.id = id
-        self.username = username
-        self.displayName = displayName
-        self.avatarURL = avatarURL
     }
 }
 

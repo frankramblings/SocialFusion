@@ -25,7 +25,7 @@ extension Optional where Wrapped == URL {
     }
 }
 
-public final class MastodonService: Sendable {
+public final class MastodonService: @unchecked Sendable {
     private let session = URLSession.shared
     private let logger = Logger(subsystem: "com.socialfusion.app", category: "MastodonService")
 
@@ -1504,7 +1504,13 @@ public final class MastodonService: Sendable {
     }
 
     /// Reply to a post on Mastodon
-    func replyToPost(_ post: Post, content: String, account: SocialAccount) async throws -> Post {
+    func replyToPost(
+        _ post: Post,
+        content: String,
+        pollOptions: [String] = [],
+        pollExpiresIn: Int? = nil,
+        account: SocialAccount
+    ) async throws -> Post {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
@@ -1521,11 +1527,19 @@ public final class MastodonService: Sendable {
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
 
-        let parameters: [String: Any] = [
+        var parameters: [String: Any] = [
             "status": content,
             "in_reply_to_id": statusId,
             "visibility": "public",
         ]
+
+        // Handle poll in reply
+        if !pollOptions.isEmpty {
+            parameters["poll"] = [
+                "options": pollOptions,
+                "expires_in": pollExpiresIn ?? 86400,
+            ]
+        }
 
         let request = try await createJSONRequest(
             url: url, method: "POST", account: account, body: parameters)
@@ -1542,6 +1556,283 @@ public final class MastodonService: Sendable {
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
         return await self.convertMastodonStatusToPost(status, account: account)
+    }
+
+    /// Follow a user on Mastodon
+    func followAccount(userId: String, account: SocialAccount) async throws -> MastodonRelationship {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/follow") else {
+            throw ServiceError.invalidInput(reason: "Invalid user ID")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to follow user")
+        }
+
+        return try JSONDecoder().decode(MastodonRelationship.self, from: data)
+    }
+
+    /// Unfollow a user on Mastodon
+    func unfollowAccount(userId: String, account: SocialAccount) async throws -> MastodonRelationship {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/unfollow") else {
+            throw ServiceError.invalidInput(reason: "Invalid user ID")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to unfollow user")
+        }
+
+        return try JSONDecoder().decode(MastodonRelationship.self, from: data)
+    }
+
+    /// Mute a user on Mastodon
+    func muteAccount(userId: String, account: SocialAccount) async throws -> MastodonRelationship {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/mute") else {
+            throw ServiceError.invalidInput(reason: "Invalid user ID")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to mute user")
+        }
+
+        return try JSONDecoder().decode(MastodonRelationship.self, from: data)
+    }
+
+    /// Unmute a user on Mastodon
+    func unmuteAccount(userId: String, account: SocialAccount) async throws -> MastodonRelationship {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/unmute") else {
+            throw ServiceError.invalidInput(reason: "Invalid user ID")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to unmute user")
+        }
+
+        return try JSONDecoder().decode(MastodonRelationship.self, from: data)
+    }
+
+    /// Block a user on Mastodon
+    func blockAccount(userId: String, account: SocialAccount) async throws -> MastodonRelationship {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/block") else {
+            throw ServiceError.invalidInput(reason: "Invalid user ID")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to block user")
+        }
+
+        return try JSONDecoder().decode(MastodonRelationship.self, from: data)
+    }
+
+    /// Unblock a user on Mastodon
+    func unblockAccount(userId: String, account: SocialAccount) async throws -> MastodonRelationship {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/unblock") else {
+            throw ServiceError.invalidInput(reason: "Invalid user ID")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "POST", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to unblock user")
+        }
+
+        return try JSONDecoder().decode(MastodonRelationship.self, from: data)
+    }
+
+    /// Report a user/post on Mastodon
+    func reportAccount(
+        userId: String, statusIds: [String]? = nil, comment: String? = nil, account: SocialAccount
+    ) async throws {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/reports") else {
+            throw ServiceError.invalidInput(reason: "Invalid report URL")
+        }
+
+        var parameters: [String: Any] = ["account_id": userId]
+        if let statusIds = statusIds {
+            parameters["status_ids"] = statusIds
+        }
+        if let comment = comment {
+            parameters["comment"] = comment
+        }
+
+        let request = try await createJSONRequest(
+            url: url, method: "POST", account: account, body: parameters)
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to submit report")
+        }
+    }
+
+    /// Add an account to a list on Mastodon
+    func addToList(listId: String, accountId: String, account: SocialAccount) async throws {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/lists/\(listId)/accounts") else {
+            throw ServiceError.invalidInput(reason: "Invalid list URL")
+        }
+
+        let parameters: [String: Any] = ["account_ids": [accountId]]
+        let request = try await createJSONRequest(
+            url: url, method: "POST", account: account, body: parameters)
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to add account to list")
+        }
+    }
+
+    /// Fetch all lists for an account on Mastodon
+    func fetchLists(account: SocialAccount) async throws -> [MastodonList] {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/lists") else {
+            throw ServiceError.invalidInput(reason: "Invalid lists URL")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch lists")
+        }
+
+        return try JSONDecoder().decode([MastodonList].self, from: data)
+    }
+
+    /// Vote in a poll on Mastodon
+    func voteInPoll(pollId: String, optionIndex: Int, account: SocialAccount) async throws {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/polls/\(pollId)/votes") else {
+            throw ServiceError.invalidInput(reason: "Invalid poll vote URL")
+        }
+
+        let parameters: [String: Any] = [
+            "choices": [optionIndex]
+        ]
+
+        let request = try await createJSONRequest(
+            url: url, method: "POST", account: account, body: parameters)
+        let (_, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to vote in poll on Mastodon")
+        }
+    }
+
+    /// Fetch conversations (DMs) for an account on Mastodon
+    func fetchConversations(account: SocialAccount) async throws -> [DMConversation] {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/conversations") else {
+            throw ServiceError.invalidInput(reason: "Invalid conversations URL")
+        }
+
+        let request = try await createAuthenticatedRequest(url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch conversations")
+        }
+
+        let mastodonConversations = try JSONDecoder().decode([MastodonConversation].self, from: data)
+        
+        return mastodonConversations.map { mastodonConv in
+            let participant = NotificationAccount(
+                id: mastodonConv.accounts[0].id,
+                username: mastodonConv.accounts[0].acct,
+                displayName: mastodonConv.accounts[0].displayName,
+                avatarURL: mastodonConv.accounts[0].avatar
+            )
+            
+            let lastMessage = DirectMessage(
+                id: mastodonConv.lastStatus.id,
+                sender: participant, // Simplified for now
+                recipient: NotificationAccount(id: account.id, username: account.username, displayName: account.displayName, avatarURL: account.profileImageURL?.absoluteString),
+                content: mastodonConv.lastStatus.content,
+                createdAt: DateParser.parse(mastodonConv.lastStatus.createdAt) ?? Date(),
+                platform: .mastodon
+            )
+            
+            return DMConversation(
+                id: mastodonConv.id,
+                participant: participant,
+                lastMessage: lastMessage,
+                unreadCount: mastodonConv.unread ? 1 : 0,
+                platform: .mastodon
+            )
+        }
+    }
+
+    /// Update profile information on Mastodon
+    func updateProfile(
+        displayName: String?, note: String?, avatarData: Data?, account: SocialAccount
+    ) async throws -> SocialAccount {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/update_credentials") else {
+            throw ServiceError.invalidInput(reason: "Invalid update credentials URL")
+        }
+
+        // Use multipart form data for potential image upload
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = try await createAuthenticatedRequest(url: url, method: "PATCH", account: account)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        if let displayName = displayName {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"display_name\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(displayName)\r\n".data(using: .utf8)!)
+        }
+        if let note = note {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"note\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(note)\r\n".data(using: .utf8)!)
+        }
+        if let avatarData = avatarData {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"avatar\"; filename=\"avatar.jpg\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(avatarData)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        request.httpBody = body
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to update Mastodon profile")
+        }
+
+        let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
+        
+        // Update local account object
+        account.displayName = mastodonAccount.displayName
+        account.bio = mastodonAccount.note
+        if let url = URL(string: mastodonAccount.avatar) {
+            account.profileImageURL = url
+        }
+        
+        return account
     }
 
     // MARK: - Helper Methods
@@ -1575,6 +1866,7 @@ public final class MastodonService: Sendable {
                 content: reblog.content ?? "",
                 authorName: reblog.account?.displayName ?? reblog.account?.acct ?? "",
                 authorUsername: reblog.account?.acct ?? "",
+                authorId: reblog.account?.id ?? "",
                 authorProfilePictureURL: reblog.account?.avatar ?? "",
                 createdAt: {
                     let createdAtString = reblog.createdAt ?? ""
@@ -1635,6 +1927,7 @@ public final class MastodonService: Sendable {
                 content: "",  // Reblog doesn't have its own content
                 authorName: status.account.displayName ?? status.account.acct,
                 authorUsername: status.account.acct,
+                authorId: status.account.id,
                 authorProfilePictureURL: status.account.avatar,
                 createdAt: {
                     let parsedDate = DateParser.parse(status.createdAt)
@@ -1759,6 +2052,7 @@ public final class MastodonService: Sendable {
             content: status.content,
             authorName: status.account.displayName ?? status.account.acct,
             authorUsername: status.account.acct,
+            authorId: status.account.id,
             authorProfilePictureURL: status.account.avatar,
             createdAt: createdDate,
             platform: .mastodon,
@@ -1818,7 +2112,11 @@ public final class MastodonService: Sendable {
 
     /// Create a new post on Mastodon
     func createPost(
-        content: String, mediaAttachments: [Data] = [], visibility: String = "public",
+        content: String,
+        mediaAttachments: [Data] = [],
+        pollOptions: [String] = [],
+        pollExpiresIn: Int? = nil,
+        visibility: String = "public",
         account: SocialAccount
     ) async throws -> Post {
         let serverUrl = formatServerURL(
@@ -1848,6 +2146,14 @@ public final class MastodonService: Sendable {
 
         if !mediaIds.isEmpty {
             parameters["media_ids"] = mediaIds
+        }
+
+        // Handle poll
+        if !pollOptions.isEmpty {
+            parameters["poll"] = [
+                "options": pollOptions,
+                "expires_in": pollExpiresIn ?? 86400  // Default 24 hours
+            ]
         }
 
         let request = try await createJSONRequest(
@@ -2390,17 +2696,17 @@ enum MastodonVisibility: String, Codable {
 }
 
 /// Resolver for Mastodon thread participants
-public class MastodonThreadResolver: ThreadParticipantResolver {
+public final class MastodonThreadResolver: ThreadParticipantResolver {
     private let service: MastodonService
-    private let accountProvider: () -> SocialAccount?
+    private let accountProvider: @Sendable () async -> SocialAccount?
 
-    public init(service: MastodonService, accountProvider: @escaping () -> SocialAccount?) {
+    public init(service: MastodonService, accountProvider: @escaping @Sendable () async -> SocialAccount?) {
         self.service = service
         self.accountProvider = accountProvider
     }
 
     public func getThreadParticipants(for post: Post) async throws -> Set<UserID> {
-        guard let account = accountProvider() else { return [] }
+        guard let account = await accountProvider() else { return [] }
         let context = try await service.fetchStatusContext(
             statusId: post.platformSpecificId, account: account)
 

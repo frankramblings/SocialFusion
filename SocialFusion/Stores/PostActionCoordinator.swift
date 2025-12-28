@@ -8,6 +8,9 @@ protocol PostActionNetworking: AnyObject {
     func unlike(post: Post) async throws -> PostActionState
     func repost(post: Post) async throws -> PostActionState
     func unrepost(post: Post) async throws -> PostActionState
+    func follow(post: Post, shouldFollow: Bool) async throws -> PostActionState
+    func mute(post: Post, shouldMute: Bool) async throws -> PostActionState
+    func block(post: Post, shouldBlock: Bool) async throws -> PostActionState
     func fetchActions(for post: Post) async throws -> PostActionState
 }
 
@@ -118,6 +121,54 @@ final class PostActionCoordinator: ObservableObject {
         handle(action: action)
     }
 
+    func follow(for post: Post, shouldFollow: Bool) {
+        guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
+        let key = post.stableId
+        let currentState = store.ensureState(for: post)
+        let previousState = store.optimisticFollow(for: key, shouldFollow: shouldFollow)
+        guard let previous = previousState else { return }
+
+        let action = PendingAction(
+            post: post,
+            intent: .follow(shouldFollow: shouldFollow),
+            previousState: previous,
+            timestamp: Date()
+        )
+        handle(action: action)
+    }
+
+    func mute(for post: Post, shouldMute: Bool) {
+        guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
+        let key = post.stableId
+        let currentState = store.ensureState(for: post)
+        let previousState = store.optimisticMute(for: key, shouldMute: shouldMute)
+        guard let previous = previousState else { return }
+
+        let action = PendingAction(
+            post: post,
+            intent: .mute(shouldMute: shouldMute),
+            previousState: previous,
+            timestamp: Date()
+        )
+        handle(action: action)
+    }
+
+    func block(for post: Post, shouldBlock: Bool) {
+        guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
+        let key = post.stableId
+        let currentState = store.ensureState(for: post)
+        let previousState = store.optimisticBlock(for: key, shouldBlock: shouldBlock)
+        guard let previous = previousState else { return }
+
+        let action = PendingAction(
+            post: post,
+            intent: .block(shouldBlock: shouldBlock),
+            previousState: previous,
+            timestamp: Date()
+        )
+        handle(action: action)
+    }
+
     func registerReplySuccess(for post: Post) {
         guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
 
@@ -208,6 +259,12 @@ final class PostActionCoordinator: ObservableObject {
             } else {
                 return try await service.unrepost(post: action.post)
             }
+        case .follow(let shouldFollow):
+            return try await service.follow(post: action.post, shouldFollow: shouldFollow)
+        case .mute(let shouldMute):
+            return try await service.mute(post: action.post, shouldMute: shouldMute)
+        case .block(let shouldBlock):
+            return try await service.block(post: action.post, shouldBlock: shouldBlock)
         case .refresh:
             return try await service.fetchActions(for: action.post)
         }
@@ -313,6 +370,9 @@ extension PostActionCoordinator {
     fileprivate enum ActionIntent {
         case like(shouldBeLiked: Bool)
         case repost(shouldBeReposted: Bool)
+        case follow(shouldFollow: Bool)
+        case mute(shouldMute: Bool)
+        case block(shouldBlock: Bool)
         case refresh
     }
 }

@@ -122,9 +122,11 @@ struct SettingsView: View {
 
                 Section {
                     Button(action: {
-                        // Log out action
+                        Task {
+                            await serviceManager.logout()
+                        }
                     }) {
-                        Text("Log Out")
+                        Text("Log Out All Accounts")
                             .foregroundColor(.red)
                     }
                 }

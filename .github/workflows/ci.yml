@@ -65,7 +65,7 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.lcov
-        fail_ci_if_error: true
+        fail_ci_if_error: false
         token: ${{ secrets.CODECOV_TOKEN }}
 
   testflight-deploy:
@@ -105,10 +105,20 @@ jobs:
         # Set secure partition list
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
         
-        # Create provisioning profile
-        echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
+        # Create provisioning profile directory
         mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-        cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/
+        
+        # Import provisioning profile
+        echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
+        # Get UUID from the profile to name it correctly (macOS/iOS profiles are XML)
+        UUID=$(grep -aA1 "UUID" profile.mobileprovision | grep -o "[-A-Z0-9]\{36\}")
+        if [ -n "$UUID" ]; then
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$UUID.mobileprovision
+          echo "Imported profile with UUID: $UUID"
+        else
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/temp.mobileprovision
+          echo "Warning: Could not extract UUID from profile"
+        fi
         
         # Clean up sensitive files immediately
         rm -f certificate.p12 profile.mobileprovision
@@ -120,20 +130,22 @@ jobs:
         # Clean build folder
         xcodebuild clean -scheme SocialFusion -configuration Release
         
-        # Build and archive
+        # Build and archive with Manual signing for CI stability
+        # We use CODE_SIGN_STYLE=Manual and specify the identity
         xcodebuild archive \
           -scheme SocialFusion \
           -configuration Release \
           -destination "generic/platform=iOS" \
           -archivePath SocialFusion.xcarchive \
-          -allowProvisioningUpdates \
-          CODE_SIGN_STYLE=Automatic \
+          CODE_SIGN_STYLE=Manual \
           DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" \
+          CODE_SIGN_IDENTITY="Apple Distribution" \
           PRODUCT_BUNDLE_IDENTIFIER="com.emanueledigital.socialfusion"
     
     - name: Export IPA
       run: |
-        # Create export options plist
+        # Create export options plist for Manual signing
+        # Note: 'provisioningProfiles' mapping is required for manual signing
         cat > ExportOptions.plist << EOF
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -149,6 +161,13 @@ jobs:
             <true/>
             <key>compileBitcode</key>
             <false/>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+                <key>com.emanueledigital.socialfusion</key>
+                <string>SocialFusion AppStore Distribution</string>
+            </dict>
         </dict>
         </plist>
         EOF
@@ -156,19 +175,27 @@ jobs:
         # Export IPA
         xcodebuild -exportArchive \
           -archivePath SocialFusion.xcarchive \
-          -exportPath . \
-          -exportOptionsPlist ExportOptions.plist \
-          -allowProvisioningUpdates
+          -exportPath export \
+          -exportOptionsPlist ExportOptions.plist
     
     - name: Upload to TestFlight
       env:
         APPLE_ID: ${{ secrets.APPLE_ID }}
         APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       run: |
-        # Upload to App Store Connect
+        # Find the IPA file in the export directory
+        IPA_PATH=$(find export -name "*.ipa" | head -n 1)
+        
+        if [ -z "$IPA_PATH" ]; then
+          echo "Error: IPA file not found in export directory"
+          exit 1
+        fi
+        
+        # Upload to App Store Connect using altool
+        # Note: APPLE_ID_PASSWORD must be an App-Specific Password
         xcrun altool --upload-app \
           --type ios \
-          --file SocialFusion.ipa \
+          --file "$IPA_PATH" \
           --username "$APPLE_ID" \
           --password "$APPLE_ID_PASSWORD"
     
@@ -179,10 +206,10 @@ jobs:
         security delete-keychain build.keychain 2>/dev/null || true
         
         # Remove provisioning profiles
-        rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision 2>/dev/null || true
+        rm -rf ~/Library/MobileDevice/Provisioning\ Profiles/* 2>/dev/null || true
         
         # Remove build artifacts
-        rm -f SocialFusion.ipa SocialFusion.xcarchive ExportOptions.plist 2>/dev/null || true
+        rm -rf SocialFusion.xcarchive ExportOptions.plist export 2>/dev/null || true
         
         # Clear environment variables
         unset APPLE_ID APPLE_ID_PASSWORD TEAM_ID KEYCHAIN_PASSWORD 

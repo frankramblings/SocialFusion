@@ -18,6 +18,12 @@ struct SocialFusionApp: App {
     // Navigation environment for deep linking
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
 
+    // Notification manager for rich notifications
+    @StateObject private var notificationManager = NotificationManager.shared
+
+    // Edge case handler for beta readiness
+    @StateObject private var edgeCaseHandler = EdgeCaseHandler.shared
+
     // Draft store for saving unfinished posts
     @StateObject private var draftStore = DraftStore()
 
@@ -46,34 +52,47 @@ struct SocialFusionApp: App {
                 .environmentObject(oauthManager)
                 .environmentObject(navigationEnvironment)
                 .environmentObject(draftStore)
+                .environmentObject(edgeCaseHandler)
                 .onOpenURL { url in
-                    // Handle OAuth callback URLs
-                    if url.scheme == "socialfusion" && url.host == "oauth" {
-                        print("Received OAuth callback URL: \(url)")
-                        handleOAuthCallback(url: url)
-                    } else {
-                        print("Received deep link or universal link: \(url)")
-                        navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
-                    }
+                    handleURL(url)
                 }
-            } else {
-                ContentView()
+            } else if serviceManager.accounts.isEmpty {
+                OnboardingView()
                     .environmentObject(serviceManager)
                     .environmentObject(appVersionManager)
                     .environmentObject(oauthManager)
                     .environmentObject(navigationEnvironment)
-                    .onOpenURL { url in
-                        // Handle OAuth callback URLs
-                        if url.scheme == "socialfusion" && url.host == "oauth" {
-                            print("Received OAuth callback URL: \(url)")
-                            handleOAuthCallback(url: url)
-                        } else {
-                            print("Received deep link or universal link: \(url)")
-                            navigationEnvironment.handleDeepLink(
-                                url, serviceManager: serviceManager)
+                    .environmentObject(draftStore)
+                    .environmentObject(edgeCaseHandler)
+            } else {
+                    ContentView()
+                        .environmentObject(serviceManager)
+                        .environmentObject(appVersionManager)
+                        .environmentObject(oauthManager)
+                        .environmentObject(navigationEnvironment)
+                        .environmentObject(notificationManager)
+                        .environmentObject(draftStore)
+                        .environmentObject(edgeCaseHandler)
+                        .onAppear {
+                            notificationManager.requestAuthorization()
                         }
-                    }
+                        .onOpenURL { url in
+                            handleURL(url)
+                        }
             }
+        }
+    }
+
+    private func handleURL(_ url: URL) {
+        // Handle OAuth callback URLs
+        if url.scheme == "socialfusion" && url.host == "oauth" {
+            print("Received OAuth callback URL: \(url)")
+            handleOAuthCallback(url: url)
+        } else {
+            print("Received deep link or universal link: \(url)")
+            navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
+        }
+    }
         }
     }
 

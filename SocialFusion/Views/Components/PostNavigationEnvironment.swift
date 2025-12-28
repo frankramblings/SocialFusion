@@ -144,8 +144,17 @@ class PostNavigationEnvironment: ObservableObject {
                 
                 Task { @MainActor in
                     do {
-                        guard let account = serviceManager.mastodonAccounts.first else { return }
-                        if let post = try await serviceManager.fetchMastodonStatus(id: statusId, account: account) {
+                        // Try to find an account matching this host
+                        let matchingAccount = serviceManager.mastodonAccounts.first { account in
+                            account.serverURL?.host?.lowercased() == host
+                        }
+                        
+                        // Fallback to first Mastodon account if no direct match
+                        let account = matchingAccount ?? serviceManager.mastodonAccounts.first
+                        
+                        guard let account = account else { return }
+                        
+                        if let post = try await serviceManager.mastodonService.fetchPostByID(statusId, account: account) {
                             navigateToPost(post)
                         }
                     } catch {

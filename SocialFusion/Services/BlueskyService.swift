@@ -2066,6 +2066,7 @@ public final class BlueskyService: Sendable {
         let authorName =
             author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
         let authorUsername = author["handle"] as? String ?? "unknown"
+        let authorId = author["did"] as? String ?? authorUsername
         let authorAvatarURL = author["avatar"] as? String ?? ""
 
         let likeCount = post["likeCount"] as? Int ?? 0
@@ -2253,6 +2254,7 @@ public final class BlueskyService: Sendable {
             content: finalContent,
             authorName: authorName,
             authorUsername: authorUsername,
+            authorId: authorId,
             authorProfilePictureURL: authorAvatarURL,
             createdAt: createdDate,
             platform: .bluesky,
@@ -3139,6 +3141,293 @@ public final class BlueskyService: Sendable {
         return try await getPost(uri: uri, account: account)
     }
 
+    /// Follow a user on Bluesky
+    func followUser(did: String, account: SocialAccount) async throws -> String {
+        let accessToken = try await account.getValidAccessToken()
+        let url = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.createRecord"
+        )!
+
+        let parameters: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.graph.follow",
+            "record": [
+                "$type": "app.bsky.graph.follow",
+                "subject": did,
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+            ],
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to follow user on Bluesky")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw ServiceError.apiError("Failed to parse follow response")
+        }
+
+        return uri
+    }
+
+    /// Unfollow a user on Bluesky
+    func unfollowUser(followUri: String, account: SocialAccount) async throws {
+        let accessToken = try await account.getValidAccessToken()
+        let url = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.deleteRecord"
+        )!
+
+        let rkey = String(followUri.split(separator: "/").last ?? "")
+        let parameters: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.graph.follow",
+            "rkey": rkey,
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to unfollow user on Bluesky")
+        }
+    }
+
+    /// Mute a user on Bluesky
+    func muteActor(did: String, account: SocialAccount) async throws {
+        let accessToken = try await account.getValidAccessToken()
+        let url = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.muteActor"
+        )!
+
+        let parameters: [String: Any] = ["actor": did]
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to mute user on Bluesky")
+        }
+    }
+
+    /// Unmute a user on Bluesky
+    func unmuteActor(did: String, account: SocialAccount) async throws {
+        let accessToken = try await account.getValidAccessToken()
+        let url = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.unmuteActor"
+        )!
+
+        let parameters: [String: Any] = ["actor": did]
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to unmute user on Bluesky")
+        }
+    }
+
+    /// Block a user on Bluesky
+    func blockUser(did: String, account: SocialAccount) async throws -> String {
+        let accessToken = try await account.getValidAccessToken()
+        let url = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.createRecord"
+        )!
+
+        let parameters: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.graph.block",
+            "record": [
+                "$type": "app.bsky.graph.block",
+                "subject": did,
+                "createdAt": ISO8601DateFormatter().string(from: Date()),
+            ],
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to block user on Bluesky")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let uri = json["uri"] as? String
+        else {
+            throw ServiceError.apiError("Failed to parse block response")
+        }
+
+        return uri
+    }
+
+    /// Unblock a user on Bluesky
+    func unblockUser(did: String, account: SocialAccount) async throws {
+        let accessToken = try await account.getValidAccessToken()
+        
+        // 1. We need to find the block record URI to delete it
+        // app.bsky.graph.getBlocks returns blocked users
+        let getBlocksUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.getBlocks")!
+        var getBlocksRequest = URLRequest(url: getBlocksUrl)
+        getBlocksRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        let (blocksData, _) = try await session.data(for: getBlocksRequest)
+        let blocksJson = try JSONSerialization.jsonObject(with: blocksData) as? [String: Any] ?? [:]
+        let blocks = blocksJson["blocks"] as? [[String: Any]] ?? []
+        
+        // Find the block record for this DID
+        // Note: The block record URI is usually what we need to delete
+        // But app.bsky.graph.getBlocks returns viewer state which includes the block URI
+        guard let blockInfo = blocks.first(where: { ($0["did"] as? String) == did }),
+              let viewer = blockInfo["viewer"] as? [String: Any],
+              let blockUri = viewer["blocking"] as? String else {
+            // Not blocked or couldn't find URI
+            return
+        }
+        
+        // 2. Delete the record
+        let deleteUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.deleteRecord")!
+        var deleteRequest = URLRequest(url: deleteUrl)
+        deleteRequest.httpMethod = "POST"
+        deleteRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        deleteRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let rkey = blockUri.components(separatedBy: "/").last ?? ""
+        let deleteParams: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.graph.block",
+            "rkey": rkey
+        ]
+        
+        deleteRequest.httpBody = try JSONSerialization.data(withJSONObject: deleteParams)
+        
+        let (_, deleteResponse) = try await session.data(for: deleteRequest)
+        guard let httpResponse = deleteResponse as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to unblock user on Bluesky")
+        }
+    }
+
+    /// Report content on Bluesky
+    func createReport(
+        reasonType: String, subject: [String: Any], comment: String? = nil, account: SocialAccount
+    ) async throws {
+        let accessToken = try await account.getValidAccessToken()
+        let url = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.moderation.createReport"
+        )!
+
+        var parameters: [String: Any] = [
+            "reasonType": reasonType,
+            "subject": subject,
+        ]
+        if let comment = comment {
+            parameters["reason"] = comment
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to submit report on Bluesky")
+        }
+    }
+
+    /// Update profile information on Bluesky
+    func updateProfile(
+        displayName: String?, description: String?, avatarData: Data?, account: SocialAccount
+    ) async throws -> SocialAccount {
+        let accessToken = try await account.getValidAccessToken()
+        
+        // 1. Fetch current profile to get current values (especially for fields we're not updating)
+        let profileUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.actor.getProfile?actor=\(account.platformSpecificId)")!
+        var profileRequest = URLRequest(url: profileUrl)
+        profileRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        let (profileData, _) = try await session.data(for: profileRequest)
+        var currentProfile = try JSONSerialization.jsonObject(with: profileData) as? [String: Any] ?? [:]
+        
+        // 2. Upload avatar if provided
+        var avatarBlob: [String: Any]? = nil
+        if let avatarData = avatarData {
+            let blobResult = try await uploadBlob(data: avatarData, mimeType: "image/jpeg", account: account)
+            avatarBlob = blobResult["blob"] as? [String: Any]
+        }
+        
+        // 3. Prepare the update record
+        var record: [String: Any] = [
+            "$type": "app.bsky.actor.profile",
+            "displayName": displayName ?? currentProfile["displayName"] as? String ?? "",
+            "description": description ?? currentProfile["description"] as? String ?? ""
+        ]
+        
+        if let avatarBlob = avatarBlob {
+            record["avatar"] = avatarBlob
+        } else if let currentAvatar = currentProfile["avatar"] {
+            // Keep existing avatar if not updating
+            record["avatar"] = currentAvatar
+        }
+        
+        // 4. Put the record
+        let putUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.putRecord")!
+        let parameters: [String: Any] = [
+            "repo": account.platformSpecificId,
+            "collection": "app.bsky.actor.profile",
+            "rkey": "self",
+            "record": record
+        ]
+        
+        var request = URLRequest(url: putUrl)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
+        
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to update Bluesky profile")
+        }
+        
+        // Update local account object
+        if let displayName = displayName {
+            account.displayName = displayName
+        }
+        if let description = description {
+            account.bio = description
+        }
+        
+        return account
+    }
+
     // MARK: - Thread Context Methods
 
     /// Fetch thread context (ancestors and descendants) from Bluesky using getPostThread
@@ -3349,17 +3638,17 @@ extension URL {
 }
 
 /// Resolver for Bluesky thread participants
-public class BlueskyThreadResolver: ThreadParticipantResolver {
+public final class BlueskyThreadResolver: ThreadParticipantResolver {
     private let service: BlueskyService
-    private let accountProvider: () -> SocialAccount?
+    private let accountProvider: @Sendable () async -> SocialAccount?
 
-    public init(service: BlueskyService, accountProvider: @escaping () -> SocialAccount?) {
+    public init(service: BlueskyService, accountProvider: @escaping @Sendable () async -> SocialAccount?) {
         self.service = service
         self.accountProvider = accountProvider
     }
 
     public func getThreadParticipants(for post: Post) async throws -> Set<UserID> {
-        guard let account = accountProvider() else { return [] }
+        guard let account = await accountProvider() else { return [] }
         let context = try await service.fetchPostThreadContext(
             postId: post.platformSpecificId, account: account)
 
@@ -3378,5 +3667,81 @@ public class BlueskyThreadResolver: ThreadParticipantResolver {
         }
 
         return participants
+    }
+
+    // MARK: - Chat (DMs)
+
+    private func getChatProxyURL(for account: SocialAccount) -> String {
+        // Most PDS use this proxy for chat
+        return "https://api.bsky.chat/xrpc"
+    }
+
+    /// Fetch conversations for an account
+    func fetchConvos(for account: SocialAccount) async throws -> [BlueskyConvo] {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.listConvos"
+        guard let url = URL(string: apiURL) else {
+            throw NetworkError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await session.data(for: request)
+        let response = try JSONDecoder().decode(BlueskyConvoResponse.self, from: data)
+        return response.convos
+    }
+
+    /// Fetch messages for a specific conversation
+    func fetchMessages(convoId: String, for account: SocialAccount) async throws -> [BlueskyChatMessage] {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getMessages?convoId=\(convoId)"
+        guard let url = URL(string: apiURL) else {
+            throw NetworkError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await session.data(for: request)
+        let response = try JSONDecoder().decode(BlueskyChatMessageResponse.self, from: data)
+        return response.messages
+    }
+
+    /// Send a message in a conversation
+    func sendMessage(convoId: String, text: String, for account: SocialAccount) async throws -> BlueskyMessageView {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.sendMessage"
+        guard let url = URL(string: apiURL) else {
+            throw NetworkError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = [
+            "convoId": convoId,
+            "message": [
+                "text": text
+            ]
+        ]
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, _) = try await session.data(for: request)
+        return try JSONDecoder().decode(BlueskyMessageView.self, from: data)
     }
 }

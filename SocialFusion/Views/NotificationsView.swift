@@ -55,7 +55,17 @@ struct NotificationsView: View {
                     .listRowSeparator(.hidden)
                 } else {
                     ForEach(filteredNotifications) { notification in
-                        NotificationRow(notification: notification)
+                        if let post = notification.post {
+                            NavigationLink(destination: PostDetailView(viewModel: PostViewModel(post: post, serviceManager: serviceManager))) {
+                                NotificationRow(notification: notification)
+                            }
+                        } else if notification.type == .follow {
+                            NavigationLink(destination: UserDetailView(user: SearchUser(id: notification.fromAccount.id, username: notification.fromAccount.username, displayName: notification.fromAccount.displayName, avatarURL: notification.fromAccount.avatarURL, platform: notification.account.platform))) {
+                                NotificationRow(notification: notification)
+                            }
+                        } else {
+                            NotificationRow(notification: notification)
+                        }
                     }
                 }
             }
@@ -207,6 +217,108 @@ struct NotificationRow: View {
         case .poll: return "a poll you voted in has ended"
         case .update: return "edited a post"
         }
+    }
+}
+
+
+struct DirectMessagesView: View {
+    @EnvironmentObject var serviceManager: SocialServiceManager
+    @State private var conversations: [DMConversation] = []
+    @State private var isLoading = false
+    
+    var body: some View {
+        NavigationView {
+            List {
+                if isLoading && conversations.isEmpty {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else if conversations.isEmpty {
+                    VStack(spacing: 20) {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray.opacity(0.3))
+                        Text("No messages yet")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 200)
+                } else {
+                    ForEach(conversations) { conversation in
+                        NavigationLink(destination: ChatView(conversation: conversation)) {
+                            DMConversationRow(conversation: conversation)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Messages")
+            .refreshable {
+                await fetchConversations()
+            }
+            .onAppear {
+                Task {
+                    await fetchConversations()
+                }
+            }
+        }
+    }
+    
+    private func fetchConversations() async {
+        isLoading = true
+        do {
+            conversations = try await serviceManager.fetchDirectMessages()
+        } catch {
+            print("Failed to fetch conversations: \(error)")
+        }
+        isLoading = false
+    }
+}
+
+struct DMConversationRow: View {
+    let conversation: DMConversation
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            if let avatarURL = conversation.participant.avatarURL, let url = URL(string: avatarURL) {
+                AsyncImage(url: url) { image in
+                    image.resizable()
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
+                }
+                .frame(width: 50, height: 50)
+                .clipShape(Circle())
+            } else {
+                Circle().fill(Color.gray.opacity(0.3))
+                    .frame(width: 50, height: 50)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(conversation.participant.displayName ?? conversation.participant.username)
+                        .font(.headline)
+                    
+                    Spacer()
+                    
+                    Text(conversation.lastMessage.createdAt, style: .relative)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                
+                Text(conversation.lastMessage.content)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+            }
+            
+            if conversation.unreadCount > 0 {
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 10, height: 10)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

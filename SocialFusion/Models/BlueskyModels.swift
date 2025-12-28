@@ -305,6 +305,85 @@ public struct AnyCodable: Codable {
     }
 }
 
+// MARK: - Chat Models
+
+public struct BlueskyConvoResponse: Codable {
+    public let convos: [BlueskyConvo]
+    public let cursor: String?
+}
+
+public struct BlueskyConvo: Codable, Identifiable {
+    public let id: String
+    public let rev: String
+    public let members: [BlueskyActor]
+    public let lastMessage: BlueskyChatMessage?
+    public let muted: Bool
+    public let unreadCount: Int
+    
+    public enum CodingKeys: String, CodingKey {
+        case id, rev, members, lastMessage, muted, unreadCount
+    }
+}
+
+public struct BlueskyChatMessageResponse: Codable {
+    public let messages: [BlueskyChatMessage]
+    public let cursor: String?
+}
+
+public enum BlueskyChatMessage: Codable, Identifiable {
+    public var id: String {
+        switch self {
+        case .message(let msg): return msg.id
+        case .deleted(let del): return del.id
+        }
+    }
+    
+    case message(BlueskyMessageView)
+    case deleted(BlueskyDeletedMessageView)
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let x = try? container.decode(BlueskyMessageView.self) {
+            self = .message(x)
+        } else if let x = try? container.decode(BlueskyDeletedMessageView.self) {
+            self = .deleted(x)
+        } else {
+            throw DecodingError.typeMismatch(BlueskyChatMessage.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Wrong type for BlueskyChatMessage"))
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .message(let x): try container.encode(x)
+        case .deleted(let x): try container.encode(x)
+        }
+    }
+}
+
+public struct BlueskyMessageView: Codable, Identifiable {
+    public let id: String
+    public let rev: String
+    public let text: String
+    public let sender: BlueskyActor
+    public let sentAt: String
+    
+    public enum CodingKeys: String, CodingKey {
+        case id, rev, text, sender, sentAt
+    }
+}
+
+public struct BlueskyDeletedMessageView: Codable, Identifiable {
+    public let id: String
+    public let rev: String
+    public let sender: BlueskyActor
+    public let sentAt: String
+    
+    public enum CodingKeys: String, CodingKey {
+        case id, rev, sender, sentAt
+    }
+}
+
 // Thread Response
 public struct BlueskyThreadResponse: Codable {
     public let thread: BlueskyThreadView

@@ -2,6 +2,7 @@ import SwiftUI
 
 /// A view that displays a post card with all its components
 struct PostCardView: View {
+    @EnvironmentObject var serviceManager: SocialServiceManager
     let post: Post
     let replyCount: Int
     let repostCount: Int
@@ -32,7 +33,8 @@ struct PostCardView: View {
     // State for expanding reply banner - properly keyed to prevent view reuse issues
     @State private var isReplyBannerExpanded = false
     @State private var bannerWasTapped = false
-
+    @State private var showListSelection = false
+    
     // Platform color helper
     private var platformColor: Color {
         switch post.platform {
@@ -190,6 +192,20 @@ struct PostCardView: View {
             .padding(.horizontal, 8)  // Reduced from 12 to give more space for text
             .padding(.top, 4)
 
+            // Poll section
+            if let poll = displayPost.poll {
+                PostPollView(poll: poll, onVote: { optionIndex in
+                    Task {
+                        do {
+                            try await serviceManager.voteInPoll(post: displayPost, optionIndex: optionIndex)
+                        } catch {
+                            print("❌ Failed to vote: \(error.localizedDescription)")
+                        }
+                    }
+                })
+                .padding(.horizontal, 12)
+            }
+
             // Media section
             if !displayPost.attachments.isEmpty {
                 UnifiedMediaGridView(attachments: displayPost.attachments)
@@ -227,6 +243,12 @@ struct PostCardView: View {
         .accessibilityAction(named: "Share") {
             onShare()
         }
+        .sheet(isPresented: $showListSelection) {
+            if let account = serviceManager.mastodonAccounts.first {
+                ListSelectionView(accountToLink: post.authorId, platformAccount: account)
+                    .environmentObject(serviceManager)
+            }
+        }
     }
 
     // MARK: - Action Bar View
@@ -240,6 +262,36 @@ struct PostCardView: View {
                 post: post,
                 store: postActionStore,
                 coordinator: coordinator,
+                onAction: { action in
+                    switch action {
+                    case .reply:
+                        onReply()
+                    case .repost:
+                        onRepost()
+                    case .like:
+                        onLike()
+                    case .share:
+                        onShare()
+                    case .quote:
+                        print("🔗 Quote action triggered for post: \(displayPost.id)")
+                    case .follow:
+                        if let viewModel = viewModel {
+                            Task { await viewModel.followUser() }
+                        }
+                    case .mute:
+                        if let viewModel = viewModel {
+                            Task { await viewModel.muteUser() }
+                        }
+                    case .block:
+                        if let viewModel = viewModel {
+                            Task { await viewModel.blockUser() }
+                        }
+                    case .addToList:
+                        showListSelection = true
+                    @unknown default:
+                        break
+                    }
+                },
                 onReply: onReply,
                 onShare: onShare,
                 onOpenInBrowser: onOpenInBrowser,
@@ -261,6 +313,22 @@ struct PostCardView: View {
                         onShare()
                     case .quote:
                         print("🔗 Quote action triggered for post: \(displayPost.id)")
+                    case .follow:
+                        if let viewModel = viewModel {
+                            Task { await viewModel.followUser() }
+                        }
+                    case .mute:
+                        if let viewModel = viewModel {
+                            Task { await viewModel.muteUser() }
+                        }
+                    case .block:
+                        if let viewModel = viewModel {
+                            Task { await viewModel.blockUser() }
+                        }
+                    case .addToList:
+                        showListSelection = true
+                    @unknown default:
+                        break
                     }
                 },
                 onOpenInBrowser: onOpenInBrowser,
@@ -366,3 +434,98 @@ struct PostCardView_Previews: PreviewProvider {
         .previewLayout(.sizeThatFits)
     }
 }
+
+struct ListSelectionView: View {
+    @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var serviceManager: SocialServiceManager
+    let accountToLink: String
+    let platformAccount: SocialAccount
+    
+    @State private var lists: [MastodonList] = []
+    @State private var isLoading = true
+    @State private var error: String? = nil
+    
+    var body: some View {
+        NavigationView {
+            List {
+                if isLoading {
+                    HStack {
+                        Spacer()
+                        ProgressView()
+                        Spacer()
+                    }
+                } else if let error = error {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                    }
+                } else if lists.isEmpty {
+                    Text("No lists found")
+                        .foregroundColor(.secondary)
+                } else {
+                    ForEach(lists) { list in
+                        Button(action: { addToList(list) }) {
+                            HStack {
+                                Text(list.title)
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Add to List")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+            }
+            .onAppear {
+                fetchLists()
+            }
+        }
+    }
+    
+    private func fetchLists() {
+        isLoading = true
+        Task {
+            do {
+                let fetchedLists = try await serviceManager.fetchMastodonLists(account: platformAccount)
+                await MainActor.run {
+                    self.lists = fetchedLists
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func addToList(_ list: MastodonList) {
+        isLoading = true
+        Task {
+            do {
+                try await serviceManager.addAccountToMastodonList(
+                    listId: list.id,
+                    accountToLink: accountToLink,
+                    account: platformAccount
+                )
+                await MainActor.run {
+                    isLoading = false
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+}
+

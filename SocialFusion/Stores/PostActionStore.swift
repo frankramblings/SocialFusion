@@ -129,6 +129,36 @@ final class PostActionStore: ObservableObject {
         actions[key] = current
     }
 
+    @discardableResult
+    func optimisticFollow(for key: ActionKey, shouldFollow: Bool) -> PostActionState? {
+        guard var current = actions[key] else { return nil }
+        let previous = current
+        current.isFollowingAuthor = shouldFollow
+        current.lastUpdatedAt = Date()
+        actions[key] = current
+        return previous
+    }
+
+    @discardableResult
+    func optimisticMute(for key: ActionKey, shouldMute: Bool) -> PostActionState? {
+        guard var current = actions[key] else { return nil }
+        let previous = current
+        current.isMutedAuthor = shouldMute
+        current.lastUpdatedAt = Date()
+        actions[key] = current
+        return previous
+    }
+
+    @discardableResult
+    func optimisticBlock(for key: ActionKey, shouldBlock: Bool) -> PostActionState? {
+        guard var current = actions[key] else { return nil }
+        let previous = current
+        current.isBlockedAuthor = shouldBlock
+        current.lastUpdatedAt = Date()
+        actions[key] = current
+        return previous
+    }
+
     func revert(to state: PostActionState) {
         actions[state.stableId] = state.updated(with: Date())
     }

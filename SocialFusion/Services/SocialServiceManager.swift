@@ -149,8 +149,8 @@ public final class SocialServiceManager: ObservableObject {
     }()
 
     // Services for each platform
-    nonisolated private let mastodonService: MastodonService
-    nonisolated private let blueskyService: BlueskyService
+    nonisolated internal let mastodonService: MastodonService
+    nonisolated internal let blueskyService: BlueskyService
     private let actionLogger = Logger(subsystem: "com.socialfusion", category: "PostActions")
 
     // Post action V2 infrastructure - accessible within module
@@ -174,10 +174,10 @@ public final class SocialServiceManager: ObservableObject {
     // Reply filtering
     private lazy var postFeedFilter: PostFeedFilter = {
         let mastodonResolver = MastodonThreadResolver(service: mastodonService) { [weak self] in
-            self?.mastodonAccounts.first
+            await MainActor.run { self?.mastodonAccounts.first }
         }
         let blueskyResolver = BlueskyThreadResolver(service: blueskyService) { [weak self] in
-            self?.blueskyAccounts.first
+            await MainActor.run { self?.blueskyAccounts.first }
         }
         let filter = PostFeedFilter(
             mastodonResolver: mastodonResolver, blueskyResolver: blueskyResolver)
@@ -294,118 +294,89 @@ public final class SocialServiceManager: ObservableObject {
 
     // MARK: - Account Management
 
-    /// Load saved accounts from UserDefaults
+    /// Load saved accounts
     private func loadAccounts() {
         let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
         logger.info("Loading saved accounts")
         print("🔧 SocialServiceManager: loadAccounts() called")
 
-        guard let data = UserDefaults.standard.data(forKey: "savedAccounts") else {
-            logger.info("No saved accounts found")
-            print("🔧 SocialServiceManager: No saved accounts data found in UserDefaults")
-            updateAccountLists()
-            return
-        }
-
-        print("🔧 SocialServiceManager: Found saved accounts data, attempting to decode...")
-
-        do {
-            let decoder = JSONDecoder()
-            let decodedAccounts = try decoder.decode([SocialAccount].self, from: data)
-            accounts = decodedAccounts
-
-            logger.info("Successfully loaded \(decodedAccounts.count) accounts")
-            print("🔧 SocialServiceManager: Successfully decoded \(decodedAccounts.count) accounts")
-
-            // Load tokens for each account from keychain
-            for (index, account) in accounts.enumerated() {
-                print(
-                    "🔧 SocialServiceManager: Loading tokens for account \(index): \(account.username) (\(account.platform))"
-                )
-                account.loadTokensFromKeychain()
-                logger.debug("Loaded tokens for account: \(account.username, privacy: .public)")
+        Task {
+            // Try to load from new PersistenceManager first
+            var loadedAccounts = await PersistenceManager.shared.loadAccounts()
+            
+            // Fallback to legacy UserDefaults if not found
+            if loadedAccounts == nil {
+                if let data = UserDefaults.standard.data(forKey: "savedAccounts") {
+                    do {
+                        let decoder = JSONDecoder()
+                        loadedAccounts = try decoder.decode([SocialAccount].self, from: data)
+                        print("🔧 SocialServiceManager: Loaded accounts from legacy UserDefaults")
+                    } catch {
+                        print("🔧 SocialServiceManager: Failed to decode legacy accounts: \(error)")
+                    }
+                }
             }
-        } catch {
-            logger.error(
-                "Failed to decode saved accounts: \(error.localizedDescription, privacy: .public)")
-            print(
-                "🔧 SocialServiceManager: Failed to decode saved accounts: \(error.localizedDescription)"
-            )
+
+            await MainActor.run {
+                if let accounts = loadedAccounts {
+                    self.accounts = accounts
+                    logger.info("Successfully loaded \(accounts.count) accounts")
+                    
+                    // Load tokens for each account from keychain
+                    for account in self.accounts {
+                        account.loadTokensFromKeychain()
+                    }
+                } else {
+                    logger.info("No saved accounts found")
+                }
+                
+                self.updateAccountLists()
+                self.migrateOldBlueskyAccounts()
+                self.refreshAccountProfiles()
+                print("🔧 SocialServiceManager: loadAccounts() completed")
+            }
         }
-
-        // After loading accounts, separate them by platform
-        updateAccountLists()
-        print(
-            "🔧 SocialServiceManager: Updated account lists - Mastodon: \(mastodonAccounts.count), Bluesky: \(blueskyAccounts.count)"
-        )
-
-        // Update edge case handler with authentication state - temporarily disabled
-        // updateAuthenticationState()
-
-        // Update simple edge case monitor with account status - temporarily disabled
-        // SimpleEdgeCaseMonitor.shared.updateAccountStatus(hasAccounts: !accounts.isEmpty)
-
-        // MIGRATION: Check for and migrate old DID-based Bluesky accounts
-        migrateOldBlueskyAccounts()
-
-        print("🔧 SocialServiceManager: loadAccounts() completed")
-
-        // PROFILE REFRESH: Update profile images for all loaded accounts (after method is defined)
-        refreshAccountProfiles()
     }
 
-    /// Save accounts to UserDefaults
+    /// Save accounts
     public func saveAccounts() {
-        let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
-        logger.info("Saving \(self.accounts.count) accounts")
-
-        do {
-            let encoder = JSONEncoder()
-            let data = try encoder.encode(self.accounts)
-            UserDefaults.standard.set(data, forKey: "savedAccounts")
-            logger.info("Successfully saved accounts")
-        } catch {
-            logger.error(
-                "Failed to encode accounts: \(error.localizedDescription, privacy: .public)")
+        let accounts = self.accounts
+        Task {
+            await PersistenceManager.shared.saveAccounts(accounts)
         }
     }
 
     /// Save the current timeline to disk for offline access
     private func saveTimelineToDisk() {
-        guard !unifiedTimeline.isEmpty else { return }
-
         let timeline = unifiedTimeline
-        let cacheURL = timelineCacheURL
-
-        Task.detached(priority: .background) {
-            do {
-                let encoder = JSONEncoder()
-                encoder.dateEncodingStrategy = .iso8601
-                let data = try encoder.encode(timeline)
-                try data.write(to: cacheURL, options: [.atomic, .completeFileProtection])
-            } catch {
-                print("Failed to save timeline to disk: \(error)")
+        Task {
+            if #available(iOS 17.0, *) {
+                await TimelineSwiftDataStore.shared.saveTimeline(timeline)
+            } else {
+                await PersistenceManager.shared.saveTimeline(timeline)
             }
         }
     }
 
     /// Load the cached timeline from disk
     private func loadTimelineFromDisk() {
-        guard FileManager.default.fileExists(atPath: timelineCacheURL.path) else { return }
-
-        do {
-            let data = try Data(contentsOf: timelineCacheURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let cachedPosts = try decoder.decode([Post].self, from: data)
-
-            // Only update if current timeline is empty
-            if unifiedTimeline.isEmpty {
-                unifiedTimeline = cachedPosts
-                print("✅ Successfully loaded \(cachedPosts.count) posts from disk cache")
+        Task {
+            let cachedPosts: [Post]?
+            if #available(iOS 17.0, *) {
+                cachedPosts = await TimelineSwiftDataStore.shared.loadTimeline()
+            } else {
+                cachedPosts = await PersistenceManager.shared.loadTimeline()
             }
-        } catch {
-            print("Failed to load timeline from disk: \(error)")
+            
+            if let posts = cachedPosts {
+                await MainActor.run {
+                    // Only update if current timeline is empty
+                    if self.unifiedTimeline.isEmpty {
+                        self.unifiedTimeline = posts
+                        print("✅ Successfully loaded \(posts.count) posts from offline cache")
+                    }
+                }
+            }
         }
     }
 
@@ -646,12 +617,67 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Remove an account
-    func removeAccount(_ account: SocialAccount) {
+    @MainActor
+    public func removeAccount(_ account: SocialAccount) {
+        print("🗑️ Removing account: \(account.username) (\(account.platform))")
+        
+        // Remove from memory
         accounts.removeAll { $0.id == account.id }
-        // Would normally remove from UserDefaults or Keychain
-
+        
+        // Update selected IDs
+        selectedAccountIds.remove(account.id)
+        if selectedAccountIds.isEmpty {
+            selectedAccountIds = ["all"]
+        }
+        
+        // Clear tokens and credentials
+        account.logout()
+        
+        // Save changes to disk
+        saveAccounts()
+        
         // Update platform-specific lists
         updateAccountLists()
+        
+        // Reset timeline if no accounts left
+        if accounts.isEmpty {
+            unifiedTimeline = []
+            PersistenceManager.shared.clearAll()
+        } else {
+            // Trigger a refresh to remove posts from the deleted account
+            Task {
+                try? await refreshTimeline(force: true)
+            }
+        }
+    }
+
+    /// Log out all accounts and clear all data
+    @MainActor
+    public func logout() async {
+        print("🚪 Logging out all accounts...")
+        
+        // Logout each individual account (clears tokens)
+        for account in accounts {
+            account.logout()
+        }
+        
+        // Clear all memory state
+        accounts = []
+        mastodonAccounts = []
+        blueskyAccounts = []
+        unifiedTimeline = []
+        selectedAccountIds = []
+        
+        // Clear all persisted data
+        await PersistenceManager.shared.clearAll()
+        if #available(iOS 17.0, *) {
+            await TimelineSwiftDataStore.shared.clearAll()
+        }
+        
+        // Save empty state to persistence
+        saveAccounts()
+        
+        print("🚪 Logout complete")
     }
 
     /// Refresh account profile information from the network
@@ -1681,9 +1707,13 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Reply to a post (Mastodon or Bluesky)
-    func replyToPost(_ post: Post, content: String, mediaAttachments: [Data] = []) async throws
-        -> Post
-    {
+    func replyToPost(
+        _ post: Post,
+        content: String,
+        mediaAttachments: [Data] = [],
+        pollOptions: [String] = [],
+        pollExpiresIn: Int? = nil
+    ) async throws -> Post {
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
@@ -1691,7 +1721,12 @@ public final class SocialServiceManager: ObservableObject {
             }
             do {
                 return try await mastodonService.replyToPost(
-                    post, content: content, account: account)
+                    post,
+                    content: content,
+                    pollOptions: pollOptions,
+                    pollExpiresIn: pollExpiresIn,
+                    account: account
+                )
             } catch {
                 // ... (rest of error handling)
                 // If it's an authentication error, show a helpful message
@@ -2016,6 +2051,12 @@ public final class SocialServiceManager: ObservableObject {
         case "unlike": return .unlike
         case "repost": return .repost
         case "unrepost": return .unrepost
+        case "follow": return .follow
+        case "unfollow": return .unfollow
+        case "mute": return .mute
+        case "unmute": return .unmute
+        case "block": return .block
+        case "unblock": return .unblock
         default: return nil
         }
     }
@@ -2053,6 +2094,18 @@ public final class SocialServiceManager: ObservableObject {
         case "unrepost":
             post.isReposted = false
             post.repostCount = max(0, (post.repostCount) - 1)
+        case "follow":
+            post.isFollowingAuthor = true
+        case "unfollow":
+            post.isFollowingAuthor = false
+        case "mute":
+            post.isMutedAuthor = true
+        case "unmute":
+            post.isMutedAuthor = false
+        case "block":
+            post.isBlockedAuthor = true
+        case "unblock":
+            post.isBlockedAuthor = false
         default:
             break
         }
@@ -2118,6 +2171,250 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Follow a user
+    public func followUser(_ post: Post) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.followAccount(userId: post.authorUsername, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            // For Bluesky, we ideally need the author's DID.
+            // If authorProfilePictureURL or originalURL contains the DID, we might be able to extract it.
+            // For now, let's assume authorUsername might be the DID or handle.
+            _ = try await blueskyService.followUser(did: post.authorUsername, account: account)
+        }
+    }
+
+    /// Unfollow a user
+    public func unfollowUser(_ post: Post) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.unfollowAccount(userId: post.authorUsername, account: account)
+        case .bluesky:
+            // Unfollow on Bluesky requires the follow record URI.
+            // This is complex because we don't usually have it on the post object.
+            // We might need to fetch the relationship first.
+            throw ServiceError.apiError("Unfollow not yet fully implemented for Bluesky")
+        }
+    }
+
+    /// Mute a user
+    public func muteUser(_ post: Post) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.muteAccount(userId: post.authorUsername, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            try await blueskyService.muteActor(did: post.authorUsername, account: account)
+        }
+    }
+
+    /// Block a user
+    public func blockUser(_ post: Post) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.blockAccount(userId: post.authorUsername, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            _ = try await blueskyService.blockUser(did: post.authorUsername, account: account)
+        }
+    }
+
+    /// Unmute a user
+    public func unmuteUser(_ post: Post) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.unmuteAccount(userId: post.authorUsername, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            try await blueskyService.unmuteActor(did: post.authorUsername, account: account)
+        }
+    }
+
+    /// Unblock a user
+    public func unblockUser(_ post: Post) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.unblockAccount(userId: post.authorUsername, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            try await blueskyService.unblockUser(did: post.authorUsername, account: account)
+        }
+    }
+
+    /// Report a post
+    public func reportPost(_ post: Post, reason: String? = nil) async throws {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            try await mastodonService.reportAccount(
+                userId: post.authorUsername, statusIds: [post.platformSpecificId], comment: reason,
+                account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            let subject: [String: Any] = [
+                "$type": "com.atproto.repo.strongRef",
+                "uri": post.platformSpecificId,
+                "cid": post.cid ?? "",
+            ]
+            try await blueskyService.createReport(
+                reasonType: "com.atproto.moderation.defs#reasonSpam", subject: subject,
+                comment: reason, account: account)
+        }
+    }
+
+    /// Update profile for an account
+    public func updateProfile(
+        account: SocialAccount, displayName: String?, bio: String?, avatarData: Data?
+    ) async throws -> SocialAccount {
+        switch account.platform {
+        case .mastodon:
+            return try await mastodonService.updateProfile(
+                displayName: displayName, note: bio, avatarData: avatarData, account: account)
+        case .bluesky:
+            return try await blueskyService.updateProfile(
+                displayName: displayName, description: bio, avatarData: avatarData, account: account)
+        }
+    }
+
+    /// Fetch all lists for a Mastodon account
+    public func fetchMastodonLists(account: SocialAccount) async throws -> [MastodonList] {
+        guard account.platform == .mastodon else {
+            throw ServiceError.unsupportedPlatform
+        }
+        return try await mastodonService.fetchLists(account: account)
+    }
+
+    /// Add an account to a Mastodon list
+    public func addAccountToMastodonList(listId: String, accountToLink: String, account: SocialAccount) async throws {
+        guard account.platform == .mastodon else {
+            throw ServiceError.unsupportedPlatform
+        }
+        try await mastodonService.addToList(listId: listId, accountId: accountToLink, account: account)
+    }
+
+    /// Vote in a poll
+    public func voteInPoll(post: Post, optionIndex: Int) async throws {
+        guard let poll = post.poll else { return }
+        
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            try await mastodonService.voteInPoll(pollId: poll.id, optionIndex: optionIndex, account: account)
+            
+            // Optimistically update the poll state if needed, or re-fetch the post
+            // For now, we'll just let the UI handle the immediate state change
+            // and assume the next refresh will bring the updated poll data.
+        case .bluesky:
+            // Bluesky doesn't support polls yet
+            throw ServiceError.unsupportedPlatform
+        }
+    }
+
+    /// Fetch direct messages for all accounts
+    public func fetchDirectMessages() async throws -> [DMConversation] {
+        var allConversations: [DMConversation] = []
+
+        for account in accounts {
+            do {
+                switch account.platform {
+                case .mastodon:
+                    let mastodonConversations = try await mastodonService.fetchConversations(
+                        account: account)
+                    allConversations.append(contentsOf: mastodonConversations)
+                case .bluesky:
+                    let blueskyConvos = try await blueskyService.fetchConvos(for: account)
+                    let mappedConvos = blueskyConvos.map { convo -> DMConversation in
+                        // Get the other participant (not the account itself)
+                        let otherParticipant =
+                            convo.members.first { $0.did != account.platformSpecificId }
+                            ?? convo.members.first!
+
+                        let lastMsg = convo.lastMessage
+                        let content: String
+                        let createdAt: Date
+
+                        switch lastMsg {
+                        case .message(let view):
+                            content = view.text
+                            // Parse ISO8601 date
+                            createdAt =
+                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+                        case .deleted(let view):
+                            content = "(Deleted Message)"
+                            createdAt =
+                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+                        case .none:
+                            content = "No messages"
+                            createdAt = Date.distantPast
+                        }
+
+                        let participant = NotificationAccount(
+                            id: otherParticipant.did,
+                            username: otherParticipant.handle,
+                            displayName: otherParticipant.displayName,
+                            avatarURL: otherParticipant.avatar
+                        )
+
+                        let dm = DirectMessage(
+                            id: convo.id,
+                            content: content,
+                            createdAt: createdAt,
+                            platform: .bluesky
+                        )
+
+                        return DMConversation(
+                            id: convo.id,
+                            participant: participant,
+                            lastMessage: dm,
+                            unreadCount: convo.unreadCount,
+                            platform: .bluesky
+                        )
+                    }
+                    allConversations.append(contentsOf: mappedConvos)
+                }
+            } catch {
+                print("⚠️ Failed to fetch DMs for \(account.username): \(error)")
+            }
+        }
+
+        return allConversations.sorted { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
+    }
+
     // MARK: - Offline Queue Management
 
     private func setupNetworkMonitoring() {
@@ -2175,6 +2472,18 @@ public final class SocialServiceManager: ObservableObject {
                     _ = try await repostPost(post)
                 case .unrepost:
                     _ = try await unrepostPost(post)
+                case .follow:
+                    _ = try await follow(post: post, shouldFollow: true)
+                case .unfollow:
+                    _ = try await follow(post: post, shouldFollow: false)
+                case .mute:
+                    _ = try await mute(post: post, shouldMute: true)
+                case .unmute:
+                    _ = try await mute(post: post, shouldMute: false)
+                case .block:
+                    _ = try await block(post: post, shouldBlock: true)
+                case .unblock:
+                    _ = try await block(post: post, shouldBlock: false)
                 }
 
                 // Remove from queue on success
@@ -2229,6 +2538,45 @@ public final class SocialServiceManager: ObservableObject {
         return state
     }
 
+    public func follow(post: Post, shouldFollow: Bool) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: shouldFollow ? "follow" : "unfollow") {
+            if shouldFollow {
+                try await self.followUser(post)
+            } else {
+                try await self.unfollowUser(post)
+            }
+            post.isFollowingAuthor = shouldFollow
+            return post
+        }
+        return state
+    }
+
+    public func mute(post: Post, shouldMute: Bool) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: shouldMute ? "mute" : "unmute") {
+            if shouldMute {
+                try await self.muteUser(post)
+            } else {
+                try await self.unmuteUser(post)
+            }
+            post.isMutedAuthor = shouldMute
+            return post
+        }
+        return state
+    }
+
+    public func block(post: Post, shouldBlock: Bool) async throws -> PostActionState {
+        let (_, state) = try await performPostActionWithBackoff(for: post, name: shouldBlock ? "block" : "unblock") {
+            if shouldBlock {
+                try await self.blockUser(post)
+            } else {
+                try await self.unblockUser(post)
+            }
+            post.isBlockedAuthor = shouldBlock
+            return post
+        }
+        return state
+    }
+
     // MARK: - Post Creation
 
     /// Create a new post on selected platforms
@@ -2236,12 +2584,16 @@ public final class SocialServiceManager: ObservableObject {
     ///   - content: The text content of the post
     ///   - platforms: Set of platforms to post to
     ///   - mediaAttachments: Optional media attachments as Data arrays
+    ///   - pollOptions: Optional poll options
+    ///   - pollExpiresIn: Optional poll expiration in seconds
     ///   - visibility: Post visibility (public, unlisted, followers_only)
     /// - Returns: Array of created posts (one per platform)
     func createPost(
         content: String,
         platforms: Set<SocialPlatform>,
         mediaAttachments: [Data] = [],
+        pollOptions: [String] = [],
+        pollExpiresIn: Int? = nil,
         visibility: String = "public"
     ) async throws -> [Post] {
         guard !platforms.isEmpty else {
@@ -2262,6 +2614,8 @@ public final class SocialServiceManager: ObservableObject {
                     content: content,
                     platform: platform,
                     mediaAttachments: mediaAttachments,
+                    pollOptions: pollOptions,
+                    pollExpiresIn: pollExpiresIn,
                     visibility: visibility
                 )
                 createdPosts.append(post)
@@ -2292,6 +2646,8 @@ public final class SocialServiceManager: ObservableObject {
         content: String,
         platform: SocialPlatform,
         mediaAttachments: [Data] = [],
+        pollOptions: [String] = [],
+        pollExpiresIn: Int? = nil,
         visibility: String = "public"
     ) async throws -> Post {
         switch platform {
@@ -2302,6 +2658,8 @@ public final class SocialServiceManager: ObservableObject {
             return try await mastodonService.createPost(
                 content: content,
                 mediaAttachments: mediaAttachments,
+                pollOptions: pollOptions,
+                pollExpiresIn: pollExpiresIn,
                 visibility: visibility,
                 account: account
             )
@@ -2309,6 +2667,7 @@ public final class SocialServiceManager: ObservableObject {
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
+            // Bluesky doesn't support polls via the standard post API yet
             return try await blueskyService.createPost(
                 content: content,
                 mediaAttachments: mediaAttachments,
@@ -2802,6 +3161,12 @@ public enum QueuedActionType: String, Codable {
     case unlike
     case repost
     case unrepost
+    case follow
+    case unfollow
+    case mute
+    case unmute
+    case block
+    case unblock
 }
 
 public struct QueuedAction: Identifiable, Codable {
@@ -2858,3 +3223,89 @@ public class OfflineQueueStore: ObservableObject {
         }
     }
 }
+
+/// Thread-safe manager for persisting app state to disk
+actor PersistenceManager {
+    static let shared = PersistenceManager()
+    
+    private let logger = Logger(subsystem: "com.socialfusion", category: "Persistence")
+    private let fileManager = FileManager.default
+    
+    private let timelineCacheURL: URL
+    private let accountsCacheURL: URL
+    
+    private init() {
+        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        self.timelineCacheURL = documents.appendingPathComponent("timeline_cache.json")
+        self.accountsCacheURL = documents.appendingPathComponent("accounts_cache.json")
+    }
+    
+    // MARK: - Timeline Persistence
+    
+    func saveTimeline(_ posts: [Post]) {
+        guard !posts.isEmpty else { return }
+        
+        do {
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(posts)
+            try data.write(to: timelineCacheURL, options: [.atomic, .completeFileProtection])
+            logger.debug("Successfully saved \(posts.count) posts to disk cache")
+        } catch {
+            logger.error("Failed to save timeline to disk: \(error.localizedDescription)")
+        }
+    }
+    
+    func loadTimeline() -> [Post]? {
+        guard fileManager.fileExists(atPath: timelineCacheURL.path) else { return nil }
+        
+        do {
+            let data = try Data(contentsOf: timelineCacheURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let posts = try decoder.decode([Post].self, from: data)
+            logger.debug("Successfully loaded \(posts.count) posts from disk cache")
+            return posts
+        } catch {
+            logger.error("Failed to load timeline from disk: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    // MARK: - Accounts Persistence
+    
+    func saveAccounts(_ accounts: [SocialAccount]) {
+        do {
+            let encoder = JSONEncoder()
+            let data = try encoder.encode(accounts)
+            try data.write(to: accountsCacheURL, options: [.atomic, .completeFileProtection])
+            logger.debug("Successfully saved \(accounts.count) accounts to disk cache")
+        } catch {
+            logger.error("Failed to save accounts to disk: \(error.localizedDescription)")
+        }
+    }
+    
+    func loadAccounts() -> [SocialAccount]? {
+        guard fileManager.fileExists(atPath: accountsCacheURL.path) else { return nil }
+        
+        do {
+            let data = try Data(contentsOf: accountsCacheURL)
+            let decoder = JSONDecoder()
+            let accounts = try decoder.decode([SocialAccount].self, from: data)
+            logger.debug("Successfully loaded \(accounts.count) accounts from disk cache")
+            return accounts
+        } catch {
+            logger.error("Failed to load accounts from disk: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    // MARK: - Cleanup
+    
+    func clearAll() {
+        try? fileManager.removeItem(at: timelineCacheURL)
+        try? fileManager.removeItem(at: accountsCacheURL)
+        logger.info("Cleared all persisted data")
+    }
+}
+
