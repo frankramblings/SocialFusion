@@ -2375,25 +2375,6 @@ public final class SocialServiceManager: ObservableObject {
                             convo.members.first { $0.did != account.platformSpecificId }
                             ?? convo.members.first!
 
-                        let lastMsg = convo.lastMessage
-                        let content: String
-                        let createdAt: Date
-
-                        switch lastMsg {
-                        case .message(let view):
-                            content = view.text
-                            // Parse ISO8601 date
-                            createdAt =
-                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
-                        case .deleted(let view):
-                            content = "(Deleted Message)"
-                            createdAt =
-                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
-                        case .none:
-                            content = "No messages"
-                            createdAt = Date.distantPast
-                        }
-
                         let participant = NotificationAccount(
                             id: otherParticipant.did,
                             username: otherParticipant.handle,
@@ -2401,8 +2382,54 @@ public final class SocialServiceManager: ObservableObject {
                             avatarURL: otherParticipant.avatar
                         )
 
+                        let currentUserAccount = NotificationAccount(
+                            id: account.platformSpecificId,
+                            username: account.username,
+                            displayName: account.displayName,
+                            avatarURL: account.profileImageURL?.absoluteString
+                        )
+
+                        let lastMsg = convo.lastMessage
+                        let content: String
+                        let createdAt: Date
+                        let sender: NotificationAccount
+                        let recipient: NotificationAccount
+
+                        switch lastMsg {
+                        case .message(let view):
+                            content = view.text
+                            // Parse ISO8601 date
+                            createdAt =
+                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+                            if view.sender.did == account.platformSpecificId {
+                                sender = currentUserAccount
+                                recipient = participant
+                            } else {
+                                sender = participant
+                                recipient = currentUserAccount
+                            }
+                        case .deleted(let view):
+                            content = "(Deleted Message)"
+                            createdAt =
+                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+                            if view.sender.did == account.platformSpecificId {
+                                sender = currentUserAccount
+                                recipient = participant
+                            } else {
+                                sender = participant
+                                recipient = currentUserAccount
+                            }
+                        case .none:
+                            content = "No messages"
+                            createdAt = Date.distantPast
+                            sender = participant
+                            recipient = currentUserAccount
+                        }
+
                         let dm = DirectMessage(
                             id: convo.id,
+                            sender: sender,
+                            recipient: recipient,
                             content: content,
                             createdAt: createdAt,
                             platform: .bluesky
