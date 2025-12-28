@@ -8,6 +8,7 @@ public struct ThreadPost: Identifiable {
     public let id = UUID()
     public var text: String = ""
     public var images: [UIImage] = []
+    public var imageAltTexts: [String] = []
     public var pollOptions: [String] = []
     public var showPoll: Bool = false
 }
@@ -288,6 +289,11 @@ struct ComposeView: View {
     @State private var alertMessage = ""
     @State private var showDraftActionSheet = false
     @State private var showDraftsList = false
+    @State private var showAltTextSheet = false
+    @State private var postingStatus: String = "Posting..."
+    @State private var selectedImageIndexForAltText: Int = 0
+    @State private var currentAltText: String = ""
+    @State private var selectedAccounts: [SocialPlatform: String] = [:]
 
     @Environment(\.dismiss) private var dismiss
 
@@ -346,19 +352,7 @@ struct ComposeView: View {
 
     // Check if we have accounts for the selected platforms
     private var hasAccountsForSelectedPlatforms: Bool {
-        for platform in selectedPlatforms {
-            switch platform {
-            case .mastodon:
-                if socialServiceManager.mastodonAccounts.isEmpty {
-                    return false
-                }
-            case .bluesky:
-                if socialServiceManager.blueskyAccounts.isEmpty {
-                    return false
-                }
-            }
-        }
-        return true
+        selectedPlatforms.allSatisfy { selectedAccount(for: $0) != nil }
     }
 
     // Helper for button text
@@ -394,19 +388,36 @@ struct ComposeView: View {
         }
     }
 
+    private struct PlatformLimitStatus: Identifiable {
+        let id = UUID()
+        let platform: SocialPlatform
+        let remaining: Int
+        let accountLabel: String
+        var isOverLimit: Bool { remaining < 0 }
+    }
+
+    private var platformLimitStatuses: [PlatformLimitStatus] {
+        selectedPlatforms.sorted(by: { $0.rawValue < $1.rawValue }).map { platform in
+            let limit = platform == .mastodon ? mastodonCharLimit : blueskyCharLimit
+            let remaining = limit - threadPosts[activePostIndex].text.count
+            let accountLabel =
+                selectedAccount(for: platform)?.displayName
+                ?? selectedAccount(for: platform)?.username
+                ?? "Account"
+            return PlatformLimitStatus(
+                platform: platform,
+                remaining: remaining,
+                accountLabel: accountLabel
+            )
+        }
+    }
+
     // Helper to get missing platforms
     private var missingAccountPlatforms: [SocialPlatform] {
         var missing: [SocialPlatform] = []
         for platform in selectedPlatforms {
-            switch platform {
-            case .mastodon:
-                if socialServiceManager.mastodonAccounts.isEmpty {
-                    missing.append(.mastodon)
-                }
-            case .bluesky:
-                if socialServiceManager.blueskyAccounts.isEmpty {
-                    missing.append(.bluesky)
-                }
+            if accounts(for: platform).isEmpty {
+                missing.append(platform)
             }
         }
         return missing
@@ -479,6 +490,23 @@ struct ComposeView: View {
                     )
                 }
 
+                if !selectedPlatforms.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(
+                                Array(selectedPlatforms).sorted(by: { $0.rawValue < $1.rawValue }),
+                                id: \.self
+                            ) { platform in
+                                accountSelector(for: platform)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.bottom, replyingTo == nil ? 8 : 12)
+                    }
+                }
+
+                platformStatusBar()
+
                 // Text editor
                 ZStack(alignment: .topLeading) {
                     FocusableTextEditor(
@@ -538,12 +566,16 @@ struct ComposeView: View {
                                     .foregroundColor(.secondary)
                             }
                         }
-                        
-                        ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) { index in
+
+                        ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) {
+                            index in
                             HStack {
-                                TextField("Option \(index + 1)", text: $threadPosts[activePostIndex].pollOptions[index])
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                
+                                TextField(
+                                    "Option \(index + 1)",
+                                    text: $threadPosts[activePostIndex].pollOptions[index]
+                                )
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+
                                 if threadPosts[activePostIndex].pollOptions.count > 2 {
                                     Button(action: {
                                         threadPosts[activePostIndex].pollOptions.remove(at: index)
@@ -554,7 +586,7 @@ struct ComposeView: View {
                                 }
                             }
                         }
-                        
+
                         if threadPosts[activePostIndex].pollOptions.count < 4 {
                             Button(action: {
                                 threadPosts[activePostIndex].pollOptions.append("")
@@ -588,6 +620,11 @@ struct ComposeView: View {
 
                                     Button(action: {
                                         threadPosts[activePostIndex].images.remove(at: index)
+                                        if index < threadPosts[activePostIndex].imageAltTexts.count
+                                        {
+                                            threadPosts[activePostIndex].imageAltTexts.remove(
+                                                at: index)
+                                        }
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 18))
@@ -596,6 +633,35 @@ struct ComposeView: View {
                                             .clipShape(Circle())
                                     }
                                     .padding(6)
+
+                                    // Alt Text Button
+                                    Button(action: {
+                                        selectedImageIndexForAltText = index
+                                        currentAltText =
+                                            index < threadPosts[activePostIndex].imageAltTexts.count
+                                            ? threadPosts[activePostIndex].imageAltTexts[index] : ""
+                                        showAltTextSheet = true
+                                    }) {
+                                        Text("ALT")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                index
+                                                    < threadPosts[activePostIndex].imageAltTexts
+                                                    .count
+                                                    && !threadPosts[activePostIndex].imageAltTexts[
+                                                        index
+                                                    ].isEmpty
+                                                    ? Color.blue : Color.black.opacity(0.6)
+                                            )
+                                            .cornerRadius(4)
+                                    }
+                                    .padding(6)
+                                    .frame(
+                                        maxWidth: .infinity, maxHeight: .infinity,
+                                        alignment: .bottomLeading)
                                 }
                             }
                         }
@@ -744,6 +810,7 @@ struct ComposeView: View {
                     }
                     self.activePostIndex = 0
                     self.selectedPlatforms = draft.selectedPlatforms
+                    hydrateAccountSelection()
                     draftStore.deleteDraft(draft)
                     showDraftsList = false
                 })
@@ -771,6 +838,60 @@ struct ComposeView: View {
             .sheet(isPresented: $showImagePicker) {
                 PhotoPicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
+            .sheet(isPresented: $showAltTextSheet) {
+                NavigationView {
+                    VStack {
+                        if selectedImageIndexForAltText < threadPosts[activePostIndex].images.count
+                        {
+                            Image(
+                                uiImage: threadPosts[activePostIndex].images[
+                                    selectedImageIndexForAltText]
+                            )
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 200)
+                            .cornerRadius(8)
+                            .padding()
+                        }
+
+                        TextField(
+                            "Description for the visually impaired...", text: $currentAltText,
+                            axis: .vertical
+                        )
+                        .lineLimit(3...10)
+                        .padding()
+                        .background(Color(UIColor.secondarySystemBackground))
+                        .cornerRadius(8)
+                        .padding(.horizontal)
+
+                        Spacer()
+                    }
+                    .navigationTitle("Image Description")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                showAltTextSheet = false
+                            }
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Done") {
+                                // Ensure imageAltTexts array is large enough
+                                while threadPosts[activePostIndex].imageAltTexts.count
+                                    < threadPosts[activePostIndex].images.count
+                                {
+                                    threadPosts[activePostIndex].imageAltTexts.append("")
+                                }
+                                threadPosts[activePostIndex].imageAltTexts[
+                                    selectedImageIndexForAltText] = currentAltText
+                                showAltTextSheet = false
+                            }
+                            .fontWeight(.bold)
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+            }
             .alert(isPresented: $showAlert) {
                 Alert(
                     title: Text(alertTitle),
@@ -789,7 +910,7 @@ struct ComposeView: View {
                                 ProgressView()
                                     .scaleEffect(1.5)
 
-                                Text("Posting...")
+                                Text(postingStatus)
                                     .font(.headline)
                                     .foregroundColor(.white)
                             }
@@ -801,6 +922,9 @@ struct ComposeView: View {
                     }
                 }
             )
+            .onAppear {
+                hydrateAccountSelection()
+            }
         }
     }
 
@@ -812,6 +936,149 @@ struct ComposeView: View {
             }
         } else {
             selectedPlatforms.insert(platform)
+        }
+        hydrateAccountSelection()
+    }
+
+    private func accounts(for platform: SocialPlatform) -> [SocialAccount] {
+        switch platform {
+        case .mastodon:
+            return socialServiceManager.mastodonAccounts
+        case .bluesky:
+            return socialServiceManager.blueskyAccounts
+        }
+    }
+
+    private func selectedAccount(for platform: SocialPlatform) -> SocialAccount? {
+        let platformAccounts = accounts(for: platform)
+        if let id = selectedAccounts[platform],
+            let match = platformAccounts.first(where: { $0.id == id })
+        {
+            return match
+        }
+        return platformAccounts.first
+    }
+
+    private func selectedAccountOverrides() -> [SocialPlatform: SocialAccount] {
+        var overrides: [SocialPlatform: SocialAccount] = [:]
+        for platform in selectedPlatforms {
+            if let account = selectedAccount(for: platform) {
+                overrides[platform] = account
+            }
+        }
+        return overrides
+    }
+
+    private func hydrateAccountSelection() {
+        for platform in selectedPlatforms {
+            if selectedAccount(for: platform) == nil,
+                let account = accounts(for: platform).first
+            {
+                selectedAccounts[platform] = account.id
+            }
+        }
+    }
+
+    private func normalizedAltTexts(for post: ThreadPost) -> [String] {
+        var altTexts = post.imageAltTexts
+        if altTexts.count < post.images.count {
+            altTexts.append(
+                contentsOf: Array(repeating: "", count: post.images.count - altTexts.count))
+        }
+        return Array(altTexts.prefix(post.images.count))
+    }
+
+    @ViewBuilder
+    private func platformStatusBar() -> some View {
+        if !platformLimitStatuses.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(platformLimitStatuses) { status in
+                        HStack(spacing: 8) {
+                            Image(status.platform.icon)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 14, height: 14)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(status.accountLabel)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                                Text("\(status.remaining) left")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundColor(
+                                        status.isOverLimit
+                                            ? .red
+                                            : (status.remaining < 50 ? .orange : .secondary)
+                                    )
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(
+                                    status.isOverLimit
+                                        ? Color.red.opacity(0.12)
+                                        : Color(UIColor.secondarySystemBackground)
+                                )
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(
+                                    status.isOverLimit
+                                        ? Color.red.opacity(0.4)
+                                        : platformColor.opacity(0.3),
+                                    lineWidth: 1
+                                )
+                        )
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func accountSelector(for platform: SocialPlatform) -> some View {
+        let platformAccounts = accounts(for: platform)
+        if platformAccounts.isEmpty {
+            EmptyView()
+        } else {
+            Menu {
+                ForEach(platformAccounts, id: \.id) { account in
+                    Button {
+                        selectedAccounts[platform] = account.id
+                    } label: {
+                        HStack {
+                            Text(account.displayName ?? account.username)
+                            if selectedAccounts[platform] == account.id {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(platform.icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+
+                    Text(
+                        selectedAccount(for: platform)?.displayName
+                            ?? selectedAccount(for: platform)?.username ?? "Select account"
+                    )
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(Capsule())
+            }
         }
     }
 
@@ -828,6 +1095,8 @@ struct ComposeView: View {
         }
 
         isPosting = true
+        postingStatus = replyingTo != nil ? "Sending reply..." : "Posting..."
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
         // Convert visibility index to string
         let visibilityString: String
@@ -844,41 +1113,64 @@ struct ComposeView: View {
 
         Task {
             do {
-                var previousPost: Post? = replyingTo
-                var createdCount = 0
+                var previousPostsByPlatform: [SocialPlatform: Post] = [:]
+                if let replyTarget = replyingTo {
+                    previousPostsByPlatform[replyTarget.platform] = replyTarget
+                }
 
-                for threadPost in threadPosts {
-                    // Convert UIImages to Data for API calls
-                    let mediaData: [Data] = threadPost.images.compactMap { image in
-                        return image.jpegData(compressionQuality: 0.8)
+                for (index, threadPost) in threadPosts.enumerated() {
+                    await MainActor.run {
+                        if threadPosts.count > 1 {
+                            postingStatus =
+                                replyingTo != nil
+                                ? "Reply \(index + 1) of \(threadPosts.count)"
+                                : "Post \(index + 1) of \(threadPosts.count)"
+                        }
                     }
 
-                    if let replyToPost = previousPost {
-                        // This is a reply
-                        let createdReply = try await socialServiceManager.replyToPost(
-                            replyToPost,
-                            content: threadPost.text,
-                            mediaAttachments: mediaData
-                        )
-                        previousPost = createdReply
-                        createdCount += 1
-                    } else {
-                        // This is a new post (first in thread)
+                    let mediaData: [Data] = threadPost.images.compactMap { image in
+                        image.jpegData(compressionQuality: 0.8)
+                    }
+                    let mediaAltTexts = normalizedAltTexts(for: threadPost)
+                    let pollOptions = threadPost.pollOptions.filter { !$0.isEmpty }
+
+                    if previousPostsByPlatform.isEmpty && replyingTo == nil {
                         let createdPosts = try await socialServiceManager.createPost(
                             content: threadPost.text,
                             platforms: selectedPlatforms,
                             mediaAttachments: mediaData,
-                            pollOptions: threadPost.pollOptions.filter { !$0.isEmpty },
-                            pollExpiresIn: 86400, // 24 hours
-                            visibility: visibilityString
+                            mediaAltTexts: mediaAltTexts,
+                            pollOptions: pollOptions,
+                            pollExpiresIn: 86400,  // 24 hours
+                            visibility: visibilityString,
+                            accountOverrides: selectedAccountOverrides()
                         )
-                        previousPost = createdPosts.first
-                        createdCount += 1
+                        for post in createdPosts {
+                            previousPostsByPlatform[post.platform] = post
+                        }
+                    } else {
+                        var updatedPrevious: [SocialPlatform: Post] = [:]
+                        for (platform, parentPost) in previousPostsByPlatform {
+                            guard selectedPlatforms.contains(platform) else { continue }
+                            let reply = try await socialServiceManager.replyToPost(
+                                parentPost,
+                                content: threadPost.text,
+                                mediaAttachments: mediaData,
+                                mediaAltTexts: mediaAltTexts,
+                                pollOptions: pollOptions,
+                                pollExpiresIn: 86400,
+                                visibility: visibilityString,
+                                accountOverride: selectedAccount(for: platform)
+                            )
+                            updatedPrevious[platform] = reply
+                        }
+                        previousPostsByPlatform = updatedPrevious
                     }
                 }
 
                 await MainActor.run {
                     isPosting = false
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
                     alertTitle =
                         threadPosts.count > 1
                         ? "Thread Sent!" : (replyingTo != nil ? "Reply Sent!" : "Success!")
@@ -897,8 +1189,10 @@ struct ComposeView: View {
                     threadPosts = [ThreadPost()]
                     activePostIndex = 0
 
-                    // Reset platform selection to default
+                    // Reset platform selection to default and rehydrate account picks
                     selectedPlatforms = [.mastodon, .bluesky]
+                    selectedAccounts.removeAll()
+                    hydrateAccountSelection()
 
                     // Dismiss the view
                     dismiss()
@@ -907,6 +1201,7 @@ struct ComposeView: View {
             } catch {
                 await MainActor.run {
                     isPosting = false
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
                     alertTitle = "Error"
                     alertMessage =
                         "Failed to \(replyingTo != nil ? "reply" : "post"): \(error.localizedDescription)"
@@ -1044,36 +1339,36 @@ struct DraftsListView: View {
 struct PhotoPicker: UIViewControllerRepresentable {
     @Binding var selectedImages: [UIImage]
     let maxImages: Int
-    
+
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration()
         configuration.filter = .images
         configuration.selectionLimit = maxImages
-        
+
         let picker = PHPickerViewController(configuration: configuration)
         picker.delegate = context.coordinator
         return picker
     }
-    
+
     func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
-    
+
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
         let parent: PhotoPicker
-        
+
         init(_ parent: PhotoPicker) {
             self.parent = parent
         }
-        
+
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
             picker.dismiss(animated: true)
-            
+
             let group = DispatchGroup()
             var newImages: [UIImage] = []
-            
+
             for result in results {
                 group.enter()
                 if result.itemProvider.canLoadObject(ofClass: UIImage.self) {
@@ -1087,15 +1382,15 @@ struct PhotoPicker: UIViewControllerRepresentable {
                     group.leave()
                 }
             }
-            
+
             group.notify(queue: .main) {
                 self.parent.selectedImages.append(contentsOf: newImages)
                 // Limit to maxImages
                 if self.parent.selectedImages.count > self.parent.maxImages {
-                    self.parent.selectedImages = Array(self.parent.selectedImages.prefix(self.parent.maxImages))
+                    self.parent.selectedImages = Array(
+                        self.parent.selectedImages.prefix(self.parent.maxImages))
                 }
             }
         }
     }
 }
-

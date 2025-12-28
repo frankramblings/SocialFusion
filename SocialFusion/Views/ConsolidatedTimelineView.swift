@@ -114,6 +114,8 @@ struct ConsolidatedTimelineView: View {
     @State private var scrollCancellationTimer: Timer?
     @State private var replyingToPost: Post? = nil
     @State private var showAddAccountView = false
+    @State private var reportingPost: Post? = nil
+    @State private var showReportDialog = false
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
     @StateObject private var timelineState = TimelineState()
@@ -338,6 +340,27 @@ struct ConsolidatedTimelineView: View {
                     await refreshTimeline()
                 }
             }
+            .confirmationDialog("Report Post", isPresented: $showReportDialog, titleVisibility: .visible) {
+                Button("Spam", role: .destructive) { report(reason: "Spam") }
+                Button("Harassment", role: .destructive) { report(reason: "Harassment") }
+                Button("Inappropriate Content", role: .destructive) { report(reason: "Inappropriate Content") }
+                Button("Cancel", role: .cancel) { reportingPost = nil }
+            } message: {
+                Text("Why are you reporting this post? The platform moderators will review it.")
+            }
+        }
+    }
+
+    private func report(reason: String) {
+        guard let post = reportingPost else { return }
+        Task {
+            do {
+                try await serviceManager.reportPost(post, reason: reason)
+                print("✅ Successfully reported post")
+            } catch {
+                print("❌ Failed to report post: \(error)")
+            }
+            reportingPost = nil
         }
     }
 
@@ -388,15 +411,43 @@ struct ConsolidatedTimelineView: View {
         )
 
         return PostCardView(
-            entry: entry,
-            postActionStore: controller.postActionStore,
-            postActionCoordinator: controller.postActionCoordinator,
-            onPostTap: { navigationEnvironment.navigateToPost(post) },
-            onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
+            post: post,
+            replyCount: 0,
+            repostCount: post.repostCount,
+            likeCount: post.likeCount,
+            isReplying: false,
+            isReposted: post.isReposted,
+            isLiked: post.isLiked,
+            onAuthorTap: { navigationEnvironment.navigateToPost(post) },
             onReply: { replyingToPost = post },
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },
-            onShare: { /* TODO: Implement share functionality */  }
+            onShare: { 
+                if let url = URL(string: post.originalURL) {
+                    let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootVC = windowScene.windows.first?.rootViewController {
+                        rootVC.present(activityVC, animated: true)
+                    }
+                }
+            },
+            onMediaTap: { _ in },
+            onOpenInBrowser: {
+                if let url = URL(string: post.originalURL) {
+                    UIApplication.shared.open(url)
+                }
+            },
+            onCopyLink: {
+                UIPasteboard.general.string = post.originalURL
+            },
+            onReport: {
+                reportingPost = post
+                showReportDialog = true
+            },
+            onPostTap: { navigationEnvironment.navigateToPost(post) },
+            onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
+            postActionStore: controller.postActionStore,
+            postActionCoordinator: controller.postActionCoordinator
         )
         .id(post.id)
     }

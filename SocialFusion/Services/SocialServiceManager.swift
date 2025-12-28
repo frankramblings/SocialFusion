@@ -1442,6 +1442,11 @@ public final class SocialServiceManager: ObservableObject {
             let (data, _) = try await URLSession.shared.data(for: request)
             let mAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
 
+            // Fetch relationship
+            let relationships = try? await mastodonService.fetchRelationships(
+                accountIds: [user.id], account: account)
+            let relationship = relationships?.first
+
             return UserProfile(
                 id: mAccount.id,
                 username: mAccount.acct,
@@ -1452,7 +1457,11 @@ public final class SocialServiceManager: ObservableObject {
                 followersCount: mAccount.followersCount,
                 followingCount: mAccount.followingCount,
                 statusesCount: mAccount.statusesCount,
-                platform: .mastodon
+                platform: .mastodon,
+                following: relationship?.following,
+                followedBy: relationship?.followedBy,
+                muting: relationship?.muting,
+                blocking: relationship?.blocking
             )
 
         case .bluesky:
@@ -1467,7 +1476,11 @@ public final class SocialServiceManager: ObservableObject {
                 followersCount: profile.followersCount,
                 followingCount: profile.followsCount,
                 statusesCount: profile.postsCount,
-                platform: .bluesky
+                platform: .bluesky,
+                following: profile.viewer?.following != nil,
+                followedBy: profile.viewer?.followedBy != nil,
+                muting: profile.viewer?.muted == true,
+                blocking: profile.viewer?.blockedBy == true
             )
         }
     }
@@ -1712,20 +1725,26 @@ public final class SocialServiceManager: ObservableObject {
         _ post: Post,
         content: String,
         mediaAttachments: [Data] = [],
+        mediaAltTexts: [String] = [],
         pollOptions: [String] = [],
-        pollExpiresIn: Int? = nil
+        pollExpiresIn: Int? = nil,
+        visibility: String = "public",
+        accountOverride: SocialAccount? = nil
     ) async throws -> Post {
         switch post.platform {
         case .mastodon:
-            guard let account = mastodonAccounts.first else {
+            guard let account = accountOverride ?? mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
             do {
                 return try await mastodonService.replyToPost(
                     post,
                     content: content,
+                    mediaAttachments: mediaAttachments,
+                    mediaAltTexts: mediaAltTexts,
                     pollOptions: pollOptions,
                     pollExpiresIn: pollExpiresIn,
+                    visibility: visibility,
                     account: account
                 )
             } catch {
@@ -1746,13 +1765,14 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         case .bluesky:
-            guard let account = blueskyAccounts.first else {
+            guard let account = accountOverride ?? blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
             return try await blueskyService.replyToPost(
                 post,
                 content: content,
                 mediaAttachments: mediaAttachments,
+                mediaAltTexts: mediaAltTexts,
                 account: account
             )
         }
@@ -2276,6 +2296,110 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    // MARK: - Generalized Relationship Management
+
+    public func followUser(userId: String, platform: SocialPlatform) async throws {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.followAccount(userId: userId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            _ = try await blueskyService.followUser(did: userId, account: account)
+        }
+    }
+
+    public func unfollowUser(userId: String, platform: SocialPlatform, followUri: String? = nil)
+        async throws
+    {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.unfollowAccount(userId: userId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            if let uri = followUri {
+                try await blueskyService.unfollowUser(followUri: uri, account: account)
+            } else {
+                // If URI not provided, we might need to fetch the profile first to get the following URI
+                let profile = try await blueskyService.getProfile(actor: userId, account: account)
+                if let uri = profile.viewer?.following {
+                    try await blueskyService.unfollowUser(followUri: uri, account: account)
+                } else {
+                    throw ServiceError.apiError("User is not being followed")
+                }
+            }
+        }
+    }
+
+    public func muteUser(userId: String, platform: SocialPlatform) async throws {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.muteAccount(userId: userId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            try await blueskyService.muteActor(did: userId, account: account)
+        }
+    }
+
+    public func unmuteUser(userId: String, platform: SocialPlatform) async throws {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.unmuteAccount(userId: userId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            try await blueskyService.unmuteActor(did: userId, account: account)
+        }
+    }
+
+    public func blockUser(userId: String, platform: SocialPlatform) async throws {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.blockAccount(userId: userId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            _ = try await blueskyService.blockUser(did: userId, account: account)
+        }
+    }
+
+    public func unblockUser(userId: String, platform: SocialPlatform) async throws {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            _ = try await mastodonService.unblockAccount(userId: userId, account: account)
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            try await blueskyService.unblockUser(did: userId, account: account)
+        }
+    }
+
     /// Report a post
     public func reportPost(_ post: Post, reason: String? = nil) async throws {
         switch post.platform {
@@ -2451,6 +2575,108 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         return allConversations.sorted { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
+    }
+
+    /// Fetch all messages in a conversation
+    public func fetchConversationMessages(conversation: DMConversation) async throws
+        -> [UnifiedChatMessage]
+    {
+        // Find the account for this conversation
+        guard
+            let account = accounts.first(where: { acc in
+                if conversation.platform == .mastodon {
+                    // For Mastodon, we might need to find which account owns this conversation
+                    // Since conversation ID is platform-specific, we check if this account has it
+                    return acc.platform == .mastodon
+                } else {
+                    return acc.platform == .bluesky
+                        && acc.platformSpecificId != conversation.participant.id
+                }
+            })
+        else {
+            // Fallback to first account of same platform
+            guard
+                let fallbackAccount = accounts.first(where: { $0.platform == conversation.platform }
+                )
+            else {
+                throw ServiceError.invalidAccount(reason: "No account found for this conversation")
+            }
+            return try await _fetchMessages(for: conversation, account: fallbackAccount)
+        }
+
+        return try await _fetchMessages(for: conversation, account: account)
+    }
+
+    private func _fetchMessages(for conversation: DMConversation, account: SocialAccount)
+        async throws -> [UnifiedChatMessage]
+    {
+        switch conversation.platform {
+        case .mastodon:
+            // Use status context to get the thread
+            let context = try await mastodonService.fetchStatusContext(
+                statusId: conversation.lastMessage.id, account: account)
+            var messages = context.ancestors
+            if let mainPost = context.mainPost {
+                messages.append(mainPost)
+            }
+            messages.append(contentsOf: context.descendants)
+
+            // Map to UnifiedChatMessage
+            return messages.map { UnifiedChatMessage.mastodon($0) }
+
+        case .bluesky:
+            let messages = try await blueskyService.fetchMessages(
+                convoId: conversation.id, for: account)
+            return messages.map { UnifiedChatMessage.bluesky($0) }
+        }
+    }
+
+    public func sendChatMessage(conversation: DMConversation, text: String) async throws
+        -> UnifiedChatMessage
+    {
+        // Find account
+        guard let account = accounts.first(where: { $0.platform == conversation.platform }) else {
+            throw ServiceError.invalidAccount(reason: "No account found")
+        }
+
+        switch conversation.platform {
+        case .mastodon:
+            // For Mastodon, sending a DM is posting a status with direct visibility
+            // and mentioning the user.
+            let content = "@\(conversation.participant.username) \(text)"
+            // Attempt to reply in-thread to the last message for continuity; fallback to direct post
+            do {
+                let targetPost = try await fetchPost(
+                    id: conversation.lastMessage.id, platform: .mastodon)
+                let status = try await mastodonService.replyToPost(
+                    targetPost,
+                    content: content,
+                    mediaAttachments: [],
+                    mediaAltTexts: [],
+                    pollOptions: [],
+                    pollExpiresIn: nil,
+                    visibility: "direct",
+                    account: account
+                )
+                return .mastodon(status)
+            } catch {
+                let status = try await mastodonService.createPost(
+                    content: content,
+                    mediaAttachments: [],
+                    mediaAltTexts: [],
+                    pollOptions: [],
+                    pollExpiresIn: nil,
+                    visibility: "direct",
+                    account: account
+                )
+                return .mastodon(status)
+            }
+
+        case .bluesky:
+            let sentMessage = try await blueskyService.sendMessage(
+                convoId: conversation.id, text: text, for: account)
+            return .bluesky(.message(sentMessage))
+        }
     }
 
     // MARK: - Offline Queue Management
@@ -2636,9 +2862,11 @@ public final class SocialServiceManager: ObservableObject {
         content: String,
         platforms: Set<SocialPlatform>,
         mediaAttachments: [Data] = [],
+        mediaAltTexts: [String] = [],
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
-        visibility: String = "public"
+        visibility: String = "public",
+        accountOverrides: [SocialPlatform: SocialAccount] = [:]
     ) async throws -> [Post] {
         guard !platforms.isEmpty else {
             throw ServiceError.noPlatformsSelected
@@ -2658,9 +2886,11 @@ public final class SocialServiceManager: ObservableObject {
                     content: content,
                     platform: platform,
                     mediaAttachments: mediaAttachments,
+                    mediaAltTexts: mediaAltTexts,
                     pollOptions: pollOptions,
                     pollExpiresIn: pollExpiresIn,
-                    visibility: visibility
+                    visibility: visibility,
+                    accountOverride: accountOverrides[platform]
                 )
                 createdPosts.append(post)
             } catch {
@@ -2690,31 +2920,35 @@ public final class SocialServiceManager: ObservableObject {
         content: String,
         platform: SocialPlatform,
         mediaAttachments: [Data] = [],
+        mediaAltTexts: [String] = [],
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
-        visibility: String = "public"
+        visibility: String = "public",
+        accountOverride: SocialAccount? = nil
     ) async throws -> Post {
         switch platform {
         case .mastodon:
-            guard let account = mastodonAccounts.first else {
+            guard let account = accountOverride ?? mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
             return try await mastodonService.createPost(
                 content: content,
                 mediaAttachments: mediaAttachments,
+                mediaAltTexts: mediaAltTexts,
                 pollOptions: pollOptions,
                 pollExpiresIn: pollExpiresIn,
                 visibility: visibility,
                 account: account
             )
         case .bluesky:
-            guard let account = blueskyAccounts.first else {
+            guard let account = accountOverride ?? blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
             // Bluesky doesn't support polls via the standard post API yet
             return try await blueskyService.createPost(
                 content: content,
                 mediaAttachments: mediaAttachments,
+                mediaAltTexts: mediaAltTexts,
                 account: account
             )
         }

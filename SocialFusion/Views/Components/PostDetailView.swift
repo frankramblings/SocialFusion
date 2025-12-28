@@ -21,7 +21,13 @@ struct PostDetailView: View {
 
     // Reply composer state
     @State private var isReplying: Bool = false
-    @FocusState private var isReplyFocused: Bool
+    @State private var isQuickReplyActive: Bool = false
+    @State private var inlineReplyText: String = ""
+    @State private var isSendingQuickReply: Bool = false
+    @State private var quickReplyErrorMessage: String?
+    @State private var showQuickReplyError: Bool = false
+    @State private var selectedReplyAccountId: String?
+    @FocusState private var isInlineReplyFocused: Bool
 
     // Reply loading state
     @State private var isLoadingReplies: Bool = false
@@ -61,6 +67,15 @@ struct PostDetailView: View {
             return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
         case .bluesky:
             return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
+    private func platformTint(for platform: SocialPlatform) -> Color {
+        switch platform {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
         }
     }
 
@@ -145,6 +160,9 @@ struct PostDetailView: View {
                     .environmentObject(serviceManager)
             }
         }
+        .safeAreaInset(edge: .bottom) {
+            inlineReplyBar
+        }
         .toolbarBackground(.clear, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
         .navigationBarItems(
@@ -168,12 +186,17 @@ struct PostDetailView: View {
             }
             .menuStyle(.borderlessButton)
         )
+        .alert("Reply failed", isPresented: $showQuickReplyError) {
+            Button("OK", role: .cancel) {
+                showQuickReplyError = false
+            }
+        } message: {
+            Text(quickReplyErrorMessage ?? "Something went wrong while sending your reply.")
+        }
         .onAppear {
-            if focusReplyComposer && !isReplying {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        isReplying = true
-                    }
+            if focusReplyComposer && !isQuickReplyActive {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    activateQuickReply(for: viewModel.post, prefill: true)
                 }
             }
 
@@ -334,6 +357,171 @@ struct PostDetailView: View {
         }
     }
 
+    // MARK: - Inline Reply Composer
+
+    @ViewBuilder
+    private var inlineReplyBar: some View {
+        if let replyTarget = activeReplyPost,
+            isQuickReplyActive,
+            !isReplying
+        {
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    quickReplyAccountMenu(for: replyTarget.platform)
+
+                    Spacer()
+
+                    Text("\(inlineReplyRemaining)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(
+                            inlineReplyRemaining < 0
+                                ? .red
+                                : (inlineReplyRemaining < 50 ? .orange : .secondary)
+                        )
+
+                    Button {
+                        openFullComposer(for: replyTarget)
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.primary)
+                            .padding(8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color(UIColor.secondarySystemBackground))
+                            )
+                    }
+                    .accessibilityLabel("Open full composer")
+
+                    Button(action: resetQuickReplyState) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .accessibilityLabel("Dismiss quick reply")
+                }
+
+                HStack(alignment: .center, spacing: 8) {
+                    TextField(
+                        "Reply to @\(replyTarget.authorUsername)...",
+                        text: $inlineReplyText,
+                        axis: .vertical
+                    )
+                    .textFieldStyle(.roundedBorder)
+                    .focused($isInlineReplyFocused)
+                    .lineLimit(1...4)
+                    .submitLabel(.send)
+                    .onSubmit {
+                        if canSendInlineReply {
+                            sendInlineReply()
+                        }
+                    }
+
+                    if isSendingQuickReply {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .frame(width: 32, height: 32)
+                    } else {
+                        Button(action: sendInlineReply) {
+                            Image(systemName: "paperplane.fill")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                                .padding(10)
+                                .background(
+                                    Circle()
+                                        .fill(
+                                            canSendInlineReply
+                                                ? platformTint(for: replyTarget.platform)
+                                                : Color.gray.opacity(0.4)
+                                        )
+                                )
+                        }
+                        .disabled(!canSendInlineReply)
+                        .accessibilityLabel("Send reply")
+                    }
+                }
+            }
+            .padding(12)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func quickReplyAccountMenu(for platform: SocialPlatform) -> some View {
+        let accounts = replyAccounts(for: platform)
+        let currentLabel =
+            selectedReplyAccount(for: platform)?.displayName
+            ?? selectedReplyAccount(for: platform)?.username
+            ?? "Select account"
+
+        if accounts.isEmpty {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+                Text("Add \(platform.rawValue) account")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.orange.opacity(0.12))
+            .clipShape(Capsule())
+        } else if accounts.count == 1, let account = accounts.first {
+            HStack(spacing: 6) {
+                Image(platform.icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+                Text(account.displayName ?? account.username)
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color(UIColor.secondarySystemBackground))
+            .clipShape(Capsule())
+        } else {
+            Menu {
+                ForEach(accounts, id: \.id) { account in
+                    Button {
+                        selectedReplyAccountId = account.id
+                    } label: {
+                        HStack {
+                            Text(account.displayName ?? account.username)
+                            if selectedReplyAccountId == account.id {
+                                Spacer()
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(platform.icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 14, height: 14)
+                    Text(currentLabel)
+                        .font(.caption.weight(.semibold))
+                        .lineLimit(1)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color(UIColor.secondarySystemBackground))
+                .clipShape(Capsule())
+            }
+        }
+    }
+
     // MARK: - Menu Items
 
     @ViewBuilder
@@ -360,10 +548,7 @@ struct PostDetailView: View {
 
         switch action {
         case .reply:
-            activeReplyPost = targetPost
-            withAnimation(.easeInOut(duration: 0.3)) {
-                isReplying = true
-            }
+            activateQuickReply(for: targetPost, prefill: true)
         case .repost:
             if FeatureFlagManager.isEnabled(.postActionsV2) {
                 serviceManager.postActionStore.ensureState(for: targetPost)
@@ -452,6 +637,121 @@ struct PostDetailView: View {
 
     private func reportPost() {
         NSLog("Report post: %@", viewModel.post.id)
+    }
+
+    // MARK: - Reply Composer Helpers
+
+    private var inlineReplyRemaining: Int {
+        guard let target = activeReplyPost else { return 0 }
+        let limit = target.platform == .mastodon ? 500 : 300
+        return limit - inlineReplyText.count
+    }
+
+    private var canSendInlineReply: Bool {
+        guard let target = activeReplyPost else { return false }
+        let content = inlineReplyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return !content.isEmpty
+            && inlineReplyRemaining >= 0
+            && !isSendingQuickReply
+            && selectedReplyAccount(for: target.platform) != nil
+    }
+
+    private func activateQuickReply(for post: Post, prefill: Bool = false) {
+        activeReplyPost = post
+        hydrateReplyAccountSelection(for: post.platform)
+        if prefill && inlineReplyText.isEmpty {
+            inlineReplyText = "@\(post.authorUsername) "
+        }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            isQuickReplyActive = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            isInlineReplyFocused = true
+        }
+    }
+
+    private func openFullComposer(for post: Post) {
+        activeReplyPost = post
+        isQuickReplyActive = false
+        isReplying = true
+    }
+
+    private func replyAccounts(for platform: SocialPlatform) -> [SocialAccount] {
+        switch platform {
+        case .mastodon:
+            return serviceManager.mastodonAccounts
+        case .bluesky:
+            return serviceManager.blueskyAccounts
+        }
+    }
+
+    private func hydrateReplyAccountSelection(for platform: SocialPlatform) {
+        let accounts = replyAccounts(for: platform)
+        guard !accounts.isEmpty else { return }
+        if let selectedReplyAccountId,
+            accounts.contains(where: { $0.id == selectedReplyAccountId })
+        {
+            return
+        }
+        selectedReplyAccountId = accounts.first?.id
+    }
+
+    private func selectedReplyAccount(for platform: SocialPlatform) -> SocialAccount? {
+        let accounts = replyAccounts(for: platform)
+        if let selectedReplyAccountId,
+            let match = accounts.first(where: { $0.id == selectedReplyAccountId })
+        {
+            return match
+        }
+        return accounts.first
+    }
+
+    private func resetQuickReplyState() {
+        inlineReplyText = ""
+        isSendingQuickReply = false
+        isQuickReplyActive = false
+        isInlineReplyFocused = false
+        activeReplyPost = nil
+    }
+
+    private func sendInlineReply() {
+        guard canSendInlineReply, let target = activeReplyPost else { return }
+        guard let account = selectedReplyAccount(for: target.platform) else {
+            quickReplyErrorMessage = "Add a \(target.platform.rawValue) account to reply."
+            showQuickReplyError = true
+            return
+        }
+
+        let content = inlineReplyText.trimmingCharacters(in: .whitespacesAndNewlines)
+        isSendingQuickReply = true
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+
+        Task {
+            do {
+                _ = try await serviceManager.replyToPost(
+                    target,
+                    content: content,
+                    accountOverride: account
+                )
+                await MainActor.run {
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    resetQuickReplyState()
+                    if target.id == viewModel.post.id {
+                        viewModel.replyCount += 1
+                        viewModel.post.replyCount = viewModel.replyCount
+                        viewModel.post.isReplied = true
+                    }
+                    loadReplies()
+                }
+            } catch {
+                await MainActor.run {
+                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    isSendingQuickReply = false
+                    quickReplyErrorMessage = error.localizedDescription
+                    showQuickReplyError = true
+                }
+            }
+        }
     }
 
     // MARK: - Thread Loading
