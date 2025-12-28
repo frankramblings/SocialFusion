@@ -65,20 +65,20 @@ struct SocialFusionApp: App {
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
             } else {
-                    ContentView()
-                        .environmentObject(serviceManager)
-                        .environmentObject(appVersionManager)
-                        .environmentObject(oauthManager)
-                        .environmentObject(navigationEnvironment)
-                        .environmentObject(notificationManager)
-                        .environmentObject(draftStore)
-                        .environmentObject(edgeCaseHandler)
-                        .onAppear {
-                            notificationManager.requestAuthorization()
-                        }
-                        .onOpenURL { url in
-                            handleURL(url)
-                        }
+                ContentView()
+                    .environmentObject(serviceManager)
+                    .environmentObject(appVersionManager)
+                    .environmentObject(oauthManager)
+                    .environmentObject(navigationEnvironment)
+                    .environmentObject(notificationManager)
+                    .environmentObject(draftStore)
+                    .environmentObject(edgeCaseHandler)
+                    .onAppear {
+                        notificationManager.requestAuthorization()
+                    }
+                    .onOpenURL { url in
+                        handleURL(url)
+                    }
             }
         }
     }

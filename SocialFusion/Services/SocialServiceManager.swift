@@ -173,11 +173,14 @@ public final class SocialServiceManager: ObservableObject {
 
     // Reply filtering
     private lazy var postFeedFilter: PostFeedFilter = {
-        let mastodonResolver = MastodonThreadResolver(service: mastodonService) { [weak self] in
-            await MainActor.run { self?.mastodonAccounts.first }
+        let manager = self
+        let mastodonResolver = MastodonThreadResolver(service: mastodonService) { [weak manager] in
+            guard let manager = manager else { return nil }
+            return await MainActor.run { manager.mastodonAccounts.first }
         }
-        let blueskyResolver = BlueskyThreadResolver(service: blueskyService) { [weak self] in
-            await MainActor.run { self?.blueskyAccounts.first }
+        let blueskyResolver = BlueskyThreadResolver(service: blueskyService) { [weak manager] in
+            guard let manager = manager else { return nil }
+            return await MainActor.run { manager.blueskyAccounts.first }
         }
         let filter = PostFeedFilter(
             mastodonResolver: mastodonResolver, blueskyResolver: blueskyResolver)
@@ -618,7 +621,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Remove an account
     @MainActor
-    public func removeAccount(_ account: SocialAccount) {
+    public func removeAccount(_ account: SocialAccount) async {
         print("🗑️ Removing account: \(account.username) (\(account.platform))")
         
         // Remove from memory
@@ -642,12 +645,10 @@ public final class SocialServiceManager: ObservableObject {
         // Reset timeline if no accounts left
         if accounts.isEmpty {
             unifiedTimeline = []
-            PersistenceManager.shared.clearAll()
+            await PersistenceManager.shared.clearAll()
         } else {
             // Trigger a refresh to remove posts from the deleted account
-            Task {
-                try? await refreshTimeline(force: true)
-            }
+            try? await refreshTimeline(force: true)
         }
     }
 

@@ -17,7 +17,7 @@ actor TimelineSwiftDataStore {
     }
     
     @MainActor
-    func saveTimeline(_ posts: [Post]) {
+    func saveTimeline(_ posts: [Post]) async {
         let context = container.mainContext
         
         // Clear old cache
@@ -45,7 +45,7 @@ actor TimelineSwiftDataStore {
     }
     
     @MainActor
-    func loadTimeline() -> [Post]? {
+    func loadTimeline() async -> [Post]? {
         let context = container.mainContext
         let descriptor = FetchDescriptor<CachedPost>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
         
@@ -76,7 +76,7 @@ actor TimelineSwiftDataStore {
     }
     
     @MainActor
-    func clearAll() {
+    func clearAll() async {
         try? container.mainContext.delete(model: CachedPost.self)
     }
 }

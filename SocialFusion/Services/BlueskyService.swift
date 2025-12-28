@@ -3668,16 +3668,17 @@ public final class BlueskyThreadResolver: ThreadParticipantResolver {
 
         return participants
     }
+}
 
-    // MARK: - Chat (DMs)
-
+// MARK: - Chat (DMs) Extension
+extension BlueskyService {
     private func getChatProxyURL(for account: SocialAccount) -> String {
         // Most PDS use this proxy for chat
         return "https://api.bsky.chat/xrpc"
     }
 
     /// Fetch conversations for an account
-    func fetchConvos(for account: SocialAccount) async throws -> [BlueskyConvo] {
+    internal func fetchConvos(for account: SocialAccount) async throws -> [BlueskyConvo] {
         guard let accessToken = account.accessToken else {
             throw BlueskyTokenError.noAccessToken
         }
@@ -3697,7 +3698,7 @@ public final class BlueskyThreadResolver: ThreadParticipantResolver {
     }
 
     /// Fetch messages for a specific conversation
-    func fetchMessages(convoId: String, for account: SocialAccount) async throws -> [BlueskyChatMessage] {
+    internal func fetchMessages(convoId: String, for account: SocialAccount) async throws -> [BlueskyChatMessage] {
         guard let accessToken = account.accessToken else {
             throw BlueskyTokenError.noAccessToken
         }
@@ -3717,7 +3718,7 @@ public final class BlueskyThreadResolver: ThreadParticipantResolver {
     }
 
     /// Send a message in a conversation
-    func sendMessage(convoId: String, text: String, for account: SocialAccount) async throws -> BlueskyMessageView {
+    internal func sendMessage(convoId: String, text: String, for account: SocialAccount) async throws -> BlueskyMessageView {
         guard let accessToken = account.accessToken else {
             throw BlueskyTokenError.noAccessToken
         }
