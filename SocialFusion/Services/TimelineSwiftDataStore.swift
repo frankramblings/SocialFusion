@@ -30,13 +30,14 @@ actor TimelineSwiftDataStore {
                 content: post.content,
                 authorName: post.authorName,
                 authorUsername: post.authorUsername,
-                authorAvatarURL: post.authorAvatarURL,
+                authorProfilePictureURL: post.authorProfilePictureURL,
                 createdAt: post.createdAt,
                 platform: post.platform,
+                originalURL: post.originalURL,
                 replyCount: post.replyCount,
                 repostCount: post.repostCount,
                 likeCount: post.likeCount,
-                attachmentURLs: post.attachments.map { $0.url.absoluteString }
+                attachmentURLs: post.attachments.map { $0.url }
             )
             context.insert(cached)
         }
@@ -57,16 +58,16 @@ actor TimelineSwiftDataStore {
                     content: cached.content,
                     authorName: cached.authorName,
                     authorUsername: cached.authorUsername,
-                    authorAvatarURL: cached.authorAvatarURL,
+                    authorProfilePictureURL: cached.authorProfilePictureURL,
                     createdAt: cached.createdAt,
                     platform: SocialPlatform(rawValue: cached.platformValue) ?? .mastodon,
-                    attachments: cached.attachmentURLs.compactMap { urlString in
-                        guard let url = URL(string: urlString) else { return nil }
-                        return PostAttachment(id: UUID().uuidString, type: .image, url: url, previewURL: url)
+                    originalURL: cached.originalURL,
+                    attachments: cached.attachmentURLs.map { urlString in
+                        Post.Attachment(url: urlString, type: .image)
                     },
-                    replyCount: cached.replyCount,
+                    likeCount: cached.likeCount,
                     repostCount: cached.repostCount,
-                    likeCount: cached.likeCount
+                    replyCount: cached.replyCount
                 )
             }
         } catch {

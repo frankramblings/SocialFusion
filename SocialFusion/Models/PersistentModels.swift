@@ -8,9 +8,10 @@ final class CachedPost {
     var content: String
     var authorName: String
     var authorUsername: String
-    var authorAvatarURL: String?
+    var authorProfilePictureURL: String
     var createdAt: Date
     var platformValue: String
+    var originalURL: String
     var replyCount: Int
     var repostCount: Int
     var likeCount: Int
@@ -18,14 +19,15 @@ final class CachedPost {
     // Simplified attachments for caching
     var attachmentURLs: [String] = []
     
-    init(id: String, content: String, authorName: String, authorUsername: String, authorAvatarURL: String?, createdAt: Date, platform: SocialPlatform, replyCount: Int, repostCount: Int, likeCount: Int, attachmentURLs: [String]) {
+    init(id: String, content: String, authorName: String, authorUsername: String, authorProfilePictureURL: String, createdAt: Date, platform: SocialPlatform, originalURL: String, replyCount: Int, repostCount: Int, likeCount: Int, attachmentURLs: [String]) {
         self.id = id
         self.content = content
         self.authorName = authorName
         self.authorUsername = authorUsername
-        self.authorAvatarURL = authorAvatarURL
+        self.authorProfilePictureURL = authorProfilePictureURL
         self.createdAt = createdAt
         self.platformValue = platform.rawValue
+        self.originalURL = originalURL
         self.replyCount = replyCount
         self.repostCount = repostCount
         self.likeCount = likeCount
