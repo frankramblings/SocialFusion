@@ -37,6 +37,7 @@
 		263848F648598CCF4C4C281B /* PostAuthorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A775D3F2651AB9DF5BC960B /* PostAuthorView.swift */; };
 		26A9F829C527AED2BB88AED9 /* TimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161D75A9E63DCFB50B5BD11D /* TimelineController.swift */; };
 		288D50005DDE36B4538A245B /* SocialFusionTimelineDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5009EE1EAECC7E012285EC8C /* SocialFusionTimelineDebug.swift */; };
+		297818461F40FA255EB29DD8 /* PersistentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0627DF87981D189A2823C3DE /* PersistentModels.swift */; };
 		2D9952C1578AD9A3ACD02BAC /* SystemImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */; };
 		2ECEF0DD8AE41DE5FB4CFD05 /* AddAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515EEFD6EA2AC8D243C307B7 /* AddAccountView.swift */; };
 		2EE845AC73F6E96035D64073 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28473D186DFB59778DF996BE /* Post.swift */; };
@@ -101,6 +102,7 @@
 		995DA6752CA59999A34AD54B /* AccountTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A4904D8102015C9E925FD4 /* AccountTimelineView.swift */; };
 		9A13A9462124ED80A56E0A6A /* BlueskyAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0380FF70F8415BBC8F2B7D53 /* BlueskyAPIClient.swift */; };
 		9B0ADB464AC7C261CDAAE66D /* MutedKeywordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CC3C1029CDB0CF7A31D30D /* MutedKeywordsView.swift */; };
+		9CF0A3B59CD01ADABEFEB9CF /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D374E2D93B0E1F3ABF249F /* NotificationManager.swift */; };
 		9DC0E9C85139ACAD081B4C06 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5D154F6A71571D8E20E749 /* ErrorHandler.swift */; };
 		9F54D5C03B5C08043A422474 /* AutomaticTokenRefreshService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7413DB6AA623D2017C0BC6A9 /* AutomaticTokenRefreshService.swift */; };
 		9F9546B65000770237CE379C /* LinkPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F069E26AF8BE5D605C3A41 /* LinkPreview.swift */; };
@@ -121,6 +123,7 @@
 		AA29EAA81800A44171BBF6F7 /* AuthWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF143DFD9A254B37F9762F /* AuthWebView.swift */; };
 		AB1A08E3EA9A3D207C262C09 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7971F092BFD3A1DA68989B1A /* AppVersionManager.swift */; };
 		ADBB6E38E036719FF92B2763 /* PostPollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E7DB0D4A4C268E9FD11655 /* PostPollView.swift */; };
+		AE6491049D7BAE45DC20D148 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B430DD931CA18326730A91 /* ChatView.swift */; };
 		B19DC4A198FD6DFF0BB90953 /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AC5082405C3F276EADD6AC /* DateParser.swift */; };
 		B3051EF0EA0F51BD2684D8BF /* EnhancedEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */; };
 		B395D459AAFE04B469589D52 /* TagDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */; };
@@ -135,10 +138,12 @@
 		C1588A651938F8123ED730F2 /* SocialModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18DEC81D31244F475B9C02A9 /* SocialModels.swift */; };
 		C1BD26959D91774A677CABB1 /* PostMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97AE52DE5A106B9C9D94FFAC /* PostMenu.swift */; };
 		C4A2D34E624F6670BBBB20BA /* FeatureFlagManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28FC04DC95EB5E4CA73B9AFB /* FeatureFlagManager.swift */; };
+		C4C915EC8F7E42A619AFD28B /* TimelineSwiftDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4930A3036E639A6B4378AC0A /* TimelineSwiftDataStore.swift */; };
 		C65481E13024F427F66E6C28 /* Color+Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60235CB7587DFD9D7CE81DDB /* Color+Theme.swift */; };
 		C707093DC30F2A021B42DF23 /* AccountsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17A16665C419E79A3564DF6E /* AccountsView.swift */; };
 		C70762226155550644A11F3B /* FeatureFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13C0747FDCFF6508AD507AA5 /* FeatureFlags.swift */; };
 		C9271CE90B62CA69B9D3EF2B /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B2419982A092CA7DD0E500 /* KeychainService.swift */; };
+		CCCA3B7D5E806B7F93D6AC83 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BFE87A66806A1DCE6C00510 /* OnboardingView.swift */; };
 		CD35F1063863DA1C608F3743 /* BlueskyService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */; };
 		CFB9F955B5E3D8820416D35B /* UserDefaults+Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6606ED70A5854105814B981A /* UserDefaults+Keychain.swift */; };
 		D114001BE22758C96F42E45B /* DraftStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEEC9F25B0D2EA289E617ACA /* DraftStore.swift */; };
@@ -176,6 +181,7 @@
 		0380FF70F8415BBC8F2B7D53 /* BlueskyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyAPIClient.swift; sourceTree = "<group>"; };
 		04B2419982A092CA7DD0E500 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		05486FEC9A6D971EC35A08BA /* NetworkConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkConfig.swift; sourceTree = "<group>"; };
+		0627DF87981D189A2823C3DE /* PersistentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModels.swift; sourceTree = "<group>"; };
 		0882B2596E6F96CFE8A6D8CA /* MediaPerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPerformanceMonitor.swift; sourceTree = "<group>"; };
 		09865BAC6E267F39F883A07D /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
 		0A0031088E442B86B93B5225 /* MastodonPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonPost.swift; sourceTree = "<group>"; };
@@ -207,6 +213,7 @@
 		3428A274C386946619CFC59B /* LoadingState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingState.swift; sourceTree = "<group>"; };
 		36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineV2ValidationRunner.swift; sourceTree = "<group>"; };
 		37E0D8326AF57D67916ECE43 /* AccountManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountManager.swift; sourceTree = "<group>"; };
+		38B430DD931CA18326730A91 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
 		39707FACEBD61A89EBA1BB73 /* ParentPostPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentPostPreview.swift; sourceTree = "<group>"; };
 		3A6F5AFDC0B0B4E1580FD2F8 /* MediaConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaConfiguration.swift; sourceTree = "<group>"; };
 		3D703FF04BA51D8929A92E5F /* ConsolidatedTimelineView.swift.backup */ = {isa = PBXFileReference; path = ConsolidatedTimelineView.swift.backup; sourceTree = "<group>"; };
@@ -221,6 +228,8 @@
 		466AB960225BCAC997006B9A /* ContentView.swift.bak */ = {isa = PBXFileReference; path = ContentView.swift.bak; sourceTree = "<group>"; };
 		466E8DC57C6E08DFC3853709 /* UserDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDetailView.swift; sourceTree = "<group>"; };
 		47F069E26AF8BE5D605C3A41 /* LinkPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreview.swift; sourceTree = "<group>"; };
+		4930A3036E639A6B4378AC0A /* TimelineSwiftDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSwiftDataStore.swift; sourceTree = "<group>"; };
+		4BFE87A66806A1DCE6C00510 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleEdgeCaseHandling.swift; sourceTree = "<group>"; };
 		4CFF143DFD9A254B37F9762F /* AuthWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthWebView.swift; sourceTree = "<group>"; };
 		4D71CA3ECEDDF31E65ED2F3D /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
@@ -232,6 +241,7 @@
 		54B2A147BCA72B574323D9D9 /* PlatformBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformBadge.swift; sourceTree = "<group>"; };
 		57F69E489231CD3C5D1D65CE /* URLService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLService.swift; sourceTree = "<group>"; };
 		58C438E212556823CBF6F53A /* ConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManager.swift; sourceTree = "<group>"; };
+		59D374E2D93B0E1F3ABF249F /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		5C6877E827AA4A781CFFB180 /* NotificationName+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NotificationName+Extensions.swift"; sourceTree = "<group>"; };
 		5D5C119CE73B0B13D5EEAE8C /* PostDivider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostDivider.swift; sourceTree = "<group>"; };
 		5DD74322B593593F2DB43C92 /* Post+ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Post+ContentView.swift"; sourceTree = "<group>"; };
@@ -441,6 +451,7 @@
 				515EEFD6EA2AC8D243C307B7 /* AddAccountView.swift */,
 				A9EDEC87F79BA4F393769206 /* AsyncImageFromProvider.swift */,
 				4CFF143DFD9A254B37F9762F /* AuthWebView.swift */,
+				38B430DD931CA18326730A91 /* ChatView.swift */,
 				B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */,
 				789A5C219B9818CD0A7651B5 /* ConsolidatedTimelineView.swift */,
 				3D703FF04BA51D8929A92E5F /* ConsolidatedTimelineView.swift.backup */,
@@ -451,6 +462,7 @@
 				D2D5262296CBE424119169BF /* MigrationControlPanel.swift */,
 				81CC3C1029CDB0CF7A31D30D /* MutedKeywordsView.swift */,
 				CCE765857688E945319C8F22 /* NotificationsView.swift */,
+				4BFE87A66806A1DCE6C00510 /* OnboardingView.swift */,
 				54B2A147BCA72B574323D9D9 /* PlatformBadge.swift */,
 				BEE138AB89AE4B297B2E452C /* PostDetailView.swift.bak */,
 				8666C8162ED89B555D689B9F /* ProfileImageView.swift */,
@@ -520,9 +532,11 @@
 				B3E24C930BBDAA579283C2F3 /* MediaErrorHandler.swift */,
 				D31591C215619240233E4D95 /* MediaMemoryManager.swift */,
 				0882B2596E6F96CFE8A6D8CA /* MediaPerformanceMonitor.swift */,
+				59D374E2D93B0E1F3ABF249F /* NotificationManager.swift */,
 				E23CB869DC6E2E31040F255F /* OAuthManager.swift */,
 				B6083697C2911B63A7599A73 /* PostNormalizerImpl.swift */,
 				73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */,
+				4930A3036E639A6B4378AC0A /* TimelineSwiftDataStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -557,6 +571,7 @@
 				BA62BF5593DDB7987247FB2A /* LinkPreviewCache.swift */,
 				C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */,
 				0A0031088E442B86B93B5225 /* MastodonPost.swift */,
+				0627DF87981D189A2823C3DE /* PersistentModels.swift */,
 				28473D186DFB59778DF996BE /* Post.swift */,
 				5DD74322B593593F2DB43C92 /* Post+ContentView.swift */,
 				4413493C1891D722617907EB /* PostActionState.swift */,
@@ -734,6 +749,7 @@
 				E4C8C895556935B28B300FE9 /* BlueskyThreadResolver.swift in Sources */,
 				7E4155789C5E894B1D0549F7 /* BoostBanner.swift in Sources */,
 				AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */,
+				AE6491049D7BAE45DC20D148 /* ChatView.swift in Sources */,
 				C65481E13024F427F66E6C28 /* Color+Theme.swift in Sources */,
 				8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */,
 				00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */,
@@ -785,11 +801,14 @@
 				87597E8B3AC39608D559B8B8 /* NativeYouTubePlayer.swift in Sources */,
 				8A7D54870241622C2500CFBE /* NetworkConfig.swift in Sources */,
 				9560ECBE2EC579123A30AF08 /* NetworkService.swift in Sources */,
+				9CF0A3B59CD01ADABEFEB9CF /* NotificationManager.swift in Sources */,
 				852008D8C2D23E171ED8DF24 /* NotificationName+Extensions.swift in Sources */,
 				640C45D1177E781B605C8BC7 /* NotificationsView.swift in Sources */,
 				465FD35F90AF34A32BC71DA5 /* OAuthManager.swift in Sources */,
+				CCCA3B7D5E806B7F93D6AC83 /* OnboardingView.swift in Sources */,
 				2442C98F0C38F1640ADEA656 /* ParentPostPreview.swift in Sources */,
 				1B47501D4D3980B89232B960 /* PerformantLinkPreview.swift in Sources */,
+				297818461F40FA255EB29DD8 /* PersistentModels.swift in Sources */,
 				722CE95F78FFD415BC5286A9 /* PlatformBadge.swift in Sources */,
 				0DB5E3ED99E21E910A5EE892 /* PlatformDot.swift in Sources */,
 				A57FD5D983A4272FC9925755 /* PlatformLogoBadge.swift in Sources */,
@@ -849,6 +868,7 @@
 				26A9F829C527AED2BB88AED9 /* TimelineController.swift in Sources */,
 				A97A55CBDD406E7E61086DA9 /* TimelineEntry.swift in Sources */,
 				6568EF6BAB96500D1F1955EE /* TimelineState.swift in Sources */,
+				C4C915EC8F7E42A619AFD28B /* TimelineSwiftDataStore.swift in Sources */,
 				D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */,
 				17426D5BEA4E35CB2584E3BA /* TimelineV2ValidationView.swift in Sources */,
 				41EBA8A0DD4C02B03431F431 /* TimelineViewModel.swift in Sources */,

@@ -93,8 +93,6 @@ struct SocialFusionApp: App {
             navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
         }
     }
-        }
-    }
 
     private func handleOAuthCallback(url: URL) {
         // Forward the callback to the OAuth manager
