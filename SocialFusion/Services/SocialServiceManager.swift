@@ -2181,6 +2181,7 @@ public final class SocialServiceManager: ObservableObject {
         )
 
         return ThreadContext(
+            mainPost: context.mainPost,
             ancestors: existingParents + newParents,
             descendants: existingReplies + newReplies
         )

@@ -14,6 +14,7 @@ struct SmartMediaView: View {
 
     @State private var loadingState: LoadingState = .loading
     @State private var retryCount: Int = 0
+    @State private var loadedAspectRatio: CGFloat? = nil
 
     private let maxRetries = 3
 
@@ -46,6 +47,9 @@ struct SmartMediaView: View {
 
     @ViewBuilder
     private var mediaContent: some View {
+        let initialRatio = CGFloat(attachment.aspectRatio ?? Double(inferAspectRatio(from: attachment.url)))
+        let ratio = loadedAspectRatio ?? initialRatio
+
         if attachment.type == .audio {
             // Use the comprehensive AudioPlayerView
             AudioPlayerView(
@@ -58,40 +62,34 @@ struct SmartMediaView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Audio player: \(attachment.altText ?? "Audio content")")
             .accessibilityHint("Use VoiceOver gestures to control playback")
-        } else if attachment.type == .video {
-            // Use AVPlayer for true video content
+        } else if attachment.type == .video || attachment.type == .gifv {
             VideoPlayerView(
                 url: URL(string: attachment.url),
-                isGIF: false
+                isGIF: attachment.type == .gifv,
+                aspectRatio: ratio,
+                onSizeDetected: { size in
+                    if size.width > 0 && size.height > 0 {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            loadedAspectRatio = size.width / size.height
+                        }
+                    }
+                }
             )
-            .onAppear { print("[SmartMediaView] video appear url=\(attachment.url)") }
-        } else if attachment.type == .gifv {
-            // For GIFV (Mastodon MP4 videos), use VideoPlayerView
-            VideoPlayerView(
-                url: URL(string: attachment.url),
-                isGIF: true  // Treat as GIF for looping behavior
-            )
-            .onAppear { print("[SmartMediaView] gifv appear url=\(attachment.url)") }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onAppear { print("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
             // Flag-driven unfurling with local fallback
             let url = URL(string: attachment.url)
             if let url = url {
-                Group {
-                    if FeatureFlags.enableGIFUnfurling {
-                        GIFUnfurlContainer(
-                            url: url,
-                            maxHeight: maxHeight ?? 300,
-                            cornerRadius: cornerRadius,
-                            showControls: true,
-                            contentMode: contentMode == .fill ? .scaleAspectFill : .scaleAspectFit,
-                            onTap: { onTap?() }
-                        )
-                    } else {
-                        AnimatedGIFViewComponent(url: url)
-                            .frame(maxHeight: maxHeight ?? 300)
-                    }
-                }
-                .frame(maxWidth: .infinity)
+                GIFUnfurlContainer(
+                    url: url,
+                    maxHeight: maxHeight ?? 500,
+                    cornerRadius: cornerRadius,
+                    showControls: true,
+                    contentMode: contentMode == .fill ? .scaleAspectFill : .scaleAspectFit,
+                    onTap: { onTap?() }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.gray.opacity(0.08))
                 .onAppear {
                     print(
@@ -101,16 +99,26 @@ struct SmartMediaView: View {
             } else {
                 // Fallback if URL is invalid
                 loadingView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
             // Use CachedAsyncImage for static images with better loading and retry logic
-            CachedAsyncImage(url: URL(string: attachment.url), priority: .high) { image in
+            CachedAsyncImage(
+                url: URL(string: attachment.url),
+                priority: .high,
+                onImageLoad: { uiImage in
+                    let size = uiImage.size
+                    if size.width > 0 && size.height > 0 {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            loadedAspectRatio = CGFloat(size.width / size.height)
+                        }
+                    }
+                }
+            ) { image in
                 image
                     .resizable()
-                    .aspectRatio(
-                        contentMode: contentMode == SmartMediaView.ContentMode.fill
-                            ? SwiftUI.ContentMode.fill : SwiftUI.ContentMode.fit
-                    )
+                    .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear {
                         // Use Task to defer state updates outside view rendering cycle
                         Task { @MainActor in
@@ -120,6 +128,7 @@ struct SmartMediaView: View {
                     }
             } placeholder: {
                 loadingView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear {
                         // Use Task to defer state updates outside view rendering cycle
                         Task { @MainActor in
@@ -132,6 +141,7 @@ struct SmartMediaView: View {
                 Group {
                     if case .failed(let error) = loadingState {
                         failureView(error: error)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
             )
@@ -139,15 +149,30 @@ struct SmartMediaView: View {
     }
 
     var body: some View {
-        mediaContent
-            .frame(maxWidth: maxWidth, maxHeight: maxHeight)
-            .compositingGroup()
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .onTapGesture {
-                if attachment.type != .audio {  // Don't override audio player tap handling
-                    onTap?()
-                }
+        let initialRatio = attachment.aspectRatio ?? inferAspectRatio(from: attachment.url)
+        let ratio = loadedAspectRatio ?? initialRatio
+
+        Group {
+            if contentMode == .fill {
+                // Grid mode: Fixed aspect ratio (usually square)
+                mediaContent
+                    .frame(maxWidth: maxWidth, maxHeight: maxHeight)
+                    .contentShape(Rectangle())
+            } else {
+                // Detail/Single mode: Adaptive aspect ratio
+                mediaContent
+                    .aspectRatio(ratio, contentMode: .fit)
+                    .frame(maxWidth: maxWidth)
+                    .frame(maxHeight: maxHeight)
             }
+        }
+        .background(Color.gray.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .onTapGesture {
+            if attachment.type != .audio {  // Don't override audio player tap handling
+                onTap?()
+            }
+        }
     }
 
     // Extract a title from the audio file URL
@@ -223,6 +248,8 @@ struct SmartMediaView: View {
 private struct VideoPlayerView: View {
     let url: URL?
     let isGIF: Bool
+    let aspectRatio: CGFloat
+    var onSizeDetected: ((CGSize) -> Void)? = nil
 
     @State private var player: AVPlayer?
     @State private var playerLooper: AVPlayerLooper?
@@ -241,9 +268,14 @@ private struct VideoPlayerView: View {
             if let player = player, !hasError {
                 ZStack(alignment: .center) {
                     VideoPlayer(player: player)
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(contentMode: .fill)
+                        .aspectRatio(aspectRatio, contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .onAppear {
+                            // Detect size from track
+                            if let track = player.currentItem?.asset.tracks(withMediaType: .video).first {
+                                let size = track.naturalSize.applying(track.preferredTransform)
+                                onSizeDetected?(CGSize(width: abs(size.width), height: abs(size.height)))
+                            }
                             // Use Task to defer state updates outside view rendering cycle
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
@@ -307,14 +339,12 @@ private struct VideoPlayerView: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 }
-                .frame(maxWidth: .infinity)
-                .frame(height: 280)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Color.gray.opacity(0.1))
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.1))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 280)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(
                         VStack(spacing: 8) {
                             ProgressView()

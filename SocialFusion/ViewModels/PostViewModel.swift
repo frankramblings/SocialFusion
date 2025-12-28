@@ -8,7 +8,7 @@ import SwiftUI
 public class PostViewModel: ObservableObject {
     // MARK: - Properties
 
-    public var post: Post
+    @Published public var post: Post
     @Published public var isLiked: Bool
     @Published public var isReposted: Bool
     @Published public var likeCount: Int
@@ -65,6 +65,27 @@ public class PostViewModel: ObservableObject {
     }
 
     // MARK: - Public Methods
+
+    /// Update the post and its associated state from a new post object
+    public func updatePost(_ newPost: Post) {
+        self.post = newPost
+        self.isLiked = newPost.isLiked
+        self.isReposted = newPost.isReposted
+        self.likeCount = newPost.likeCount
+        self.repostCount = newPost.repostCount
+        self.replyCount = newPost.replyCount
+        
+        // Also update quoted post if needed
+        if let quotedPost = newPost.quotedPost {
+            if let existingQuotedVM = self.quotedPostViewModel, existingQuotedVM.post.id == quotedPost.id {
+                existingQuotedVM.updatePost(quotedPost)
+            } else {
+                self.quotedPostViewModel = PostViewModel(post: quotedPost, serviceManager: serviceManager)
+            }
+        } else {
+            self.quotedPostViewModel = nil
+        }
+    }
 
     /// Toggle like/unlike the post - proper intent-based pattern
     public func like() {

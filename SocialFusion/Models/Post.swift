@@ -207,6 +207,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     public var primaryLinkURL: URL?
     public var primaryLinkTitle: String?
     public var primaryLinkDescription: String?
+    public var primaryLinkThumbnailURL: URL?
 
     // Bluesky AT Protocol record URIs for unlike/unrepost functionality
     public var blueskyLikeRecordURI: String?  // URI of the like record created by this user
@@ -225,6 +226,26 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         public let url: String
         public let type: AttachmentType
         public let altText: String?
+        public let thumbnailURL: String?
+        public let width: Int?
+        public let height: Int?
+
+        public var aspectRatio: Double? {
+            guard let w = width, let h = height, h > 0 else { return nil }
+            return Double(w) / Double(h)
+        }
+
+        public init(
+            url: String, type: AttachmentType, altText: String? = nil, thumbnailURL: String? = nil,
+            width: Int? = nil, height: Int? = nil
+        ) {
+            self.url = url
+            self.type = type
+            self.altText = altText
+            self.thumbnailURL = thumbnailURL
+            self.width = width
+            self.height = height
+        }
 
         public enum AttachmentType: String, Codable {
             case image
@@ -271,6 +292,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case primaryLinkURL
         case primaryLinkTitle
         case primaryLinkDescription
+        case primaryLinkThumbnailURL
         case quotedPost
         case blueskyLikeRecordURI
         case blueskyRepostRecordURI
@@ -356,6 +378,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let primaryLinkURL = try container.decodeIfPresent(URL.self, forKey: .primaryLinkURL)
         let primaryLinkTitle = try container.decodeIfPresent(String.self, forKey: .primaryLinkTitle)
         let primaryLinkDescription = try container.decodeIfPresent(String.self, forKey: .primaryLinkDescription)
+        let primaryLinkThumbnailURL = try container.decodeIfPresent(URL.self, forKey: .primaryLinkThumbnailURL)
         let quotedPost = try container.decodeIfPresent(Post.self, forKey: .quotedPost)
         let blueskyLikeRecordURI = try container.decodeIfPresent(
             String.self, forKey: .blueskyLikeRecordURI)
@@ -392,6 +415,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             primaryLinkURL: primaryLinkURL,
             primaryLinkTitle: primaryLinkTitle,
             primaryLinkDescription: primaryLinkDescription,
+            primaryLinkThumbnailURL: primaryLinkThumbnailURL,
             blueskyLikeRecordURI: blueskyLikeRecordURI,
             blueskyRepostRecordURI: blueskyRepostRecordURI
         )
@@ -433,6 +457,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encodeIfPresent(primaryLinkURL, forKey: .primaryLinkURL)
         try container.encodeIfPresent(primaryLinkTitle, forKey: .primaryLinkTitle)
         try container.encodeIfPresent(primaryLinkDescription, forKey: .primaryLinkDescription)
+        try container.encodeIfPresent(primaryLinkThumbnailURL, forKey: .primaryLinkThumbnailURL)
         try container.encodeIfPresent(quotedPost, forKey: .quotedPost)
         try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
         try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
@@ -469,6 +494,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         primaryLinkURL: URL? = nil,
         primaryLinkTitle: String? = nil,
         primaryLinkDescription: String? = nil,
+        primaryLinkThumbnailURL: URL? = nil,
         blueskyLikeRecordURI: String? = nil,
         blueskyRepostRecordURI: String? = nil
     ) {
@@ -500,6 +526,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.primaryLinkURL = primaryLinkURL
         self.primaryLinkTitle = primaryLinkTitle
         self.primaryLinkDescription = primaryLinkDescription
+        self.primaryLinkThumbnailURL = primaryLinkThumbnailURL
         self.blueskyLikeRecordURI = blueskyLikeRecordURI
         self.blueskyRepostRecordURI = blueskyRepostRecordURI
         // Defensive: prevent self-reference on construction
@@ -728,7 +755,11 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             quotedPostUri: self.quotedPostUri,
             quotedPostAuthorHandle: self.quotedPostAuthorHandle,
             quotedPost: self.quotedPost,
-            cid: self.cid
+            cid: self.cid,
+            primaryLinkURL: self.primaryLinkURL,
+            primaryLinkTitle: self.primaryLinkTitle,
+            primaryLinkDescription: self.primaryLinkDescription,
+            primaryLinkThumbnailURL: self.primaryLinkThumbnailURL
         )
     }
 
@@ -762,6 +793,10 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             quotedPostAuthorHandle: self.quotedPostAuthorHandle,
             quotedPost: self.quotedPost?.deepCopy(),  // Deep copy quoted posts too
             cid: self.cid,
+            primaryLinkURL: self.primaryLinkURL,
+            primaryLinkTitle: self.primaryLinkTitle,
+            primaryLinkDescription: self.primaryLinkDescription,
+            primaryLinkThumbnailURL: self.primaryLinkThumbnailURL,
             blueskyLikeRecordURI: self.blueskyLikeRecordURI,
             blueskyRepostRecordURI: self.blueskyRepostRecordURI
         )
@@ -1062,6 +1097,9 @@ extension Post: Hashable {
 
 /// Represents a post's thread context with ancestors (parent posts) and descendants (replies)
 struct ThreadContext {
+    /// The main post that was the target of the thread request
+    let mainPost: Post?
+
     /// Posts that come before this post in the thread (ancestors/parents)
     let ancestors: [Post]
 
@@ -1070,9 +1108,11 @@ struct ThreadContext {
 
     /// Initialize a thread context
     /// - Parameters:
+    ///   - mainPost: The target post (optional)
     ///   - ancestors: Parent posts in chronological order (oldest first)
     ///   - descendants: Reply posts in chronological order (newest first)
-    init(ancestors: [Post] = [], descendants: [Post] = []) {
+    init(mainPost: Post? = nil, ancestors: [Post] = [], descendants: [Post] = []) {
+        self.mainPost = mainPost
         self.ancestors = ancestors
         self.descendants = descendants
     }

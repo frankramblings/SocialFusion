@@ -132,25 +132,20 @@ extension Post {
         onQuotePostTap: ((Post) -> Void)? = nil,
         allowTruncation: Bool = true
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            EmojiTextApp(
-                htmlString: HTMLString(raw: content),
-                customEmoji: customEmoji,
-                font: font,
-                foregroundColor: .primary,
-                lineLimit: lineLimit,
-                mentions: mentions,
-                tags: tags
-            )
-            .fixedSize(horizontal: false, vertical: true)
-
-            // Always show quote posts, but respect showLinkPreview for other content
-            quotePostViews(onQuotePostTap: onQuotePostTap)
-
-            if showLinkPreview {
-                regularLinkPreviewsOnly
-            }
-        }
+        ExpandableTextView(
+            content: content,
+            platform: platform,
+            customEmoji: customEmoji,
+            mentions: mentions,
+            tags: tags,
+            font: font,
+            lineLimit: lineLimit,
+            showLinkPreview: showLinkPreview,
+            onQuotePostTap: onQuotePostTap,
+            allowTruncation: allowTruncation,
+            createTextWithLinksCallback: { self.createTextWithLinks(from: $0) },
+            post: self
+        )
     }
 
     // MARK: - Private Views
@@ -191,11 +186,12 @@ extension Post {
 
         // Limit to ONE preview total (excluding YouTube which is handled as a player)
         // This mirrors Ivory/Bluesky behavior of showing one primary rich card
-        if let firstLink = finalPreviewLink {
+        if let finalPreview = finalPreviewLink {
             StabilizedLinkPreview(
-                url: firstLink,
-                title: firstLink == primaryLinkURL ? primaryLinkTitle : nil,
-                description: firstLink == primaryLinkURL ? primaryLinkDescription : nil,
+                url: finalPreview,
+                title: finalPreview == primaryLinkURL ? primaryLinkTitle : nil,
+                description: finalPreview == primaryLinkURL ? primaryLinkDescription : nil,
+                thumbnailURL: finalPreview == primaryLinkURL ? primaryLinkThumbnailURL : nil,
                 idealHeight: 200
             )
             .padding(.vertical, 12)

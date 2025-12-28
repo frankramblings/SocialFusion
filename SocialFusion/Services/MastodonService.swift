@@ -2238,7 +2238,7 @@ public class MastodonService {
                 "Successfully fetched context: \(ancestors.count) ancestors, \(descendants.count) descendants"
             )
 
-            return ThreadContext(ancestors: ancestors, descendants: descendants)
+            return ThreadContext(mainPost: nil, ancestors: ancestors, descendants: descendants)
         } catch {
             logger.error("Error fetching status context: \(error.localizedDescription)")
             throw error

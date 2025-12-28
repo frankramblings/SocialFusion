@@ -119,11 +119,13 @@ public struct GIFUnfurlContainer: View {
     }
     
     private func calculatedHeight(for width: CGFloat) -> CGFloat {
-        guard let aspectRatio = imageAspectRatio, width > 0, aspectRatio > 0 else {
+        let targetWidth = width > 0 ? width : UIScreen.main.bounds.width - 76 // Fallback width (screen - typical padding)
+        
+        guard let aspectRatio = imageAspectRatio, targetWidth > 0, aspectRatio > 0 else {
             // Fallback to a reasonable aspect ratio while loading
-            return min(width / 1.5, maxHeight)
+            return min(targetWidth / 1.5, maxHeight)
         }
-        let calculatedHeight = width / aspectRatio
+        let calculatedHeight = targetWidth / aspectRatio
         return min(calculatedHeight, maxHeight)
     }
 

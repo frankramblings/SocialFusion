@@ -227,6 +227,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     private let content: (Image) -> Content
     private let placeholder: () -> Placeholder
     private let priority: ImageLoadPriority
+    private let onImageLoad: ((UIImage) -> Void)?
 
     // Stable identifier to prevent view recycling issues
     private let stableID: String
@@ -245,11 +246,13 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     init(
         url: URL?,
         priority: ImageLoadPriority = .normal,
+        onImageLoad: ((UIImage) -> Void)? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.url = url
         self.priority = priority
+        self.onImageLoad = onImageLoad
         self.content = content
         self.placeholder = placeholder
         self.stableID = url?.absoluteString ?? UUID().uuidString
@@ -356,6 +359,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
 
                 if let loadedImage = loadedImage {
                     self.image = loadedImage
+                    self.onImageLoad?(loadedImage)
                     self.hasError = false
                     self.retryCount = 0
 
@@ -408,10 +412,11 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
 
 /// Convenience initializers
 extension CachedAsyncImage where Content == Image, Placeholder == AnyView {
-    init(url: URL?, priority: ImageLoadPriority = .normal) {
+    init(url: URL?, priority: ImageLoadPriority = .normal, onImageLoad: ((UIImage) -> Void)? = nil) {
         self.init(
             url: url,
             priority: priority,
+            onImageLoad: onImageLoad,
             content: { image in image },
             placeholder: {
                 AnyView(
@@ -430,11 +435,13 @@ extension CachedAsyncImage where Content == Image, Placeholder == AnyView {
 extension CachedAsyncImage where Content == Image {
     init(
         url: URL?, priority: ImageLoadPriority = .normal,
+        onImageLoad: ((UIImage) -> Void)? = nil,
         @ViewBuilder placeholder: @escaping () -> Placeholder
     ) {
         self.init(
             url: url,
             priority: priority,
+            onImageLoad: onImageLoad,
             content: { image in image },
             placeholder: placeholder
         )

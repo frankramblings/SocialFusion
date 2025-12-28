@@ -239,7 +239,12 @@ struct PostDetailView: View {
                     dateFormatter: dateFormatter
                 )
                 .id(selectedPostScrollID)
-                .onAppear { anchorReady = true }
+                .onAppear {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01s delay to prevent AttributeGraph cycles
+                        anchorReady = true
+                    }
+                }
                 .layoutPriority(1000)
 
                 // Action bar
@@ -553,6 +558,11 @@ struct PostDetailView: View {
             do {
                 let context = try await serviceManager.fetchThreadContext(for: viewModel.post)
                 await MainActor.run {
+                    // Update the selected post if a more hydrated version is available
+                    if let hydratedPost = context.mainPost {
+                        self.viewModel.updatePost(hydratedPost)
+                    }
+
                     self.parentPosts = context.ancestors
                     self.replyPosts = context.descendants
                     self.isLoadingThread = false
@@ -643,8 +653,13 @@ struct PostDetailView: View {
         Task {
             do {
                 let context = try await serviceManager.fetchThreadContext(for: viewModel.post)
-                self.replyPosts = context.descendants
-                self.isLoadingReplies = false
+                await MainActor.run {
+                    if let hydratedPost = context.mainPost {
+                        self.viewModel.updatePost(hydratedPost)
+                    }
+                    self.replyPosts = context.descendants
+                    self.isLoadingReplies = false
+                }
             } catch {
                 self.repliesError = error
                 self.isLoadingReplies = false
@@ -770,7 +785,7 @@ struct SelectedPostView: View {
                 if !post.attachments.isEmpty {
                     UnifiedMediaGridView(
                         attachments: post.attachments,
-                        maxHeight: 350
+                        maxHeight: 600
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
@@ -891,7 +906,7 @@ struct PostRow: View {
                 if !post.attachments.isEmpty {
                     UnifiedMediaGridView(
                         attachments: post.attachments,
-                        maxHeight: 200
+                        maxHeight: 300
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }

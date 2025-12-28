@@ -8,6 +8,7 @@ struct StabilizedLinkPreview: View {
     let url: URL
     let title: String?
     let description: String?
+    let thumbnailURL: URL?
     let idealHeight: CGFloat
 
     @State private var metadata: LPLinkMetadata?
@@ -18,10 +19,14 @@ struct StabilizedLinkPreview: View {
 
     private let maxRetries = 2
 
-    init(url: URL, title: String? = nil, description: String? = nil, idealHeight: CGFloat = 200) {
+    init(
+        url: URL, title: String? = nil, description: String? = nil, thumbnailURL: URL? = nil,
+        idealHeight: CGFloat = 200
+    ) {
         self.url = url
         self.title = title
         self.description = description
+        self.thumbnailURL = thumbnailURL
         self.idealHeight = idealHeight
     }
 
@@ -53,14 +58,15 @@ struct StabilizedLinkPreview: View {
             StabilizedLinkLoadingView(height: idealHeight)
         } else if let metadata = metadata {
             if metadata.imageProvider != nil || metadata.iconProvider != nil
-                || metadata.title != nil
+                || metadata.title != nil || thumbnailURL != nil
             {
                 // Favor Large Mode (Ivory/Bluesky style) for everything with metadata
                 StabilizedLinkRichContentView(
                     metadata: metadata,
                     url: url,
                     passedTitle: title,
-                    passedDescription: description
+                    passedDescription: description,
+                    passedThumbnailURL: thumbnailURL
                 )
             } else {
                 StabilizedLinkFallbackView(url: url)
@@ -194,6 +200,7 @@ private struct StabilizedLinkRichContentView: View {
     let url: URL
     let passedTitle: String?
     let passedDescription: String?
+    let passedThumbnailURL: URL?
     @State private var imageURL: URL?
     @State private var iconURL: URL?
     @Environment(\.colorScheme) private var colorScheme
@@ -205,7 +212,7 @@ private struct StabilizedLinkRichContentView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Image Section
                 ZStack {
-                    if let imageURL = imageURL {
+                    if let imageURL = imageURL ?? passedThumbnailURL {
                         AsyncImage(url: imageURL) { phase in
                             switch phase {
                             case .success(let image):

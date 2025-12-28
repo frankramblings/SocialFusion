@@ -19,6 +19,7 @@ struct UnifiedMediaGridView: View {
             case 1:
                 SingleImageView(
                     attachment: attachments[0],
+                    maxHeight: maxHeight,
                     onTap: {
                         selection.selectedAttachment = attachments[0]
                         selection.showAltTextInitially = false
@@ -83,6 +84,7 @@ struct UnifiedMediaGridView: View {
 
 private struct SingleImageView: View {
     let attachment: Post.Attachment
+    var maxHeight: CGFloat = 500
     let onTap: () -> Void
     let onAltTap: ((Post.Attachment) -> Void)?
 
@@ -90,10 +92,11 @@ private struct SingleImageView: View {
     private let stableURL: URL?
 
     init(
-        attachment: Post.Attachment, onTap: @escaping () -> Void,
+        attachment: Post.Attachment, maxHeight: CGFloat = 500, onTap: @escaping () -> Void,
         onAltTap: ((Post.Attachment) -> Void)? = nil
     ) {
         self.attachment = attachment
+        self.maxHeight = maxHeight
         self.onTap = onTap
         self.onAltTap = onAltTap
         self.stableURL = URL(string: attachment.url)
@@ -101,40 +104,14 @@ private struct SingleImageView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Use SmartMediaView for video, GIFV, and animated GIF content, AsyncImage for images
-            if attachment.type == .video || attachment.type == .gifv
-                || attachment.type == .animatedGIF
-            {
-                SmartMediaView(
-                    attachment: attachment,
-                    contentMode: SmartMediaView.ContentMode.fill,
-                    maxWidth: .infinity,
-                    maxHeight: 500,
-                    cornerRadius: 16,
-                    onTap: onTap
-                )
-            } else {
-                CachedAsyncImage(url: stableURL, priority: .high) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity, maxHeight: 500)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                } placeholder: {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.1))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 280)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.2)
-                        )
-                }
-                .onTapGesture {
-                    onTap()
-                }
-            }
+            SmartMediaView(
+                attachment: attachment,
+                contentMode: .fit,
+                maxWidth: .infinity,
+                maxHeight: maxHeight,
+                cornerRadius: 16,
+                onTap: onTap
+            )
 
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()
@@ -211,39 +188,14 @@ private struct GridImageView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Use SmartMediaView for video, GIFV, and animated GIF content, AsyncImage for images
-            if attachment.type == .video || attachment.type == .gifv
-                || attachment.type == .animatedGIF
-            {
-                SmartMediaView(
-                    attachment: attachment,
-                    contentMode: SmartMediaView.ContentMode.fill,
-                    maxWidth: gridSize,
-                    maxHeight: gridSize,
-                    cornerRadius: 12,
-                    onTap: { onTap(attachment) }
-                )
-            } else {
-                CachedAsyncImage(url: stableURL, priority: .high) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: gridSize, height: gridSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                } placeholder: {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.08))
-                        .frame(width: gridSize, height: gridSize)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(1.0)
-                        )
-                }
-                .onTapGesture {
-                    onTap(attachment)
-                }
-            }
+            SmartMediaView(
+                attachment: attachment,
+                contentMode: SmartMediaView.ContentMode.fill,
+                maxWidth: gridSize,
+                maxHeight: gridSize,
+                cornerRadius: 12,
+                onTap: { onTap(attachment) }
+            )
 
             if let alt = attachment.altText, !alt.isEmpty {
                 GlassyAltBadge()

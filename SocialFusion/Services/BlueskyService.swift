@@ -1163,8 +1163,24 @@ public class BlueskyService {
                                 URL(string: fullsize) != nil
                             {
                                 let alt = image["alt"] as? String ?? "Image"
+                                
+                                // Extract aspect ratio if available
+                                var width: Int? = nil
+                                var height: Int? = nil
+                                if let aspectRatio = image["aspectRatio"] as? [String: Any] {
+                                    width = aspectRatio["width"] as? Int
+                                    height = aspectRatio["height"] as? Int
+                                }
+                                
                                 attachments.append(
-                                    Post.Attachment(url: fullsize, type: .image, altText: alt))
+                                    Post.Attachment(
+                                        url: fullsize, 
+                                        type: .image, 
+                                        altText: alt,
+                                        width: width,
+                                        height: height
+                                    )
+                                )
                             }
                         }
                     }
@@ -1176,9 +1192,24 @@ public class BlueskyService {
                         URL(string: videoUrl) != nil
                     {
                         let alt = video["alt"] as? String ?? "Video"
+                        
+                        // Video embeds also often have aspect ratio metadata
+                        var width: Int? = nil
+                        var height: Int? = nil
+                        if let aspectRatio = video["aspectRatio"] as? [String: Any] {
+                            width = aspectRatio["width"] as? Int
+                            height = aspectRatio["height"] as? Int
+                        }
+                        
                         logger.info("[Bluesky] Parsed video attachment: \(videoUrl)")
                         attachments.append(
-                            Post.Attachment(url: videoUrl, type: .video, altText: alt)
+                            Post.Attachment(
+                                url: videoUrl, 
+                                type: .video, 
+                                altText: alt,
+                                width: width,
+                                height: height
+                            )
                         )
                     }
                     // Then try the other common formats for images
@@ -1279,114 +1310,6 @@ public class BlueskyService {
                     }
                 }
 
-                // Check if this is a repost
-                var originalPost: Post? = nil
-                var boostedBy: String? = nil
-
-                if let reason = item["reason"] as? [String: Any],
-                    let reasonType = reason["$type"] as? String,
-                    reasonType == "app.bsky.feed.defs#reasonRepost"
-                {
-                    logger.info("[Bluesky] Detected repost with reason: \(reason)")
-                    // This is a repost - process the original post
-                    if let reasonBy = reason["by"] as? [String: Any],
-                        let reposterName = reasonBy["displayName"] as? String ?? reasonBy["handle"]
-                            as? String,
-                        let reposterUsername = reasonBy["handle"] as? String,
-                        let repostIndexedAt = reason["indexedAt"] as? String
-                    {
-                        // Set the boosted by field
-                        boostedBy = reposterName
-
-                        // Create the original post with its original timestamp
-                        let createdAtDate = DateParser.parse(createdAt) ?? Date.distantPast
-                        let indexedAtDate = DateParser.parse(item["indexedAt"] as? String) ?? Date()
-                        let now = Date()
-                        let skewWindow: TimeInterval = 120  // 2 minutes
-                        let displayDate: Date
-                        if createdAtDate > now.addingTimeInterval(skewWindow) {
-                            displayDate = indexedAtDate
-                        } else {
-                            displayDate = createdAtDate
-                        }
-
-                        originalPost = Post(
-                            id: uri,
-                            content: fullTextWithLinks,
-                            authorName: authorName,
-                            authorUsername: authorUsername,
-                            authorProfilePictureURL: authorAvatarURL,
-                            createdAt: displayDate,
-                            platform: .bluesky,
-                            originalURL:
-                                "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
-                            attachments: attachments,
-                            mentions: mentions,
-                            tags: tags,
-                            isReposted: viewer?["repost"] as? String != nil,  // Fixed: Use actual user repost status
-                            isLiked: viewer?["like"] as? String != nil,  // Fixed: Use actual user like status
-                            likeCount: likeCount,
-                            repostCount: repostCount,
-                            replyCount: replyCount,  // Add reply count
-                            platformSpecificId: uri,
-                            boostedBy: nil,  // Don't set boostedBy on the original post
-                            parent: parentPost,
-                            inReplyToID: inReplyToID,
-                            inReplyToUsername: inReplyToUsername,
-                            quotedPostUri: nil,
-                            quotedPostAuthorHandle: nil,
-                            cid: post["cid"] as? String,
-                            blueskyLikeRecordURI: viewer?["like"] as? String,  // Fixed: Use actual like URI
-                            blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
-                        )
-
-                        // Hydrate originalPost if content is empty (defensive, rare)
-                        if let unwrappedOriginal = originalPost, unwrappedOriginal.content.isEmpty {
-                            if let hydrated = try? await self.fetchPostByID(
-                                unwrappedOriginal.id, account: account), !hydrated.content.isEmpty
-                            {
-                                originalPost = hydrated
-                            }
-                        }
-
-                        // Create the repost wrapper with repost timestamp for timeline positioning
-                        let repostId = "repost-\(reposterUsername)-\(uri)"
-
-                        // Check if the current user has reposted this content (from the original post's viewer info)
-                        let userHasReposted = viewer?["repost"] as? String != nil
-
-                        let repost = Post(
-                            id: repostId,
-                            content: "",  // Empty content for reposts
-                            authorName: reposterName,
-                            authorUsername: reposterUsername,
-                            authorProfilePictureURL: reasonBy["avatar"] as? String ?? "",
-                            createdAt: displayDate,  // Use repost timestamp for timeline positioning
-                            platform: .bluesky,
-                            originalURL:
-                                "https://bsky.app/profile/\(reposterUsername)/post/\(uri.split(separator: "/").last ?? "")",
-                            attachments: [],
-                            mentions: [],
-                            tags: [],
-                            originalPost: originalPost,
-                            isReposted: userHasReposted,  // Fixed: Use actual user repost status
-                            platformSpecificId: repostId,
-                            boostedBy: reposterName,
-                            parent: nil,
-                            inReplyToID: nil,
-                            inReplyToUsername: nil,
-                            quotedPostUri: nil,
-                            quotedPostAuthorHandle: nil,
-                            cid: nil,  // <-- Explicitly nil for wrapper
-                            blueskyLikeRecordURI: nil,  // No like record for wrapper posts
-                            blueskyRepostRecordURI: viewer?["repost"] as? String  // Use actual repost URI if user reposted
-                        )
-
-                        posts.append(repost)
-                        continue
-                    }
-                }
-
                 // Extract quote post info if present
                 var quotedPostUri: String? = nil
                 var quotedPostAuthorHandle: String? = nil
@@ -1394,6 +1317,7 @@ public class BlueskyService {
                 var externalEmbedURL: String? = nil
                 var externalEmbedTitle: String? = nil
                 var externalEmbedDescription: String? = nil
+                var externalEmbedThumb: String? = nil
 
                 if let embed = post["embed"] as? [String: Any] {
                     print(
@@ -1433,6 +1357,7 @@ public class BlueskyService {
                             externalEmbedURL = externalUri
                             externalEmbedTitle = external["title"] as? String
                             externalEmbedDescription = external["description"] as? String
+                            externalEmbedThumb = external["thumb"] as? String
                             logger.info("[Bluesky] Found external embed URL: \(externalUri)")
                         }
                     }
@@ -1713,9 +1638,133 @@ public class BlueskyService {
                     }
                 }
 
+                // Prepare final content with external URL if present
+                var finalContent = fullTextWithLinks
+                if let externalURL = externalEmbedURL {
+                    if finalContent.isEmpty {
+                        finalContent = externalURL
+                    } else if !finalContent.contains(externalURL) {
+                        finalContent += " \(externalURL)"
+                    }
+                    logger.info("[Bluesky] Added external URL to post content: \(externalURL)")
+                }
+
+                // Check if this is a repost
+                var originalPost: Post? = nil
+                var boostedBy: String? = nil
+
+                if let reason = item["reason"] as? [String: Any],
+                    let reasonType = reason["$type"] as? String,
+                    reasonType == "app.bsky.feed.defs#reasonRepost"
+                {
+                    logger.info("[Bluesky] Detected repost with reason: \(reason)")
+                    // This is a repost - process the original post
+                    if let reasonBy = reason["by"] as? [String: Any],
+                        let reposterName = reasonBy["displayName"] as? String ?? reasonBy["handle"]
+                            as? String,
+                        let reposterUsername = reasonBy["handle"] as? String,
+                        let _ = reason["indexedAt"] as? String
+                    {
+                        // Set the boosted by field
+                        boostedBy = reposterName
+
+                        // Calculate displayDate for the original post
+                        let createdAtDate = DateParser.parse(createdAt) ?? Date.distantPast
+                        let indexedAtDate = DateParser.parse(item["indexedAt"] as? String) ?? Date()
+                        let now = Date()
+                        let skewWindow: TimeInterval = 120  // 2 minutes
+                        let displayDate: Date
+                        if createdAtDate > now.addingTimeInterval(skewWindow) {
+                            displayDate = indexedAtDate
+                        } else {
+                            displayDate = createdAtDate
+                        }
+
+                        originalPost = Post(
+                            id: uri,
+                            content: finalContent,
+                            authorName: authorName,
+                            authorUsername: authorUsername,
+                            authorProfilePictureURL: authorAvatarURL,
+                            createdAt: displayDate,
+                            platform: .bluesky,
+                            originalURL:
+                                "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
+                            attachments: attachments,
+                            mentions: mentions,
+                            tags: tags,
+                            isReposted: viewer?["repost"] as? String != nil,
+                            isLiked: viewer?["like"] as? String != nil,
+                            likeCount: likeCount,
+                            repostCount: repostCount,
+                            replyCount: replyCount,
+                            platformSpecificId: uri,
+                            boostedBy: nil,
+                            parent: parentPost,
+                            inReplyToID: inReplyToID,
+                            inReplyToUsername: inReplyToUsername,
+                            quotedPostUri: quotedPostUri,
+                            quotedPostAuthorHandle: quotedPostAuthorHandle,
+                            cid: post["cid"] as? String,
+                            primaryLinkURL: externalEmbedURL != nil ? URL(string: externalEmbedURL!) : nil,
+                            primaryLinkTitle: externalEmbedTitle,
+                            primaryLinkDescription: externalEmbedDescription,
+                            primaryLinkThumbnailURL: externalEmbedThumb != nil ? URL(string: externalEmbedThumb!) : nil,
+                            blueskyLikeRecordURI: viewer?["like"] as? String,
+                            blueskyRepostRecordURI: viewer?["repost"] as? String
+                        )
+                        originalPost?.quotedPost = quotedPost
+
+                        // Hydrate originalPost if content is empty (defensive, rare)
+                        if let unwrappedOriginal = originalPost, unwrappedOriginal.content.isEmpty {
+                            if let hydrated = try? await self.fetchPostByID(
+                                unwrappedOriginal.id, account: account), !hydrated.content.isEmpty
+                            {
+                                originalPost = hydrated
+                            }
+                        }
+
+                        // Create the repost wrapper with repost timestamp for timeline positioning
+                        let repostId = "repost-\(reposterUsername)-\(uri)"
+
+                        // Check if the current user has reposted this content (from the original post's viewer info)
+                        let userHasReposted = viewer?["repost"] as? String != nil
+
+                        let repost = Post(
+                            id: repostId,
+                            content: "",  // Empty content for reposts
+                            authorName: reposterName,
+                            authorUsername: reposterUsername,
+                            authorProfilePictureURL: reasonBy["avatar"] as? String ?? "",
+                            createdAt: displayDate,  // Use repost timestamp for timeline positioning
+                            platform: .bluesky,
+                            originalURL:
+                                "https://bsky.app/profile/\(reposterUsername)/post/\(uri.split(separator: "/").last ?? "")",
+                            attachments: [],
+                            mentions: [],
+                            tags: [],
+                            originalPost: originalPost,
+                            isReposted: userHasReposted,
+                            platformSpecificId: repostId,
+                            boostedBy: reposterName,
+                            parent: nil,
+                            inReplyToID: nil,
+                            inReplyToUsername: nil,
+                            quotedPostUri: nil,
+                            quotedPostAuthorHandle: nil,
+                            cid: nil,
+                            blueskyLikeRecordURI: nil,
+                            blueskyRepostRecordURI: viewer?["repost"] as? String
+                        )
+
+                        posts.append(repost)
+                        continue
+                    }
+                }
+
                 let cid = post["cid"] as? String
 
-                // Calculate displayDate for all posts
+                // Calculate displayDate for regular posts
                 let createdAtDate = DateParser.parse(createdAt) ?? Date.distantPast
                 let indexedAtDate = DateParser.parse(item["indexedAt"] as? String) ?? Date()
                 let now = Date()
@@ -1725,19 +1774,6 @@ public class BlueskyService {
                     displayDate = indexedAtDate
                 } else {
                     displayDate = createdAtDate
-                }
-
-                // Add external embed URL to content for link detection
-                var finalContent = fullTextWithLinks
-                if let externalURL = externalEmbedURL {
-                    // If the post has no text content, add the URL
-                    // If it has text, append the URL with a space
-                    if finalContent.isEmpty {
-                        finalContent = externalURL
-                    } else if !finalContent.contains(externalURL) {
-                        finalContent += " \(externalURL)"
-                    }
-                    logger.info("[Bluesky] Added external URL to post content: \(externalURL)")
                 }
 
                 // Create regular post
@@ -1754,11 +1790,11 @@ public class BlueskyService {
                     attachments: attachments,
                     mentions: mentions,
                     tags: tags,
-                    isReposted: viewer?["repost"] as? String != nil,  // Fixed: Use actual user repost status
-                    isLiked: viewer?["like"] as? String != nil,  // Fixed: Use actual user like status
+                    isReposted: viewer?["repost"] as? String != nil,
+                    isLiked: viewer?["like"] as? String != nil,
                     likeCount: likeCount,
                     repostCount: repostCount,
-                    replyCount: replyCount,  // Add reply count
+                    replyCount: replyCount,
                     platformSpecificId: uri,
                     boostedBy: boostedBy,
                     parent: parentPost,
@@ -1770,8 +1806,9 @@ public class BlueskyService {
                     primaryLinkURL: externalEmbedURL != nil ? URL(string: externalEmbedURL!) : nil,
                     primaryLinkTitle: externalEmbedTitle,
                     primaryLinkDescription: externalEmbedDescription,
-                    blueskyLikeRecordURI: viewer?["like"] as? String,  // Fixed: Use actual like URI
-                    blueskyRepostRecordURI: viewer?["repost"] as? String  // Fixed: Use actual repost URI
+                    primaryLinkThumbnailURL: externalEmbedThumb != nil ? URL(string: externalEmbedThumb!) : nil,
+                    blueskyLikeRecordURI: viewer?["like"] as? String,
+                    blueskyRepostRecordURI: viewer?["repost"] as? String
                 )
                 newPost.quotedPost = quotedPost
 
@@ -1845,9 +1882,18 @@ public class BlueskyService {
         let tags: [String] = []  // TODO: Extract tags from Bluesky post if available
         let cid = post.cid  // Use the real cid from BlueskyPost
         let external = post.embed?.external
+        var finalContent = post.record.text
+        if let externalUri = external?.uri {
+            if finalContent.isEmpty {
+                finalContent = externalUri
+            } else if !finalContent.contains(externalUri) {
+                finalContent += " \(externalUri)"
+            }
+        }
+
         return Post(
             id: UUID().uuidString,
-            content: content,
+            content: finalContent,
             authorName: authorName,
             authorUsername: authorUsername,
             authorProfilePictureURL: authorProfilePictureURL,
@@ -1873,15 +1919,15 @@ public class BlueskyService {
             primaryLinkURL: external?.uri != nil ? URL(string: external!.uri) : nil,
             primaryLinkTitle: external?.title,
             primaryLinkDescription: external?.description,
+            primaryLinkThumbnailURL: external?.thumb != nil ? URL(string: external!.thumb!) : nil,
             blueskyLikeRecordURI: post.viewer?.like,  // Use existing like URI if available
             blueskyRepostRecordURI: post.viewer?.repost  // Use existing repost URI if available
         )
     }
 
-    /// Convert a Bluesky thread post to our Post model (simplified version of the main converter)
-    private func convertBlueskyThreadPostToPost(_ post: [String: Any], account: SocialAccount)
-        -> Post?
-    {
+    /// Convert a Bluesky post JSON (from timeline, thread, or search) to our Post model
+    private func convertBlueskyPostJSONToPost(_ item: [String: Any], account: SocialAccount) -> Post? {
+        let post = item["post"] as? [String: Any] ?? item
         guard let uri = post["uri"] as? String,
             let record = post["record"] as? [String: Any],
             let text = record["text"] as? String,
@@ -1891,65 +1937,200 @@ public class BlueskyService {
             return nil
         }
 
-        let authorName =
-            author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
+        let authorName = author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
         let authorUsername = author["handle"] as? String ?? "unknown"
         let authorAvatarURL = author["avatar"] as? String ?? ""
 
-        // Extract basic interaction counts
         let likeCount = post["likeCount"] as? Int ?? 0
         let repostCount = post["repostCount"] as? Int ?? 0
         let replyCount = post["replyCount"] as? Int ?? 0
 
-        let createdDate = ISO8601DateFormatter().date(from: createdAt) ?? Date()
+        let createdDate = DateParser.parse(createdAt) ?? Date()
 
-        // Extract images from embed if present
-        var attachments: [Post.Attachment] = []
-        if let embed = post["embed"] as? [String: Any] {
-            if let images = embed["images"] as? [[String: Any]] {
-                for image in images {
-                    if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
-                        URL(string: fullsize) != nil
-                    {
-                        let alt = image["alt"] as? String ?? "Image"
-                        attachments.append(
-                            Post.Attachment(url: fullsize, type: .image, altText: alt))
+        // Extract mentions and facets
+        var mentions: [String] = []
+        var tags: [String] = []
+        var fullTextWithLinks = text
+
+        if let facets = record["facets"] as? [[String: Any]] {
+            var urlReplacements: [(range: NSRange, fullURL: String)] = []
+            for facet in facets {
+                if let features = facet["features"] as? [[String: Any]],
+                    let index = facet["index"] as? [String: Any],
+                    let byteStart = index["byteStart"] as? Int,
+                    let byteEnd = index["byteEnd"] as? Int
+                {
+                    let range = NSRange(location: byteStart, length: byteEnd - byteStart)
+                    for feature in features {
+                        if let type = feature["$type"] as? String {
+                            if type == "app.bsky.richtext.facet#mention" {
+                                if let mention = feature["did"] as? String { mentions.append(mention) }
+                            } else if type == "app.bsky.richtext.facet#tag" {
+                                if let tag = feature["tag"] as? String { tags.append(tag) }
+                            } else if type == "app.bsky.richtext.facet#link" {
+                                if let fullURL = feature["uri"] as? String {
+                                    urlReplacements.append((range: range, fullURL: fullURL))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            urlReplacements.sort { $0.range.location > $1.range.location }
+            for replacement in urlReplacements {
+                let nsText = fullTextWithLinks as NSString
+                if replacement.range.location >= 0 && NSMaxRange(replacement.range) <= nsText.length {
+                    let originalText = nsText.substring(with: replacement.range)
+                    if (originalText.contains("...") || originalText.count < replacement.fullURL.count) &&
+                        !replacement.fullURL.contains(originalText) &&
+                        URL(string: replacement.fullURL) != nil {
+                        let newText = nsText.replacingCharacters(in: replacement.range, with: replacement.fullURL)
+                        if !newText.contains("httpshttps") && !newText.contains("httphttp") {
+                            fullTextWithLinks = newText
+                        }
                     }
                 }
             }
         }
 
-        // Extract external URLs from embeds for link preview
+        // Process embeds (images, video, external, record/quote)
+        var attachments: [Post.Attachment] = []
         var externalEmbedURL: String? = nil
-        if let embed = post["embed"] as? [String: Any],
-            let embedType = embed["$type"] as? String,
-            embedType == "app.bsky.embed.external#view",
-            let external = embed["external"] as? [String: Any],
-            let externalUri = external["uri"] as? String
-        {
-            externalEmbedURL = externalUri
+        var externalEmbedTitle: String? = nil
+        var externalEmbedDescription: String? = nil
+        var externalEmbedThumb: String? = nil
+        var quotedPostUri: String? = nil
+        var quotedPostAuthorHandle: String? = nil
+        var quotedPost: Post? = nil
+
+        if let embed = post["embed"] as? [String: Any] {
+            // This handles app.bsky.embed.images#view, app.bsky.embed.video#view, 
+            // app.bsky.embed.external#view, app.bsky.embed.record#view, etc.
+            
+            // Helper to process external embed
+            func processExternal(_ external: [String: Any]) {
+                if let uri = external["uri"] as? String {
+                    if let gifURL = URL(string: uri), URLService.shared.isGIFURL(gifURL) {
+                        let alt = external["title"] as? String ?? external["description"] as? String ?? "Animated GIF"
+                        attachments.append(Post.Attachment(url: uri, type: .animatedGIF, altText: alt))
+                    } else {
+                        externalEmbedURL = uri
+                        externalEmbedTitle = external["title"] as? String
+                        externalEmbedDescription = external["description"] as? String
+                        externalEmbedThumb = external["thumb"] as? String
+                    }
+                }
+            }
+
+            // Helper to process images
+            func processImages(_ images: [[String: Any]]) {
+                for image in images {
+                    if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty {
+                        let alt = image["alt"] as? String ?? "Image"
+                        attachments.append(Post.Attachment(url: fullsize, type: .image, altText: alt))
+                    }
+                }
+            }
+
+            if let embedType = embed["$type"] as? String {
+                if embedType == "app.bsky.embed.images#view", let images = embed["images"] as? [[String: Any]] {
+                    processImages(images)
+                } else if embedType == "app.bsky.embed.video#view" {
+                    if let playlist = embed["playlist"] as? String {
+                        let thumbnail = embed["thumbnail"] as? String
+                        attachments.append(Post.Attachment(url: playlist, type: .video, altText: "Video", thumbnailURL: thumbnail))
+                    }
+                } else if embedType == "app.bsky.embed.external#view", let external = embed["external"] as? [String: Any] {
+                    processExternal(external)
+                } else if embedType == "app.bsky.embed.record#view", let record = embed["record"] as? [String: Any] {
+                    quotedPostUri = record["uri"] as? String
+                    if let quotedAuthor = record["author"] as? [String: Any] {
+                        quotedPostAuthorHandle = quotedAuthor["handle"] as? String
+                    }
+                    // Optional hydration
+                    if let quotedValue = record["value"] as? [String: Any],
+                       let quotedText = quotedValue["text"] as? String,
+                       let quotedCreatedAt = quotedValue["createdAt"] as? String {
+                        quotedPost = Post(
+                            id: quotedPostUri ?? "",
+                            content: quotedText,
+                            authorName: (record["author"] as? [String: Any])?["displayName"] as? String ?? quotedPostAuthorHandle ?? "Unknown",
+                            authorUsername: quotedPostAuthorHandle ?? "unknown",
+                            authorProfilePictureURL: (record["author"] as? [String: Any])?["avatar"] as? String ?? "",
+                            createdAt: DateParser.parse(quotedCreatedAt) ?? Date(),
+                            platform: .bluesky,
+                            originalURL: "",
+                            attachments: []
+                        )
+                    }
+                } else if embedType == "app.bsky.embed.recordWithMedia#view" {
+                    if let media = embed["media"] as? [String: Any], let mediaType = media["$type"] as? String {
+                        if mediaType == "app.bsky.embed.images#view", let images = media["images"] as? [[String: Any]] {
+                            processImages(images)
+                        } else if mediaType == "app.bsky.embed.external#view", let external = media["external"] as? [String: Any] {
+                            processExternal(external)
+                        }
+                    }
+                    if let recordEmbed = embed["record"] as? [String: Any], let record = recordEmbed["record"] as? [String: Any] {
+                        quotedPostUri = record["uri"] as? String
+                        if let quotedAuthor = record["author"] as? [String: Any] {
+                            quotedPostAuthorHandle = quotedAuthor["handle"] as? String
+                        }
+                    }
+                }
+            }
         }
 
-        return Post(
+        // Prepare final content with external URL if present
+        var finalContent = fullTextWithLinks
+        if let externalURL = externalEmbedURL {
+            if finalContent.isEmpty {
+                finalContent = externalURL
+            } else if !finalContent.contains(externalURL) {
+                finalContent += " \(externalURL)"
+            }
+        }
+
+        let newPost = Post(
             id: uri,
-            content: text,
+            content: finalContent,
             authorName: authorName,
             authorUsername: authorUsername,
             authorProfilePictureURL: authorAvatarURL,
             createdAt: createdDate,
             platform: .bluesky,
-            originalURL:
-                "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
+            originalURL: "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
             attachments: attachments,
-            mentions: [],
-            tags: [],
+            mentions: mentions,
+            tags: tags,
+            originalPost: nil,
+            isReposted: post["viewer"] != nil && (post["viewer"] as? [String: Any])?["repost"] != nil,
+            isLiked: post["viewer"] != nil && (post["viewer"] as? [String: Any])?["like"] != nil,
+            isReplied: false,
             likeCount: likeCount,
             repostCount: repostCount,
             replyCount: replyCount,
             platformSpecificId: uri,
+            quotedPostUri: quotedPostUri,
+            quotedPostAuthorHandle: quotedPostAuthorHandle,
+            quotedPost: quotedPost,
             cid: post["cid"] as? String,
-            primaryLinkURL: externalEmbedURL != nil ? URL(string: externalEmbedURL!) : nil
+            primaryLinkURL: externalEmbedURL != nil ? URL(string: externalEmbedURL!) : nil,
+            primaryLinkTitle: externalEmbedTitle,
+            primaryLinkDescription: externalEmbedDescription,
+            primaryLinkThumbnailURL: externalEmbedThumb != nil ? URL(string: externalEmbedThumb!) : nil,
+            blueskyLikeRecordURI: (post["viewer"] as? [String: Any])?["like"] as? String,
+            blueskyRepostRecordURI: (post["viewer"] as? [String: Any])?["repost"] as? String
         )
+        newPost.quotedPost = quotedPost
+        return newPost
+    }
+
+    /// Convert a Bluesky thread post to our Post model (simplified version of the main converter)
+    private func convertBlueskyThreadPostToPost(_ post: [String: Any], account: SocialAccount)
+        -> Post?
+    {
+        return convertBlueskyPostJSONToPost(post, account: account)
     }
 
     // MARK: - Post Actions
@@ -2664,8 +2845,14 @@ public class BlueskyService {
             }
 
             // Extract thread structure
+            var mainPost: Post? = nil
             var ancestors: [Post] = []
             var descendants: [Post] = []
+
+            // Extract the main post itself (hydrated with all metadata)
+            if let postData = thread["post"] as? [String: Any] {
+                mainPost = convertBlueskyThreadPostToPost(postData, account: account)
+            }
 
             // Process parent/ancestor posts
             if let parent = thread["parent"] as? [String: Any] {
@@ -2681,7 +2868,7 @@ public class BlueskyService {
                 "Successfully fetched Bluesky thread context: \(ancestors.count) ancestors, \(descendants.count) descendants"
             )
 
-            return ThreadContext(ancestors: ancestors, descendants: descendants)
+            return ThreadContext(mainPost: mainPost, ancestors: ancestors, descendants: descendants)
 
         } catch {
             logger.error("Error fetching Bluesky thread context: \(error.localizedDescription)")
