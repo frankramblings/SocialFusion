@@ -62,6 +62,15 @@ struct SettingsView: View {
                     )
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    
+                    NavigationLink(destination: MutedKeywordsView().environmentObject(serviceManager)) {
+                        HStack {
+                            Text("Muted Keywords")
+                            Spacer()
+                            Text("\(serviceManager.currentBlockedKeywords.count)")
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 Section(header: Text("Posting")) {

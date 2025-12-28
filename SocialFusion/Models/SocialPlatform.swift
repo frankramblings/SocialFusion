@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 /// An enum representing the supported social media platforms
-public enum SocialPlatform: String, Codable, CaseIterable {
+public enum SocialPlatform: String, Codable, CaseIterable, Sendable {
     case mastodon
     case bluesky
 

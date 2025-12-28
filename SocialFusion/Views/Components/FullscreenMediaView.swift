@@ -45,15 +45,43 @@ struct FullscreenMediaView: View {
                     ForEach(Array(allMedia.enumerated()), id: \.element.id) { index, attachment in
                         ZStack {
                             mediaView(for: attachment)
-                                .scaleEffect(
-                                    attachment.id == allMedia[currentIndex].id ? currentScale : 1.0
-                                )
-                                .offset(
-                                    attachment.id == allMedia[currentIndex].id
-                                        ? currentOffset : .zero
-                                )
+                                .scaleEffect(attachment.id == allMedia[currentIndex].id ? currentScale : 1.0)
+                                .offset(attachment.id == allMedia[currentIndex].id ? currentOffset : .zero)
                                 .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
                                 .accessibilityLabel(attachment.altText ?? "Image")
+                                .gesture(
+                                    MagnificationGesture()
+                                        .onChanged { value in
+                                            let delta = value / previousScale
+                                            previousScale = value
+                                            currentScale *= delta
+                                        }
+                                        .onEnded { _ in
+                                            previousScale = 1.0
+                                            if currentScale < 1.0 {
+                                                withAnimation {
+                                                    currentScale = 1.0
+                                                    currentOffset = .zero
+                                                }
+                                            }
+                                        }
+                                )
+                                .gesture(
+                                    DragGesture()
+                                        .onChanged { value in
+                                            if currentScale > 1.0 {
+                                                currentOffset = CGSize(
+                                                    width: previousOffset.width + value.translation.width,
+                                                    height: previousOffset.height + value.translation.height
+                                                )
+                                            }
+                                        }
+                                        .onEnded { _ in
+                                            if currentScale > 1.0 {
+                                                previousOffset = currentOffset
+                                            }
+                                        }
+                                )
                                 .onTapGesture(count: 2) {
                                     // Double tap to zoom in/out
                                     withAnimation {
@@ -62,7 +90,7 @@ struct FullscreenMediaView: View {
                                             currentOffset = .zero
                                             previousOffset = .zero
                                         } else {
-                                            currentScale = min(3.0, UIScreen.main.scale)
+                                            currentScale = 2.5
                                         }
                                     }
                                 }

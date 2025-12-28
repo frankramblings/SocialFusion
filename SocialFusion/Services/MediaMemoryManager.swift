@@ -132,9 +132,11 @@ class MediaMemoryManager: ObservableObject {
 
     // MARK: - Image Management
 
-    /// Load and cache an optimized image
-    func loadOptimizedImage(from url: URL) async throws -> UIImage {
-        let key = url.absoluteString as NSString
+    /// Load and cache an optimized image with optional target size
+    func loadOptimizedImage(from url: URL, targetSize: CGSize? = nil) async throws -> UIImage {
+        let key =
+            (url.absoluteString + (targetSize.map { "_\($0.width)x\($0.height)" } ?? ""))
+            as NSString
 
         // Check cache first
         if let cachedImage = imageCache.object(forKey: key) {
@@ -149,7 +151,7 @@ class MediaMemoryManager: ObservableObject {
         }
 
         // Optimize image for memory usage
-        let optimizedImage = optimizeImage(originalImage)
+        let optimizedImage = optimizeImage(originalImage, targetSize: targetSize)
 
         // Cache with cost based on memory footprint
         let cost = calculateImageMemoryCost(optimizedImage)
@@ -158,12 +160,15 @@ class MediaMemoryManager: ObservableObject {
         return optimizedImage
     }
 
-    private func optimizeImage(_ image: UIImage) -> UIImage {
+    private func optimizeImage(_ image: UIImage, targetSize: CGSize? = nil) -> UIImage {
         let size = image.size
-        let maxDimension = Config.maxImageDimension
+        let maxDimension = targetSize?.width ?? Config.maxImageDimension
 
-        // Skip optimization if image is already small enough
-        if size.width <= maxDimension && size.height <= maxDimension {
+        // If a target size is provided, we use it as the maximum dimension
+        // while maintaining aspect ratio
+
+        // Skip optimization if image is already small enough and no target size
+        if targetSize == nil && size.width <= maxDimension && size.height <= maxDimension {
             return image
         }
 
@@ -175,6 +180,11 @@ class MediaMemoryManager: ObservableObject {
             newSize = CGSize(width: maxDimension, height: maxDimension / aspectRatio)
         } else {
             newSize = CGSize(width: maxDimension * aspectRatio, height: maxDimension)
+        }
+
+        // Ensure we don't scale UP
+        if newSize.width >= size.width && newSize.height >= size.height && targetSize == nil {
+            return image
         }
 
         // Resize image

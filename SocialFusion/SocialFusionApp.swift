@@ -15,6 +15,12 @@ struct SocialFusionApp: App {
     // OAuth manager for handling authentication callbacks
     @StateObject private var oauthManager = OAuthManager()
 
+    // Navigation environment for deep linking
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
+
+    // Draft store for saving unfinished posts
+    @StateObject private var draftStore = DraftStore()
+
     // Environment object for scene phase to detect when app is terminating
     @Environment(\.scenePhase) private var scenePhase
 
@@ -38,12 +44,16 @@ struct SocialFusionApp: App {
                 .environmentObject(serviceManager)
                 .environmentObject(appVersionManager)
                 .environmentObject(oauthManager)
+                .environmentObject(navigationEnvironment)
+                .environmentObject(draftStore)
                 .onOpenURL { url in
                     // Handle OAuth callback URLs
-                    if url.scheme == "socialfusion" {
+                    if url.scheme == "socialfusion" && url.host == "oauth" {
                         print("Received OAuth callback URL: \(url)")
-                        // Handle the OAuth callback
                         handleOAuthCallback(url: url)
+                    } else {
+                        print("Received deep link or universal link: \(url)")
+                        navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
                     }
                 }
             } else {
@@ -51,12 +61,16 @@ struct SocialFusionApp: App {
                     .environmentObject(serviceManager)
                     .environmentObject(appVersionManager)
                     .environmentObject(oauthManager)
+                    .environmentObject(navigationEnvironment)
                     .onOpenURL { url in
                         // Handle OAuth callback URLs
-                        if url.scheme == "socialfusion" {
+                        if url.scheme == "socialfusion" && url.host == "oauth" {
                             print("Received OAuth callback URL: \(url)")
-                            // Handle the OAuth callback
                             handleOAuthCallback(url: url)
+                        } else {
+                            print("Received deep link or universal link: \(url)")
+                            navigationEnvironment.handleDeepLink(
+                                url, serviceManager: serviceManager)
                         }
                     }
             }

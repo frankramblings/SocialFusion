@@ -98,6 +98,8 @@ public final class SocialServiceManager: ObservableObject {
 
     @Published var accounts: [SocialAccount] = []
     @Published var isLoading: Bool = false
+    @Published var offlineQueueStore = OfflineQueueStore()
+    private var cancellables = Set<AnyCancellable>()
     @Published var error: Error?
 
     // Selected account IDs (Set to store unique IDs)
@@ -112,7 +114,11 @@ public final class SocialServiceManager: ObservableObject {
     @Published var blueskyAccounts: [SocialAccount] = []
 
     // Timeline data
-    @Published var unifiedTimeline: [Post] = []
+    @Published var unifiedTimeline: [Post] = [] {
+        didSet {
+            saveTimelineToDisk()
+        }
+    }
     @Published var isLoadingTimeline: Bool = false
     @Published var timelineError: Error?
     private var lastTimelineUpdate: Date = Date.distantPast
@@ -135,9 +141,16 @@ public final class SocialServiceManager: ObservableObject {
     @Published var hasNextPage: Bool = true
     private var paginationTokens: [String: String] = [:]  // accountId -> nextPageToken
 
+    // Disk Caching
+    private let timelineCacheURL: URL = {
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+            .first!
+        return documents.appendingPathComponent("timeline_cache.json")
+    }()
+
     // Services for each platform
-    private let mastodonService: MastodonService
-    private let blueskyService: BlueskyService
+    nonisolated private let mastodonService: MastodonService
+    nonisolated private let blueskyService: BlueskyService
     private let actionLogger = Logger(subsystem: "com.socialfusion", category: "PostActions")
 
     // Post action V2 infrastructure - accessible within module
@@ -166,11 +179,31 @@ public final class SocialServiceManager: ObservableObject {
         let blueskyResolver = BlueskyThreadResolver(service: blueskyService) { [weak self] in
             self?.blueskyAccounts.first
         }
-        let filter = PostFeedFilter(mastodonResolver: mastodonResolver, blueskyResolver: blueskyResolver)
+        let filter = PostFeedFilter(
+            mastodonResolver: mastodonResolver, blueskyResolver: blueskyResolver)
         // Sync initial state from feature flag
         filter.isReplyFilteringEnabled = FeatureFlagManager.isEnabled(.replyFiltering)
+
+        // Load blocked keywords
+        if let data = UserDefaults.standard.data(forKey: "blockedKeywords"),
+            let keywords = try? JSONDecoder().decode([String].self, from: data)
+        {
+            filter.blockedKeywords = keywords
+        }
+
         return filter
     }()
+
+    public func updateBlockedKeywords(_ keywords: [String]) {
+        if let data = try? JSONEncoder().encode(keywords) {
+            UserDefaults.standard.set(data, forKey: "blockedKeywords")
+            postFeedFilter.blockedKeywords = keywords
+        }
+    }
+
+    public var currentBlockedKeywords: [String] {
+        postFeedFilter.blockedKeywords
+    }
 
     // MARK: - Initialization
 
@@ -188,6 +221,12 @@ public final class SocialServiceManager: ObservableObject {
 
         // Initialize automatic token refresh service after main initialization
         self.automaticTokenRefreshService = AutomaticTokenRefreshService(socialServiceManager: self)
+
+        // Setup network monitoring for offline queue
+        setupNetworkMonitoring()
+
+        // Load cached timeline from disk
+        loadTimelineFromDisk()
 
         print("🔧 SocialServiceManager: After loadAccounts() - accounts.count = \(accounts.count)")
         print("🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count)")
@@ -331,6 +370,45 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Save the current timeline to disk for offline access
+    private func saveTimelineToDisk() {
+        guard !unifiedTimeline.isEmpty else { return }
+
+        let timeline = unifiedTimeline
+        let cacheURL = timelineCacheURL
+
+        Task.detached(priority: .background) {
+            do {
+                let encoder = JSONEncoder()
+                encoder.dateEncodingStrategy = .iso8601
+                let data = try encoder.encode(timeline)
+                try data.write(to: cacheURL, options: [.atomic, .completeFileProtection])
+            } catch {
+                print("Failed to save timeline to disk: \(error)")
+            }
+        }
+    }
+
+    /// Load the cached timeline from disk
+    private func loadTimelineFromDisk() {
+        guard FileManager.default.fileExists(atPath: timelineCacheURL.path) else { return }
+
+        do {
+            let data = try Data(contentsOf: timelineCacheURL)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let cachedPosts = try decoder.decode([Post].self, from: data)
+
+            // Only update if current timeline is empty
+            if unifiedTimeline.isEmpty {
+                unifiedTimeline = cachedPosts
+                print("✅ Successfully loaded \(cachedPosts.count) posts from disk cache")
+            }
+        } catch {
+            print("Failed to load timeline from disk: \(error)")
+        }
+    }
+
     /// Update the platform-specific account lists
     private func updateAccountLists() {
         // Separate accounts by platform
@@ -392,7 +470,7 @@ public final class SocialServiceManager: ObservableObject {
     /// Public method to manually refresh profile images for all accounts
     @MainActor
     public func refreshAllProfileImages() async {
-        refreshAccountProfiles()
+        await refreshAccountProfiles()
     }
 
     /// Get accounts to fetch based on current selection
@@ -574,6 +652,35 @@ public final class SocialServiceManager: ObservableObject {
 
         // Update platform-specific lists
         updateAccountLists()
+    }
+
+    /// Refresh account profile information from the network
+    func refreshAccountProfiles() async {
+        for account in accounts {
+            do {
+                if account.platform == .mastodon {
+                    let mastodonAccount = try await mastodonService.verifyCredentials(
+                        account: account)
+                    Task { @MainActor in
+                        account.avatarURL = URL(string: mastodonAccount.avatar)
+                        account.displayName = mastodonAccount.displayName
+                        account.username = mastodonAccount.username
+                        // Note: SocialAccount doesn't store followingCount, etc., currently
+                        // but we could extend it if needed for the profile switcher
+                    }
+                } else if account.platform == .bluesky {
+                    let profile = try await blueskyService.getProfile(
+                        actor: account.username, account: account)
+                    Task { @MainActor in
+                        account.avatarURL = URL(string: profile.avatar ?? "")
+                        account.displayName = profile.displayName
+                        // account.username is already correct
+                    }
+                }
+            } catch {
+                print("Failed to refresh profile for \(account.username): \(error)")
+            }
+        }
     }
 
     // MARK: - Timeline
@@ -936,7 +1043,7 @@ public final class SocialServiceManager: ObservableObject {
     private func filterRepliesInTimeline(_ posts: [Post]) async -> [Post] {
         let isEnabled = FeatureFlagManager.isEnabled(.replyFiltering)
         postFeedFilter.isReplyFilteringEnabled = isEnabled
-        
+
         guard isEnabled else { return posts }
 
         print("🔍 SocialServiceManager: Starting reply filtering for \(posts.count) posts")
@@ -948,7 +1055,7 @@ public final class SocialServiceManager: ObservableObject {
         await withTaskGroup(of: (Post, Bool).self) { group in
             for post in posts {
                 group.addTask {
-                    let shouldInclude = await self.postFeedFilter.shouldIncludeReply(
+                    let shouldInclude = await self.postFeedFilter.shouldIncludePost(
                         post, followedAccounts: followedAccounts)
                     return (post, shouldInclude)
                 }
@@ -1048,25 +1155,293 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Fetch trending posts from public sources
-    @MainActor
-    func fetchTrendingPosts() async {
-        // Don't fetch trending posts if there are no accounts - this should show the "Add Account" state
-        guard !accounts.isEmpty else {
-            return
-        }
-
-        isLoadingTimeline = true
-        defer { isLoadingTimeline = false }
+    /// Fetch trending tags across platforms
+    public func fetchTrendingTags() async throws -> [SearchTag] {
+        guard let account = mastodonAccounts.first else { return [] }
 
         do {
-            // Try to fetch trending posts from Mastodon
-            let posts = try await mastodonService.fetchTrendingPosts()
-            self.unifiedTimeline = posts
+            let tags = try await mastodonService.fetchTrendingTags(account: account)
+            return tags.map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon) }
         } catch {
-            // If API call fails, show empty timeline and let the error handling in the UI deal with it
-            self.unifiedTimeline = []
-            self.error = error
+            print("Failed to fetch trending tags: \(error)")
+            return []
+        }
+    }
+
+    /// Search for content across platforms
+    public func search(
+        query: String,
+        platforms: Set<SocialPlatform> = [.mastodon, .bluesky],
+        onlyMedia: Bool = false
+    ) async throws -> SearchResult {
+        let accountsToSearch = getAccountsToFetch().filter { platforms.contains($0.platform) }
+
+        var allPosts: [Post] = []
+        var allUsers: [SearchUser] = []
+        var allTags: [SearchTag] = []
+
+        await withTaskGroup(of: SearchResult?.self) { group in
+            for account in accountsToSearch {
+                group.addTask {
+                    do {
+                        switch account.platform {
+                        case .mastodon:
+                            let result = try await self.mastodonService.search(
+                                query: query, account: account)
+                            var posts = result.statuses.map {
+                                self.mastodonService.convertMastodonStatusToPost(
+                                    $0, account: account)
+                            }
+
+                            if onlyMedia {
+                                posts = posts.filter { !$0.attachments.isEmpty }
+                            }
+
+                            let users = result.accounts.map {
+                                SearchUser(
+                                    id: $0.id, username: $0.acct, displayName: $0.displayName,
+                                    avatarURL: $0.avatar, platform: .mastodon)
+                            }
+                            let tags = result.hashtags.map {
+                                SearchTag(id: $0.name, name: $0.name, platform: .mastodon)
+                            }
+                            return SearchResult(posts: posts, users: users, tags: tags)
+                        case .bluesky:
+                            // Bluesky search is separate for posts and actors
+                            async let postsResult = self.blueskyService.searchPosts(
+                                query: query, account: account)
+                            async let actorsResult = self.blueskyService.searchActors(
+                                query: query, account: account)
+
+                            let (postsData, actorsData) = try await (postsResult, actorsResult)
+
+                            // Convert BlueskyPostDTO to [String: Any] for processTimelineResponse
+                            let encoder = JSONEncoder()
+                            encoder.dateEncodingStrategy = .iso8601
+
+                            var feedItems: [[String: Any]] = []
+                            for postDTO in postsData.posts {
+                                if let data = try? encoder.encode(postDTO),
+                                    let json = try? JSONSerialization.jsonObject(with: data)
+                                        as? [String: Any]
+                                {
+                                    feedItems.append(["post": json])
+                                }
+                            }
+
+                            var posts = try await self.blueskyService.processTimelineResponse(
+                                feedItems, account: account)
+
+                            if onlyMedia {
+                                posts = posts.filter { !$0.attachments.isEmpty }
+                            }
+
+                            let users = actorsData.actors.map {
+                                SearchUser(
+                                    id: $0.did, username: $0.handle, displayName: $0.displayName,
+                                    avatarURL: $0.avatar, platform: .bluesky)
+                            }
+                            return SearchResult(posts: posts, users: users, tags: [])
+                        }
+                    } catch {
+                        print("Search failed for \(account.username): \(error)")
+                        return nil
+                    }
+                }
+            }
+
+            for await result in group {
+                if let result = result {
+                    allPosts.append(contentsOf: result.posts)
+                    allUsers.append(contentsOf: result.users)
+                    allTags.append(contentsOf: result.tags)
+                }
+            }
+        }
+
+        // Sort posts by date
+        let sortedPosts = allPosts.sorted { $0.createdAt > $1.createdAt }
+
+        return SearchResult(posts: sortedPosts, users: allUsers, tags: allTags)
+    }
+
+    /// Fetch notifications across all platforms
+    public func fetchNotifications() async throws -> [AppNotification] {
+        let accountsToFetch = getAccountsToFetch()
+        var allNotifications: [AppNotification] = []
+
+        await withTaskGroup(of: [AppNotification].self) { group in
+            for account in accountsToFetch {
+                group.addTask {
+                    do {
+                        switch account.platform {
+                        case .mastodon:
+                            let result = try await self.mastodonService.fetchNotifications(
+                                for: account)
+                            return result.map { mNotif in
+                                AppNotification(
+                                    id: mNotif.id,
+                                    type: self.mapMastodonNotificationType(mNotif.type),
+                                    createdAt: DateParser.parse(mNotif.createdAt) ?? Date(),
+                                    account: account,
+                                    fromAccount: NotificationAccount(
+                                        id: mNotif.account.id,
+                                        username: mNotif.account.acct,
+                                        displayName: mNotif.account.displayName,
+                                        avatarURL: mNotif.account.avatar
+                                    ),
+                                    post: mNotif.status.map {
+                                        self.mastodonService.convertMastodonStatusToPost(
+                                            $0, account: account)
+                                    }
+                                )
+                            }
+                        case .bluesky:
+                            let result = try await self.blueskyService.fetchNotifications(
+                                for: account)
+
+                            // Collect URIs of posts we need to fetch (likes, reposts, mentions, replies)
+                            let urisToFetch = Set(
+                                result.notifications.compactMap { $0.reasonSubject })
+                            var postsByUri: [String: Post] = [:]
+
+                            if !urisToFetch.isEmpty {
+                                do {
+                                    let fetchedPosts = try await self.blueskyService.getPosts(
+                                        uris: Array(urisToFetch), account: account)
+                                    for post in fetchedPosts {
+                                        postsByUri[post.platformSpecificId] = post
+                                    }
+                                } catch {
+                                    print(
+                                        "Failed to fetch notification posts for Bluesky: \(error)")
+                                }
+                            }
+
+                            var mappedNotifs: [AppNotification] = []
+                            for bNotif in result.notifications {
+                                let relatedPost = bNotif.reasonSubject.flatMap { postsByUri[$0] }
+
+                                mappedNotifs.append(
+                                    AppNotification(
+                                        id: bNotif.cid,
+                                        type: self.mapBlueskyNotificationType(bNotif.reason),
+                                        createdAt: DateParser.parse(bNotif.indexedAt) ?? Date(),
+                                        account: account,
+                                        fromAccount: NotificationAccount(
+                                            id: bNotif.author.did,
+                                            username: bNotif.author.handle,
+                                            displayName: bNotif.author.displayName,
+                                            avatarURL: bNotif.author.avatar
+                                        ),
+                                        post: relatedPost
+                                    ))
+                            }
+                            return mappedNotifs
+                        }
+                    } catch {
+                        print("Failed to fetch notifications for \(account.username): \(error)")
+                        return []
+                    }
+                }
+            }
+
+            for await notifs in group {
+                allNotifications.append(contentsOf: notifs)
+            }
+        }
+
+        return allNotifications.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    nonisolated private func mapMastodonNotificationType(_ type: String)
+        -> AppNotification.NotificationType
+    {
+        switch type {
+        case "mention": return .mention
+        case "reblog": return .repost
+        case "favourite": return .like
+        case "follow": return .follow
+        case "poll": return .poll
+        case "update": return .update
+        default: return .mention
+        }
+    }
+
+    nonisolated private func mapBlueskyNotificationType(_ reason: String)
+        -> AppNotification.NotificationType
+    {
+        switch reason {
+        case "like": return .like
+        case "repost": return .repost
+        case "follow": return .follow
+        case "mention": return .mention
+        case "reply": return .mention  // Bluesky uses reason "reply" for mentions in replies
+        case "quote": return .mention  // Bluesky uses reason "quote" for quotes
+        default: return .mention
+        }
+    }
+
+    /// Fetch posts for a specific user across their account with pagination
+    public func fetchUserPosts(
+        user: SearchUser, account: SocialAccount, limit: Int = 20, cursor: String? = nil
+    ) async throws -> ([Post], String?) {
+        switch user.platform {
+        case .mastodon:
+            let posts = try await mastodonService.fetchUserTimeline(
+                userId: user.id, for: account, limit: limit, maxId: cursor)
+            let nextCursor = posts.last?.platformSpecificId
+            return (posts, nextCursor)
+        case .bluesky:
+            let result = try await blueskyService.fetchAuthorFeed(
+                actor: user.id, for: account, limit: limit, cursor: cursor)
+            return (result.posts, result.pagination.nextPageToken)
+        }
+    }
+
+    /// Fetch profile details for a user
+    public func fetchUserProfile(user: SearchUser, account: SocialAccount) async throws
+        -> UserProfile
+    {
+        switch user.platform {
+        case .mastodon:
+            // For Mastodon, we can use the account ID to get details
+            let serverUrl = mastodonService.formatServerURL(account.serverURL?.absoluteString ?? "")
+            guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(user.id)") else {
+                throw ServiceError.invalidInput(reason: "Invalid user ID")
+            }
+            let request = try await mastodonService.createAuthenticatedRequest(
+                url: url, method: "GET", account: account)
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let mAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
+
+            return UserProfile(
+                id: mAccount.id,
+                username: mAccount.acct,
+                displayName: mAccount.displayName,
+                avatarURL: mAccount.avatar,
+                headerURL: mAccount.header,
+                bio: mAccount.note,
+                followersCount: mAccount.followersCount,
+                followingCount: mAccount.followingCount,
+                statusesCount: mAccount.statusesCount,
+                platform: .mastodon
+            )
+
+        case .bluesky:
+            let profile = try await blueskyService.getProfile(actor: user.id, account: account)
+            return UserProfile(
+                id: profile.did,
+                username: profile.handle,
+                displayName: profile.displayName,
+                avatarURL: profile.avatar,
+                headerURL: profile.banner,
+                bio: profile.description,
+                followersCount: profile.followersCount,
+                followingCount: profile.followsCount,
+                statusesCount: profile.postsCount,
+                platform: .bluesky
+            )
         }
     }
 
@@ -1306,7 +1681,9 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Reply to a post (Mastodon or Bluesky)
-    func replyToPost(_ post: Post, content: String) async throws -> Post {
+    func replyToPost(_ post: Post, content: String, mediaAttachments: [Data] = []) async throws
+        -> Post
+    {
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
@@ -1316,6 +1693,7 @@ public final class SocialServiceManager: ObservableObject {
                 return try await mastodonService.replyToPost(
                     post, content: content, account: account)
             } catch {
+                // ... (rest of error handling)
                 // If it's an authentication error, show a helpful message
                 if error.localizedDescription.contains("noRefreshToken")
                     || error.localizedDescription.contains("Token expired")
@@ -1335,7 +1713,12 @@ public final class SocialServiceManager: ObservableObject {
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
-            return try await blueskyService.replyToPost(post, content: content, account: account)
+            return try await blueskyService.replyToPost(
+                post,
+                content: content,
+                mediaAttachments: mediaAttachments,
+                account: account
+            )
         }
     }
 
@@ -1593,10 +1976,86 @@ public final class SocialServiceManager: ObservableObject {
         name: String,
         execute: @escaping () async throws -> Post
     ) async throws -> (Post, PostActionState) {
-        let updatedPost = try await performBackoffAction(for: post, name: name, execute: execute)
-        let state = PostActionState(post: updatedPost)
-        apply(state, to: post)
-        return (updatedPost, state)
+        if !EdgeCaseHandler.shared.networkStatus.isConnected {
+            // Queue for later if offline
+            if let type = queuedActionType(from: name) {
+                offlineQueueStore.queueAction(postId: post.id, platform: post.platform, type: type)
+                scheduleOfflineActionNotification(type: type)
+
+                // Return an optimistic update if possible
+                var updatedPost = post
+                applyOptimisticUpdate(to: &updatedPost, action: name)
+                let state = PostActionState(post: updatedPost)
+                apply(state, to: post)
+                return (updatedPost, state)
+            }
+        }
+
+        do {
+            let updatedPost = try await performBackoffAction(
+                for: post, name: name, execute: execute)
+            let state = PostActionState(post: updatedPost)
+            apply(state, to: post)
+            return (updatedPost, state)
+        } catch {
+            if isTransientError(error), let type = queuedActionType(from: name) {
+                // Queue for later if it's a network error
+                offlineQueueStore.queueAction(postId: post.id, platform: post.platform, type: type)
+                scheduleOfflineActionNotification(type: type)
+
+                // Still return the error so the UI can show a "Queued for later" message
+                throw ServiceError.networkError(underlying: error)
+            }
+            throw error
+        }
+    }
+
+    private func queuedActionType(from name: String) -> QueuedActionType? {
+        switch name {
+        case "like": return .like
+        case "unlike": return .unlike
+        case "repost": return .repost
+        case "unrepost": return .unrepost
+        default: return nil
+        }
+    }
+
+    private func scheduleOfflineActionNotification(type: QueuedActionType) {
+        let content = UNMutableNotificationContent()
+        content.title = "Action Queued"
+        content.body = "Your \(type.rawValue) will be posted as soon as you're back online."
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil  // Deliver immediately
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("❌ Failed to schedule notification: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func applyOptimisticUpdate(to post: inout Post, action: String) {
+        switch action {
+        case "like":
+            post.isLiked = true
+            post.likeCount = (post.likeCount) + 1
+        case "unlike":
+            post.isLiked = false
+            post.likeCount = max(0, (post.likeCount) - 1)
+        case "repost":
+            post.isReposted = true
+            post.repostCount = (post.repostCount) + 1
+        case "unrepost":
+            post.isReposted = false
+            post.repostCount = max(0, (post.repostCount) - 1)
+        default:
+            break
+        }
     }
 
     /// Like a post
@@ -1659,7 +2118,81 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    // MARK: - V2 Post Actions
+    // MARK: - Offline Queue Management
+
+    private func setupNetworkMonitoring() {
+        EdgeCaseHandler.shared.$networkStatus
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] status in
+                if status.isConnected {
+                    Task {
+                        await self?.processOfflineQueue()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    public func fetchPost(id: String, platform: SocialPlatform) async throws -> Post {
+        switch platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+            guard let post = try await mastodonService.fetchPostByID(id, account: account) else {
+                throw ServiceError.apiError("Post not found")
+            }
+            return post
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            guard let post = try await blueskyService.fetchPostByID(id, account: account) else {
+                throw ServiceError.apiError("Post not found")
+            }
+            return post
+        }
+    }
+
+    public func processOfflineQueue() async {
+        let actions = offlineQueueStore.queuedActions
+        guard !actions.isEmpty else { return }
+
+        print("🌐 [SocialServiceManager] Processing \(actions.count) offline actions...")
+
+        for action in actions {
+            do {
+                // Fetch the post first to ensure we have current state
+                let post = try await fetchPost(id: action.postId, platform: action.platform)
+
+                switch action.type {
+                case .like:
+                    _ = try await likePost(post)
+                case .unlike:
+                    _ = try await unlikePost(post)
+                case .repost:
+                    _ = try await repostPost(post)
+                case .unrepost:
+                    _ = try await unrepostPost(post)
+                }
+
+                // Remove from queue on success
+                offlineQueueStore.removeAction(action)
+                print(
+                    "✅ [SocialServiceManager] Successfully processed offline \(action.type) for post \(action.postId)"
+                )
+            } catch {
+                print(
+                    "❌ [SocialServiceManager] Failed to process offline action: \(error.localizedDescription)"
+                )
+                // Keep in queue for next retry if it's still a transient error
+                if !isTransientError(error) {
+                    offlineQueueStore.removeAction(action)
+                }
+            }
+        }
+    }
 
     public func like(post: Post) async throws -> PostActionState {
         let (_, state) = try await performPostActionWithBackoff(for: post, name: "like") {
@@ -1776,81 +2309,12 @@ public final class SocialServiceManager: ObservableObject {
             guard let account = blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
-            // For now, Bluesky doesn't support media attachments in our implementation
-            // We'll implement a basic text post
-            return try await createBlueskyPost(content: content, account: account)
+            return try await blueskyService.createPost(
+                content: content,
+                mediaAttachments: mediaAttachments,
+                account: account
+            )
         }
-    }
-
-    /// Create a Bluesky post (temporary implementation until BlueskyService.createPost is added)
-    private func createBlueskyPost(content: String, account: SocialAccount) async throws -> Post {
-        guard let accessToken = account.getAccessToken() else {
-            throw ServiceError.unauthorized("No access token available for Bluesky account")
-        }
-
-        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
-        if serverURLString.hasPrefix("https://") {
-            serverURLString = String(serverURLString.dropFirst(8))
-        }
-
-        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
-        guard let url = URL(string: apiURL) else {
-            throw ServiceError.invalidInput(reason: "Invalid server URL")
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: Any] = [
-            "repo": account.platformSpecificId,  // Use DID instead of stable ID
-            "collection": "app.bsky.feed.post",
-            "record": [
-                "text": content,
-                "createdAt": ISO8601DateFormatter().string(from: Date()),
-                "$type": "app.bsky.feed.post",
-            ],
-        ]
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw ServiceError.networkError(
-                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
-        }
-
-        guard httpResponse.statusCode == 200 else {
-            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-            throw ServiceError.postFailed(
-                reason: "Bluesky API error (\(httpResponse.statusCode)): \(errorMessage)")
-        }
-
-        // Parse the response to get the created post URI
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let uri = json["uri"] as? String
-        else {
-            throw ServiceError.postFailed(reason: "Invalid response from Bluesky API")
-        }
-
-        // Create a Post object from the successful creation
-        // Note: This is a minimal implementation - in a real app you'd fetch the full post data
-        return Post(
-            id: uri,
-            content: content,
-            authorName: account.displayName ?? account.username,
-            authorUsername: account.username,
-            authorProfilePictureURL: account.profileImageURL?.absoluteString ?? "",
-            createdAt: Date(),
-            platform: .bluesky,
-            originalURL: "",
-            attachments: [],
-            mentions: [],
-            tags: [],
-            platformSpecificId: uri
-        )
     }
 
     /// Create a quote post
@@ -2252,10 +2716,23 @@ public final class SocialServiceManager: ObservableObject {
         print("✅ SocialServiceManager: Completed proactive parent post fetching")
     }
 
-    /// Fetch a single parent post and cache it
-    private func fetchSingleParentPost(parentId: String, platform: SocialPlatform) async {
+    /// Fetch a single parent post and its ancestors recursively
+    private func fetchSingleParentPost(parentId: String, platform: SocialPlatform, depth: Int = 0)
+        async
+    {
+        // Limit depth to avoid infinite loops and API abuse
+        guard depth < 5 else { return }
+
         let cacheKey = "\(platform.rawValue):\(parentId)"
-        print("🔄 SocialServiceManager: Starting fetch for parent \(parentId) on \(platform)")
+
+        // Check cache before fetching to avoid redundant requests
+        if PostParentCache.shared.getCachedPost(id: cacheKey) != nil {
+            return
+        }
+
+        print(
+            "🔄 SocialServiceManager: Starting fetch for parent \(parentId) on \(platform) (depth \(depth))"
+        )
 
         // Mark as in progress
         Task { @MainActor in
@@ -2290,8 +2767,13 @@ public final class SocialServiceManager: ObservableObject {
                     PostParentCache.shared.cache[cacheKey] = parentPost
                 }
                 print("✅ SocialServiceManager: Cached parent post \(parentId) for \(platform)")
-            }
 
+                // Proactively fetch its parent if it's also a reply
+                if let grandParentId = parentPost.inReplyToID {
+                    await fetchSingleParentPost(
+                        parentId: grandParentId, platform: platform, depth: depth + 1)
+                }
+            }
         } catch {
             print(
                 "⚠️ SocialServiceManager: Failed to fetch parent post \(parentId): \(error.localizedDescription)"
@@ -2314,3 +2796,65 @@ extension Array {
 // MARK: - PostActionNetworking Conformance
 
 extension SocialServiceManager: PostActionNetworking {}
+
+public enum QueuedActionType: String, Codable {
+    case like
+    case unlike
+    case repost
+    case unrepost
+}
+
+public struct QueuedAction: Identifiable, Codable {
+    public let id: UUID
+    public let postId: String
+    public let platform: SocialPlatform
+    public let type: QueuedActionType
+    public let createdAt: Date
+
+    public init(
+        id: UUID = UUID(), postId: String, platform: SocialPlatform, type: QueuedActionType,
+        createdAt: Date = Date()
+    ) {
+        self.id = id
+        self.postId = postId
+        self.platform = platform
+        self.type = type
+        self.createdAt = createdAt
+    }
+}
+
+@MainActor
+public class OfflineQueueStore: ObservableObject {
+    @Published public var queuedActions: [QueuedAction] = []
+
+    private let saveKey = "socialfusion_offline_queue"
+
+    public init() {
+        loadQueue()
+    }
+
+    public func queueAction(postId: String, platform: SocialPlatform, type: QueuedActionType) {
+        let action = QueuedAction(postId: postId, platform: platform, type: type)
+        queuedActions.append(action)
+        persist()
+    }
+
+    public func removeAction(_ action: QueuedAction) {
+        queuedActions.removeAll { $0.id == action.id }
+        persist()
+    }
+
+    private func persist() {
+        if let data = try? JSONEncoder().encode(queuedActions) {
+            UserDefaults.standard.set(data, forKey: saveKey)
+        }
+    }
+
+    private func loadQueue() {
+        if let data = UserDefaults.standard.data(forKey: saveKey),
+            let decoded = try? JSONDecoder().decode([QueuedAction].self, from: data)
+        {
+            queuedActions = decoded
+        }
+    }
+}

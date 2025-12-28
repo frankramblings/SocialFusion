@@ -4,33 +4,33 @@ import UIKit
 // MARK: - Bluesky API Models
 
 // Authentication Response
-struct BlueskyAuthResponse: Codable {
-    let accessJwt: String
-    let refreshJwt: String
-    let handle: String
-    let did: String
-    let email: String?
+public struct BlueskyAuthResponse: Codable {
+    public let accessJwt: String
+    public let refreshJwt: String
+    public let handle: String
+    public let did: String
+    public let email: String?
 
-    var expirationDate: Date {
+    public var expirationDate: Date {
         // JWT tokens typically last longer than 2 hours - use 24 hours for better UX
         return Date().addingTimeInterval(24 * 60 * 60)
     }
 }
 
 // Profile View
-struct BlueskyProfile: Codable {
-    let did: String
-    let handle: String
-    let displayName: String?
-    let description: String?
-    let avatar: String?
-    let banner: String?
-    let followsCount: Int
-    let followersCount: Int
-    let postsCount: Int
-    let indexedAt: String
+public struct BlueskyProfile: Codable {
+    public let did: String
+    public let handle: String
+    public let displayName: String?
+    public let description: String?
+    public let avatar: String?
+    public let banner: String?
+    public let followsCount: Int
+    public let followersCount: Int
+    public let postsCount: Int
+    public let indexedAt: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case did, handle, description, avatar, banner
         case displayName = "displayName"
         case followsCount = "followsCount"
@@ -41,32 +41,32 @@ struct BlueskyProfile: Codable {
 }
 
 // Timeline Feed
-struct BlueskyFeed: Codable {
-    let feed: [BlueskyFeedItem]
-    let cursor: String?
+public struct BlueskyFeed: Codable {
+    public let feed: [BlueskyFeedItem]
+    public let cursor: String?
 }
 
 // Feed Item
-struct BlueskyFeedItem: Codable {
-    let post: BlueskyPostDTO
-    let reply: BlueskyReply?
-    let reason: BlueskyReason?
+public struct BlueskyFeedItem: Codable {
+    public let post: BlueskyPostDTO
+    public let reply: BlueskyReply?
+    public let reason: BlueskyReason?
 }
 
 // Post
-struct BlueskyPostDTO: Codable {
-    let uri: String
-    let cid: String
-    let author: BlueskyActor
-    let record: BlueskyPostRecord
-    let embed: BlueskyEmbed?
-    let replyCount: Int
-    let repostCount: Int
-    let likeCount: Int
-    let indexedAt: String
-    let viewer: BlueskyViewer?
+public struct BlueskyPostDTO: Codable {
+    public let uri: String
+    public let cid: String
+    public let author: BlueskyActor
+    public let record: BlueskyPostRecord
+    public let embed: BlueskyEmbed?
+    public let replyCount: Int
+    public let repostCount: Int
+    public let likeCount: Int
+    public let indexedAt: String
+    public let viewer: BlueskyViewer?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case uri, cid, author, record, embed
         case replyCount = "replyCount"
         case repostCount = "repostCount"
@@ -75,18 +75,18 @@ struct BlueskyPostDTO: Codable {
         case viewer
     }
 
-    var embedImages: [BlueskyImage]? {
+    public var embedImages: [BlueskyImage]? {
         return embed?.images
     }
 }
 
 // Post Record
-struct BlueskyPostRecord: Codable {
-    let text: String
-    let createdAt: String
-    let reply: BlueskyPostReplyRef?
+public struct BlueskyPostRecord: Codable {
+    public let text: String
+    public let createdAt: String
+    public let reply: BlueskyPostReplyRef?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case text
         case createdAt = "createdAt"
         case reply
@@ -94,41 +94,41 @@ struct BlueskyPostRecord: Codable {
 }
 
 // Post Reply Reference
-struct BlueskyPostReplyRef: Codable {
-    let parent: BlueskyStrongRef
-    let root: BlueskyStrongRef
+public struct BlueskyPostReplyRef: Codable {
+    public let parent: BlueskyStrongRef
+    public let root: BlueskyStrongRef
 }
 
 // Strong Reference
-struct BlueskyStrongRef: Codable {
-    let uri: String
-    let cid: String
+public struct BlueskyStrongRef: Codable {
+    public let uri: String
+    public let cid: String
 }
 
 // Actor (User)
-struct BlueskyActor: Codable {
-    let did: String
-    let handle: String
-    let displayName: String?
-    let avatar: String?
-    let viewer: BlueskyViewer?
+public struct BlueskyActor: Codable {
+    public let did: String
+    public let handle: String
+    public let displayName: String?
+    public let avatar: String?
+    public let viewer: BlueskyViewer?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case did, handle, avatar, viewer
         case displayName = "displayName"
     }
 }
 
 // Viewer State
-struct BlueskyViewer: Codable {
-    let muted: Bool?
-    let blockedBy: Bool?
-    let following: String?
-    let followedBy: String?
-    let likeUri: String?
-    let repostUri: String?
+public struct BlueskyViewer: Codable {
+    public let muted: Bool?
+    public let blockedBy: Bool?
+    public let following: String?
+    public let followedBy: String?
+    public let likeUri: String?
+    public let repostUri: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case muted
         case blockedBy = "blockedBy"
         case following, followedBy
@@ -138,50 +138,50 @@ struct BlueskyViewer: Codable {
 }
 
 // Reply
-struct BlueskyReply: Codable {
-    let root: BlueskyPostDTO
-    let parent: BlueskyPostDTO
+public struct BlueskyReply: Codable {
+    public let root: BlueskyPostDTO
+    public let parent: BlueskyPostDTO
 }
 
 // Reason (for repost)
-struct BlueskyReason: Codable {
-    let by: BlueskyActor
-    let indexedAt: String
+public struct BlueskyReason: Codable {
+    public let by: BlueskyActor
+    public let indexedAt: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case by
         case indexedAt = "indexedAt"
     }
 }
 
 // Embed (Media)
-struct BlueskyEmbed: Codable {
-    let images: [BlueskyImage]?
-    let external: BlueskyExternal?
-    let record: BlueskyEmbedRecord?
+public struct BlueskyEmbed: Codable {
+    public let images: [BlueskyImage]?
+    public let external: BlueskyExternal?
+    public let record: BlueskyEmbedRecord?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case images, external, record
     }
 }
 
 // Image
-struct BlueskyImage: Codable {
-    let alt: String
-    let image: BlueskyImageRef
+public struct BlueskyImage: Codable {
+    public let alt: String
+    public let image: BlueskyImageRef
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case alt, image
     }
 }
 
 // Image Reference
-struct BlueskyImageRef: Codable {
-    let ref: [String: String]?
-    let mimeType: String?
-    let size: Int?
+public struct BlueskyImageRef: Codable {
+    public let ref: [String: String]?
+    public let mimeType: String?
+    public let size: Int?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case ref
         case mimeType = "mimeType"
         case size
@@ -189,58 +189,138 @@ struct BlueskyImageRef: Codable {
 }
 
 // External Link
-struct BlueskyExternal: Codable {
-    let uri: String
-    let title: String?
-    let description: String?
-    let thumb: BlueskyImageRef?
+public struct BlueskyExternal: Codable {
+    public let uri: String
+    public let title: String?
+    public let description: String?
+    public let thumb: BlueskyImageRef?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case uri, title, description, thumb
     }
 }
 
 // Embed Record
-struct BlueskyEmbedRecord: Codable {
-    let record: BlueskyStrongRef
+public struct BlueskyEmbedRecord: Codable {
+    public let record: BlueskyStrongRef
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case record
     }
 }
 
 // Error Response
-struct BlueskyAPIErrorDTO: Codable, Error {
-    let error: String
-    let message: String?
+public struct BlueskyAPIErrorDTO: Codable, Error {
+    public let error: String
+    public let message: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case error, message
     }
 }
 
 // Timeline Response (DTO; keep name unique to avoid clashes with API client private type)
-struct BlueskyTimelineResponseDTO: Codable {
-    let feed: [BlueskyFeedItem]
-    let cursor: String?
+public struct BlueskyTimelineResponseDTO: Codable {
+    public let feed: [BlueskyFeedItem]
+    public let cursor: String?
+}
+
+// Search Responses
+public struct BlueskySearchPostsResponse: Codable {
+    public let posts: [BlueskyPostDTO]
+    public let cursor: String?
+    
+    public init(posts: [BlueskyPostDTO], cursor: String?) {
+        self.posts = posts
+        self.cursor = cursor
+    }
+}
+
+public struct BlueskySearchActorsResponse: Codable {
+    public let actors: [BlueskyActor]
+    public let cursor: String?
+    
+    public init(actors: [BlueskyActor], cursor: String?) {
+        self.actors = actors
+        self.cursor = cursor
+    }
+}
+
+// Notifications
+public struct BlueskyNotificationsResponse: Codable {
+    public let notifications: [BlueskyNotificationDTO]
+    public let cursor: String?
+    
+    public init(notifications: [BlueskyNotificationDTO], cursor: String?) {
+        self.notifications = notifications
+        self.cursor = cursor
+    }
+}
+
+public struct BlueskyNotificationDTO: Codable {
+    public let uri: String
+    public let cid: String
+    public let author: BlueskyActor
+    public let reason: String
+    public let reasonSubject: String?
+    public let record: [String: AnyCodable]?
+    public let isRead: Bool
+    public let indexedAt: String
+    
+    public enum CodingKeys: String, CodingKey {
+        case uri, cid, author, reason, record, indexedAt
+        case reasonSubject = "reasonSubject"
+        case isRead = "isRead"
+    }
+}
+
+// AnyCodable helper for heterogeneous records
+public struct AnyCodable: Codable {
+    public let value: Any
+    
+    public init(_ value: Any) {
+        self.value = value
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let x = try? container.decode(Bool.self) { value = x }
+        else if let x = try? container.decode(Int.self) { value = x }
+        else if let x = try? container.decode(Double.self) { value = x }
+        else if let x = try? container.decode(String.self) { value = x }
+        else if let x = try? container.decode([String: AnyCodable].self) { value = x.mapValues { $0.value } }
+        else if let x = try? container.decode([AnyCodable].self) { value = x.map { $0.value } }
+        else { throw DecodingError.typeMismatch(AnyCodable.self, DecodingError.Context(codingPath: decoder.codingPath, debugDescription: "Wrong type for AnyCodable")) }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        if let x = value as? Bool { try container.encode(x) }
+        else if let x = value as? Int { try container.encode(x) }
+        else if let x = value as? Double { try container.encode(x) }
+        else if let x = value as? String { try container.encode(x) }
+        else if let x = value as? [String: Any] { try container.encode(x.mapValues { AnyCodable($0) }) }
+        else if let x = value as? [Any] { try container.encode(x.map { AnyCodable($0) }) }
+        else { throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Cannot encode AnyCodable")) }
+    }
 }
 
 // Thread Response
-struct BlueskyThreadResponse: Codable {
-    let thread: BlueskyThreadView
+public struct BlueskyThreadResponse: Codable {
+    public let thread: BlueskyThreadView
 }
 
-class BlueskyThreadView: Codable {
-    let post: BlueskyPostDTO?
-    let parent: BlueskyThreadParent?
-    let replies: [BlueskyThreadView]?
+public class BlueskyThreadView: Codable {
+    public let post: BlueskyPostDTO?
+    public let parent: BlueskyThreadParent?
+    public let replies: [BlueskyThreadView]?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case post, parent, replies
     }
 }
 
-struct BlueskyThreadParent: Codable {
-    let post: BlueskyPostDTO?
-    let replies: [BlueskyThreadView]?
+public struct BlueskyThreadParent: Codable {
+    public let post: BlueskyPostDTO?
+    public let replies: [BlueskyThreadView]?
 }

@@ -2,6 +2,13 @@ import Combine
 import SwiftUI
 import UIKit
 
+/// A single post within a thread
+public struct ThreadPost: Identifiable {
+    public let id = UUID()
+    public var text: String = ""
+    public var images: [UIImage] = []
+}
+
 /// A view that shows context for what post is being replied to
 struct ReplyContextHeader: View {
     let post: Post
@@ -36,8 +43,10 @@ struct ReplyContextHeader: View {
                 Spacer()
 
                 // Platform indicator
-                Image(systemName: post.platform.icon)
-                    .font(.caption2)
+                Image(post.platform.icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
                     .foregroundColor(platformColor)
             }
             .padding(.horizontal, 16)
@@ -265,14 +274,19 @@ extension View {
 }
 
 struct ComposeView: View {
-    @State private var postText = ""
-    @State private var selectedPlatforms: Set<SocialPlatform> = [.mastodon, .bluesky]
+    @State private var threadPosts: [ThreadPost] = [ThreadPost()]
+    @State private var activePostIndex: Int = 0
     @State private var showImagePicker = false
-    @State private var selectedImages: [UIImage] = []
+
+    @State private var selectedPlatforms: Set<SocialPlatform> = [.mastodon, .bluesky]
     @State private var isPosting = false
     @State private var showAlert = false
     @State private var alertTitle = ""
     @State private var alertMessage = ""
+    @State private var showDraftActionSheet = false
+    @State private var showDraftsList = false
+
+    @Environment(\.dismiss) private var dismiss
 
     // Reply context
     let replyingTo: Post?
@@ -280,6 +294,7 @@ struct ComposeView: View {
 
     // Add SocialServiceManager for actual posting
     @EnvironmentObject private var socialServiceManager: SocialServiceManager
+    @EnvironmentObject private var draftStore: DraftStore
 
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 
@@ -301,15 +316,28 @@ struct ComposeView: View {
     }
 
     private var remainingChars: Int {
-        currentCharLimit - postText.count
+        currentCharLimit - threadPosts[activePostIndex].text.count
     }
 
     private var isOverLimit: Bool {
         remainingChars < 0
     }
 
+    private var overLimitPlatformsString: String {
+        var overLimit: [String] = []
+        let count = threadPosts[activePostIndex].text.count
+        if selectedPlatforms.contains(.mastodon) && count > mastodonCharLimit {
+            overLimit.append("Mastodon (\(mastodonCharLimit))")
+        }
+        if selectedPlatforms.contains(.bluesky) && count > blueskyCharLimit {
+            overLimit.append("Bluesky (\(blueskyCharLimit))")
+        }
+        return overLimit.joined(separator: " and ")
+    }
+
     private var canPost: Bool {
-        !postText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isOverLimit
+        !threadPosts[activePostIndex].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !isOverLimit
             && !selectedPlatforms.isEmpty && !isPosting && hasAccountsForSelectedPlatforms
     }
 
@@ -451,9 +479,9 @@ struct ComposeView: View {
                 // Text editor
                 ZStack(alignment: .topLeading) {
                     FocusableTextEditor(
-                        text: $postText,
+                        text: $threadPosts[activePostIndex].text,
                         placeholder: placeholderText,
-                        shouldAutoFocus: replyingTo != nil,
+                        shouldAutoFocus: true,
                         onFocusChange: { isFocused in
                             isTextFieldFocused = isFocused
                         }
@@ -463,13 +491,43 @@ struct ComposeView: View {
                 .padding(.horizontal, 8)
                 .padding(.top, 8)
 
+                // Thread pagination / navigation if multiple posts
+                if threadPosts.count > 1 {
+                    HStack {
+                        ForEach(0..<threadPosts.count, id: \.self) { index in
+                            Circle()
+                                .fill(
+                                    index == activePostIndex
+                                        ? platformColor : Color.gray.opacity(0.3)
+                                )
+                                .frame(width: 8, height: 8)
+                                .onTapGesture {
+                                    activePostIndex = index
+                                }
+                        }
+
+                        Spacer()
+
+                        Button(action: {
+                            threadPosts.remove(at: activePostIndex)
+                            activePostIndex = max(0, activePostIndex - 1)
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
+
                 // Selected images preview
-                if !selectedImages.isEmpty {
+                if !threadPosts[activePostIndex].images.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                            ForEach(0..<selectedImages.count, id: \.self) { index in
+                            ForEach(0..<threadPosts[activePostIndex].images.count, id: \.self) {
+                                index in
                                 ZStack(alignment: .topTrailing) {
-                                    Image(uiImage: selectedImages[index])
+                                    Image(uiImage: threadPosts[activePostIndex].images[index])
                                         .resizable()
                                         .scaledToFill()
                                         .frame(width: 100, height: 100)
@@ -478,7 +536,7 @@ struct ComposeView: View {
                                             color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
 
                                     Button(action: {
-                                        selectedImages.remove(at: index)
+                                        threadPosts[activePostIndex].images.remove(at: index)
                                     }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.system(size: 18))
@@ -515,18 +573,48 @@ struct ComposeView: View {
                             .clipShape(Circle())
                     }
 
+                    // Add post to thread button
+                    Button(action: {
+                        let newPost = ThreadPost()
+                        threadPosts.append(newPost)
+                        activePostIndex = threadPosts.count - 1
+                    }) {
+                        Image(systemName: "plus.circle")
+                            .font(.system(size: 20))
+                            .foregroundColor(.secondary)
+                            .padding(8)
+                            .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                            .clipShape(Circle())
+                    }
+
                     Spacer()
 
-                    // Character counter
-                    Text("\(remainingChars)")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(
-                            isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
-                        )
-                        .padding(.horizontal, 10)
+                    // Character counter with feedback
+                    HStack(spacing: 4) {
+                        if isOverLimit {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                        }
 
-                    // Post button - Enhanced with Liquid Glass
+                        Text("\(remainingChars)")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundColor(
+                                isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
+                            )
+                    }
+                    .padding(.horizontal, 10)
+                    .onTapGesture {
+                        if isOverLimit {
+                            alertTitle = "Character Limit Exceeded"
+                            alertMessage =
+                                "You are over the character limit for \(overLimitPlatformsString)."
+                            showAlert = true
+                        }
+                    }
+
+                    // Post button - Enhanced with platform color
                     Button(action: {
                         postContent()
                     }) {
@@ -538,7 +626,7 @@ struct ComposeView: View {
                     }
                     .background(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(canPost ? .regularMaterial : .ultraThinMaterial)
+                            .fill(canPost ? platformColor : Color.gray.opacity(0.3))
                     )
                     .disabled(!canPost)
                     .animation(.easeInOut(duration: 0.2), value: canPost)
@@ -551,12 +639,70 @@ struct ComposeView: View {
                     alignment: .top
                 )
             }
+            .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        let hasContent = threadPosts.contains { post in
+                            !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                || !post.images.isEmpty
+                        }
+                        if hasContent {
+                            showDraftActionSheet = true
+                        } else {
+                            dismiss()
+                        }
+                    }
+                }
 
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if !draftStore.drafts.isEmpty && replyingTo == nil {
+                        Button(action: { showDraftsList = true }) {
+                            Image(systemName: "archivebox")
+                        }
+                    }
+                }
+            }
+            .sheet(isPresented: $showDraftsList) {
+                DraftsListView(onSelect: { draft in
+                    self.threadPosts = draft.posts.map { draftPost in
+                        ThreadPost(
+                            text: draftPost.text,
+                            images: draftPost.mediaData.compactMap { UIImage(data: $0) }
+                        )
+                    }
+                    if self.threadPosts.isEmpty {
+                        self.threadPosts = [ThreadPost()]
+                    }
+                    self.activePostIndex = 0
+                    self.selectedPlatforms = draft.selectedPlatforms
+                    draftStore.deleteDraft(draft)
+                    showDraftsList = false
+                })
+                .environmentObject(draftStore)
+            }
+            .confirmationDialog("Drafts", isPresented: $showDraftActionSheet) {
+                Button("Save Draft") {
+                    draftStore.saveDraft(
+                        posts: threadPosts,
+                        platforms: selectedPlatforms,
+                        replyingToId: replyingTo?.id
+                    )
+                    dismiss()
+                }
+                Button("Delete Post", role: .destructive) {
+                    dismiss()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("What would you like to do with this post?")
+            }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .keyboardAdaptive()
             .sheet(isPresented: $showImagePicker) {
-                ImagePicker(selectedImages: $selectedImages, maxImages: 4)
+                ImagePicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
             .alert(isPresented: $showAlert) {
                 Alert(
@@ -616,11 +762,6 @@ struct ComposeView: View {
 
         isPosting = true
 
-        // Convert UIImages to Data for API calls
-        let mediaData: [Data] = selectedImages.compactMap { image in
-            return image.jpegData(compressionQuality: 0.8)
-        }
-
         // Convert visibility index to string
         let visibilityString: String
         switch selectedVisibility {
@@ -636,55 +777,62 @@ struct ComposeView: View {
 
         Task {
             do {
-                // Handle reply vs new post
-                if let replyingTo = replyingTo {
-                    // This is a reply
-                    let _ = try await socialServiceManager.replyToPost(
-                        replyingTo, content: postText)
+                var previousPost: Post? = replyingTo
+                var createdCount = 0
 
-                    await MainActor.run {
-                        isPosting = false
-                        alertTitle = "Reply Sent!"
+                for threadPost in threadPosts {
+                    // Convert UIImages to Data for API calls
+                    let mediaData: [Data] = threadPost.images.compactMap { image in
+                        return image.jpegData(compressionQuality: 0.8)
+                    }
+
+                    if let replyToPost = previousPost {
+                        // This is a reply
+                        let createdReply = try await socialServiceManager.replyToPost(
+                            replyToPost,
+                            content: threadPost.text,
+                            mediaAttachments: mediaData
+                        )
+                        previousPost = createdReply
+                        createdCount += 1
+                    } else {
+                        // This is a new post (first in thread)
+                        let createdPosts = try await socialServiceManager.createPost(
+                            content: threadPost.text,
+                            platforms: selectedPlatforms,
+                            mediaAttachments: mediaData,
+                            visibility: visibilityString
+                        )
+                        previousPost = createdPosts.first
+                        createdCount += 1
+                    }
+                }
+
+                await MainActor.run {
+                    isPosting = false
+                    alertTitle =
+                        threadPosts.count > 1
+                        ? "Thread Sent!" : (replyingTo != nil ? "Reply Sent!" : "Success!")
+
+                    if threadPosts.count > 1 {
+                        alertMessage = "Your thread of \(threadPosts.count) posts has been shared."
+                    } else if replyingTo != nil {
                         alertMessage = "Your reply has been posted successfully."
-                        showAlert = true
-
-                        // Reset the compose view
-                        postText = ""
-                        selectedImages = []
+                    } else {
+                        alertMessage = "Your post has been shared."
                     }
-                } else {
-                    // This is a new post
-                    let createdPosts = try await socialServiceManager.createPost(
-                        content: postText,
-                        platforms: selectedPlatforms,
-                        mediaAttachments: mediaData,
-                        visibility: visibilityString
-                    )
 
-                    await MainActor.run {
-                        isPosting = false
-                        alertTitle = "Success!"
+                    showAlert = true
 
-                        if createdPosts.count == selectedPlatforms.count {
-                            let platformNames = createdPosts.map { $0.platform.rawValue }.joined(
-                                separator: " and ")
-                            alertMessage =
-                                "Your post has been successfully shared to \(platformNames)."
-                        } else {
-                            let successfulPlatforms = createdPosts.map { $0.platform.rawValue }
-                                .joined(separator: " and ")
-                            alertMessage =
-                                "Your post was shared to \(successfulPlatforms). Some platforms may have failed."
-                        }
-                        showAlert = true
+                    // Reset the compose view
+                    threadPosts = [ThreadPost()]
+                    activePostIndex = 0
 
-                        // Reset the compose view
-                        postText = ""
-                        selectedImages = []
+                    // Reset platform selection to default
+                    selectedPlatforms = [.mastodon, .bluesky]
 
-                        // Reset platform selection to default
-                        selectedPlatforms = [.mastodon, .bluesky]
-                    }
+                    // Dismiss the view
+                    dismiss()
                 }
 
             } catch {
@@ -729,8 +877,10 @@ struct PlatformToggleButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
-                Image(systemName: platform.icon)
-                    .font(.system(size: 14))
+                Image(platform.icon)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
 
                 Text(platform.rawValue)
                     .font(.subheadline)
@@ -889,5 +1039,75 @@ struct ImagePicker: View {
 struct ComposeView_Previews: PreviewProvider {
     static var previews: some View {
         ComposeView()
+    }
+}
+
+struct DraftsListView: View {
+    @EnvironmentObject var draftStore: DraftStore
+    let onSelect: (DraftPost) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(draftStore.drafts) { draft in
+                    Button(action: {
+                        onSelect(draft)
+                    }) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            let firstPostText = draft.posts.first?.text ?? ""
+                            Text(firstPostText.isEmpty ? "(No content)" : firstPostText)
+                                .lineLimit(2)
+                                .font(.body)
+
+                            HStack {
+                                Text(
+                                    draft.createdAt.formatted(date: .abbreviated, time: .shortened)
+                                )
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                                if draft.posts.count > 1 {
+                                    Text("• \(draft.posts.count) posts")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                HStack(spacing: 4) {
+                                    ForEach(Array(draft.selectedPlatforms), id: \.self) {
+                                        platform in
+                                        Image(platform.icon)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 12, height: 12)
+                                    }
+                                }
+                                .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .onDelete { indexSet in
+                    for index in indexSet {
+                        draftStore.deleteDraft(draftStore.drafts[index])
+                    }
+                }
+            }
+            .navigationTitle("Drafts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
+            }
+        }
     }
 }

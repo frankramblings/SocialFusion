@@ -7,6 +7,7 @@ import UserNotifications
 struct ContentView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject var appVersionManager: AppVersionManager
+    @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
     @State private var selectedTab = 0
 
     // Account selection state
@@ -121,29 +122,8 @@ struct ContentView: View {
 
                 // Notifications Tab - with a modern design
                 NavigationView {
-                    ZStack {
-                        Color(UIColor.systemBackground)
-                            .ignoresSafeArea()
-
-                        VStack(spacing: 20) {
-                            Image(systemName: "bell.fill")
-                                .font(.system(size: 50))
-                                .foregroundColor(.gray.opacity(0.3))
-
-                            Text("Notifications")
-                                .font(.title3)
-                                .fontWeight(.medium)
-
-                            Text("Notifications will appear here")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                        }
-                    }
-
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
+                    NotificationsView()
+                        .environmentObject(serviceManager)
                 }
                 .tabItem {
                     Label("Notifications", systemImage: "bell")
@@ -152,29 +132,8 @@ struct ContentView: View {
 
                 // Search Tab - with a modern design
                 NavigationView {
-                    ZStack {
-                        Color(UIColor.systemBackground)
-                            .ignoresSafeArea()
-
-                        VStack(spacing: 20) {
-                            Image(systemName: "magnifyingglass")
-                                .font(.system(size: 50))
-                                .foregroundColor(.gray.opacity(0.3))
-
-                            Text("Search")
-                                .font(.title3)
-                                .fontWeight(.medium)
-
-                            Text("Search for people, posts, and hashtags")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                        }
-                    }
-
-                    .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
+                    SearchView()
+                        .environmentObject(serviceManager)
                 }
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")
@@ -188,47 +147,8 @@ struct ContentView: View {
                             .ignoresSafeArea()
 
                         if let account = getCurrentAccount() {
-                            ScrollView {
-                                VStack(spacing: 0) {
-                                    // Profile header
-                                    VStack(spacing: 16) {
-                                        // Profile image
-                                        ProfileImageView(account: account)
-                                            .frame(width: 80, height: 80)
-                                            .overlay(
-                                                Circle()
-                                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                                            )
-                                            .padding(.top, 20)
-
-                                        // Account name and username
-                                        VStack(spacing: 4) {
-                                            Text(account.displayName ?? account.username)
-                                                .font(.title2)
-                                                .fontWeight(.bold)
-
-                                            Text("@\(account.username)")
-                                                .font(.subheadline)
-                                                .foregroundColor(.secondary)
-                                        }
-
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .background(
-                                        colorScheme == .dark
-                                            ? Color(UIColor.secondarySystemBackground) : Color.white
-                                    )
-
-                                    // Profile content placeholder
-                                    VStack(spacing: 20) {
-                                        Text("Profile content will appear here")
-                                            .font(.headline)
-                                            .padding(.top, 40)
-                                            .foregroundColor(.secondary)
-                                    }
-                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                }
-                            }
+                            ProfileView(account: account)
+                                .environmentObject(serviceManager)
                         } else {
                             VStack(spacing: 20) {
                                 Image(systemName: "person.crop.circle")
@@ -341,7 +261,6 @@ struct ContentView: View {
                             "🔧 ContentView: Updated serviceManager.selectedAccountIds to match UI selection"
                         )
                     }
-                } else {
                     print("🔧 ContentView: Account selections are already in sync")
                 }
 
@@ -372,6 +291,15 @@ struct ContentView: View {
             }
 
         }
+        .environment(
+            \.openURL,
+            OpenURLAction { url in
+                if navigationEnvironment.canHandle(url) {
+                    navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
+                    return .handled
+                }
+                return .systemAction
+            })
     }
 
     /// Request notification permissions for showing token refresh alerts

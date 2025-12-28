@@ -25,7 +25,7 @@ extension Optional where Wrapped == URL {
     }
 }
 
-public class MastodonService {
+public final class MastodonService: Sendable {
     private let session = URLSession.shared
     private let logger = Logger(subsystem: "com.socialfusion.app", category: "MastodonService")
 
@@ -34,7 +34,7 @@ public class MastodonService {
     // MARK: - Authentication Utilities
 
     /// Creates an authenticated request with automatic token refresh
-    private func createAuthenticatedRequest(
+    public func createAuthenticatedRequest(
         url: URL,
         method: String,
         account: SocialAccount,
@@ -79,7 +79,7 @@ public class MastodonService {
     /// Ensures a server URL has the https scheme
     /// - Parameter server: The server URL string
     /// - Returns: A properly formatted server URL string
-    private func formatServerURL(_ server: String) -> String {
+    public func formatServerURL(_ server: String) -> String {
         let lowercasedServer = server.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Handle empty string case
@@ -975,34 +975,24 @@ public class MastodonService {
     }
 
     /// Fetch a user's profile timeline
-    func fetchUserTimeline(userId: String, for account: SocialAccount) async throws -> [Post] {
-        guard let accessToken = account.getAccessToken() else {
-            throw NSError(
-                domain: "MastodonService", code: 401,
-                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+    public func fetchUserTimeline(
+        userId: String, for account: SocialAccount, limit: Int = 40, maxId: String? = nil
+    ) async throws -> [Post] {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        var urlString = "\(serverUrl)/api/v1/accounts/\(userId)/statuses?limit=\(limit)"
+        if let maxId = maxId {
+            urlString += "&max_id=\(maxId)"
         }
 
-        // Check if token needs refresh
-        if account.isTokenExpired, account.getRefreshToken() != nil {
-            print("Token refresh is needed but client credentials are not available")
-            // Without client credentials, refresh isn't possible
-            // Continue with existing token
-        }
-
-        // Ensure server has the scheme
-        let serverUrl = account.serverURL?.absoluteString ?? ""
-        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(userId)/statuses?limit=40")
-        else {
+        guard let url = URL(string: urlString) else {
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -1018,6 +1008,89 @@ public class MastodonService {
 
         // Convert to our app's Post model
         return statuses.map { convertMastodonStatusToPost($0, account: account) }
+    }
+
+    /// Search for content on Mastodon
+    public func search(query: String, account: SocialAccount, type: String? = nil, limit: Int = 20)
+        async throws -> MastodonSearchResult
+    {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+
+        var components = URLComponents(string: "\(serverUrl)/api/v2/search")!
+        var queryItems = [
+            URLQueryItem(name: "q", value: query),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "resolve", value: "true"),
+        ]
+
+        if let type = type {
+            queryItems.append(URLQueryItem(name: "type", value: type))
+        }
+
+        components.queryItems = queryItems
+
+        guard let url = components.url else {
+            throw ServiceError.invalidInput(reason: "Invalid search query")
+        }
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError(
+                "Search failed with status \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(MastodonSearchResult.self, from: data)
+    }
+
+    /// Fetch trending tags from Mastodon
+    public func fetchTrendingTags(account: SocialAccount, limit: Int = 10) async throws
+        -> [MastodonTag]
+    {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        let url = URL(string: "\(serverUrl)/api/v1/trending/tags?limit=\(limit)")!
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch trending tags")
+        }
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode([MastodonTag].self, from: data)
+    }
+
+    /// Fetch notifications from Mastodon
+    public func fetchNotifications(
+        for account: SocialAccount, limit: Int = 40, maxId: String? = nil
+    ) async throws -> [MastodonNotification] {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+
+        var urlString = "\(serverUrl)/api/v1/notifications?limit=\(limit)"
+        if let maxId = maxId {
+            urlString += "&max_id=\(maxId)"
+        }
+
+        guard let url = URL(string: urlString) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch notifications")
+        }
+
+        return try JSONDecoder().decode([MastodonNotification].self, from: data)
     }
 
     // MARK: - Post Actions
@@ -1479,7 +1552,7 @@ public class MastodonService {
     }
 
     /// Converts a Mastodon status to a generic Post
-    private func convertMastodonStatusToPost(
+    public func convertMastodonStatusToPost(
         _ status: MastodonStatus, account: SocialAccount? = nil
     ) -> Post {
         // Move the replyToUsername logic to the top of the function
@@ -2039,6 +2112,7 @@ public class MastodonService {
     // MARK: - Status methods
 
     /// Local cache for recently fetched status posts
+    private let statusCacheLock = NSLock()
     private var statusCache: [String: (post: Post, timestamp: Date)] = [:]
 
     /// Fetches a status by its ID
@@ -2047,10 +2121,13 @@ public class MastodonService {
     /// - Returns: The post if found, nil otherwise
     func fetchStatus(id: String, account: SocialAccount) async throws -> Post? {
         // Check cache first - posts are valid for 5 minutes
+        statusCacheLock.lock()
         if let cached = statusCache[id], Date().timeIntervalSince(cached.timestamp) < 300 {
+            statusCacheLock.unlock()
             logger.info("Using cached Mastodon status for ID: \(id)")
             return cached.post
         }
+        statusCacheLock.unlock()
 
         guard let serverURLString = account.serverURL else {
             logger.error("No server URL for Mastodon account")
@@ -2105,14 +2182,14 @@ public class MastodonService {
                 "Successfully decoded Mastodon status: id=\(status.id), in_reply_to_id=\(status.inReplyToId ?? "nil")"
             )
 
-            let post = await convertMastodonStatusToPost(status, account: account)
+            let post = self.convertMastodonStatusToPost(status, account: account)
             logger.info(
                 "Converted to Post model: id=\(post.id), inReplyToID=\(post.inReplyToID ?? "nil")"
             )
 
-            await MainActor.run {
-                self.statusCache[id] = (post: post, timestamp: Date())
-            }
+            statusCacheLock.lock()
+            self.statusCache[id] = (post: post, timestamp: Date())
+            statusCacheLock.unlock()
 
             return post
         } catch {
@@ -2148,9 +2225,9 @@ public class MastodonService {
                 let post = try await fetchStatus(id: id, account: account)
 
                 if let post {
-                    await MainActor.run {
-                        self.statusCache[id] = (post: post, timestamp: Date())
-                    }
+                    statusCacheLock.lock()
+                    self.statusCache[id] = (post: post, timestamp: Date())
+                    statusCacheLock.unlock()
                 }
 
                 await MainActor.run {
@@ -2250,36 +2327,42 @@ public class MastodonService {
         guard let serverURLString = account.serverURL else {
             throw ServiceError.invalidAccount(reason: "No server URL")
         }
-        
+
         let serverUrl = formatServerURL(serverURLString.absoluteString)
         let accountId = account.platformSpecificId
-        
+
         guard !accountId.isEmpty else {
             throw ServiceError.invalidAccount(reason: "Account ID not found")
         }
-        
-        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(accountId)/following?limit=80") else {
+
+        guard let url = URL(string: "\(serverUrl)/api/v1/accounts/\(accountId)/following?limit=80")
+        else {
             throw ServiceError.invalidInput(reason: "Invalid URL")
         }
-        
-        let request = try await createAuthenticatedRequest(url: url, method: "GET", account: account)
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
         let (data, response) = try await session.data(for: request)
-        
+
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ServiceError.apiError("Failed to fetch following")
         }
-        
+
         struct MastodonAccount: Codable {
             let acct: String
         }
-        
+
         let following = try JSONDecoder().decode([MastodonAccount].self, from: data)
-        let instanceDomain = serverUrl.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: "")
-        
-        return Set(following.map { mastodonAccount in
-            let handle = mastodonAccount.acct.contains("@") ? mastodonAccount.acct : "\(mastodonAccount.acct)@\(instanceDomain)"
-            return UserID(value: handle, platform: .mastodon)
-        })
+        let instanceDomain = serverUrl.replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+
+        return Set(
+            following.map { mastodonAccount in
+                let handle =
+                    mastodonAccount.acct.contains("@")
+                    ? mastodonAccount.acct : "\(mastodonAccount.acct)@\(instanceDomain)"
+                return UserID(value: handle, platform: .mastodon)
+            })
     }
 }
 
@@ -2310,31 +2393,31 @@ enum MastodonVisibility: String, Codable {
 public class MastodonThreadResolver: ThreadParticipantResolver {
     private let service: MastodonService
     private let accountProvider: () -> SocialAccount?
-    
+
     public init(service: MastodonService, accountProvider: @escaping () -> SocialAccount?) {
         self.service = service
         self.accountProvider = accountProvider
     }
-    
+
     public func getThreadParticipants(for post: Post) async throws -> Set<UserID> {
         guard let account = accountProvider() else { return [] }
-        let context = try await service.fetchStatusContext(statusId: post.platformSpecificId, account: account)
-        
+        let context = try await service.fetchStatusContext(
+            statusId: post.platformSpecificId, account: account)
+
         var participants = Set<UserID>()
         // Add author of current post
         participants.insert(UserID(value: post.authorUsername, platform: .mastodon))
-        
+
         // Add authors of ancestors
         for ancestor in context.ancestors {
             participants.insert(UserID(value: ancestor.authorUsername, platform: .mastodon))
         }
-        
+
         // Add authors of descendants
         for descendant in context.descendants {
             participants.insert(UserID(value: descendant.authorUsername, platform: .mastodon))
         }
-        
+
         return participants
     }
 }
-

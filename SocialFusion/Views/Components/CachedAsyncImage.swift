@@ -131,7 +131,7 @@ public class ImageCache: ObservableObject {
             }
             .replaceError(with: nil)
             .handleEvents(
-                receiveOutput: { [weak self] image in
+                receiveOutput: { image in
                     if image == nil {
                         print("⚠️ [ImageCache] No image to cache for: \(url.lastPathComponent)")
                     }
@@ -233,6 +233,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     private let stableID: String
 
     @StateObject private var imageCache = ImageCache.shared
+    @StateObject private var memoryManager = MediaMemoryManager.shared
     @State private var image: UIImage?
     @State private var isLoading = false
     @State private var hasError = false
@@ -346,24 +347,21 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         hasError = false
         let startTime = Date()
 
-        // Clear previous cancellables for this load
-        cancellables.removeAll()
+        Task {
+            do {
+                // Determine target size if it's a profile image (usually small)
+                // We'll assume if it's high priority and we're in a list, it's likely a profile image or thumbnail
+                // For now, let's just use the optimized loader
+                let loadedImage = try await memoryManager.loadOptimizedImage(from: url)
 
-        imageCache.loadImage(from: url, priority: loadPriority)
-            .receive(on: DispatchQueue.main)
-            .sink(receiveValue: { [url, loadPriority, startTime] loadedImage in
-
-                // Update loading state
-                self.isLoading = false
-                let loadTime = Date().timeIntervalSince(startTime)
-
-                if let loadedImage = loadedImage {
+                await MainActor.run {
+                    self.isLoading = false
                     self.image = loadedImage
                     self.onImageLoad?(loadedImage)
                     self.hasError = false
                     self.retryCount = 0
 
-                    // Post success notification for live monitoring
+                    let loadTime = Date().timeIntervalSince(startTime)
                     NotificationCenter.default.post(
                         name: NSNotification.Name("ProfileImageLoadAttempt"),
                         object: nil,
@@ -374,11 +372,13 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                             "priority": loadPriority.rawValue,
                         ]
                     )
-                } else {
-                    // Network request completed but returned nil (could be 404, invalid data, etc.)
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoading = false
                     self.hasError = true
 
-                    // Post failure notification for live monitoring
+                    let loadTime = Date().timeIntervalSince(startTime)
                     NotificationCenter.default.post(
                         name: NSNotification.Name("ProfileImageLoadAttempt"),
                         object: nil,
@@ -393,26 +393,27 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
                     // Smart retry logic based on priority and visibility
                     if self.retryCount < self.maxRetries && self.isVisible {
                         self.retryCount += 1
-                        let baseDelay = Double(self.retryCount * self.retryCount) * 0.3  // Faster retries
+                        let baseDelay = Double(self.retryCount * self.retryCount) * 0.3
                         let jitter = Double.random(in: 0.05...0.15)
                         let delay = baseDelay + jitter
 
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                            if self.isVisible {  // Only retry if still visible
+                            if self.isVisible {
                                 self.loadImageWithPriority(loadPriority)
                             }
                         }
                     }
                 }
-            })
-            .store(in: &cancellables)
+            }
+        }
     }
 }
 
 /// Convenience initializers
 extension CachedAsyncImage where Content == Image, Placeholder == AnyView {
-    init(url: URL?, priority: ImageLoadPriority = .normal, onImageLoad: ((UIImage) -> Void)? = nil) {
+    init(url: URL?, priority: ImageLoadPriority = .normal, onImageLoad: ((UIImage) -> Void)? = nil)
+    {
         self.init(
             url: url,
             priority: priority,

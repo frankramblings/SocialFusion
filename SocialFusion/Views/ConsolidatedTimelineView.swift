@@ -153,8 +153,37 @@ struct ConsolidatedTimelineView: View {
                 )
                 .hidden()
             )
+            .background(
+                NavigationLink(
+                    destination: navigationEnvironment.selectedUser.map { user in
+                        UserDetailView(user: user)
+                            .environmentObject(serviceManager)
+                    },
+                    isActive: Binding(
+                        get: { navigationEnvironment.selectedUser != nil },
+                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                    ),
+                    label: { EmptyView() }
+                )
+                .hidden()
+            )
+            .background(
+                NavigationLink(
+                    destination: navigationEnvironment.selectedTag.map { tag in
+                        TagDetailView(tag: tag)
+                            .environmentObject(serviceManager)
+                    },
+                    isActive: Binding(
+                        get: { navigationEnvironment.selectedTag != nil },
+                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                    ),
+                    label: { EmptyView() }
+                )
+                .hidden()
+            )
             .sheet(item: $replyingToPost) { post in
-                FeedReplyComposer(post: post, onDismiss: { replyingToPost = nil })
+                ComposeView(replyingTo: post)
+                    .environmentObject(serviceManager)
             }
             .sheet(isPresented: $showAddAccountView) {
                 AddAccountView()
@@ -435,71 +464,4 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
 #Preview {
     ConsolidatedTimelineView(serviceManager: SocialServiceManager())
-}
-
-// Add a simple reply composer view for the feed
-struct FeedReplyComposer: View, Identifiable {
-    let id = UUID()
-    let post: Post
-    let onDismiss: () -> Void
-    @State private var replyText: String = ""
-    @EnvironmentObject private var serviceManager: SocialServiceManager
-    @State private var isSending = false
-    @State private var error: String? = nil
-
-    var body: some View {
-        NavigationView {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Replying to @\(post.authorUsername)")
-                    .font(.headline)
-                TextEditor(text: $replyText)
-                    .frame(minHeight: 100)
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2)))
-                if let error = error {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                }
-                Spacer()
-                HStack {
-                    Button("Cancel") {
-                        onDismiss()
-                    }
-                    Spacer()
-                    Button("Send") {
-                        sendReply()
-                    }
-                    .disabled(
-                        replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || isSending)
-                }
-            }
-            .padding()
-            .navigationTitle("Reply")
-            .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-
-    private func sendReply() {
-        guard !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isSending = true
-        error = nil
-        Task {
-            do {
-                _ = try await serviceManager.replyToPost(post, content: replyText)
-                // Update the post's isReplied state using proper async pattern
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                    post.isReplied = true
-                }
-                if FeatureFlagManager.isEnabled(.postActionsV2) {
-                    serviceManager.postActionCoordinator.registerReplySuccess(for: post)
-                }
-                onDismiss()
-            } catch {
-                self.error = error.localizedDescription
-            }
-            isSending = false
-        }
-    }
 }

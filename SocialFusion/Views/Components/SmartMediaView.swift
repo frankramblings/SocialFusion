@@ -47,7 +47,8 @@ struct SmartMediaView: View {
 
     @ViewBuilder
     private var mediaContent: some View {
-        let initialRatio = CGFloat(attachment.aspectRatio ?? Double(inferAspectRatio(from: attachment.url)))
+        let initialRatio = CGFloat(
+            attachment.aspectRatio ?? Double(inferAspectRatio(from: attachment.url)))
         let ratio = loadedAspectRatio ?? initialRatio
 
         if attachment.type == .audio {
@@ -251,13 +252,10 @@ private struct VideoPlayerView: View {
     let aspectRatio: CGFloat
     var onSizeDetected: ((CGSize) -> Void)? = nil
 
-    @State private var player: AVPlayer?
-    @State private var playerLooper: AVPlayerLooper?
+    @StateObject private var playerModel = VideoPlayerViewModel()
     @State private var hasError = false
     @State private var isLoading = true
     @State private var retryCount = 0
-    @State private var bufferProgress: Float = 0.0
-    @State private var isBuffering = false
 
     @StateObject private var errorHandler = MediaErrorHandler.shared
     @StateObject private var memoryManager = MediaMemoryManager.shared
@@ -265,48 +263,51 @@ private struct VideoPlayerView: View {
 
     var body: some View {
         Group {
-            if let player = player, !hasError {
+            if let player = playerModel.player, !hasError {
                 ZStack(alignment: .center) {
                     VideoPlayer(player: player)
                         .aspectRatio(aspectRatio, contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .onAppear {
                             // Detect size from track
-                            if let track = player.currentItem?.asset.tracks(withMediaType: .video).first {
-                                let size = track.naturalSize.applying(track.preferredTransform)
-                                onSizeDetected?(CGSize(width: abs(size.width), height: abs(size.height)))
-                            }
-                            // Use Task to defer state updates outside view rendering cycle
-                            Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                                if isGIF {
-                                    // For GIFs, ensure looping and auto-play
-                                    player.play()
+                            Task {
+                                if let track = try? await player.currentItem?.asset.loadTracks(
+                                    withMediaType: .video
+                                ).first {
+                                    let size = try? await track.load(.naturalSize)
+                                    let transform = try? await track.load(.preferredTransform)
+                                    if let size = size, let transform = transform {
+                                        let correctedSize = size.applying(transform)
+                                        onSizeDetected?(
+                                            CGSize(
+                                                width: abs(correctedSize.width),
+                                                height: abs(correctedSize.height)))
+                                    }
                                 }
+                            }
+
+                            if isGIF {
+                                player.play()
                             }
                         }
                         .onDisappear {
-                            // Use Task to defer state updates outside view rendering cycle
-                            Task { @MainActor in
-                                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                                player.pause()
-                            }
+                            player.pause()
                         }
 
                     // Buffering indicator
-                    if isBuffering {
+                    if playerModel.isBuffering {
                         VStack(spacing: 8) {
                             ProgressView()
                                 .scaleEffect(1.2)
                                 .tint(.white)
 
-                            if bufferProgress > 0 {
+                            if playerModel.bufferProgress > 0 {
                                 VStack(spacing: 4) {
                                     Text("Buffering...")
                                         .font(.caption)
                                         .foregroundColor(.white)
 
-                                    ProgressView(value: bufferProgress, total: 1.0)
+                                    ProgressView(value: playerModel.bufferProgress, total: 1.0)
                                         .frame(width: 120)
                                         .tint(.white)
                                 }
@@ -357,18 +358,12 @@ private struct VideoPlayerView: View {
             }
         }
         .onAppear {
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            Task {
                 await setupPlayer()
             }
         }
         .onDisappear {
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                cleanup()
-            }
+            cleanup()
         }
         .mediaRetryHandler(url: url?.absoluteString ?? "") {
             retrySetup()
@@ -379,15 +374,13 @@ private struct VideoPlayerView: View {
         .accessibilityAddTraits(accessibilityTraits)
     }
 
-    // MARK: - Accessibility Support
-
     private var accessibilityDescription: String {
         if hasError {
             return "Video failed to load. Double tap to retry."
         } else if isLoading {
             return "Video loading..."
-        } else if isBuffering {
-            let progress = Int(bufferProgress * 100)
+        } else if playerModel.isBuffering {
+            let progress = Int(playerModel.bufferProgress * 100)
             return "Video buffering, \(progress)% loaded"
         } else if isGIF {
             return "Animated GIF video"
@@ -399,7 +392,7 @@ private struct VideoPlayerView: View {
     private var accessibilityHint: String {
         if hasError {
             return "Double tap to retry loading the video"
-        } else if isLoading || isBuffering {
+        } else if isLoading || playerModel.isBuffering {
             return "Please wait while the video loads"
         } else {
             return "Double tap to play or pause"
@@ -408,13 +401,11 @@ private struct VideoPlayerView: View {
 
     private var accessibilityTraits: AccessibilityTraits {
         var traits: AccessibilityTraits = [.playsSound]
-
         if hasError {
-            traits.insert(.updatesFrequently)
-        } else if !isLoading && !isBuffering {
-            traits.insert(.startsMediaSession)
+            _ = traits.insert(.updatesFrequently)
+        } else if !isLoading && !playerModel.isBuffering {
+            _ = traits.insert(.startsMediaSession)
         }
-
         return traits
     }
 
@@ -425,13 +416,11 @@ private struct VideoPlayerView: View {
             return
         }
 
-        // Track performance
         performanceMonitor.trackMediaLoadStart(url: url.absoluteString)
 
         do {
-            // Check if we have a cached player first
             if let cachedPlayer = memoryManager.getCachedPlayer(for: url) {
-                self.player = cachedPlayer
+                playerModel.setPlayer(cachedPlayer)
                 hasError = false
                 isLoading = false
                 performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: true)
@@ -442,11 +431,10 @@ private struct VideoPlayerView: View {
                 return try await createPlayer(for: url)
             }
 
-            // Cache the player for reuse
             memoryManager.cachePlayer(player, for: url)
             performanceMonitor.trackPlayerCreation()
 
-            self.player = player
+            playerModel.setPlayer(player)
             hasError = false
             isLoading = false
             performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: true)
@@ -467,30 +455,18 @@ private struct VideoPlayerView: View {
 
             var hasResumed = false
 
-            // Monitor player status
-            let statusObserver = playerItem.observe(\.status, options: [.new]) {
-                [weak playerItem] item, _ in
+            _ = playerItem.observe(\.status, options: [.new]) { item, _ in
                 guard !hasResumed else { return }
 
                 switch item.status {
                 case .readyToPlay:
                     hasResumed = true
-
-                    // Set up buffering monitoring
-                    if let playerItem = playerItem {
-                        self.setupBufferingMonitoring(for: playerItem)
-                    }
-
                     continuation.resume(returning: player)
                 case .failed:
                     hasResumed = true
-                    if let error = item.error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(
-                            throwing: MediaErrorHandler.MediaError.playerSetupFailed(
-                                "Unknown player error"))
-                    }
+                    continuation.resume(
+                        throwing: item.error
+                            ?? MediaErrorHandler.MediaError.playerSetupFailed("Unknown error"))
                 case .unknown:
                     break
                 @unknown default:
@@ -498,53 +474,70 @@ private struct VideoPlayerView: View {
                 }
             }
 
-            // Set up timeout
             DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
                 guard !hasResumed else { return }
                 hasResumed = true
-                continuation.resume(
-                    throwing: MediaErrorHandler.MediaError.loadTimeout)
+                continuation.resume(throwing: MediaErrorHandler.MediaError.loadTimeout)
             }
         }
-    }
-
-    private func setupBufferingMonitoring(for playerItem: AVPlayerItem) {
-        // Monitor buffering state
-        let bufferObserver = playerItem.observe(\.isPlaybackLikelyToKeepUp, options: [.new]) {
-            item, _ in
-            DispatchQueue.main.async {
-                // Note: In a struct, we can't capture self weakly
-                // This should be handled differently in production
-            }
-        }
-
-        // Monitor buffer progress
-        let progressObserver = playerItem.observe(\.loadedTimeRanges, options: [.new]) {
-            item, _ in
-            DispatchQueue.main.async {
-                // Note: In a struct, we can't capture self weakly
-                // This should be handled differently in production
-            }
-        }
-
-        // Store observers to prevent deallocation (in a real implementation, you'd want to clean these up)
-        // For now, they'll be cleaned up when the player item is deallocated
     }
 
     private func retrySetup() {
         hasError = false
         isLoading = true
         retryCount += 1
-
         Task {
             await setupPlayer()
         }
     }
 
     private func cleanup() {
-        player?.pause()
-        // Don't set player to nil - let the memory manager handle caching
-        playerLooper = nil
+        playerModel.player?.pause()
+    }
+}
+
+class VideoPlayerViewModel: ObservableObject {
+    @Published var player: AVPlayer?
+    @Published var isBuffering = false
+    @Published var bufferProgress: Float = 0
+
+    private var statusObserver: NSKeyValueObservation?
+    private var bufferObserver: NSKeyValueObservation?
+    private var progressObserver: NSKeyValueObservation?
+
+    func setPlayer(_ player: AVPlayer) {
+        self.player = player
+        setupObservers()
+    }
+
+    private func setupObservers() {
+        guard let item = player?.currentItem else { return }
+
+        bufferObserver = item.observe(\.isPlaybackLikelyToKeepUp, options: [.new]) {
+            [weak self] item, change in
+            DispatchQueue.main.async {
+                self?.isBuffering = !item.isPlaybackLikelyToKeepUp
+            }
+        }
+
+        progressObserver = item.observe(\.loadedTimeRanges, options: [.new]) {
+            [weak self] item, change in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let duration = item.duration.seconds
+                if duration > 0 {
+                    let loaded =
+                        item.loadedTimeRanges.map({ $0.timeRangeValue.end.seconds }).max() ?? 0
+                    self.bufferProgress = Float(loaded / duration)
+                }
+            }
+        }
+    }
+
+    deinit {
+        statusObserver?.invalidate()
+        bufferObserver?.invalidate()
+        progressObserver?.invalidate()
     }
 }
 
@@ -599,39 +592,32 @@ private struct AnimatedGIFViewComponent: UIViewRepresentable {
         return containerView
     }
 
+    @StateObject private var memoryManager = MediaMemoryManager.shared
+
     fileprivate func updateUIView(_ containerView: GIFContainerView, context: Context) {
         guard let url = url, let imageView = containerView.imageView else {
             containerView.imageView?.image = nil
             return
         }
 
-        // Use URLSession with caching for better performance
-        print("[AnimatedGIFView] start fetch url=\(url.absoluteString)")
-        let task = URLSession.shared.dataTask(with: url) { data, response, error in
-            guard let data = data, error == nil else {
-                DispatchQueue.main.async {
-                    imageView.image = UIImage(systemName: "photo")
-                    print(
-                        "[AnimatedGIFView] fetch failed: \(error?.localizedDescription ?? "unknown")"
-                    )
+        // Use MediaMemoryManager for optimized GIF loading
+        Task {
+            do {
+                let data = try await memoryManager.loadOptimizedGIF(from: url)
+                await MainActor.run {
+                    if let animatedImage = UIImage.animatedImageWithData(data) {
+                        imageView.image = animatedImage
+                    } else {
+                        imageView.image = UIImage(data: data)
+                    }
                 }
-                return
-            }
-
-            DispatchQueue.main.async {
-                // Create animated image from GIF data
-                if let animatedImage = UIImage.animatedImageWithData(data) {
-                    imageView.image = animatedImage
-                    print(
-                        "[AnimatedGIFView] animated image set frames ok size=\(animatedImage.size)")
-                } else {
-                    // Fallback to static image if animation fails
-                    imageView.image = UIImage(data: data)
-                    print("[AnimatedGIFView] fallback static image set")
+            } catch {
+                await MainActor.run {
+                    imageView.image = UIImage(systemName: "photo")
+                    print("[AnimatedGIFView] fetch failed: \(error.localizedDescription)")
                 }
             }
         }
-        task.resume()
     }
 }
 

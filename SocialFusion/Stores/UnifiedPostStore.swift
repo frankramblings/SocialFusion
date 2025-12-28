@@ -81,7 +81,7 @@ public class UnifiedPostStore {
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
                     let updatedPost = posts[index]
-                    var modifiedPost = updatedPost
+                    let modifiedPost = updatedPost
                     modifiedPost.isLiked = true
                     modifiedPost.likeCount += 1
                     posts[index] = modifiedPost
@@ -109,7 +109,7 @@ public class UnifiedPostStore {
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
                     let updatedPost = posts[index]
-                    var modifiedPost = updatedPost
+                    let modifiedPost = updatedPost
                     modifiedPost.isLiked = false
                     modifiedPost.likeCount -= 1
                     posts[index] = modifiedPost
@@ -137,7 +137,7 @@ public class UnifiedPostStore {
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
                     let updatedPost = posts[index]
-                    var modifiedPost = updatedPost
+                    let modifiedPost = updatedPost
                     modifiedPost.isReposted = true
                     modifiedPost.repostCount += 1
                     posts[index] = modifiedPost
@@ -165,7 +165,7 @@ public class UnifiedPostStore {
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
                     let updatedPost = posts[index]
-                    var modifiedPost = updatedPost
+                    let modifiedPost = updatedPost
                     modifiedPost.isReposted = false
                     modifiedPost.repostCount -= 1
                     posts[index] = modifiedPost
@@ -195,7 +195,7 @@ public class UnifiedPostStore {
             await MainActor.run {
                 if let index = posts.firstIndex(where: { $0.id == post.id }) {
                     let updatedPost = posts[index]
-                    var modifiedPost = updatedPost
+                    let modifiedPost = updatedPost
                     modifiedPost.replyCount += 1
                     posts[index] = modifiedPost
                 }

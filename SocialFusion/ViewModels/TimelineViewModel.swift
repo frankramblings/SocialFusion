@@ -161,7 +161,7 @@ public final class TimelineViewModel: ObservableObject {
                                             })
                                         }
 
-                                        if let blueskyAccount = blueskyAccount {
+                                        if blueskyAccount != nil {
                                             do {
                                                 if let parent = try await self.socialServiceManager
                                                     .fetchBlueskyPostByID(parentID)
@@ -195,8 +195,6 @@ public final class TimelineViewModel: ObservableObject {
 
                         // Pre-load original posts for boosts/reposts for smooth expansion
                         for post in posts {
-                            let isBoost = post.originalPost != nil || post.boostedBy != nil
-                            let originalPostMissing = post.originalPost == nil
                             // TODO: Re-implement original post preloading when originalPostURI is available
                             if false /* isBoost, let originalURI = post.originalPostURI, originalPostMissing */
                             {
@@ -362,7 +360,7 @@ public final class TimelineViewModel: ObservableObject {
                                             )
                                         }
 
-                                        if let blueskyAccount = blueskyAccount {
+                                        if blueskyAccount != nil {
                                             do {
                                                 if let parent = try await self.socialServiceManager
                                                     .fetchBlueskyPostByID(parentID)
@@ -396,8 +394,6 @@ public final class TimelineViewModel: ObservableObject {
 
                         // Pre-load original posts for boosts/reposts for smooth expansion
                         for post in posts {
-                            let isBoost = post.originalPost != nil || post.boostedBy != nil
-                            let originalPostMissing = post.originalPost == nil
                             // TODO: Re-implement original post preloading when originalPostURI is available
                             if false /* isBoost, let originalURI = post.originalPostURI, originalPostMissing */
                             {

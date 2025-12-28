@@ -12,6 +12,8 @@ temp/IceCubesApp/
 # Build artifacts
 .build/
 build/
+build_output/
+build_output_17pro/
 *.xcodeproj/project.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/

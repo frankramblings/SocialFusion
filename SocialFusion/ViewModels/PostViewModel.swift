@@ -49,8 +49,11 @@ public class PostViewModel: ObservableObject {
             self.postActionStore = serviceManager.postActionStore
             self.postActionCoordinator = serviceManager.postActionCoordinator
             // Initialize state in store without triggering updates
-            // Views will read directly from store, not from PostViewModel when V2 is enabled
-            self.postActionStore?.ensureState(for: post)
+            // Defer to prevent publishing during view updates
+            let storePost = post
+            Task { @MainActor in
+                self.postActionStore?.ensureState(for: storePost)
+            }
             // Don't observe store changes - views read directly from store to avoid cycles
         } else {
             self.postActionStore = nil

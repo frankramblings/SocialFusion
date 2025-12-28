@@ -109,7 +109,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     // MARK: - Properties
 
     public let id: String
-    public let username: String
+    public var username: String
     public var displayName: String?
     public let serverURL: URL?
     public let platform: SocialPlatform
@@ -132,6 +132,16 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
     // Account details from the platform
     public var accountDetails: [String: String]?
+
+    // Extended profile info (populated on refresh)
+    public var avatarURL: URL? {
+        get { profileImageURL }
+        set { profileImageURL = newValue }
+    }
+    public var bio: String?
+    public var followersCount: Int = 0
+    public var followingCount: Int = 0
+    public var postsCount: Int = 0
 
     // TODO: Switch to KeychainService
     // private let keychainService = KeychainService.shared
@@ -424,7 +434,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         logger.info("Token expired for \(self.username, privacy: .public), attempting refresh")
 
         // Token is expired, attempt to refresh based on platform
-        guard let refreshToken = getRefreshToken() else {
+        guard getRefreshToken() != nil else {
             logger.error("No refresh token available for \(self.username, privacy: .public)")
             throw TokenError.noRefreshToken
         }

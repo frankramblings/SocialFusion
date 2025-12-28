@@ -3,13 +3,13 @@ import Foundation
 // MARK: - Mastodon API Models
 
 // Application Registration Response
-struct MastodonApp: Codable {
-    let id: String
-    let clientId: String
-    let clientSecret: String
-    let redirectUri: String
+public struct MastodonApp: Codable {
+    public let id: String
+    public let clientId: String
+    public let clientSecret: String
+    public let redirectUri: String
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case id
         case clientId = "client_id"
         case clientSecret = "client_secret"
@@ -18,15 +18,15 @@ struct MastodonApp: Codable {
 }
 
 // OAuth Token Response
-struct MastodonToken: Codable {
-    let accessToken: String
-    let tokenType: String
-    let scope: String
-    let createdAt: Int
-    let refreshToken: String?
-    let expiresIn: Int?
+public struct MastodonToken: Codable {
+    public let accessToken: String
+    public let tokenType: String
+    public let scope: String
+    public let createdAt: Int
+    public let refreshToken: String?
+    public let expiresIn: Int?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case accessToken = "access_token"
         case tokenType = "token_type"
         case scope
@@ -35,32 +35,32 @@ struct MastodonToken: Codable {
         case expiresIn = "expires_in"
     }
 
-    var expirationDate: Date? {
+    public var expirationDate: Date? {
         guard let expiresIn = expiresIn else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(createdAt + expiresIn))
     }
 }
 
 // Account Information
-struct MastodonAccount: Codable {
-    let id: String
-    let username: String
-    let acct: String
-    let displayName: String?
-    let note: String
-    let url: String
-    let avatar: String
-    let avatarStatic: String
-    let header: String
-    let headerStatic: String
-    let followersCount: Int
-    let followingCount: Int
-    let statusesCount: Int
-    let lastStatusAt: String?
-    let emojis: [MastodonEmoji]
-    let fields: [MastodonField]?
+public struct MastodonAccount: Codable {
+    public let id: String
+    public let username: String
+    public let acct: String
+    public let displayName: String?
+    public let note: String
+    public let url: String
+    public let avatar: String
+    public let avatarStatic: String
+    public let header: String
+    public let headerStatic: String
+    public let followersCount: Int
+    public let followingCount: Int
+    public let statusesCount: Int
+    public let lastStatusAt: String?
+    public let emojis: [MastodonEmoji]
+    public let fields: [MastodonField]?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case id, username, acct, url, avatar, header, note, emojis, fields
         case displayName = "display_name"
         case avatarStatic = "avatar_static"
@@ -73,31 +73,31 @@ struct MastodonAccount: Codable {
 }
 
 // Status (Post)
-class MastodonStatus: Codable {
-    let id: String
-    let createdAt: String
-    let content: String
-    let visibility: String
-    let sensitive: Bool
-    let spoilerText: String
-    let mediaAttachments: [MastodonMediaAttachment]
-    let application: MastodonApplication?
-    let mentions: [MastodonMention]
-    let tags: [MastodonTag]
-    let emojis: [MastodonEmoji]
-    let reblogsCount: Int
-    let favouritesCount: Int
-    let repliesCount: Int
-    let url: String?
-    let inReplyToId: String?
-    let inReplyToAccountId: String?
-    let reblog: MastodonReblog?
-    let account: MastodonAccount
-    let favourited: Bool?
-    let reblogged: Bool?
-    let bookmarked: Bool?
+public class MastodonStatus: Codable {
+    public let id: String
+    public let createdAt: String
+    public let content: String
+    public let visibility: String
+    public let sensitive: Bool
+    public let spoilerText: String
+    public let mediaAttachments: [MastodonMediaAttachment]
+    public let application: MastodonApplication?
+    public let mentions: [MastodonMention]
+    public let tags: [MastodonTag]
+    public let emojis: [MastodonEmoji]
+    public let reblogsCount: Int
+    public let favouritesCount: Int
+    public let repliesCount: Int
+    public let url: String?
+    public let inReplyToId: String?
+    public let inReplyToAccountId: String?
+    public let reblog: MastodonReblog?
+    public let account: MastodonAccount
+    public let favourited: Bool?
+    public let reblogged: Bool?
+    public let bookmarked: Bool?
 
-    init(
+    public init(
         id: String,
         createdAt: String,
         content: String,
@@ -145,7 +145,7 @@ class MastodonStatus: Codable {
         self.bookmarked = bookmarked
     }
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case id, content, visibility, sensitive, mentions, tags, emojis, application, account, url,
             reblog
         case createdAt = "created_at"
@@ -163,15 +163,15 @@ class MastodonStatus: Codable {
 // Reblogged Status is modeled as a lightweight struct in `MastodonPost.swift`
 
 // Media Attachment
-struct MastodonMediaAttachment: Codable {
-    let id: String
-    let type: String
-    let url: String
-    let previewUrl: String
-    let remoteUrl: String?
-    let description: String?
+public struct MastodonMediaAttachment: Codable {
+    public let id: String
+    public let type: String
+    public let url: String
+    public let previewUrl: String
+    public let remoteUrl: String?
+    public let description: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case id, type, url, description
         case previewUrl = "preview_url"
         case remoteUrl = "remote_url"
@@ -179,33 +179,60 @@ struct MastodonMediaAttachment: Codable {
 }
 
 // Application Information
-struct MastodonApplication: Codable {
-    let name: String
-    let website: String?
+public struct MastodonApplication: Codable {
+    public let name: String
+    public let website: String?
 }
 
 // Mention
-struct MastodonMention: Codable {
-    let id: String
-    let username: String
-    let url: String
-    let acct: String
+public struct MastodonMention: Codable {
+    public let id: String
+    public let username: String
+    public let url: String
+    public let acct: String
 }
 
 // Tag
-struct MastodonTag: Codable {
-    let name: String
-    let url: String
+public struct MastodonTag: Codable {
+    public let name: String
+    public let url: String
+}
+
+// Search Results
+public struct MastodonSearchResult: Codable {
+    public let accounts: [MastodonAccount]
+    public let statuses: [MastodonStatus]
+    public let hashtags: [MastodonTag]
+    
+    public init(accounts: [MastodonAccount], statuses: [MastodonStatus], hashtags: [MastodonTag]) {
+        self.accounts = accounts
+        self.statuses = statuses
+        self.hashtags = hashtags
+    }
+}
+
+// Notification
+public struct MastodonNotification: Codable {
+    public let id: String
+    public let type: String
+    public let createdAt: String
+    public let account: MastodonAccount
+    public let status: MastodonStatus?
+    
+    public enum CodingKeys: String, CodingKey {
+        case id, type, account, status
+        case createdAt = "created_at"
+    }
 }
 
 // Emoji
-struct MastodonEmoji: Codable {
-    let shortcode: String
-    let url: String
-    let staticUrl: String
-    let visibleInPicker: Bool
+public struct MastodonEmoji: Codable {
+    public let shortcode: String
+    public let url: String
+    public let staticUrl: String
+    public let visibleInPicker: Bool
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case shortcode, url
         case staticUrl = "static_url"
         case visibleInPicker = "visible_in_picker"
@@ -213,27 +240,27 @@ struct MastodonEmoji: Codable {
 }
 
 // Profile Field
-struct MastodonField: Codable {
-    let name: String
-    let value: String
-    let verifiedAt: String?
+public struct MastodonField: Codable {
+    public let name: String
+    public let value: String
+    public let verifiedAt: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case name, value
         case verifiedAt = "verified_at"
     }
 }
 
 // Error Response DTO (renamed to avoid clash with public MastodonError)
-struct MastodonAPIError: Codable, Error {
-    let error: String
-    let errorDescription: String?
+public struct MastodonAPIError: Codable, Error {
+    public let error: String
+    public let errorDescription: String?
 
-    enum CodingKeys: String, CodingKey {
+    public enum CodingKeys: String, CodingKey {
         case error
         case errorDescription = "error_description"
     }
 }
 
 // Back-compat alias for existing call sites
-typealias MastodonError = MastodonAPIError
+public typealias MastodonError = MastodonAPIError

@@ -102,15 +102,13 @@ struct AdvancedLiquidGlassLensing: ViewModifier {
         guard !reduceMotion else { return }
 
         // Disable floating for tab bars to keep them stable
-        return
+        // withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+        //     floatingOffset = -2
+        // }
 
-            withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
-                floatingOffset = -2
-            }
-
-        withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
-            rotationAngle = 1
-        }
+        // withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+        //     rotationAngle = 1
+        // }
     }
 }
 
@@ -175,61 +173,32 @@ struct AdvancedLiquidGlassMaterial: View {
     }
 
     private var advancedLensingLayer: some View {
-        ZStack {
-            // Primary lensing effect
-            Rectangle()
-                .fill(
-                    RadialGradient(
-                        colors: primaryLensingColors,
-                        center: UnitPoint(x: lightPosition.x, y: lightPosition.y),
-                        startRadius: 0,
-                        endRadius: 200
-                    )
+        // Simplified lensing for better performance
+        Rectangle()
+            .fill(
+                RadialGradient(
+                    colors: primaryLensingColors,
+                    center: UnitPoint(x: lightPosition.x, y: lightPosition.y),
+                    startRadius: 0,
+                    endRadius: 200
                 )
-                .blendMode(.overlay)
-                .opacity(lensingOpacity)
-
-            // Secondary lensing for depth
-            Rectangle()
-                .fill(
-                    RadialGradient(
-                        colors: secondaryLensingColors,
-                        center: UnitPoint(x: lightPosition.x + 0.1, y: lightPosition.y + 0.1),
-                        startRadius: 50,
-                        endRadius: 150
-                    )
-                )
-                .blendMode(.softLight)
-                .opacity(lensingOpacity * 0.6)
-        }
+            )
+            .blendMode(.overlay)
+            .opacity(lensingOpacity)
     }
 
     private var multiLayerSpecularHighlights: some View {
-        ZStack {
-            // Primary specular layer
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: primarySpecularColors,
-                        startPoint: UnitPoint(x: lightPosition.x - 0.2, y: lightPosition.y - 0.2),
-                        endPoint: UnitPoint(x: lightPosition.x + 0.2, y: lightPosition.y + 0.2)
-                    )
+        // Simplified specular for better performance
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: primarySpecularColors,
+                    startPoint: UnitPoint(x: lightPosition.x - 0.2, y: lightPosition.y - 0.2),
+                    endPoint: UnitPoint(x: lightPosition.x + 0.2, y: lightPosition.y + 0.2)
                 )
-                .blendMode(.softLight)
-                .opacity(specularOpacity)
-
-            // Secondary specular for enhanced depth
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: secondarySpecularColors,
-                        startPoint: UnitPoint(x: lightPosition.x - 0.1, y: lightPosition.y - 0.1),
-                        endPoint: UnitPoint(x: lightPosition.x + 0.3, y: lightPosition.y + 0.3)
-                    )
-                )
-                .blendMode(.overlay)
-                .opacity(specularOpacity * 0.4)
-        }
+            )
+            .blendMode(.softLight)
+            .opacity(specularOpacity)
     }
 
     private var morphingInteractiveGlow: some View {
@@ -586,11 +555,9 @@ struct FloatingLiquidGlassTabBar: ViewModifier {
         guard !reduceMotion else { return }
 
         // Disable floating for tab bars to keep them stable
-        return
-
-            withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
-                tabBarOffset = -3
-            }
+        // withAnimation(.easeInOut(duration: 4.0).repeatForever(autoreverses: true)) {
+        //     tabBarOffset = -3
+        // }
     }
 }
 
@@ -865,15 +832,13 @@ struct FloatingLiquidGlassComposeButton: ViewModifier {
         guard !reduceMotion else { return }
 
         // Disable floating for compose buttons to keep them stable
-        return
+        // withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) {
+        //     floatingOffset = -4
+        // }
 
-            withAnimation(.easeInOut(duration: 3.5).repeatForever(autoreverses: true)) {
-                floatingOffset = -4
-            }
-
-        withAnimation(.easeInOut(duration: 5.0).repeatForever(autoreverses: true)) {
-            rotationAngle = 2
-        }
+        // withAnimation(.easeInOut(duration: 5.0).repeatForever(autoreverses: true)) {
+        //     rotationAngle = 2
+        // }
     }
 }
 

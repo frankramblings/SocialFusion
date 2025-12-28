@@ -20,9 +20,7 @@ struct PostDetailView: View {
     @State private var activeReplyPost: Post?
 
     // Reply composer state
-    @State private var replyText: String = ""
     @State private var isReplying: Bool = false
-    @State private var replyError: Error?
     @FocusState private var isReplyFocused: Bool
 
     // Reply loading state
@@ -63,11 +61,6 @@ struct PostDetailView: View {
         case .bluesky:
             return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
         }
-    }
-
-    // Check if reply can be sent
-    private var canSendReply: Bool {
-        !replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && replyText.count <= 500
     }
 
     init(viewModel: PostViewModel, focusReplyComposer: Bool = false) {
@@ -127,12 +120,6 @@ struct PostDetailView: View {
                     }
                 }
 
-                // Reply composer overlay
-                if isReplying {
-                    replyComposerView
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
                 // Parent posts indicator (liquid glass)
                 if showParentIndicator && !parentPosts.isEmpty {
                     VStack {
@@ -146,6 +133,10 @@ struct PostDetailView: View {
                     .padding(.top, 20)
                     .allowsHitTesting(true)
                 }
+            }
+            .sheet(isPresented: $isReplying) {
+                ComposeView(replyingTo: activeReplyPost ?? viewModel.post)
+                    .environmentObject(serviceManager)
             }
         }
         .toolbarBackground(.clear, for: .navigationBar)
@@ -337,71 +328,6 @@ struct PostDetailView: View {
         }
     }
 
-    // MARK: - Reply Composer View
-
-    @ViewBuilder
-    private var replyComposerView: some View {
-        VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Color(.systemGray3))
-                .frame(width: 36, height: 4)
-                .padding(.top, 8)
-
-            HStack {
-                Text("Reply to @\((activeReplyPost ?? viewModel.post).authorUsername)")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-
-                Spacer()
-
-                Button("Cancel") {
-                    cancelReply()
-                }
-                .font(.body)
-                .foregroundColor(platformColor)
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-
-            VStack(alignment: .leading, spacing: 8) {
-                TextEditor(text: $replyText)
-                    .focused($isReplyFocused)
-                    .frame(minHeight: 100, maxHeight: 200)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(Color(.systemGray6))
-                    .cornerRadius(12)
-                    .font(.body)
-
-                HStack {
-                    Text("\(replyText.count)/500")
-                        .font(.caption)
-                        .foregroundColor(replyText.count > 450 ? .orange : .secondary)
-
-                    Spacer()
-
-                    Button("Send") {
-                        sendReply()
-                    }
-                    .disabled(!canSendReply)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 8)
-                    .background(canSendReply ? platformColor : Color(.systemGray4))
-                    .foregroundColor(canSendReply ? .white : .secondary)
-                    .cornerRadius(20)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 20)
-        }
-        .background(Color(.systemBackground))
-        .cornerRadius(16, corners: [.topLeft, .topRight])
-        .shadow(color: .black.opacity(0.1), radius: 10, y: -5)
-        .onAppear {
-            isReplyFocused = true
-        }
-    }
-
     // MARK: - Menu Items
 
     @ViewBuilder
@@ -489,47 +415,6 @@ struct PostDetailView: View {
             }
         case .quote:
             NSLog("📊 PostDetailView: Quote action for post: %@", targetPost.id)
-        }
-    }
-
-    private func sendReply() {
-        let targetPost = activeReplyPost ?? viewModel.post
-
-        Task {
-            do {
-                let _ = try await serviceManager.replyToPost(targetPost, content: replyText)
-
-                // Update local state if it's the main post
-                if targetPost.id == viewModel.post.id {
-                    self.viewModel.post.isReplied = true
-                }
-
-                if FeatureFlagManager.isEnabled(.postActionsV2) {
-                    serviceManager.postActionCoordinator.registerReplySuccess(for: targetPost)
-                }
-
-                await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        self.isReplying = false
-                        self.replyText = ""
-                        self.activeReplyPost = nil
-                    }
-                }
-                loadReplies()
-            } catch {
-                NSLog("📊 PostDetailView: Failed to send reply: %@", error.localizedDescription)
-                await MainActor.run {
-                    self.replyError = error
-                }
-            }
-        }
-    }
-
-    private func cancelReply() {
-        withAnimation(.easeInOut(duration: 0.2)) {
-            isReplying = false
-            replyText = ""
-            activeReplyPost = nil
         }
     }
 
@@ -977,7 +862,6 @@ struct LegacyPostDetailView: View {
     let focusReplyComposer: Bool
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
-    @State private var replyText: String = ""
     @State private var isReplying: Bool = false
     @Environment(\.dismiss) private var dismiss
 
