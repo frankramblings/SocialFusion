@@ -238,7 +238,6 @@ struct ContentView: View {
             }
             .tag(4)
         }
-        .clearGlassTabBar()
         .accentColor(Color("AppPrimaryColor"))
         .onAppear {
             setupTabBarDelegate()

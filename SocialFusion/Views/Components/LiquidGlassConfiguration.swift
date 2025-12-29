@@ -343,18 +343,5 @@ private struct ClearGlassTabBarModifier: ViewModifier {
         content
             .toolbarBackground(.clear, for: .tabBar)
             .toolbarBackground(.visible, for: .tabBar)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if #available(iOS 26.0, *) {
-                    Rectangle()
-                        .fill(.clear)
-                        .glassEffect(.clear)
-                        .background(Color.black.opacity(0.1))
-                        .frame(height: 92)
-                        .ignoresSafeArea(edges: .bottom)
-                        .allowsHitTesting(false)
-                } else {
-                    Color.clear.frame(height: 0)
-                }
-            }
     }
 }
