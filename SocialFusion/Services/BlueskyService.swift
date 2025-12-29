@@ -2385,6 +2385,7 @@ public final class BlueskyService: Sendable {
     func createPost(
         content: String,
         mediaAttachments: [Data] = [],
+        mediaAltTexts: [String] = [],
         replyTo: String? = nil,
         account: SocialAccount
     ) async throws -> Post {
@@ -2402,13 +2403,15 @@ public final class BlueskyService: Sendable {
         // Handle media attachments
         if !mediaAttachments.isEmpty {
             var images: [[String: Any]] = []
-            for mediaData in mediaAttachments {
+            for (index, mediaData) in mediaAttachments.enumerated() {
                 // Upload each image as a blob
                 // Note: We use image/jpeg as a default; in a more advanced version, we'd detect the actual type
                 let blobResponse = try await uploadBlob(
                     data: mediaData, mimeType: "image/jpeg", account: account)
+                
+                let altText = index < mediaAltTexts.count ? mediaAltTexts[index] : ""
                 images.append([
-                    "alt": "",  // Alternative text could be added in the UI later
+                    "alt": altText,
                     "image": blobResponse,
                 ])
             }
@@ -3053,6 +3056,7 @@ public final class BlueskyService: Sendable {
         _ post: Post,
         content: String,
         mediaAttachments: [Data] = [],
+        mediaAltTexts: [String] = [],
         account: SocialAccount
     ) async throws -> Post {
         guard let accessToken = account.getAccessToken() else {
@@ -3060,7 +3064,6 @@ public final class BlueskyService: Sendable {
                 domain: "BlueskyService", code: 401,
                 userInfo: [NSLocalizedDescriptionKey: "No access token available"])
         }
-        // Check if token needs refresh
         if account.isTokenExpired {
             _ = try await refreshSession(for: account)
         }
@@ -3071,14 +3074,14 @@ public final class BlueskyService: Sendable {
 
         var embed: [String: Any]? = nil
 
-        // Handle media attachments
         if !mediaAttachments.isEmpty {
             var images: [[String: Any]] = []
-            for mediaData in mediaAttachments {
+            for (index, mediaData) in mediaAttachments.enumerated() {
                 let blobResponse = try await uploadBlob(
                     data: mediaData, mimeType: "image/jpeg", account: account)
+                let altText = index < mediaAltTexts.count ? mediaAltTexts[index] : ""
                 images.append([
-                    "alt": "",
+                    "alt": altText,
                     "image": blobResponse,
                 ])
             }
@@ -3112,7 +3115,7 @@ public final class BlueskyService: Sendable {
         }
 
         let parameters: [String: Any] = [
-            "repo": account.platformSpecificId,  // Use DID instead of stable ID
+            "repo": account.platformSpecificId,
             "collection": "app.bsky.feed.post",
             "record": finalRecord,
         ]
@@ -3137,11 +3140,10 @@ public final class BlueskyService: Sendable {
                 domain: "BlueskyService", code: 0,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to parse post URI"])
         }
-        // Fetch the created reply to return it
         return try await getPost(uri: uri, account: account)
     }
 
-    /// Follow a user on Bluesky
+/// Follow a user on Bluesky
     func followUser(did: String, account: SocialAccount) async throws -> String {
         let accessToken = try await account.getValidAccessToken()
         let url = URL(
