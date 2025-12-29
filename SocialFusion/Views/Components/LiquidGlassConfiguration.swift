@@ -67,9 +67,13 @@ struct LiquidGlassConfiguration {
     private static func configureNavigationBarAppearance() {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
-        // Use system ultra-thin material to mimic the native glass look on iOS 16+
-        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-        appearance.backgroundColor = .clear
+
+        // Apply a real blur/material effect so release/TestFlight builds retain the
+        // floating glass look instead of showing a flat transparent bar.
+        if #available(iOS 15.0, *) {
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            appearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.25)
+        }
 
         // Apply to all navigation bars
         UINavigationBar.appearance().standardAppearance = appearance
@@ -80,9 +84,12 @@ struct LiquidGlassConfiguration {
     private static func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
         appearance.configureWithTransparentBackground()
-        // Apply a material blur so the tab bar matches the glass effect
-        appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-        appearance.backgroundColor = .clear
+
+        // Add material blur for the tab bar to keep the floating glass treatment.
+        if #available(iOS 15.0, *) {
+            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
+            appearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.22)
+        }
 
         // Configure tab bar item appearance for Liquid Glass effect
         let itemAppearance = UITabBarItemAppearance()
