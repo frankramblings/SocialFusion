@@ -53,6 +53,7 @@ struct SocialFusionApp: App {
                 .environmentObject(navigationEnvironment)
                 .environmentObject(draftStore)
                 .environmentObject(edgeCaseHandler)
+                .enableLiquidGlass()
                 .onOpenURL { url in
                     handleURL(url)
                 }
@@ -64,6 +65,7 @@ struct SocialFusionApp: App {
                     .environmentObject(navigationEnvironment)
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
+                    .enableLiquidGlass()
             } else {
                 ContentView()
                     .environmentObject(serviceManager)
@@ -73,6 +75,7 @@ struct SocialFusionApp: App {
                     .environmentObject(notificationManager)
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
+                    .enableLiquidGlass()
                     .onAppear {
                         notificationManager.requestAuthorization()
                     }
