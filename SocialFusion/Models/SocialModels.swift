@@ -29,6 +29,10 @@ public struct UserProfile: Codable, Sendable {
     public let followingCount: Int
     public let statusesCount: Int
     public let platform: SocialPlatform
+    public var following: Bool?
+    public var followedBy: Bool?
+    public var muting: Bool?
+    public var blocking: Bool?
 
     public init(
         id: String,
@@ -40,7 +44,11 @@ public struct UserProfile: Codable, Sendable {
         followersCount: Int = 0,
         followingCount: Int = 0,
         statusesCount: Int = 0,
-        platform: SocialPlatform
+        platform: SocialPlatform,
+        following: Bool? = nil,
+        followedBy: Bool? = nil,
+        muting: Bool? = nil,
+        blocking: Bool? = nil
     ) {
         self.id = id
         self.username = username
@@ -52,6 +60,10 @@ public struct UserProfile: Codable, Sendable {
         self.followingCount = followingCount
         self.statusesCount = statusesCount
         self.platform = platform
+        self.following = following
+        self.followedBy = followedBy
+        self.muting = muting
+        self.blocking = blocking
     }
 }
 

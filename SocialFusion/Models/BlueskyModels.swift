@@ -29,9 +29,10 @@ public struct BlueskyProfile: Codable {
     public let followersCount: Int
     public let postsCount: Int
     public let indexedAt: String
+    public let viewer: BlueskyViewer?
 
     public enum CodingKeys: String, CodingKey {
-        case did, handle, description, avatar, banner
+        case did, handle, description, avatar, banner, viewer
         case displayName = "displayName"
         case followsCount = "followsCount"
         case followersCount = "followersCount"

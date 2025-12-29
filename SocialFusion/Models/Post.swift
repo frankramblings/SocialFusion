@@ -1269,3 +1269,48 @@ public struct DMConversation: Identifiable, Codable, Sendable {
     }
 }
 
+public enum UnifiedChatMessage: Identifiable, Sendable {
+    case bluesky(BlueskyChatMessage)
+    case mastodon(Post)
+    
+    public var id: String {
+        switch self {
+        case .bluesky(let msg): return msg.id
+        case .mastodon(let post): return post.id
+        }
+    }
+    
+    public var text: String {
+        switch self {
+        case .bluesky(let msg):
+            switch msg {
+            case .message(let view): return view.text
+            case .deleted: return "(Deleted Message)"
+            }
+        case .mastodon(let post): return post.content
+        }
+    }
+    
+    public var sentAt: Date {
+        switch self {
+        case .bluesky(let msg):
+            switch msg {
+            case .message(let view): return ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+            case .deleted: return Date()
+            }
+        case .mastodon(let post): return post.createdAt
+        }
+    }
+    
+    public var authorId: String {
+        switch self {
+        case .bluesky(let msg):
+            switch msg {
+            case .message(let view): return view.sender.did
+            case .deleted: return ""
+            }
+        case .mastodon(let post): return post.authorId
+        }
+    }
+}
+
