@@ -68,13 +68,6 @@ struct LiquidGlassConfiguration {
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
 
-        // Apply a real blur/material effect so release/TestFlight builds retain the
-        // floating glass look instead of showing a flat transparent bar.
-        if #available(iOS 15.0, *) {
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-            appearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.25)
-        }
-
         // Apply to all navigation bars
         UINavigationBar.appearance().standardAppearance = appearance
         UINavigationBar.appearance().compactAppearance = appearance
@@ -84,12 +77,6 @@ struct LiquidGlassConfiguration {
     private static func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
         appearance.configureWithTransparentBackground()
-
-        // Add material blur for the tab bar to keep the floating glass treatment.
-        if #available(iOS 15.0, *) {
-            appearance.backgroundEffect = UIBlurEffect(style: .systemUltraThinMaterial)
-            appearance.backgroundColor = UIColor.systemBackground.withAlphaComponent(0.22)
-        }
 
         // Configure tab bar item appearance for Liquid Glass effect
         let itemAppearance = UITabBarItemAppearance()
@@ -178,7 +165,7 @@ struct LiquidGlassNavigationLayoutModifier: ViewModifier {
     func body(content: Content) -> some View {
         if LiquidGlassConfiguration.isLiquidGlassAvailable {
             content
-                .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+                .toolbarBackground(.clear, for: .navigationBar)
                 .toolbarBackground(.visible, for: .navigationBar)
                 .background(
                     // Background extension effect for edge-to-edge experience
@@ -186,7 +173,15 @@ struct LiquidGlassNavigationLayoutModifier: ViewModifier {
                         .ignoresSafeArea(edges: extendUnderNavigation ? .top : [])
                 )
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if maintainReadability && extendUnderNavigation {
+                    if #available(iOS 26.0, *) {
+                        // Native clear glass overlay behind the nav bar area
+                        Rectangle()
+                            .fill(.clear)
+                            .glassEffect(.clear)
+                            .background(Color.black.opacity(0.12))
+                            .frame(height: 52)
+                            .ignoresSafeArea(edges: .top)
+                    } else if maintainReadability && extendUnderNavigation {
                         // Ensure content readability with subtle gradient overlay
                         LinearGradient(
                             colors: [
@@ -302,6 +297,11 @@ extension View {
     func enableLiquidGlass() -> some View {
         self.modifier(LiquidGlassAppModifier())
     }
+
+    /// Applies a clear glass tab bar background on iOS 26+, with graceful fallback.
+    func clearGlassTabBar() -> some View {
+        self.modifier(ClearGlassTabBarModifier())
+    }
 }
 
 // MARK: - Debug Information
@@ -336,3 +336,25 @@ extension View {
         }
     }
 #endif
+
+// MARK: - Clear Glass Tab Bar Modifier
+private struct ClearGlassTabBarModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .toolbarBackground(.clear, for: .tabBar)
+            .toolbarBackground(.visible, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if #available(iOS 26.0, *) {
+                    Rectangle()
+                        .fill(.clear)
+                        .glassEffect(.clear)
+                        .background(Color.black.opacity(0.1))
+                        .frame(height: 92)
+                        .ignoresSafeArea(edges: .bottom)
+                        .allowsHitTesting(false)
+                } else {
+                    Color.clear.frame(height: 0)
+                }
+            }
+    }
+}

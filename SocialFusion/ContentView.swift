@@ -46,8 +46,29 @@ struct ContentView: View {
             NavigationSplitView {
                 sidebar
                     .navigationTitle("SocialFusion")
-            } detail: {
+                    .listStyle(SidebarListStyle())
+            } content: {
                 detailView
+            } detail: {
+                if let post = navigationEnvironment.selectedPost {
+                    PostDetailView(viewModel: PostViewModel(post: post, serviceManager: serviceManager))
+                        .id(post.id)
+                } else if let user = navigationEnvironment.selectedUser {
+                    UserDetailView(user: user)
+                        .id(user.id)
+                } else if let tag = navigationEnvironment.selectedTag {
+                    TagDetailView(tag: tag)
+                        .id(tag.id)
+                } else {
+                    VStack(spacing: 20) {
+                        Image(systemName: "hand.tap")
+                            .font(.system(size: 50))
+                            .foregroundColor(.secondary.opacity(0.3))
+                        Text("Select a post to see details")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
         } else {
             tabView
@@ -56,21 +77,24 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $sidebarSelection) {
-            NavigationLink(value: 0) {
-                Label("Home", systemImage: "house")
+            Section {
+                NavigationLink(value: 0) {
+                    Label("Home", systemImage: "house.fill")
+                }
+                NavigationLink(value: 1) {
+                    Label("Notifications", systemImage: "bell.fill")
+                }
+                NavigationLink(value: 2) {
+                    Label("Messages", systemImage: "bubble.left.and.bubble.right.fill")
+                }
+                NavigationLink(value: 3) {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                NavigationLink(value: 4) {
+                    Label("Profile", systemImage: "person.fill")
+                }
             }
-            NavigationLink(value: 1) {
-                Label("Notifications", systemImage: "bell")
-            }
-            NavigationLink(value: 2) {
-                Label("Messages", systemImage: "bubble.left.and.bubble.right")
-            }
-            NavigationLink(value: 3) {
-                Label("Search", systemImage: "magnifyingglass")
-            }
-            NavigationLink(value: 4) {
-                Label("Profile", systemImage: "person")
-            }
+            .listRowBackground(Color.clear)
             
             Section("Accounts") {
                 Button(action: {
@@ -78,12 +102,32 @@ struct ContentView: View {
                 }) {
                     HStack {
                         getCurrentAccountImage()
-                            .frame(width: 24, height: 24)
-                        Text(selectedAccountId == nil ? "All Accounts" : getCurrentAccount()?.displayName ?? "Account")
+                            .frame(width: 28, height: 28)
+                            .clipShape(Circle())
+                        
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(selectedAccountId == nil ? "All Accounts" : getCurrentAccount()?.displayName ?? "Account")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            if let account = getCurrentAccount(), selectedAccountId != nil {
+                                Text("@\(account.username)")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
+            .listRowBackground(Color.clear)
         }
+        .conditionalLiquidGlass(enabled: true, prominence: .thin)
     }
 
     @ViewBuilder
@@ -194,6 +238,7 @@ struct ContentView: View {
             }
             .tag(4)
         }
+        .clearGlassTabBar()
         .accentColor(Color("AppPrimaryColor"))
         .onAppear {
             setupTabBarDelegate()
