@@ -143,6 +143,8 @@ public class NetworkService {
 
     // MARK: - Public Methods
 
+    private struct EmptyRequest: Encodable {}
+
     /// Perform a GET request
     public func get<T: Decodable>(
         url: URL,
@@ -155,7 +157,7 @@ public class NetworkService {
             method: "GET",
             headers: headers,
             queryItems: queryItems,
-            body: nil as String?,
+            body: Optional<EmptyRequest>.none,
             responseType: responseType
         )
     }
@@ -208,7 +210,7 @@ public class NetworkService {
             method: "DELETE",
             headers: headers,
             queryItems: queryItems,
-            body: nil as String?,
+            body: Optional<EmptyRequest>.none,
             responseType: responseType
         )
     }
@@ -219,7 +221,7 @@ public class NetworkService {
         method: String,
         headers: [String: String]? = nil,
         queryItems: [URLQueryItem]? = nil,
-        body: U?,
+        body: U? = nil,
         responseType: T.Type
     ) async throws -> T {
         // Build URL with query parameters if provided
