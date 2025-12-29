@@ -730,71 +730,81 @@ struct FloatingLiquidGlassComposeButton: ViewModifier {
             .offset(y: floatingOffset)
             .rotationEffect(.degrees(rotationAngle))
             .background(
-                Circle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        // Multi-layer lensing
+                Group {
+                    if #available(iOS 26.0, *) {
                         Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [
-                                        Color.white.opacity(0.4),
-                                        Color.blue.opacity(0.2),
-                                        Color.cyan.opacity(0.1),
-                                        Color.clear,
-                                    ],
-                                    center: .topLeading,
-                                    startRadius: 0,
-                                    endRadius: 60
-                                )
-                            )
-                            .blendMode(.overlay)
-                    )
-                    .overlay(
-                        // Enhanced specular highlights
+                            .fill(.clear)
+                            .glassEffect(.clear)
+                            // Dimming layer to keep content legible under clear glass per HIG
+                            .background(Circle().fill(Color.black.opacity(0.18)))
+                    } else {
                         Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.7),
-                                        Color.white.opacity(0.3),
-                                        Color.clear,
-                                        Color.black.opacity(0.1),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
+                            .fill(.ultraThinMaterial)
+                            .overlay(
+                                // Multi-layer lensing
+                                Circle()
+                                    .fill(
+                                        RadialGradient(
+                                            colors: [
+                                                Color.white.opacity(0.4),
+                                                Color.blue.opacity(0.2),
+                                                Color.cyan.opacity(0.1),
+                                                Color.clear,
+                                            ],
+                                            center: .topLeading,
+                                            startRadius: 0,
+                                            endRadius: 60
+                                        )
+                                    )
+                                    .blendMode(.overlay)
                             )
-                            .blendMode(.softLight)
-                    )
-                    .overlay(
-                        // Adaptive border
-                        Circle()
-                            .stroke(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(0.5),
-                                        Color.clear,
-                                        Color.black.opacity(0.2),
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1.0
+                            .overlay(
+                                // Enhanced specular highlights
+                                Circle()
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.7),
+                                                Color.white.opacity(0.3),
+                                                Color.clear,
+                                                Color.black.opacity(0.1),
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .blendMode(.softLight)
                             )
-                    )
-                    .shadow(
-                        color: Color.black.opacity(0.3),
-                        radius: isPressed ? 15 : 25,
-                        x: 0,
-                        y: isPressed ? 6 : 12
-                    )
-                    .shadow(
-                        color: Color.black.opacity(0.15),
-                        radius: isPressed ? 25 : 40,
-                        x: 0,
-                        y: isPressed ? 10 : 20
-                    )
+                            .overlay(
+                                // Adaptive border
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            colors: [
+                                                Color.white.opacity(0.5),
+                                                Color.clear,
+                                                Color.black.opacity(0.2),
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.0
+                                    )
+                            )
+                            .shadow(
+                                color: Color.black.opacity(0.3),
+                                radius: isPressed ? 15 : 25,
+                                x: 0,
+                                y: isPressed ? 6 : 12
+                            )
+                            .shadow(
+                                color: Color.black.opacity(0.15),
+                                radius: isPressed ? 25 : 40,
+                                x: 0,
+                                y: isPressed ? 10 : 20
+                            )
+                    }
+                }
             )
             .onTapGesture {
                 if !reduceMotion {
