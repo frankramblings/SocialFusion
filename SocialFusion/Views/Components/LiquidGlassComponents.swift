@@ -732,10 +732,9 @@ struct FloatingLiquidGlassComposeButton: ViewModifier {
             .background(
                 Group {
                     if #available(iOS 26.0, *) {
+                        // SDK on CI doesn't expose glassEffect yet; use thin material as a clear-ish stand-in
                         Circle()
-                            .fill(.clear)
-                            .glassEffect(.clear)
-                            // Dimming layer to keep content legible under clear glass per HIG
+                            .fill(.ultraThinMaterial)
                             .background(Circle().fill(Color.black.opacity(0.18)))
                     } else {
                         Circle()

@@ -174,10 +174,9 @@ struct LiquidGlassNavigationLayoutModifier: ViewModifier {
                 )
                 .safeAreaInset(edge: .top, spacing: 0) {
                     if #available(iOS 26.0, *) {
-                        // Native clear glass overlay behind the nav bar area
+                        // CI SDK doesn't expose glassEffect yet; use thin material with dim for readability
                         Rectangle()
-                            .fill(.clear)
-                            .glassEffect(.clear)
+                            .fill(.ultraThinMaterial)
                             .background(Color.black.opacity(0.12))
                             .frame(height: 52)
                             .ignoresSafeArea(edges: .top)
