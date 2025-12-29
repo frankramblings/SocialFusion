@@ -10,9 +10,25 @@ actor TimelineSwiftDataStore {
     
     private init() {
         do {
-            container = try ModelContainer(for: CachedPost.self)
+            let fileManager = FileManager.default
+            guard let appSupportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+                throw CocoaError(.fileNoSuchFile)
+            }
+
+            // Ensure Application Support exists before SwiftData tries to create the store file.
+            try fileManager.createDirectory(at: appSupportDirectory, withIntermediateDirectories: true)
+            let storeURL = appSupportDirectory.appendingPathComponent("default.store")
+            let configuration = ModelConfiguration(url: storeURL)
+
+            container = try ModelContainer(for: CachedPost.self, configurations: configuration)
         } catch {
-            fatalError("Failed to initialize SwiftData container: \(error)")
+            assertionFailure("Failed to initialize SwiftData container, falling back to in-memory store: \(error)")
+            do {
+                let memoryOnlyConfig = ModelConfiguration(isStoredInMemoryOnly: true)
+                container = try ModelContainer(for: CachedPost.self, configurations: memoryOnlyConfig)
+            } catch {
+                fatalError("Failed to initialize SwiftData container (even in-memory): \(error)")
+            }
         }
     }
     
