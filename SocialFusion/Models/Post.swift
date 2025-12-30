@@ -1287,7 +1287,13 @@ public enum UnifiedChatMessage: Identifiable, Sendable {
             case .message(let view): return view.text
             case .deleted: return "(Deleted Message)"
             }
-        case .mastodon(let post): return post.content
+        case .mastodon(let post):
+            // Mastodon content is HTML - convert to plain text for display
+            if post.content.isEmpty {
+                return "(Empty message)"
+            }
+            let htmlString = HTMLString(raw: post.content)
+            return htmlString.plainText
         }
     }
     

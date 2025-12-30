@@ -194,73 +194,58 @@ public final class TimelineViewModel: ObservableObject {
                         }
 
                         // Pre-load original posts for boosts/reposts for smooth expansion
+                        // Limit concurrent preloads to avoid overwhelming the system
+                        let maxConcurrentPreloads = 5
+                        var activePreloads = 0
+
                         for post in posts {
-                            // TODO: Re-implement original post preloading when originalPostURI is available
-                            if false /* isBoost, let originalURI = post.originalPostURI, originalPostMissing */
-                            {
-                                /*
-                                switch post.platform {
-                                case .mastodon:
-                                    Task(priority: .userInitiated) {
-                                        let mastodonAccount = await MainActor.run {
-                                            return self.socialServiceManager.accounts.first(where: {
-                                                $0.platform == .mastodon
-                                            })
-                                        }
-                                        if let mastodonAccount = mastodonAccount {
-                                            do {
-                                                if let original =
-                                                    try await self.socialServiceManager
-                                                    .fetchMastodonStatus(
-                                                        id: originalURI, account: mastodonAccount)
-                                                {
-                                                    Task { @MainActor in
-                                                        try? await Task.sleep(
-                                                            nanoseconds: 50_000_000)  // 0.05 seconds
-                                                        self.updatePost(withId: post.id) {
-                                                            newPost in
-                                                            newPost.originalPost = original
-                                                        }
-                                                    }
-                                                }
-                                            } catch {
-                                                self.logger.error(
-                                                    "Error pre-loading Mastodon original: \(error.localizedDescription)"
-                                                )
-                                            }
-                                        }
-                                    }
-                                case .bluesky:
-                                    Task(priority: .userInitiated) {
-                                        let blueskyAccount = await MainActor.run {
-                                            return self.socialServiceManager.accounts.first(where: {
-                                                $0.platform == .bluesky
-                                            })
-                                        }
-                                        if let blueskyAccount = blueskyAccount {
-                                            do {
-                                                if let original =
-                                                    try await self.socialServiceManager
-                                                    .fetchBlueskyPostByID(originalURI)
-                                                {
-                                                    Task { @MainActor in
-                                                        try? await Task.sleep(
-                                                            nanoseconds: 50_000_000)  // 0.05 seconds
-                                                        self.updatePost(withId: post.id) {
-                                                            newPost in
-                                                            newPost.originalPost = original
-                                                        }
-                                                    }
-                                                }
-                                            } catch {
-                                                self.logger.error(
-                                                    "Error pre-loading Bluesky original: \(error.localizedDescription)"
-                                                )
-                                            }
-                                        }
-                                    }
+                            // Only preload if this is a repost/boost and originalPost is missing
+                            guard post.isReposted, post.originalPost == nil,
+                                activePreloads < maxConcurrentPreloads
+                            else {
+                                continue
+                            }
+
+                            activePreloads += 1
+
+                            // Extract original post URI based on platform
+                            let originalURI: String?
+
+                            switch post.platform {
+                            case .bluesky:
+                                // For Bluesky reposts, platformSpecificId format is "repost-{username}-{uri}"
+                                // Extract the URI part (everything after the second dash)
+                                let parts = post.platformSpecificId.split(
+                                    separator: "-", maxSplits: 2)
+                                if parts.count >= 3 {
+                                    // Reconstruct URI (AT URI format: at://did:plc:xxx/app.bsky.feed.post/yyy)
+                                    originalURI = String(parts[2])
+                                } else {
+                                    // Fallback: try using platformSpecificId directly if it looks like a URI
+                                    originalURI =
+                                        post.platformSpecificId.hasPrefix("at://")
+                                        ? post.platformSpecificId : nil
                                 }
-                                */
+
+                            case .mastodon:
+                                // For Mastodon boosts, the original post ID should be in platformSpecificId
+                                // or we can try to extract it from the boost structure
+                                // Since boosts store the original post ID, use platformSpecificId
+                                originalURI = post.platformSpecificId
+
+                            default:
+                                originalURI = nil
+                            }
+
+                            guard let originalURI = originalURI else {
+                                activePreloads -= 1
+                                continue
+                            }
+
+                            // Preload in background with lower priority
+                            Task(priority: .background) {
+                                await self.preloadOriginalPost(for: post, originalURI: originalURI)
+                                activePreloads -= 1
                             }
                         }
                     }
@@ -393,72 +378,59 @@ public final class TimelineViewModel: ObservableObject {
                         }
 
                         // Pre-load original posts for boosts/reposts for smooth expansion
+                        // Limit concurrent preloads to avoid overwhelming the system
+                        let maxConcurrentPreloads = 5
+                        var activePreloads = 0
+
                         for post in posts {
-                            // TODO: Re-implement original post preloading when originalPostURI is available
-                            if false /* isBoost, let originalURI = post.originalPostURI, originalPostMissing */
-                            {
-                                /*
-                                switch post.platform {
-                                case .mastodon:
-                                    Task(priority: .userInitiated) {
-                                        let mastodonAccount = await MainActor.run {
-                                            return accounts.first(where: {
-                                                $0.platform == .mastodon
-                                            })
-                                        }
-                                        if let mastodonAccount = mastodonAccount {
-                                            do {
-                                                if let original =
-                                                    try await self.socialServiceManager
-                                                    .fetchMastodonStatus(
-                                                        id: originalURI, account: mastodonAccount)
-                                                {
-                                                    Task { @MainActor in
-                                                        try? await Task.sleep(
-                                                            nanoseconds: 50_000_000)  // 0.05 seconds
-                                                        self.updatePost(withId: post.id) {
-                                                            newPost in
-                                                            newPost.originalPost = original
-                                                        }
-                                                    }
-                                                }
-                                            } catch {
-                                                self.logger.error(
-                                                    "Error pre-loading Mastodon original: \(error.localizedDescription)"
-                                                )
-                                            }
-                                        }
-                                    }
-                                case .bluesky:
-                                    Task(priority: .userInitiated) {
-                                        let blueskyAccount = await MainActor.run {
-                                            return accounts.first(where: { $0.platform == .bluesky }
-                                            )
-                                        }
-                                        if let blueskyAccount = blueskyAccount {
-                                            do {
-                                                if let original =
-                                                    try await self.socialServiceManager
-                                                    .fetchBlueskyPostByID(originalURI)
-                                                {
-                                                    Task { @MainActor in
-                                                        try? await Task.sleep(
-                                                            nanoseconds: 50_000_000)  // 0.05 seconds
-                                                        self.updatePost(withId: post.id) {
-                                                            newPost in
-                                                            newPost.originalPost = original
-                                                        }
-                                                    }
-                                                }
-                                            } catch {
-                                                self.logger.error(
-                                                    "Error pre-loading Bluesky original: \(error.localizedDescription)"
-                                                )
-                                            }
-                                        }
-                                    }
+                            // Only preload if this is a repost/boost and originalPost is missing
+                            guard post.isReposted, post.originalPost == nil,
+                                activePreloads < maxConcurrentPreloads
+                            else {
+                                continue
+                            }
+
+                            activePreloads += 1
+
+                            // Extract original post URI based on platform
+                            let originalURI: String?
+
+                            switch post.platform {
+                            case .bluesky:
+                                // For Bluesky reposts, platformSpecificId format is "repost-{username}-{uri}"
+                                // Extract the URI part (everything after the second dash)
+                                let parts = post.platformSpecificId.split(
+                                    separator: "-", maxSplits: 2)
+                                if parts.count >= 3 {
+                                    // Reconstruct URI (AT URI format: at://did:plc:xxx/app.bsky.feed.post/yyy)
+                                    originalURI = String(parts[2])
+                                } else {
+                                    // Fallback: try using platformSpecificId directly if it looks like a URI
+                                    originalURI =
+                                        post.platformSpecificId.hasPrefix("at://")
+                                        ? post.platformSpecificId : nil
                                 }
-                                */
+
+                            case .mastodon:
+                                // For Mastodon boosts, the original post ID should be in platformSpecificId
+                                // or we can try to extract it from the boost structure
+                                // Since boosts store the original post ID, use platformSpecificId
+                                originalURI = post.platformSpecificId
+
+                            default:
+                                originalURI = nil
+                            }
+
+                            guard let originalURI = originalURI else {
+                                activePreloads -= 1
+                                continue
+                            }
+
+                            // Preload in background with lower priority
+                            Task(priority: .background) {
+                                await self.preloadOriginalPost(
+                                    for: post, originalURI: originalURI, accounts: accounts)
+                                activePreloads -= 1
                             }
                         }
                     }
@@ -666,6 +638,96 @@ public final class TimelineViewModel: ObservableObject {
             try? await Task.sleep(nanoseconds: 50_000_000)
             state = .idle
             rateLimitTask = nil
+        }
+    }
+
+    /// Prefetch images for upcoming posts to improve scroll performance
+    func prefetchImages(for posts: [Post], visibleRange: Range<Int>) {
+        let prefetchRange = visibleRange.upperBound..<min(visibleRange.upperBound + 5, posts.count)
+
+        for index in prefetchRange {
+            let post = posts[index]
+            for attachment in post.attachments {
+                if let url = URL(string: attachment.url) {
+                    // Prefetch with low priority
+                    ImageCache.shared.loadImage(from: url, priority: .low)
+                        .sink { _ in }
+                        .store(in: &cancellables)
+                }
+                // Also prefetch thumbnail if available
+                if let thumbURLString = attachment.thumbnailURL,
+                    let thumbURL = URL(string: thumbURLString)
+                {
+                    ImageCache.shared.loadImage(from: thumbURL, priority: .low)
+                        .sink { _ in }
+                        .store(in: &cancellables)
+                }
+            }
+            // Prefetch profile images
+            let profileURLString = post.authorProfilePictureURL
+            if !profileURLString.isEmpty, let profileURL = URL(string: profileURLString) {
+                ImageCache.shared.loadImage(from: profileURL, priority: .low)
+                    .sink { _ in }
+                    .store(in: &cancellables)
+            }
+        }
+    }
+
+    /// Preload original post for a repost/boost
+    private func preloadOriginalPost(
+        for post: Post, originalURI: String, accounts: [SocialAccount]? = nil
+    ) async {
+        do {
+            let originalPost: Post?
+
+            switch post.platform {
+            case .mastodon:
+                let mastodonAccount = await MainActor.run {
+                    if let accounts = accounts {
+                        return accounts.first(where: { $0.platform == .mastodon })
+                    }
+                    return self.socialServiceManager.accounts.first(where: {
+                        $0.platform == .mastodon
+                    })
+                }
+
+                guard let account = mastodonAccount else {
+                    logger.error("No Mastodon account available for preloading original post")
+                    return
+                }
+
+                originalPost = try await self.socialServiceManager.fetchMastodonStatus(
+                    id: originalURI,
+                    account: account
+                )
+
+            case .bluesky:
+                originalPost = try await self.socialServiceManager.fetchBlueskyPostByID(originalURI)
+
+            default:
+                return
+            }
+
+            guard let original = originalPost else {
+                logger.debug("Original post not found for URI: \(originalURI)")
+                return
+            }
+
+            // Small delay to avoid blocking and prevent AttributeGraph cycles
+            try? await Task.sleep(nanoseconds: 50_000_000)  // 0.05 seconds
+
+            await MainActor.run {
+                self.updatePost(withId: post.id) { newPost in
+                    newPost.originalPost = original
+                }
+            }
+        } catch {
+            // Don't block timeline loading if preload fails - just log the error
+            logger.error(
+                "Error pre-loading original post for \(post.platform.rawValue): \(error.localizedDescription)"
+            )
+            // Use ErrorHandler for non-critical errors (don't show to user)
+            ErrorHandler.shared.handleError(error)
         }
     }
 }

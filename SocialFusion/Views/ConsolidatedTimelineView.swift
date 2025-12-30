@@ -220,22 +220,33 @@ struct ConsolidatedTimelineView: View {
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("Retry") {
+                    let error = controller.error
                     controller.clearError()
+                    if let error = error {
+                        ErrorHandler.shared.handleError(error) {
+                            controller.refreshTimeline()
+                        }
+                    }
                     controller.refreshTimeline()
                 }
                 Button("OK") {
+                    if let error = controller.error {
+                        ErrorHandler.shared.handleError(error)
+                    }
                     controller.clearError()
                 }
             } message: {
                 if let error = controller.error {
                     Text(error.localizedDescription)
-                    if let recoverySuggestion = (error as NSError).localizedRecoverySuggestion {
-                        Text(recoverySuggestion)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
                 } else {
                     Text("Unknown error")
+                }
+            }
+            .onChange(of: controller.error != nil) { hasError in
+                if hasError, let error = controller.error {
+                    ErrorHandler.shared.handleError(error) {
+                        controller.refreshTimeline()
+                    }
                 }
             }
     }
@@ -340,10 +351,14 @@ struct ConsolidatedTimelineView: View {
                     await refreshTimeline()
                 }
             }
-            .confirmationDialog("Report Post", isPresented: $showReportDialog, titleVisibility: .visible) {
+            .confirmationDialog(
+                "Report Post", isPresented: $showReportDialog, titleVisibility: .visible
+            ) {
                 Button("Spam", role: .destructive) { report(reason: "Spam") }
                 Button("Harassment", role: .destructive) { report(reason: "Harassment") }
-                Button("Inappropriate Content", role: .destructive) { report(reason: "Inappropriate Content") }
+                Button("Inappropriate Content", role: .destructive) {
+                    report(reason: "Inappropriate Content")
+                }
                 Button("Cancel", role: .cancel) { reportingPost = nil }
             } message: {
                 Text("Why are you reporting this post? The platform moderators will review it.")
@@ -422,11 +437,14 @@ struct ConsolidatedTimelineView: View {
             onReply: { replyingToPost = post },
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },
-            onShare: { 
+            onShare: {
                 if let url = URL(string: post.originalURL) {
-                    let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = windowScene.windows.first?.rootViewController {
+                    let activityVC = UIActivityViewController(
+                        activityItems: [url], applicationActivities: nil)
+                    if let windowScene = UIApplication.shared.connectedScenes.first
+                        as? UIWindowScene,
+                        let rootVC = windowScene.windows.first?.rootViewController
+                    {
                         rootVC.present(activityVC, animated: true)
                     }
                 }

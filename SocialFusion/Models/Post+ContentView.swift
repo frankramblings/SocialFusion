@@ -981,34 +981,107 @@ struct ExpandableTextView: View {
         return processedContent
     }
 
+    // Computed property to determine content to display
+    private var contentToDisplay: String {
+        let htmlString = HTMLString(raw: displayContent)
+        let plainText = htmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let originalHtmlString = HTMLString(raw: content)
+        let originalPlainText = originalHtmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Use original content if displayContent was stripped too aggressively
+        // This is especially important for Mastodon posts that might have only URLs or HTML entities
+        if plainText.isEmpty && !originalPlainText.isEmpty {
+            return content
+        }
+        
+        // For Mastodon, if both are empty but raw content exists, use raw content
+        // This handles cases where HTML might not convert to plain text but still has content
+        if platform == .mastodon && plainText.isEmpty && originalPlainText.isEmpty {
+            let rawContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !rawContent.isEmpty {
+                return content
+            }
+        }
+        
+        return displayContent
+    }
+    
+    // Computed property to check if content exists
+    // For Mastodon, be more lenient - check if there's any meaningful content
+    // even if it's just HTML entities or whitespace that might render as visible text
+    // Also consider posts with media, quote posts, or link previews as having content
+    private var hasContent: Bool {
+        // First check processed content
+        let htmlString = HTMLString(raw: displayContent)
+        let plainText = htmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Check original content as fallback
+        let originalHtmlString = HTMLString(raw: content)
+        let originalPlainText = originalHtmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // For Mastodon, also check if the raw HTML has any non-whitespace content
+        // This catches cases where HTML entities or tags might render as visible content
+        let hasRawContent = !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        
+        // Check for other content types that indicate the post has meaningful content
+        let hasMedia = !post.attachments.isEmpty
+        let hasQuotePost = post.quotedPost != nil || post.quotedPostUri != nil
+        
+        // Check for link previews if enabled
+        var hasLinkPreview = false
+        if showLinkPreview {
+            let plainTextForLinks = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let allLinks = URLService.shared.extractLinks(from: plainTextForLinks)
+            let previewableLinks = allLinks.filter {
+                !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
+                    && !URLService.shared.isGIFURL($0)
+            }
+            hasLinkPreview = !previewableLinks.isEmpty
+        }
+        
+        // Content exists if:
+        // 1. Plain text is not empty (after HTML processing), OR
+        // 2. Original plain text is not empty, OR
+        // 3. Raw content exists (for Mastodon posts that might have HTML-only content), OR
+        // 4. Post has media attachments, OR
+        // 5. Post has a quote post, OR
+        // 6. Post has link previews
+        return !plainText.isEmpty || !originalPlainText.isEmpty || (platform == .mastodon && hasRawContent)
+            || hasMedia || hasQuotePost || hasLinkPreview
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Use different text rendering based on platform
-            if platform == .mastodon {
-                // Mastodon: Use EmojiTextApp for HTML content with existing links
-                EmojiTextApp(
-                    htmlString: HTMLString(raw: displayContent),
-                    customEmoji: customEmoji ?? [:],
-                    font: font,
-                    foregroundColor: .primary,
-                    lineLimit: shouldTruncate && !isExpanded ? nil : lineLimit,
-                    mentions: mentions ?? [],
-                    tags: tags ?? []
-                )
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-            } else {
-                // Bluesky: Use createTextWithLinks for plain text with URL detection
-                Text(createTextWithLinksCallback(displayContent))
-                    .font(font)
-                    .foregroundColor(.primary)
-                    .lineLimit(shouldTruncate && !isExpanded ? nil : lineLimit)
+            if hasContent {
+                // Use different text rendering based on platform
+                if platform == .mastodon {
+                    // Mastodon: Use EmojiTextApp for HTML content with existing links
+                    EmojiTextApp(
+                        htmlString: HTMLString(raw: contentToDisplay),
+                        customEmoji: customEmoji ?? [:],
+                        font: font,
+                        foregroundColor: .primary,
+                        lineLimit: shouldTruncate && !isExpanded ? nil : lineLimit,
+                        mentions: mentions ?? [],
+                        tags: tags ?? []
+                    )
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    // Bluesky: Use createTextWithLinks for plain text with URL detection
+                    Text(createTextWithLinksCallback(displayContent))
+                        .font(font)
+                        .foregroundColor(.primary)
+                        .lineLimit(shouldTruncate && !isExpanded ? nil : lineLimit)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-
+            // Note: VStack requires at least one child, so we use EmptyView() if no content
+            
             // Show More button
             if shouldTruncate && !isExpanded {
                 Button(action: {

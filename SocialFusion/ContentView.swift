@@ -51,8 +51,10 @@ struct ContentView: View {
                 detailView
             } detail: {
                 if let post = navigationEnvironment.selectedPost {
-                    PostDetailView(viewModel: PostViewModel(post: post, serviceManager: serviceManager))
-                        .id(post.id)
+                    PostDetailView(
+                        viewModel: PostViewModel(post: post, serviceManager: serviceManager)
+                    )
+                    .id(post.id)
                 } else if let user = navigationEnvironment.selectedUser {
                     UserDetailView(user: user)
                         .id(user.id)
@@ -95,7 +97,7 @@ struct ContentView: View {
                 }
             }
             .listRowBackground(Color.clear)
-            
+
             Section("Accounts") {
                 Button(action: {
                     showAccountPicker = true
@@ -104,21 +106,24 @@ struct ContentView: View {
                         getCurrentAccountImage()
                             .frame(width: 28, height: 28)
                             .clipShape(Circle())
-                        
+
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(selectedAccountId == nil ? "All Accounts" : getCurrentAccount()?.displayName ?? "Account")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                            
+                            Text(
+                                selectedAccountId == nil
+                                    ? "All Accounts" : getCurrentAccount()?.displayName ?? "Account"
+                            )
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+
                             if let account = getCurrentAccount(), selectedAccountId != nil {
                                 Text("@\(account.username)")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                             }
                         }
-                        
+
                         Spacer()
-                        
+
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.caption2)
                             .foregroundColor(.secondary)
@@ -153,18 +158,36 @@ struct ContentView: View {
             }
         case 1:
             NavigationView {
-                NotificationsView()
-                    .environmentObject(serviceManager)
+                NotificationsView(
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                )
+                .environmentObject(serviceManager)
             }
         case 2:
             NavigationView {
-                DirectMessagesView()
-                    .environmentObject(serviceManager)
+                DirectMessagesView(
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                )
+                .environmentObject(serviceManager)
             }
         case 3:
             NavigationView {
-                SearchView()
-                    .environmentObject(serviceManager)
+                SearchView(
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                )
+                .environmentObject(serviceManager)
             }
         case 4:
             NavigationView {
@@ -201,8 +224,14 @@ struct ContentView: View {
 
             // Notifications Tab
             NavigationView {
-                NotificationsView()
-                    .environmentObject(serviceManager)
+                NotificationsView(
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                )
+                .environmentObject(serviceManager)
             }
             .tabItem {
                 Label("Notifications", systemImage: "bell")
@@ -211,8 +240,14 @@ struct ContentView: View {
 
             // Messages Tab
             NavigationView {
-                DirectMessagesView()
-                    .environmentObject(serviceManager)
+                DirectMessagesView(
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                )
+                .environmentObject(serviceManager)
             }
             .tabItem {
                 Label("Messages", systemImage: "bubble.left.and.bubble.right")
@@ -221,8 +256,14 @@ struct ContentView: View {
 
             // Search Tab
             NavigationView {
-                SearchView()
-                    .environmentObject(serviceManager)
+                SearchView(
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                )
+                .environmentObject(serviceManager)
             }
             .tabItem {
                 Label("Search", systemImage: "magnifyingglass")
@@ -244,22 +285,29 @@ struct ContentView: View {
             initializeSelection()
             requestNotificationPermissions()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
+        ) { _ in
             serviceManager.automaticTokenRefreshService?.handleAppWillEnterForeground()
         }
-        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+        .onReceive(
+            NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+        ) { _ in
             serviceManager.automaticTokenRefreshService?.handleAppDidEnterBackground()
         }
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
+        { _ in
             handleHomeTabDoubleTap()
         }
-        .environment(\.openURL, OpenURLAction { url in
-            if navigationEnvironment.canHandle(url) {
-                navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
-                return .handled
-            }
-            return .systemAction
-        })
+        .environment(
+            \.openURL,
+            OpenURLAction { url in
+                if navigationEnvironment.canHandle(url) {
+                    navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
+                    return .handled
+                }
+                return .systemAction
+            })
     }
 
     private var accountButton: some View {
@@ -323,10 +371,36 @@ struct ContentView: View {
         ZStack {
             Color(UIColor.systemBackground).ignoresSafeArea()
             if let account = getCurrentAccount() {
-                ProfileView(account: account).environmentObject(serviceManager)
+                ProfileView(
+                    account: account,
+                    showAccountDropdown: $showAccountDropdown,
+                    showComposeView: $showComposeView,
+                    showValidationView: $showValidationView,
+                    selectedAccountId: $selectedAccountId,
+                    previousAccountId: $previousAccountId
+                ).environmentObject(serviceManager)
             } else {
                 noAccountView
             }
+        }
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                accountButton
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                composeButton
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if showAccountDropdown {
+                accountDropdownOverlay
+            }
+        }
+        .sheet(isPresented: $showComposeView) {
+            ComposeView().environmentObject(serviceManager)
+        }
+        .sheet(isPresented: $showValidationView) {
+            TimelineValidationDebugView(serviceManager: serviceManager)
         }
     }
 
@@ -335,7 +409,7 @@ struct ContentView: View {
             Image(systemName: "person.crop.circle")
                 .font(.system(size: 50))
                 .foregroundColor(.gray.opacity(0.3))
-            
+
             if serviceManager.accounts.isEmpty {
                 Text("No Accounts Added").font(.title3).fontWeight(.medium)
                 Button("Add Account") { showAddAccountView = true }

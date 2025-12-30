@@ -48,7 +48,9 @@ struct PostCardView: View {
     // Determine which post to display: use original for boosts, otherwise self.post
     private var displayPost: Post {
         // For boosts, use the original post for display content
-        if boostedBy != nil, let original = post.originalPost {
+        // Check both boostedBy (from TimelineEntry) and post.originalPost (from Post itself)
+        if let original = post.originalPost {
+            // This is a boost/repost - use the original post for display
             return original
         }
         return post
@@ -140,7 +142,8 @@ struct PostCardView: View {
         self.onPostTap = onPostTap
         self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
-        self.boostedBy = nil
+        // Use post.boostedBy if available, otherwise nil
+        self.boostedBy = post.boostedBy
         self.postActionStore = postActionStore
         self.postActionCoordinator = postActionCoordinator
     }
@@ -148,7 +151,8 @@ struct PostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {  // Apple standard: 8pt spacing
             // Boost banner if this post was boosted/reposted
-            if let boostedBy = boostedBy {
+            // Show banner if boostedBy is set OR if post has originalPost (indicating it's a boost)
+            if let boostedBy = boostedBy ?? post.boostedBy, post.originalPost != nil {
                 BoostBanner(handle: boostedBy, platform: post.platform)
                     .padding(.horizontal, 12)  // Apple standard: 12pt for content
                     .padding(.vertical, 6)  // Adequate touch target

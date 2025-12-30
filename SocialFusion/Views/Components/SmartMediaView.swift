@@ -103,49 +103,105 @@ struct SmartMediaView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else {
-            // Use CachedAsyncImage for static images with better loading and retry logic
-            CachedAsyncImage(
-                url: URL(string: attachment.url),
-                priority: .high,
-                onImageLoad: { uiImage in
-                    let size = uiImage.size
-                    if size.width > 0 && size.height > 0 {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            loadedAspectRatio = CGFloat(size.width / size.height)
+            // Use CachedAsyncImage for static images with progressive loading support
+            let imageURL = URL(string: attachment.url)
+            let thumbnailURL = attachment.thumbnailURL.flatMap { URL(string: $0) }
+            
+            // Use progressive loading if thumbnail is available
+            if let imageURL = imageURL, let thumbnailURL = thumbnailURL {
+                // Progressive loading: show thumbnail first, then full image
+                CachedAsyncImage(
+                    url: imageURL,
+                    priority: .high,
+                    onImageLoad: { uiImage in
+                        let size = uiImage.size
+                        if size.width > 0 && size.height > 0 {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                loadedAspectRatio = CGFloat(size.width / size.height)
+                            }
                         }
                     }
-                }
-            ) { image in
-                image
-                    .resizable()
-                    .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .onAppear {
-                        // Use Task to defer state updates outside view rendering cycle
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                            loadingState = .loaded
+                ) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .onAppear {
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 1_000_000)
+                                loadingState = .loaded
+                            }
                         }
+                } placeholder: {
+                    // Show thumbnail while loading full image
+                    CachedAsyncImage(url: thumbnailURL, priority: .high) { thumbnailImage in
+                        thumbnailImage
+                            .resizable()
+                            .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .blur(radius: 1) // Slight blur for progressive effect
+                    } placeholder: {
+                        loadingView
                     }
-            } placeholder: {
-                loadingView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .onAppear {
-                        // Use Task to defer state updates outside view rendering cycle
                         Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                            try? await Task.sleep(nanoseconds: 1_000_000)
                             loadingState = .loading
                         }
                     }
-            }
-            .overlay(
-                Group {
-                    if case .failed(let error) = loadingState {
-                        failureView(error: error)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
                 }
-            )
+                .overlay(
+                    Group {
+                        if case .failed(let error) = loadingState {
+                            failureView(error: error)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                )
+            } else {
+                // Regular loading without thumbnail
+                CachedAsyncImage(
+                    url: imageURL,
+                    priority: .high,
+                    onImageLoad: { uiImage in
+                        let size = uiImage.size
+                        if size.width > 0 && size.height > 0 {
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                loadedAspectRatio = CGFloat(size.width / size.height)
+                            }
+                        }
+                    }
+                ) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .onAppear {
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 1_000_000)
+                                loadingState = .loaded
+                            }
+                        }
+                } placeholder: {
+                    loadingView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .onAppear {
+                            Task { @MainActor in
+                                try? await Task.sleep(nanoseconds: 1_000_000)
+                                loadingState = .loading
+                            }
+                        }
+                }
+                .overlay(
+                    Group {
+                        if case .failed(let error) = loadingState {
+                            failureView(error: error)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                )
+            }
         }
     }
 

@@ -1977,7 +1977,7 @@ public final class BlueskyService: Sendable {
         return posts
     }
 
-    private func convertBlueskyPostToOriginalPost(_ post: BlueskyPost) -> Post {
+    func convertBlueskyPostToOriginalPost(_ post: BlueskyPost) -> Post {
         let quotedPostUri = post.embed?.record?.uri
         let quotedPostAuthorHandle: String? = nil  // Not available from Bluesky API
         let authorName = post.author.displayName ?? post.author.handle
@@ -2050,7 +2050,7 @@ public final class BlueskyService: Sendable {
     }
 
     /// Convert a Bluesky post JSON (from timeline, thread, or search) to our Post model
-    private func convertBlueskyPostJSONToPost(_ item: [String: Any], account: SocialAccount)
+    func convertBlueskyPostJSONToPost(_ item: [String: Any], account: SocialAccount)
         -> Post?
     {
         let post = item["post"] as? [String: Any] ?? item

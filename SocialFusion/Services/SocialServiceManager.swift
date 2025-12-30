@@ -259,6 +259,9 @@ public final class SocialServiceManager: ObservableObject {
         print("🔧 SocialServiceManager: Initialization completed")
         print("🔧 SocialServiceManager: Final selectedAccountIds = \(selectedAccountIds)")
         print("🔧 SocialServiceManager: Final accounts count = \(accounts.count)")
+
+        // Set up PostNormalizerImpl with service manager reference
+        PostNormalizerImpl.shared.setServiceManager(self)
         print("🔧 SocialServiceManager: Final unifiedTimeline count = \(unifiedTimeline.count)")
 
         // Note: Timeline refresh will be handled by UI lifecycle events
@@ -315,6 +318,7 @@ public final class SocialServiceManager: ObservableObject {
                         loadedAccounts = try decoder.decode([SocialAccount].self, from: data)
                         print("🔧 SocialServiceManager: Loaded accounts from legacy UserDefaults")
                     } catch {
+                        ErrorHandler.shared.handleError(error)
                         print("🔧 SocialServiceManager: Failed to decode legacy accounts: \(error)")
                     }
                 }
@@ -426,6 +430,7 @@ public final class SocialServiceManager: ObservableObject {
                     }
                     print("✅ Refreshed profile for \(account.username) (\(account.platform))")
                 } catch {
+                    ErrorHandler.shared.handleError(error)
                     print("⚠️ Failed to refresh profile for \(account.username): \(error)")
                 }
 
@@ -486,6 +491,11 @@ public final class SocialServiceManager: ObservableObject {
         do {
             try await refreshTimeline(force: true)
         } catch {
+            ErrorHandler.shared.handleError(error) {
+                Task {
+                    try? await self.refreshTimeline(force: true)
+                }
+            }
             print("🔄 Error refreshing timeline after force reload: \(error)")
         }
     }
@@ -705,6 +715,7 @@ public final class SocialServiceManager: ObservableObject {
                     }
                 }
             } catch {
+                ErrorHandler.shared.handleError(error)
                 print("Failed to refresh profile for \(account.username): \(error)")
             }
         }
@@ -875,6 +886,12 @@ public final class SocialServiceManager: ObservableObject {
         } catch {
             consecutiveFailures += 1
             let errorMessage = "Timeline refresh failed: \(error.localizedDescription)"
+            let appError = AppError(
+                type: .general,
+                message: errorMessage,
+                isRetryable: false
+            )
+            ErrorHandler.shared.handleError(appError)
             print("❌ SocialServiceManager: \(errorMessage)")
 
             // For user-initiated refreshes, be more lenient with circuit breaker
@@ -1177,6 +1194,11 @@ public final class SocialServiceManager: ObservableObject {
                 print("🔄 SocialServiceManager: Timeline updated with \(sortedPosts.count) posts")
             }
         } catch {
+            ErrorHandler.shared.handleError(error) {
+                Task {
+                    try? await self.refreshTimeline(force: false)
+                }
+            }
             print("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
             throw error
         }
@@ -1190,6 +1212,7 @@ public final class SocialServiceManager: ObservableObject {
             let tags = try await mastodonService.fetchTrendingTags(account: account)
             return tags.map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon) }
         } catch {
+            ErrorHandler.shared.handleError(error)
             print("Failed to fetch trending tags: \(error)")
             return []
         }
@@ -1271,6 +1294,7 @@ public final class SocialServiceManager: ObservableObject {
                             return SearchResult(posts: posts, users: users, tags: [])
                         }
                     } catch {
+                        ErrorHandler.shared.handleError(error)
                         print("Search failed for \(account.username): \(error)")
                         return nil
                     }
@@ -1367,6 +1391,7 @@ public final class SocialServiceManager: ObservableObject {
                             return mappedNotifs
                         }
                     } catch {
+                        ErrorHandler.shared.handleError(error)
                         print("Failed to fetch notifications for \(account.username): \(error)")
                         return []
                     }
@@ -1689,9 +1714,11 @@ public final class SocialServiceManager: ObservableObject {
         for post in posts {
             if let original = post.originalPost {
                 // This is a boost/repost - pass the wrapper post so PostCardView can access boostedBy
+                // Use post.boostedBy if available, otherwise fall back to post.authorUsername
+                let boostedByHandle = post.boostedBy ?? post.authorUsername
                 let entry = TimelineEntry(
                     id: "boost-\(post.authorUsername)-\(original.id)",
-                    kind: .boost(boostedBy: post.authorUsername),
+                    kind: .boost(boostedBy: boostedByHandle),
                     post: post,  // Pass the wrapper post, not the original
                     createdAt: post.createdAt
                 )

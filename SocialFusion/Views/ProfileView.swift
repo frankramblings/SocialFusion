@@ -4,6 +4,12 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     let account: SocialAccount
+    @Binding var showAccountDropdown: Bool
+    @Binding var showComposeView: Bool
+    @Binding var showValidationView: Bool
+    @Binding var selectedAccountId: String?
+    @Binding var previousAccountId: String?
+    
     @State private var posts: [Post] = []
     @State private var isLoading = false
     @State private var isLoadingMore = false
@@ -198,6 +204,75 @@ struct ProfileView: View {
             print("Failed to fetch more user posts: \(error)")
         }
         isLoadingMore = false
+    }
+    
+    private var accountButton: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showAccountDropdown.toggle()
+            }
+        }) {
+            getCurrentAccountImage()
+                .frame(width: 24, height: 24)
+        }
+        .accessibilityLabel("Account selector")
+    }
+    
+    private var composeButton: some View {
+        Image(systemName: "square.and.pencil")
+            .font(.system(size: 18))
+            .foregroundColor(.primary)
+            .onTapGesture {
+                showComposeView = true
+            }
+            .onLongPressGesture(minimumDuration: 1.0) {
+                showValidationView = true
+            }
+    }
+    
+    private var accountDropdownOverlay: some View {
+        ZStack {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        showAccountDropdown = false
+                    }
+                }
+            VStack {
+                HStack {
+                    SimpleAccountDropdown(
+                        selectedAccountId: $selectedAccountId,
+                        previousAccountId: $previousAccountId,
+                        isVisible: $showAccountDropdown
+                    )
+                    .environmentObject(serviceManager)
+                    Spacer()
+                }
+                .padding(.leading, 16)
+                .padding(.top, 8)
+                Spacer()
+            }
+        }
+        .zIndex(1000)
+    }
+    
+    private func getCurrentAccount() -> SocialAccount? {
+        guard let selectedId = selectedAccountId else { return nil }
+        return serviceManager.mastodonAccounts.first(where: { $0.id == selectedId })
+            ?? serviceManager.blueskyAccounts.first(where: { $0.id == selectedId })
+    }
+    
+    @ViewBuilder
+    private func getCurrentAccountImage() -> some View {
+        if selectedAccountId != nil, let account = getCurrentAccount() {
+            ProfileImageView(account: account)
+        } else {
+            UnifiedAccountsIcon(
+                mastodonAccounts: serviceManager.mastodonAccounts,
+                blueskyAccounts: serviceManager.blueskyAccounts
+            )
+        }
     }
 }
 

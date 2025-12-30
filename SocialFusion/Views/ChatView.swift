@@ -4,9 +4,11 @@ struct ChatView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     let conversation: DMConversation
     
-    @State private var messages: [BlueskyChatMessage] = []
+    @State private var messages: [UnifiedChatMessage] = []
     @State private var newMessageText = ""
     @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var isSending = false
     
     var body: some View {
         VStack {
@@ -41,83 +43,109 @@ struct ChatView: View {
                     .cornerRadius(20)
                 
                 Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
-                        .foregroundColor(.white)
-                        .padding(10)
-                        .background(newMessageText.isEmpty ? Color.gray : Color.blue)
-                        .clipShape(Circle())
+                    if isSending {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(Color.blue)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "paperplane.fill")
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(newMessageText.isEmpty ? Color.gray : Color.blue)
+                            .clipShape(Circle())
+                    }
                 }
-                .disabled(newMessageText.isEmpty || isLoading)
+                .disabled(newMessageText.isEmpty || isLoading || isSending)
             }
             .padding()
             .background(Color(.systemBackground))
         }
         .navigationTitle(conversation.participant.displayName ?? conversation.participant.username)
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Error", isPresented: .constant(errorMessage != nil)) {
+            Button("OK") { 
+                errorMessage = nil 
+            }
+            if errorMessage != nil {
+                Button("Retry") {
+                    errorMessage = nil
+                    loadMessages()
+                }
+            }
+        } message: {
+            if let error = errorMessage {
+                Text(error)
+            }
+        }
         .onAppear {
             loadMessages()
         }
     }
     
     private func loadMessages() {
-        guard conversation.platform == .bluesky else { return }
-        
         isLoading = true
+        errorMessage = nil
+        
         Task {
-            // Find the account for this conversation
-            if let account = serviceManager.blueskyAccounts.first(where: { account in
-                // In a real app, you'd track which account owns which conversation
-                // For now, we'll try to find an account that has this conversation
-                return true 
-            }) {
-                do {
-                    let fetchedMessages = try await serviceManager.blueskyService.fetchMessages(convoId: conversation.id, for: account)
-                    await MainActor.run {
-                        self.messages = fetchedMessages.reversed() // Oldest first for chat view
-                        self.isLoading = false
+            do {
+                let fetchedMessages = try await serviceManager.fetchConversationMessages(conversation: conversation)
+                await MainActor.run {
+                    self.messages = fetchedMessages.reversed() // Oldest first for chat view
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load messages: \(error.localizedDescription)"
+                    self.isLoading = false
+                    ErrorHandler.shared.handleError(error) {
+                        self.loadMessages()
                     }
-                } catch {
-                    print("Failed to fetch messages: \(error)")
-                    await MainActor.run { self.isLoading = false }
                 }
             }
         }
     }
     
     private func sendMessage() {
-        guard !newMessageText.isEmpty else { return }
+        guard !newMessageText.isEmpty, !isSending else { return }
         let text = newMessageText
         newMessageText = ""
-        
-        guard conversation.platform == .bluesky else { return }
+        isSending = true
+        errorMessage = nil
         
         Task {
-            if let account = serviceManager.blueskyAccounts.first {
-                do {
-                    let sentMessage = try await serviceManager.blueskyService.sendMessage(convoId: conversation.id, text: text, for: account)
-                    await MainActor.run {
-                        self.messages.append(.message(sentMessage))
+            do {
+                let sentMessage = try await serviceManager.sendChatMessage(conversation: conversation, text: text)
+                await MainActor.run {
+                    self.messages.append(sentMessage)
+                    self.isSending = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to send message: \(error.localizedDescription)"
+                    self.newMessageText = text // Restore text for retry
+                    self.isSending = false
+                    ErrorHandler.shared.handleError(error) {
+                        self.sendMessage()
                     }
-                } catch {
-                    print("Failed to send message: \(error)")
                 }
             }
         }
     }
     
-    private func isFromMe(_ message: BlueskyChatMessage) -> Bool {
-        // Simple heuristic: if the sender DID matches one of our accounts
-        switch message {
-        case .message(let view):
-            return serviceManager.accounts.contains { $0.platformSpecificId == view.sender.did }
-        case .deleted:
-            return false
+    private func isFromMe(_ message: UnifiedChatMessage) -> Bool {
+        // Check if sender matches any of our accounts
+        let senderId = message.authorId
+        return serviceManager.accounts.contains { account in
+            account.platformSpecificId == senderId
         }
     }
 }
 
 struct MessageBubble: View {
-    let message: BlueskyChatMessage
+    let message: UnifiedChatMessage
     let isFromMe: Bool
     
     var body: some View {
@@ -125,24 +153,30 @@ struct MessageBubble: View {
             if isFromMe { Spacer() }
             
             VStack(alignment: isFromMe ? .trailing : .leading, spacing: 4) {
-                switch message {
-                case .message(let view):
-                    Text(view.text)
-                        .padding(12)
-                        .background(isFromMe ? Color.blue : Color(.systemGray5))
-                        .foregroundColor(isFromMe ? .white : .primary)
-                        .cornerRadius(18)
-                case .deleted:
-                    Text("(Deleted Message)")
-                        .italic()
-                        .padding(12)
-                        .background(Color(.systemGray6))
-                        .foregroundColor(.secondary)
-                        .cornerRadius(18)
-                }
+                messageContentView
+                    .padding(12)
+                    .background(isFromMe ? Color.blue : Color(.systemGray5))
+                    .foregroundColor(isFromMe ? .white : .primary)
+                    .cornerRadius(18)
+                
+                Text(message.sentAt, style: .time)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
             }
             
             if !isFromMe { Spacer() }
+        }
+    }
+    
+    @ViewBuilder
+    private var messageContentView: some View {
+        // UnifiedChatMessage.text now handles HTML conversion for Mastodon
+        if message.text.isEmpty || message.text == "(Empty message)" {
+            Text("(Empty message)")
+                .italic()
+                .foregroundColor(.secondary)
+        } else {
+            Text(message.text)
         }
     }
 }

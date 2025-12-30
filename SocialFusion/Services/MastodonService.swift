@@ -2693,12 +2693,15 @@ public final class MastodonService: @unchecked Sendable {
             let descendants = contextResponse.descendants.compactMap { status in
                 convertMastodonStatusToPost(status, account: account)
             }
+            
+            // Fetch the main status itself (context endpoint doesn't include it)
+            let mainPost = try? await fetchStatus(id: statusId, account: account)
 
             logger.info(
-                "Successfully fetched context: \(ancestors.count) ancestors, \(descendants.count) descendants"
+                "Successfully fetched context: mainPost=\(mainPost != nil ? "yes" : "no"), \(ancestors.count) ancestors, \(descendants.count) descendants"
             )
 
-            return ThreadContext(mainPost: nil, ancestors: ancestors, descendants: descendants)
+            return ThreadContext(mainPost: mainPost, ancestors: ancestors, descendants: descendants)
         } catch {
             logger.error("Error fetching status context: \(error.localizedDescription)")
             throw error

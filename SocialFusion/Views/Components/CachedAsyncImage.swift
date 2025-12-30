@@ -55,6 +55,33 @@ public class ImageCache: ObservableObject {
         )
     }
 
+    /// Load image with progressive loading support (thumbnail first, then full image)
+    func loadImageProgressive(from url: URL, thumbnailURL: URL?, priority: ImageLoadPriority = .normal) -> AnyPublisher<UIImage?, Never> {
+        // If thumbnail URL is provided, load thumbnail first
+        if let thumbURL = thumbnailURL {
+            let thumbnailPublisher = loadImage(from: thumbURL, priority: priority)
+            let fullImagePublisher = loadImage(from: url, priority: priority)
+            
+            // Return thumbnail immediately, then full image when ready
+            return thumbnailPublisher
+                .flatMap { thumbnail -> AnyPublisher<UIImage?, Never> in
+                    if let thumb = thumbnail {
+                        // Show thumbnail first, then load full image
+                        return fullImagePublisher
+                            .prepend(thumb) // Prepend thumbnail so it shows first
+                            .eraseToAnyPublisher()
+                    } else {
+                        // No thumbnail, just load full image
+                        return fullImagePublisher
+                    }
+                }
+                .eraseToAnyPublisher()
+        }
+        
+        // No thumbnail, use regular loading
+        return loadImage(from: url, priority: priority)
+    }
+    
     /// Load image with priority-aware handling for scroll performance
     func loadImage(from url: URL, priority: ImageLoadPriority = .normal) -> AnyPublisher<
         UIImage?, Never
