@@ -409,9 +409,12 @@ struct ConsolidatedTimelineView: View {
 
     private func postCard(for post: Post) -> some View {
         // Determine the correct TimelineEntry kind based on post properties
+        // CRITICAL FIX: Check for originalPost first to catch all boosts
         let entryKind: TimelineEntryKind
-        if let boostedBy = post.boostedBy {
-            entryKind = .boost(boostedBy: boostedBy)
+        if post.originalPost != nil {
+            // This is a boost - use boostedBy if available, otherwise use authorUsername
+            let boostedByHandle = post.boostedBy ?? post.authorUsername
+            entryKind = .boost(boostedBy: boostedByHandle)
         } else if let parentId = post.inReplyToID {
             entryKind = .reply(parentId: parentId)
         } else {
@@ -425,15 +428,13 @@ struct ConsolidatedTimelineView: View {
             createdAt: post.createdAt
         )
 
+        // CRITICAL FIX: Use the entry initializer to ensure boostedBy is properly passed
         return PostCardView(
-            post: post,
-            replyCount: 0,
-            repostCount: post.repostCount,
-            likeCount: post.likeCount,
-            isReplying: false,
-            isReposted: post.isReposted,
-            isLiked: post.isLiked,
-            onAuthorTap: { navigationEnvironment.navigateToPost(post) },
+            entry: entry,
+            postActionStore: controller.postActionStore,
+            postActionCoordinator: controller.postActionCoordinator,
+            onPostTap: { navigationEnvironment.navigateToPost(post) },
+            onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onReply: { replyingToPost = post },
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },
@@ -448,24 +449,7 @@ struct ConsolidatedTimelineView: View {
                         rootVC.present(activityVC, animated: true)
                     }
                 }
-            },
-            onMediaTap: { _ in },
-            onOpenInBrowser: {
-                if let url = URL(string: post.originalURL) {
-                    UIApplication.shared.open(url)
-                }
-            },
-            onCopyLink: {
-                UIPasteboard.general.string = post.originalURL
-            },
-            onReport: {
-                reportingPost = post
-                showReportDialog = true
-            },
-            onPostTap: { navigationEnvironment.navigateToPost(post) },
-            onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
-            postActionStore: controller.postActionStore,
-            postActionCoordinator: controller.postActionCoordinator
+            }
         )
         .id(post.id)
     }

@@ -34,7 +34,7 @@ struct PostCardView: View {
     @State private var isReplyBannerExpanded = false
     @State private var bannerWasTapped = false
     @State private var showListSelection = false
-    
+
     // Platform color helper
     private var platformColor: Color {
         switch post.platform {
@@ -47,13 +47,132 @@ struct PostCardView: View {
 
     // Determine which post to display: use original for boosts, otherwise self.post
     private var displayPost: Post {
-        // For boosts, use the original post for display content
-        // Check both boostedBy (from TimelineEntry) and post.originalPost (from Post itself)
+        // For boosts, always use the original post for display content
+        // The wrapper post is just a container with empty content
         if let original = post.originalPost {
             // This is a boost/repost - use the original post for display
             return original
         }
         return post
+    }
+
+    // Get attachments to display - prioritize originalPost attachments for boosts
+    private var displayAttachments: [Post.Attachment] {
+        // For boosts, always use originalPost attachments if available
+        if let original = post.originalPost {
+            // Use originalPost attachments if they exist, otherwise check displayPost as fallback
+            if !original.attachments.isEmpty {
+                return original.attachments
+            }
+            // Fallback: check displayPost attachments (should be same as original, but just in case)
+            if !displayPost.attachments.isEmpty {
+                return displayPost.attachments
+            }
+            // Return empty array if no attachments found
+            return []
+        }
+        // For regular posts, use displayPost attachments (which equals post for non-boosts)
+        return displayPost.attachments
+    }
+
+    // Check if this is a boost (either from TimelineEntry or Post structure)
+    private var isBoost: Bool {
+        return (boostedBy ?? post.boostedBy) != nil || post.originalPost != nil
+    }
+
+    // Get the reply info - check displayPost (which is originalPost for boosts)
+    private var replyInfo: (username: String, id: String?, platform: SocialPlatform)? {
+        // Use displayPost which is the actual post being shown (originalPost for boosts, post for regular posts)
+        // This ensures we get reply info from the correct post
+        let displayUsername = displayPost.inReplyToUsername
+        let displayReplyID = displayPost.inReplyToID
+
+        if let username = displayUsername, !username.isEmpty {
+            return (username, displayReplyID, displayPost.platform)
+        }
+        // Fallback: check wrapper post (in case the boost wrapper itself is a reply, though rare)
+        if let username = post.inReplyToUsername, !username.isEmpty {
+            return (username, post.inReplyToID, post.platform)
+        }
+        return nil
+    }
+
+    // Helper to log reply info (called from onAppear to avoid ViewBuilder issues)
+    private func logReplyInfo() {
+        let displayUsername = displayPost.inReplyToUsername
+        let displayReplyID = displayPost.inReplyToID
+        let logData: [String: Any] = [
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "E",
+            "location": "PostCardView.swift:84",
+            "message": "replyInfo check",
+            "data": [
+                "postId": post.id,
+                "displayPostId": displayPost.id,
+                "displayUsername": displayUsername ?? "nil",
+                "displayReplyID": displayReplyID ?? "nil",
+                "postUsername": post.inReplyToUsername ?? "nil",
+                "postReplyID": post.inReplyToID ?? "nil",
+                "hasOriginalPost": post.originalPost != nil,
+            ],
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+        ]
+        let logPath = "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
+        if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
+            let jsonString = String(data: jsonData, encoding: .utf8)
+        {
+            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write((jsonString + "\n").data(using: .utf8)!)
+                try? fileHandle.close()
+            } else {
+                FileManager.default.createFile(atPath: logPath, contents: nil, attributes: nil)
+                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                    fileHandle.write((jsonString + "\n").data(using: .utf8)!)
+                    try? fileHandle.close()
+                }
+            }
+        }
+    }
+
+    // Helper to log boost banner info
+    private func logBoostBanner(
+        boostHandle: String?, postBoostedBy: String?, finalBoostedBy: String?
+    ) {
+        let logData: [String: Any] = [
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "F",
+            "location": "PostCardView.swift:197",
+            "message": "boost banner check",
+            "data": [
+                "postId": post.id,
+                "boostedBy": boostedBy ?? "nil",
+                "postBoostedBy": postBoostedBy ?? "nil",
+                "finalBoostedBy": finalBoostedBy ?? "nil",
+                "boostHandle": boostHandle ?? "nil",
+                "hasOriginalPost": post.originalPost != nil,
+                "authorUsername": post.authorUsername,
+            ],
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+        ]
+        let logPath = "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
+        if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
+            let jsonString = String(data: jsonData, encoding: .utf8)
+        {
+            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write((jsonString + "\n").data(using: .utf8)!)
+                try? fileHandle.close()
+            } else {
+                FileManager.default.createFile(atPath: logPath, contents: nil, attributes: nil)
+                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
+                    fileHandle.write((jsonString + "\n").data(using: .utf8)!)
+                    try? fileHandle.close()
+                }
+            }
+        }
     }
 
     // Convenience initializer for TimelineEntry
@@ -151,19 +270,36 @@ struct PostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {  // Apple standard: 8pt spacing
             // Boost banner if this post was boosted/reposted
-            // Show banner if boostedBy is set OR if post has originalPost (indicating it's a boost)
-            if let boostedBy = boostedBy ?? post.boostedBy, post.originalPost != nil {
-                BoostBanner(handle: boostedBy, platform: post.platform)
-                    .padding(.horizontal, 12)  // Apple standard: 12pt for content
-                    .padding(.vertical, 6)  // Adequate touch target
+            // Show banner if boostedBy is set (regardless of originalPost existence)
+            // Also check for originalPost to catch boosts that might not have boostedBy set
+            let postBoostedBy = post.boostedBy
+            let finalBoostedBy = boostedBy ?? postBoostedBy
+            let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            // CRITICAL FIX: Show boost banner if we have originalPost OR if boostedBy is set
+            // This ensures boosts are always shown with a banner
+            if post.originalPost != nil || (boostHandle != nil && !boostHandle!.isEmpty) {
+                let handleToShow = boostHandle ?? post.authorUsername
+                if !handleToShow.isEmpty {
+                    BoostBanner(handle: handleToShow, platform: post.platform)
+                        .padding(.horizontal, 12)  // Apple standard: 12pt for content
+                        .padding(.vertical, 6)  // Adequate touch target
+                        .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
+                        .onAppear {
+                            logBoostBanner(
+                                boostHandle: handleToShow, postBoostedBy: postBoostedBy,
+                                finalBoostedBy: finalBoostedBy)
+                        }
+                }
             }
 
             // Expanding reply banner if this post is a reply
-            if let inReplyToUsername = displayPost.inReplyToUsername {
+            // Check both wrapper post and original post for reply info
+            if let replyInfo = replyInfo {
                 ExpandingReplyBanner(
-                    username: inReplyToUsername,
-                    network: displayPost.platform,
-                    parentId: displayPost.inReplyToID,
+                    username: replyInfo.username,
+                    network: replyInfo.platform,
+                    parentId: replyInfo.id,
                     initialParent: nil,
                     isExpanded: $isReplyBannerExpanded,
                     onBannerTap: { bannerWasTapped = true },
@@ -173,7 +309,14 @@ struct PostCardView: View {
                 )
                 .padding(.horizontal, 12)  // Match BoostBanner alignment structure
                 .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
+                .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
                 .id(displayPost.id + "_reply_banner")  // Key the banner to the specific post ID
+                .onAppear {
+                    print(
+                        "[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)"
+                    )
+                    logReplyInfo()
+                }
             }
 
             // Author section
@@ -184,6 +327,8 @@ struct PostCardView: View {
             .padding(.horizontal, 12)  // Apple standard: 12pt content padding
 
             // Content section - show quote posts always, and show link previews for all posts
+            // CRITICAL FIX: Always show contentView - it handles empty content internally
+            // For boosts, displayPost is the originalPost which should have content
             displayPost.contentView(
                 lineLimit: nil,
                 showLinkPreview: true,  // Always show link previews
@@ -198,22 +343,43 @@ struct PostCardView: View {
 
             // Poll section
             if let poll = displayPost.poll {
-                PostPollView(poll: poll, onVote: { optionIndex in
-                    Task {
-                        do {
-                            try await serviceManager.voteInPoll(post: displayPost, optionIndex: optionIndex)
-                        } catch {
-                            print("❌ Failed to vote: \(error.localizedDescription)")
+                PostPollView(
+                    poll: poll,
+                    onVote: { optionIndex in
+                        Task {
+                            do {
+                                try await serviceManager.voteInPoll(
+                                    post: displayPost, optionIndex: optionIndex)
+                            } catch {
+                                print("❌ Failed to vote: \(error.localizedDescription)")
+                            }
                         }
                     }
-                })
+                )
                 .padding(.horizontal, 12)
             }
 
-            // Media section
-            if !displayPost.attachments.isEmpty {
-                UnifiedMediaGridView(attachments: displayPost.attachments)
+            // Media section - show attachments from the displayed post
+            // Use displayAttachments which properly handles boosts vs regular posts
+            // CRITICAL: Always check displayPost.attachments directly to ensure we show media even for reposts
+            let attachmentsToShow =
+                displayAttachments.isEmpty ? displayPost.attachments : displayAttachments
+            if !attachmentsToShow.isEmpty {
+                UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: 600)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 4)
+                    .padding(.top, 4)
+                    .clipped()
+                    .onAppear {
+                        print(
+                            "[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)"
+                        )
+                        for (index, att) in attachmentsToShow.enumerated() {
+                            print(
+                                "[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)"
+                            )
+                        }
+                    }
             }
 
             actionBarView
@@ -256,7 +422,7 @@ struct PostCardView: View {
     }
 
     // MARK: - Action Bar View
-    
+
     @ViewBuilder
     private var actionBarView: some View {
         if FeatureFlagManager.isEnabled(.postActionsV2),
@@ -418,7 +584,7 @@ struct PostCardView: View {
 struct PostCardView_Previews: PreviewProvider {
     static var previews: some View {
         let store = PostActionStore()
-        
+
         VStack(spacing: 16) {
             // Simple test - basic post using TimelineEntry
             PostCardView(
@@ -444,11 +610,11 @@ struct ListSelectionView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     let accountToLink: String
     let platformAccount: SocialAccount
-    
+
     @State private var lists: [MastodonList] = []
     @State private var isLoading = true
     @State private var error: String? = nil
-    
+
     var body: some View {
         NavigationView {
             List {
@@ -491,12 +657,13 @@ struct ListSelectionView: View {
             }
         }
     }
-    
+
     private func fetchLists() {
         isLoading = true
         Task {
             do {
-                let fetchedLists = try await serviceManager.fetchMastodonLists(account: platformAccount)
+                let fetchedLists = try await serviceManager.fetchMastodonLists(
+                    account: platformAccount)
                 await MainActor.run {
                     self.lists = fetchedLists
                     self.isLoading = false
@@ -509,7 +676,7 @@ struct ListSelectionView: View {
             }
         }
     }
-    
+
     private func addToList(_ list: MastodonList) {
         isLoading = true
         Task {
@@ -532,4 +699,3 @@ struct ListSelectionView: View {
         }
     }
 }
-

@@ -389,6 +389,31 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Update the platform-specific account lists
     private func updateAccountLists() {
+        // Deduplicate accounts by ID to prevent duplicate API calls
+        var seenIds = Set<String>()
+        var deduplicatedAccounts: [SocialAccount] = []
+
+        for account in accounts {
+            if !seenIds.contains(account.id) {
+                seenIds.insert(account.id)
+                deduplicatedAccounts.append(account)
+            } else {
+                print(
+                    "⚠️ SocialServiceManager: Found duplicate account with ID \(account.id) (\(account.username)), removing duplicate"
+                )
+            }
+        }
+
+        // Update accounts array if duplicates were found
+        if deduplicatedAccounts.count != accounts.count {
+            print(
+                "🔧 SocialServiceManager: Removed \(accounts.count - deduplicatedAccounts.count) duplicate account(s)"
+            )
+            accounts = deduplicatedAccounts
+            // Save the deduplicated accounts
+            saveAccounts()
+        }
+
         // Separate accounts by platform
         mastodonAccounts = accounts.filter { $0.platform == .mastodon }
         blueskyAccounts = accounts.filter { $0.platform == .bluesky }
@@ -1440,8 +1465,31 @@ public final class SocialServiceManager: ObservableObject {
     ) async throws -> ([Post], String?) {
         switch user.platform {
         case .mastodon:
+            // If userId is empty, try to fetch it from verify_credentials
+            var userId = user.id
+            if userId.isEmpty {
+                print("⚠️ SocialServiceManager: userId is empty, fetching from verify_credentials")
+                do {
+                    let mastodonAccount = try await mastodonService.verifyCredentials(
+                        account: account)
+                    userId = mastodonAccount.id
+                    // Update the account's platformSpecificId for future use
+                    account.platformSpecificId = userId
+                    print("✅ SocialServiceManager: Retrieved account ID: \(userId)")
+                } catch {
+                    print("❌ SocialServiceManager: Failed to fetch account ID: \(error)")
+                    throw NSError(
+                        domain: "SocialServiceManager",
+                        code: 400,
+                        userInfo: [
+                            NSLocalizedDescriptionKey:
+                                "Unable to determine account ID. Please re-authenticate your Mastodon account."
+                        ])
+                }
+            }
+
             let posts = try await mastodonService.fetchUserTimeline(
-                userId: user.id, for: account, limit: limit, maxId: cursor)
+                userId: userId, for: account, limit: limit, maxId: cursor)
             let nextCursor = posts.last?.platformSpecificId
             return (posts, nextCursor)
         case .bluesky:
@@ -1716,6 +1764,10 @@ public final class SocialServiceManager: ObservableObject {
                 // This is a boost/repost - pass the wrapper post so PostCardView can access boostedBy
                 // Use post.boostedBy if available, otherwise fall back to post.authorUsername
                 let boostedByHandle = post.boostedBy ?? post.authorUsername
+                // CRITICAL FIX: Ensure boostedBy is set on the post itself for consistency
+                if post.boostedBy == nil {
+                    post.boostedBy = post.authorUsername
+                }
                 let entry = TimelineEntry(
                     id: "boost-\(post.authorUsername)-\(original.id)",
                     kind: .boost(boostedBy: boostedByHandle),

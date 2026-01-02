@@ -82,6 +82,36 @@ public class ImageCache: ObservableObject {
         return loadImage(from: url, priority: priority)
     }
     
+    /// Synchronously check if image is already cached (for immediate display)
+    /// Checks memory cache first, then URLCache disk cache
+    func getCachedImage(for url: URL) -> UIImage? {
+        let key = NSString(string: url.absoluteString)
+        
+        // Check hot cache first (most frequently accessed)
+        if let hotImage = hotCache.object(forKey: key) {
+            return hotImage
+        }
+        
+        // Check regular memory cache
+        if let cachedImage = cache.object(forKey: key) {
+            // Promote to hot cache if accessed again
+            hotCache.setObject(cachedImage, forKey: key)
+            return cachedImage
+        }
+        
+        // Check URLCache (disk cache) synchronously
+        if let cachedResponse = session.configuration.urlCache?.cachedResponse(for: URLRequest(url: url)),
+           let image = UIImage(data: cachedResponse.data) {
+            // Found in disk cache - promote to memory cache for faster future access
+            let optimizedImage = optimizeImageIfNeeded(image)
+            cache.setObject(optimizedImage, forKey: key)
+            hotCache.setObject(optimizedImage, forKey: key)
+            return optimizedImage
+        }
+        
+        return nil
+    }
+    
     /// Load image with priority-aware handling for scroll performance
     func loadImage(from url: URL, priority: ImageLoadPriority = .normal) -> AnyPublisher<
         UIImage?, Never
@@ -272,8 +302,11 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     @State private var retryCount = 0
     @State private var cancellables = Set<AnyCancellable>()
     @State private var isVisible = false
+    @State private var loadStartTime: Date?
+    @State private var timeoutTask: Task<Void, Never>?
 
     private let maxRetries = 2
+    private let loadTimeout: TimeInterval = 5.0  // Retry if not loaded within 5 seconds
 
     init(
         url: URL?,
@@ -301,19 +334,76 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         }
         .id(stableID)
         .onAppear {
-            isVisible = true
-            if image == nil && !isLoading {
-                loadImage()
+            self.isVisible = true
+            guard let url = self.url else { return }
+            
+            // CRITICAL FIX: Check cache synchronously BEFORE showing placeholder
+            // This prevents spinner from showing when image is already cached
+            if let cachedImage = self.imageCache.getCachedImage(for: url) {
+                // Image is cached - set it immediately before view renders
+                self.image = cachedImage
+                self.onImageLoad?(cachedImage)
+                self.hasError = false
+                self.retryCount = 0
+                self.isLoading = false
+                self.cancelTimeoutTask()
+            } else if self.image == nil && !self.isLoading {
+                // Not cached - start loading
+                self.loadImage()
+            }
+        }
+        .task {
+            // CRITICAL FIX: Also check cache in task to catch cases where onAppear
+            // might not fire immediately or view is recreated
+            guard let url = self.url, self.image == nil else { return }
+            
+            if let cachedImage = self.imageCache.getCachedImage(for: url) {
+                await MainActor.run {
+                    self.image = cachedImage
+                    self.onImageLoad?(cachedImage)
+                    self.hasError = false
+                    self.retryCount = 0
+                    self.isLoading = false
+                    self.cancelTimeoutTask()
+                }
             }
         }
         .onDisappear {
-            isVisible = false
+            self.isVisible = false
+            // CRITICAL FIX: Don't clear image state when view disappears
+            // This prevents images from turning into spinners when closing fullscreen
+            // The image should remain in state so it can be shown immediately if view reappears
+            // Only cancel timeout to prevent retries
+            self.cancelTimeoutTask()
         }
-        .onChange(of: url) { _ in
-            image = nil
-            hasError = false
-            retryCount = 0
-            loadImage()
+        .onChange(of: url) { newURL in
+            // Cancel any existing operations when URL changes
+            self.cancellables.removeAll()
+            self.cancelTimeoutTask()
+            
+            // Check cache synchronously when URL changes
+            if let newURL = newURL {
+                if let cachedImage = imageCache.getCachedImage(for: newURL) {
+                    // Image is cached - show it immediately
+                    DispatchQueue.main.async {
+                        self.image = cachedImage
+                        self.onImageLoad?(cachedImage)
+                        self.hasError = false
+                        self.retryCount = 0
+                        self.isLoading = false
+                    }
+                    return
+                }
+            }
+            
+            // Not cached - reset and load
+            DispatchQueue.main.async {
+                self.image = nil
+                self.hasError = false
+                self.retryCount = 0
+                self.isLoading = false
+                self.loadImage()
+            }
         }
     }
 
@@ -329,24 +419,73 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     }
 
     private func loadImage() {
-        guard let url = url, !isLoading else { return }
+        guard let url = url else { return }
         
-        isLoading = true
+        // Prevent duplicate loads
+        if isLoading {
+            return
+        }
+        
+        // Cancel any existing operations
+        cancellables.removeAll()
+        cancelTimeoutTask()
+        
+        // Reset error state
         hasError = false
+        isLoading = true
+        loadStartTime = Date()
         
+        // Start timeout task - retry if image doesn't load within timeout period
+        timeoutTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: UInt64(loadTimeout * 1_000_000_000))
+                
+                // Check if task was cancelled
+                guard !Task.isCancelled else { return }
+                
+                // Check if we're still loading and haven't received the image
+                if self.isLoading && self.image == nil && self.isVisible {
+                    // Timeout reached - trigger retry
+                    self.hasError = true
+                    self.handleRetry()
+                }
+            } catch {
+                // Task was cancelled or failed - ignore
+                return
+            }
+        }
+        
+        // Load image from cache
         imageCache.loadImage(from: url, priority: isVisible ? .high : priority)
             .receive(on: DispatchQueue.main)
             .sink { [stableID] loadedImage in
+                // Check visibility and ensure we're still loading the same URL
+                guard self.isVisible, self.url == url else { return }
+                
                 self.isLoading = false
+                self.cancelTimeoutTask()
+                
                 if let loadedImage = loadedImage {
-                    self.image = loadedImage
-                    self.onImageLoad?(loadedImage)
+                    // Only update if we don't already have this image (prevent race conditions)
+                    if self.image != loadedImage {
+                        self.image = loadedImage
+                        self.onImageLoad?(loadedImage)
+                    }
+                    self.hasError = false
+                    self.retryCount = 0  // Reset retry count on success
                 } else {
+                    // Nil image means load failed
                     self.hasError = true
                     self.handleRetry()
                 }
             }
             .store(in: &cancellables)
+    }
+    
+    private func cancelTimeoutTask() {
+        timeoutTask?.cancel()
+        timeoutTask = nil
+        loadStartTime = nil
     }
 
     private func handleRetry() {
@@ -355,8 +494,13 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         retryCount += 1
         let delay = Double(retryCount) * 1.0
         
+        // Cancel current loading and timeout before retrying
+        cancellables.removeAll()
+        cancelTimeoutTask()
+        isLoading = false
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            if self.isVisible {
+            if self.isVisible && self.image == nil {
                 self.loadImage()
             }
         }
