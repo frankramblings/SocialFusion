@@ -1,9 +1,19 @@
+import AVFoundation
 import AVKit
 import ImageIO
 import ObjectiveC
 import SwiftUI
 import UIKit
 import os.log
+
+/// PreferenceKey to track video visibility in scroll views
+private struct VideoVisibilityPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: Bool] = [:]
+    
+    static func reduce(value: inout [String: Bool], nextValue: () -> [String: Bool]) {
+        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+    }
+}
 
 /// A professional-grade media display component that handles all media types robustly
 struct SmartMediaView: View {
@@ -13,6 +23,9 @@ struct SmartMediaView: View {
     let maxHeight: CGFloat?
     let cornerRadius: CGFloat
     let onTap: (() -> Void)?
+    
+    // For fullscreen support - optional to maintain backward compatibility
+    let allMedia: [Post.Attachment]?
 
     // Hero transition support
     let heroID: String?
@@ -21,8 +34,33 @@ struct SmartMediaView: View {
     @State private var loadingState: LoadingState = .loading
     @State private var retryCount: Int = 0
     @State private var loadedAspectRatio: CGFloat? = nil
+    @State private var isVideoVisible = false  // Track visibility for video playback
+    
+    // Optional coordinator for fullscreen - only used if available
+    @EnvironmentObject private var mediaCoordinator: FullscreenMediaCoordinator
 
     private let maxRetries = 3
+    
+    /// Determines if a video view is visible based on its frame
+    /// Uses a threshold: video is considered visible if >= 30% is on screen
+    private func isVideoViewVisible(geometry: GeometryProxy) -> Bool {
+        let frame = geometry.frame(in: .global)
+        let screenBounds = UIScreen.main.bounds
+        
+        // Check if view intersects with screen bounds
+        let intersection = screenBounds.intersection(frame)
+        
+        // Consider visible if at least 30% of the view is on screen
+        // Reduced from 50% to match industry standards (IceCubesApp, Bluesky use 20-30%)
+        // This allows videos to start playing earlier, improving perceived performance
+        let visibleArea = intersection.width * intersection.height
+        let totalArea = frame.width * frame.height
+        
+        guard totalArea > 0 else { return false }
+        
+        let visibilityRatio = visibleArea / totalArea
+        return visibilityRatio >= 0.3
+    }
 
     enum LoadingState {
         case loading
@@ -43,6 +81,7 @@ struct SmartMediaView: View {
         cornerRadius: CGFloat = 12,
         heroID: String? = nil,
         mediaNamespace: Namespace.ID? = nil,
+        allMedia: [Post.Attachment]? = nil,
         onTap: (() -> Void)? = nil
     ) {
         self.attachment = attachment
@@ -52,6 +91,7 @@ struct SmartMediaView: View {
         self.cornerRadius = cornerRadius
         self.heroID = heroID
         self.mediaNamespace = mediaNamespace
+        self.allMedia = allMedia
         self.onTap = onTap
     }
 
@@ -79,14 +119,55 @@ struct SmartMediaView: View {
                 isGIF: attachment.type == .gifv,
                 aspectRatio: ratio,
                 onSizeDetected: { size in
-                    if size.width > 0 && size.height > 0 {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            loadedAspectRatio = size.width / size.height
+                    // Defer state update to prevent AttributeGraph cycles
+                    // Use a longer delay to ensure we're completely outside the view update cycle
+                    Task { @MainActor in
+                        guard size.width > 0 && size.height > 0 else { return }
+                        // Longer delay to ensure we're not in the middle of a view update
+                        // This prevents AttributeGraph cycles and "Modifying state during view update" warnings
+                        try? await Task.sleep(nanoseconds: 33_000_000)  // ~2 frames at 60fps
+                        guard !Task.isCancelled else { return }
+                        // Double-check we're on main actor and defer the actual state update
+                        await MainActor.run {
+                            // Use DispatchQueue to ensure we're outside the current update cycle
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    loadedAspectRatio = size.width / size.height
+                                }
+                            }
                         }
                     }
+                },
+                isVisible: isVideoVisible,
+                shouldMute: true,  // Mute by default for feed videos
+                onFullscreenTap: {
+                    // Trigger fullscreen if coordinator is available
+                    let mediaToShow = allMedia ?? [attachment]
+                    mediaCoordinator.present(
+                        media: attachment,
+                        allMedia: mediaToShow,
+                        showAltTextInitially: false,
+                        mediaNamespace: mediaNamespace,
+                        thumbnailFrames: [:]
+                    )
                 }
             )
+            .background(
+                GeometryReader { geometry in
+                    Color.clear
+                        .preference(
+                            key: VideoVisibilityPreferenceKey.self,
+                            value: [attachment.url: isVideoViewVisible(geometry: geometry)]
+                        )
+                }
+            )
+            .onPreferenceChange(VideoVisibilityPreferenceKey.self) { visibilityMap in
+                if let visible = visibilityMap[attachment.url] {
+                    isVideoVisible = visible
+                }
+            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .cornerRadius(cornerRadius)
             .clipped()
             .onAppear { print("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
@@ -133,10 +214,17 @@ struct SmartMediaView: View {
                     url: imageURL,
                     priority: .high,
                     onImageLoad: { uiImage in
-                        let size = uiImage.size
-                        if size.width > 0 && size.height > 0 {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                loadedAspectRatio = CGFloat(size.width / size.height)
+                        // Defer state update to prevent AttributeGraph cycles
+                        Task { @MainActor in
+                            // Small delay to ensure we're not in the middle of a view update
+                            try? await Task.sleep(nanoseconds: 16_000_000)  // ~1 frame at 60fps
+                            let size = uiImage.size
+                            if size.width > 0 && size.height > 0 {
+                                await MainActor.run {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        loadedAspectRatio = CGFloat(size.width / size.height)
+                                    }
+                                }
                             }
                         }
                     }
@@ -187,10 +275,17 @@ struct SmartMediaView: View {
                     url: imageURL,
                     priority: .high,
                     onImageLoad: { uiImage in
-                        let size = uiImage.size
-                        if size.width > 0 && size.height > 0 {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                loadedAspectRatio = CGFloat(size.width / size.height)
+                        // Defer state update to prevent AttributeGraph cycles
+                        Task { @MainActor in
+                            // Small delay to ensure we're not in the middle of a view update
+                            try? await Task.sleep(nanoseconds: 16_000_000)  // ~1 frame at 60fps
+                            let size = uiImage.size
+                            if size.width > 0 && size.height > 0 {
+                                await MainActor.run {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        loadedAspectRatio = CGFloat(size.width / size.height)
+                                    }
+                                }
                             }
                         }
                     }
@@ -359,11 +454,19 @@ private struct VideoPlayerView: View {
     let isGIF: Bool
     let aspectRatio: CGFloat
     var onSizeDetected: ((CGSize) -> Void)? = nil
+    
+    // Visibility and mute control
+    var isVisible: Bool = true  // Default to true for backward compatibility
+    var shouldMute: Bool = true  // Mute by default for feed videos (best practice)
+    
+    // Fullscreen support
+    var onFullscreenTap: (() -> Void)? = nil
 
     @StateObject private var playerModel = VideoPlayerViewModel()
     @State private var hasError = false
     @State private var isLoading = true
     @State private var retryCount = 0
+    @State private var wasPlayingBeforeDisappear = false
 
     @StateObject private var errorHandler = MediaErrorHandler.shared
     @StateObject private var memoryManager = MediaMemoryManager.shared
@@ -378,37 +481,56 @@ private struct VideoPlayerView: View {
                     VideoPlayer(player: player)
                         .aspectRatio(aspectRatio, contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .onChange(of: player.isMuted) { newValue in
                             // Sync mute state when VideoPlayer controls change it
                             // This ensures the mute button works properly
                             playerModel.isMuted = newValue
                         }
                         .onAppear {
-                            // Detect size from track
-                            Task {
-                                if let track = try? await player.currentItem?.asset.loadTracks(
-                                    withMediaType: .video
-                                ).first {
-                                    let size = try? await track.load(.naturalSize)
-                                    let transform = try? await track.load(.preferredTransform)
-                                    if let size = size, let transform = transform {
-                                        let correctedSize = size.applying(transform)
-                                        onSizeDetected?(
-                                            CGSize(
-                                                width: abs(correctedSize.width),
-                                                height: abs(correctedSize.height)))
-                                    }
-                                }
-                            }
-
-                            if isGIF {
+                            // Detect size from track - defer callback to avoid AttributeGraph cycles
+                            detectVideoSize(from: player)
+                            
+                            // Set mute state based on shouldMute parameter
+                            player.isMuted = shouldMute
+                            playerModel.isMuted = shouldMute
+                            
+                            // Only play if visible and it's a GIF (GIFs should autoplay)
+                            // Regular videos wait for visibility change
+                            if isGIF && isVisible {
                                 // Ensure playback rate is 1.0 for GIF videos
                                 player.rate = 1.0
+                                player.play()
+                            } else if !isGIF && isVisible {
+                                // For regular videos, start playing when visible
                                 player.play()
                             }
                         }
                         .onDisappear {
+                            // Store playback state before pausing
+                            wasPlayingBeforeDisappear = player.rate > 0
                             player.pause()
+                        }
+                        .onChange(of: isVisible) { newValue in
+                            // Smart playback control based on visibility
+                            guard let player = playerModel.player else { return }
+                            
+                            if newValue {
+                                // Video became visible - resume playback
+                                if isGIF {
+                                    player.rate = 1.0
+                                    player.play()
+                                } else {
+                                    // For regular videos, play if it was playing before or if it's a new video
+                                    if wasPlayingBeforeDisappear || player.rate == 0 {
+                                        player.play()
+                                    }
+                                }
+                            } else {
+                                // Video became invisible - pause playback
+                                wasPlayingBeforeDisappear = player.rate > 0
+                                player.pause()
+                            }
                         }
 
                     // Buffering indicator
@@ -439,6 +561,49 @@ private struct VideoPlayerView: View {
                             RoundedRectangle(cornerRadius: 8)
                                 .fill(.ultraThinMaterial.opacity(0.8))
                         )
+                    }
+                    
+                    // Control buttons overlay
+                    VStack {
+                        HStack {
+                            Spacer()
+                            HStack(spacing: 8) {
+                                // Fullscreen button (always visible when onFullscreenTap is provided)
+                                if let onFullscreenTap = onFullscreenTap {
+                                    Button(action: {
+                                        onFullscreenTap()
+                                    }) {
+                                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                            .font(.title3)
+                                            .foregroundColor(.white)
+                                            .padding(8)
+                                            .background(
+                                                Circle()
+                                                    .fill(.ultraThinMaterial.opacity(0.8))
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
+                                // Mute/unmute button (only show when muted and not a GIF)
+                                if !isGIF && playerModel.isMuted && !isLoading && !hasError {
+                                    Button(action: {
+                                        playerModel.toggleMute()
+                                    }) {
+                                        Image(systemName: "speaker.slash.fill")
+                                            .font(.title3)
+                                            .foregroundColor(.white)
+                                            .padding(8)
+                                            .background(
+                                                Circle()
+                                                    .fill(.ultraThinMaterial.opacity(0.8))
+                                            )
+                                    }
+                                }
+                            }
+                            .padding(12)
+                        }
+                        Spacer()
                     }
                 }
             } else if hasError {
@@ -539,6 +704,14 @@ private struct VideoPlayerView: View {
             if let cachedPlayer = memoryManager.getCachedPlayer(for: url) {
                 // CRITICAL: Ensure player allows muting and is properly configured
                 cachedPlayer.allowsExternalPlayback = false  // Disable AirPlay to ensure mute works properly
+                
+                // Set mute state based on shouldMute parameter
+                cachedPlayer.isMuted = shouldMute
+                
+                // CRITICAL: Configure audio session to allow mixing with other audio for muted videos
+                if shouldMute {
+                    configureAudioSessionForMutedPlayback()
+                }
 
                 // CRITICAL: Configure looping for GIFs (gifv videos from Mastodon)
                 if isGIF {
@@ -558,6 +731,14 @@ private struct VideoPlayerView: View {
             // CRITICAL: Ensure player allows muting and is properly configured
             // VideoPlayer's built-in mute button should work, but we ensure the player is ready
             player.allowsExternalPlayback = false  // Disable AirPlay to ensure mute works properly
+            
+            // Set mute state based on shouldMute parameter
+            player.isMuted = shouldMute
+            
+            // CRITICAL: Configure audio session to allow mixing with other audio for muted videos
+            if shouldMute {
+                configureAudioSessionForMutedPlayback()
+            }
 
             // CRITICAL: Configure looping for GIFs (gifv videos from Mastodon)
             if isGIF {
@@ -629,14 +810,18 @@ private struct VideoPlayerView: View {
                         "✅ Using authenticated video loading for \(platform.rawValue, privacy: .public)"
                     )
 
-                    // For HLS playlists (.m3u8), use AVAssetResourceLoaderDelegate instead of downloading
-                    // AVFoundation can handle HLS streams directly with authentication
+                    // For HLS playlists (.m3u8), use custom scheme to ensure resource loader is called immediately
+                    // CRITICAL: AVFoundation doesn't reliably call resource loader for standard HTTPS URLs
+                    // until AFTER a request fails, which causes crashes and timebase errors for HLS
+                    // Custom scheme ensures our resource loader handles ALL requests from the start
                     // CRITICAL: .m3u8 files are playlists, not videos - they MUST be streamed, not downloaded
                     if isHLSPlaylist {
                         logger.info(
-                            "📺 Detected HLS playlist (.m3u8) - using resource loader delegate for streaming"
+                            "📺 Detected HLS playlist (.m3u8) - using custom scheme to ensure resource loader is called immediately"
                         )
-                        // Create a custom scheme URL to trigger the resource loader
+                        
+                        // Use custom scheme to ensure resource loader handles all requests from the start
+                        // This prevents crashes and timebase errors by ensuring authentication happens before AVFoundation tries to parse
                         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
                         components?.scheme = "authenticated-video"
                         guard let customSchemeURL = components?.url else {
@@ -646,13 +831,16 @@ private struct VideoPlayerView: View {
                                     NSLocalizedDescriptionKey: "Failed to create custom scheme URL"
                                 ])
                         }
+                        
                         let asset = AVURLAsset(url: customSchemeURL)
                         let loader = AuthenticatedVideoAssetLoader(
                             authToken: token, originalURL: url, platform: platform)
                         asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
+
                         // Retain the loader to prevent deallocation
                         objc_setAssociatedObject(
                             asset, "loader", loader, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+
                         return try await createPlayerWithAsset(asset: asset)
                     }
 
@@ -739,23 +927,27 @@ private struct VideoPlayerView: View {
                             "⚠️ Using existing token (refresh failed): \(error.localizedDescription, privacy: .public)"
                         )
 
-                        // CRITICAL: For HLS playlists, use resource loader, don't download
+                        // For HLS playlists, use custom scheme to ensure resource loader is called
                         if isHLSPlaylist {
-                            logger.info("📺 Retry: Using resource loader for HLS playlist")
+                            logger.info(
+                                "📺 Retry: Using custom scheme for HLS playlist to ensure resource loader is called"
+                            )
+                            // Use custom scheme to ensure resource loader handles all requests from the start
                             var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
                             components?.scheme = "authenticated-video"
                             guard let customSchemeURL = components?.url else {
                                 throw NSError(
                                     domain: "VideoPlayerView", code: -1,
                                     userInfo: [
-                                        NSLocalizedDescriptionKey:
-                                            "Failed to create custom scheme URL"
+                                        NSLocalizedDescriptionKey: "Failed to create custom scheme URL"
                                     ])
                             }
+                            
                             let asset = AVURLAsset(url: customSchemeURL)
                             let loader = AuthenticatedVideoAssetLoader(
                                 authToken: token, originalURL: url, platform: platform)
                             asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
+                            
                             objc_setAssociatedObject(
                                 asset, "loader", loader, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
                             return try await createPlayerWithAsset(asset: asset)
@@ -766,6 +958,7 @@ private struct VideoPlayerView: View {
                             try await AuthenticatedVideoAssetLoader.downloadToTempFile(
                                 url: url, authToken: token, platform: platform)
                         let fileAsset = AVURLAsset(url: tempFileURL)
+                        
                         return try await createPlayerWithAsset(asset: fileAsset)
                     } else {
                         logger.warning(
@@ -782,11 +975,13 @@ private struct VideoPlayerView: View {
                     "⚠️ URL needs auth for \(platform.rawValue, privacy: .public) but no account available, trying unauthenticated"
                 )
                 let asset = AVURLAsset(url: url)
+                
                 return try await createPlayerWithAsset(asset: asset)
             }
         } else {
             // No authentication needed, use regular asset
             let asset = AVURLAsset(url: url)
+            
             return try await createPlayerWithAsset(asset: asset)
         }
     }
@@ -828,14 +1023,91 @@ private struct VideoPlayerView: View {
         }
         // #endregion
 
+        // CRITICAL: Load asset properties BEFORE creating player item
+        // This ensures format description is available, preventing -12881 errors
+        // For HLS, tracks won't be available until playlist is parsed, so we only load .isPlayable
+        let isHLSPlaylist = asset.url.absoluteString.contains(".m3u8") || asset.url.pathExtension == "m3u8"
+        logger.info("🔍 Loading asset properties before creating player item (HLS: \(isHLSPlaylist))")
+        do {
+            if isHLSPlaylist {
+                // For HLS, only load .isPlayable - tracks won't be available until playlist is parsed
+                // Loading tracks too early can cause timebase errors
+                // CRITICAL: Load .isPlayable which triggers the resource loader to fetch the playlist
+                let isPlayable = try await asset.load(.isPlayable)
+                logger.info("✅ HLS asset properties loaded - playable: \(isPlayable)")
+                
+                guard isPlayable else {
+                    throw NSError(
+                        domain: "VideoPlayerView", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "HLS asset is not playable"])
+                }
+                
+                // CRITICAL: Wait for AVFoundation to request and parse the initial playlist
+                // before creating the player item. AVFoundation creates the timebase synchronously
+                // when the player item is created, so we need the playlist parsed first.
+                // The resource loader will be called asynchronously, so we wait a moment
+                // to allow AVFoundation to request the playlist and start parsing it.
+                // This prevents -12753 timebase errors.
+                logger.info("⏳ Waiting for HLS playlist to be fetched and parsed before creating player item...")
+                try await Task.sleep(nanoseconds: 300_000_000)  // 300ms - enough for initial playlist request/parse
+                logger.info("✅ Wait complete - creating player item")
+            } else {
+                // For non-HLS videos, load both playable and tracks
+                async let playableTask = asset.load(.isPlayable)
+                async let tracksTask = asset.loadTracks(withMediaType: .video)
+                
+                let isPlayable = try await playableTask
+                let tracks = try await tracksTask
+                
+                logger.info("✅ Asset properties loaded - playable: \(isPlayable), tracks: \(tracks.count)")
+                
+                guard isPlayable else {
+                    throw NSError(
+                        domain: "VideoPlayerView", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Video asset is not playable"])
+                }
+            }
+        } catch {
+            logger.warning("⚠️ Failed to load asset properties: \(error.localizedDescription, privacy: .public)")
+            // Continue anyway - some assets might work without explicit loading
+        }
+        
+        // CRITICAL: Ensure we're on the main thread for AVFoundation operations
+        // AVFoundation requires main thread for player item creation to avoid timebase errors
         return try await withCheckedThrowingContinuation { continuation in
-            let playerItem = AVPlayerItem(asset: asset)
-            let player = AVPlayer(playerItem: playerItem)
+            Task { @MainActor in
+                // CRITICAL: Configure player item AFTER asset properties are loaded
+                // This ensures format description is available, preventing -12881 errors
+                let playerItem = AVPlayerItem(asset: asset)
+                
+                // Configure buffering for smooth playback (like IceCubesApp and Bluesky)
+                // For feed videos, use 5-8 seconds buffer (balance between smooth playback and memory)
+                // Fullscreen videos use 10 seconds, but feed needs less to save memory
+                playerItem.preferredForwardBufferDuration = 6.0
+                
+                // Create player with configured item
+                let player = AVPlayer(playerItem: playerItem)
+                
+                // CRITICAL: Don't wait to minimize stalling for feed videos
+                // This makes videos start playing immediately (like YouTube, IceCubesApp, Bluesky)
+                // Users expect immediate playback in feeds, not waiting for perfect buffering
+                player.automaticallyWaitsToMinimizeStalling = false
+                
+                // Disable external playback (AirPlay) for feed videos to ensure mute works properly
+                player.allowsExternalPlayback = false
+                
+                // CRITICAL: Mute videos by default in feed to prevent interrupting audio from other apps
+                // This ensures videos don't take over system audio (e.g., podcasts)
+                player.isMuted = true
+                
+                // CRITICAL: Configure audio session to allow mixing with other audio
+                // This prevents videos from hijacking system audio even when muted
+                configureAudioSessionForMutedPlayback()
 
-            var hasResumed = false
+                var hasResumed = false
 
-            // #region agent log
-            let logData4: [String: Any] = [
+                // #region agent log
+                let logData4: [String: Any] = [
                 "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
                 "location": "SmartMediaView.swift:734",
                 "message": "playerItem_created",
@@ -890,7 +1162,8 @@ private struct VideoPlayerView: View {
                 return
             }
 
-            _ = playerItem.observe(\.status, options: [.new, .initial]) { item, _ in
+            // Store observer for cleanup - CRITICAL: Prevents memory leaks
+            let statusObserver = playerItem.observe(\.status, options: [.new, .initial]) { [weak playerItem] item, _ in
                 guard !hasResumed else {
                     // #region agent log
                     let logData5: [String: Any] = [
@@ -1072,9 +1345,16 @@ private struct VideoPlayerView: View {
             }
 
             // Also check for errors periodically, even if status hasn't changed
+            // CRITICAL: Use weak references to prevent retain cycles
             var errorCheckCount = 0
-            let errorCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
-                timer in
+            weak var weakPlayerItem = playerItem
+            weak var weakPlayer = player
+            let loggerRef = logger // Capture logger since self is a struct
+            let errorCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
+                guard let playerItem = weakPlayerItem, let player = weakPlayer else {
+                    timer.invalidate()
+                    return
+                }
                 errorCheckCount += 1
                 if hasResumed {
                     timer.invalidate()
@@ -1091,11 +1371,11 @@ private struct VideoPlayerView: View {
                         playerItem.error
                         ?? MediaErrorHandler.MediaError.playerSetupFailed(
                             "Local file failed to load after 10 seconds")
-                    logger.error(
+                    loggerRef.error(
                         "❌ Local file failed to load: \(error.localizedDescription, privacy: .public)"
                     )
                     if let nsError = playerItem.error as NSError? {
-                        logger.error(
+                        loggerRef.error(
                             "❌ AVPlayerItem error domain: \(nsError.domain, privacy: .public), code: \(nsError.code), userInfo: \(nsError.userInfo)"
                         )
                     }
@@ -1106,14 +1386,14 @@ private struct VideoPlayerView: View {
                 if let error = playerItem.error {
                     hasResumed = true
                     timer.invalidate()
-                    logger.error(
+                    loggerRef.error(
                         "❌ Player item error detected: \(error.localizedDescription, privacy: .public)"
                     )
                     if let nsError = error as NSError? {
-                        logger.error(
+                        loggerRef.error(
                             "❌ Error domain: \(nsError.domain, privacy: .public), code: \(nsError.code)"
                         )
-                        logger.error("❌ Error userInfo: \(nsError.userInfo)")
+                        loggerRef.error("❌ Error userInfo: \(nsError.userInfo)")
                     }
                     continuation.resume(throwing: error)
                     return
@@ -1123,7 +1403,7 @@ private struct VideoPlayerView: View {
                 if playerItem.status == .readyToPlay {
                     hasResumed = true
                     timer.invalidate()
-                    logger.info("✅ Player item ready (detected via timer check)")
+                    loggerRef.info("✅ Player item ready (detected via timer check)")
                     continuation.resume(returning: player)
                     return
                 }
@@ -1134,23 +1414,26 @@ private struct VideoPlayerView: View {
             }
             RunLoop.main.add(errorCheckTimer, forMode: .common)
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak playerItem] in
+                guard let playerItem = playerItem else { return }
                 guard !hasResumed else { return }
                 errorCheckTimer.invalidate()
+                statusObserver.invalidate() // CRITICAL: Clean up observer
                 hasResumed = true
-                logger.error(
+                loggerRef.error(
                     "❌ Player item timed out after 30 seconds - status: \(playerItem.status.rawValue)"
                 )
                 if let error = playerItem.error {
-                    logger.error(
+                    loggerRef.error(
                         "❌ Player item error: \(error.localizedDescription, privacy: .public)")
                     if let nsError = error as NSError? {
-                        logger.error(
+                        loggerRef.error(
                             "❌ Error domain: \(nsError.domain, privacy: .public), code: \(nsError.code)"
                         )
                     }
                 }
                 continuation.resume(throwing: MediaErrorHandler.MediaError.loadTimeout)
+            }
             }
         }
     }
@@ -1166,6 +1449,49 @@ private struct VideoPlayerView: View {
 
     private func cleanup() {
         playerModel.player?.pause()
+    }
+    
+    /// Detect video size from tracks - CRITICAL: Don't load tracks for HLS
+    /// This prevents timebase errors similar to the player item creation issue
+    private func detectVideoSize(from player: AVPlayer) {
+        Task { @MainActor in
+            // Longer delay to ensure we're not in the middle of a view update
+            try? await Task.sleep(nanoseconds: 33_000_000)  // ~2 frames at 60fps
+            guard !Task.isCancelled else { return }
+
+            // CRITICAL: Don't load tracks for HLS - tracks aren't available until playlist is parsed
+            // This prevents timebase errors similar to the player item creation issue
+            guard let currentItem = player.currentItem else { return }
+            // Only AVURLAsset has url property - check and cast
+            guard let urlAsset = currentItem.asset as? AVURLAsset else { return }
+            let assetURL = urlAsset.url.absoluteString
+            let isHLS = assetURL.contains(".m3u8") || assetURL.contains("playlist.m3u8")
+            
+            guard !isHLS else { return }
+            
+            guard let tracks = try? await currentItem.asset.loadTracks(withMediaType: .video),
+                  let track = tracks.first else { return }
+            
+            let size = try? await track.load(.naturalSize)
+            let transform = try? await track.load(.preferredTransform)
+            
+            guard let size = size, let transform = transform else { return }
+            
+            let correctedSize = size.applying(transform)
+            // Defer state update to next run loop to prevent cycles
+            // Use DispatchQueue to ensure we're outside the current update cycle
+            // Defer state update to prevent AttributeGraph cycles
+            // Use Task to ensure we're outside the current update cycle
+            Task { @MainActor in
+                // Additional delay to ensure we're completely outside view update cycle
+                try? await Task.sleep(nanoseconds: 16_000_000)  // ~1 frame at 60fps
+                guard !Task.isCancelled else { return }
+                onSizeDetected?(
+                    CGSize(
+                        width: abs(correctedSize.width),
+                        height: abs(correctedSize.height)))
+            }
+        }
     }
 
     /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
@@ -1199,6 +1525,24 @@ private struct VideoPlayerView: View {
         }
 
         logger.info("🔄 Configured GIF looping for player with rate=1.0")
+    }
+    
+    /// Configure AVAudioSession for muted video playback to prevent hijacking system audio
+    /// Uses .ambient category which allows mixing with other audio and respects silent switch
+    fileprivate func configureAudioSessionForMutedPlayback() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            // Use .ambient category which:
+            // - Allows mixing with other audio (doesn't interrupt podcasts/music)
+            // - Respects the silent switch
+            // - Doesn't take over system audio
+            try audioSession.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            // Note: We don't activate the session here - let it activate naturally when needed
+            // This ensures we don't interrupt other audio sessions unnecessarily
+            logger.debug("✅ Configured audio session for muted playback (.ambient category)")
+        } catch {
+            logger.warning("⚠️ Failed to configure audio session for muted playback: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

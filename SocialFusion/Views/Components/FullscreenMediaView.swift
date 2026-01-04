@@ -1,3 +1,4 @@
+import AVKit
 import SwiftUI
 import Photos
 import UniformTypeIdentifiers
@@ -83,6 +84,8 @@ struct FullscreenMediaView: View {
     @State private var overlaysVisible: Bool = true
     @State private var showAltText: Bool = false
     @State private var isSharing: Bool = false
+    @State private var videoPlayers: [URL: AVPlayer] = [:]
+    @State private var currentPlayer: AVPlayer? = nil
 
     init(
         media: Post.Attachment, allMedia: [Post.Attachment], showAltTextInitially: Bool = false,
@@ -473,6 +476,18 @@ struct FullscreenMediaView: View {
                 }
             )
         }
+        
+        // Handle videos and GIFV (video-based GIFs)
+        if attachment.type == .video || attachment.type == .gifv {
+            return AnyView(
+                FullscreenVideoPlayerView(
+                    url: url,
+                    isGIF: attachment.type == .gifv,
+                    videoPlayers: $videoPlayers,
+                    currentPlayer: $currentPlayer
+                )
+            )
+        }
 
         // Use CachedAsyncImage for loading uncached images
         // The cache will handle the image, and each view instance has its own state
@@ -700,6 +715,107 @@ struct FullscreenMediaView: View {
                     }
                 }
             }
+        }
+    }
+    
+    /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
+    private func configureGIFLooping(for player: AVPlayer) {
+        guard let playerItem = player.currentItem else { return }
+        
+        // CRITICAL: Set playback rate to 1.0 to prevent fast playback
+        // Some videos might have incorrect rate metadata
+        player.rate = 1.0
+        
+        // Set actionAtItemEnd to .none to prevent pausing at end
+        player.actionAtItemEnd = .none
+        
+        // Add observer to loop when video ends
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak player] _ in
+            guard let player = player else { return }
+            // Seek to beginning and play again
+            player.seek(to: .zero)
+            player.rate = 1.0
+            player.play()
+        }
+    }
+}
+
+/// Helper view for video playback in fullscreen
+private struct FullscreenVideoPlayerView: View {
+    let url: URL
+    let isGIF: Bool
+    @Binding var videoPlayers: [URL: AVPlayer]
+    @Binding var currentPlayer: AVPlayer?
+    
+    @State private var player: AVPlayer?
+    
+    var body: some View {
+        Group {
+            if let player = player {
+                VideoPlayer(player: player)
+                    .edgesIgnoringSafeArea(.all)
+                    .onAppear {
+                        currentPlayer = player
+                        player.isMuted = false  // Unmuted in fullscreen
+                        if isGIF {
+                            player.rate = 1.0
+                            configureGIFLooping(for: player)
+                        }
+                        player.play()
+                    }
+                    .onDisappear {
+                        if currentPlayer == player {
+                            player.pause()
+                            currentPlayer = nil
+                        }
+                    }
+            } else {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(2)
+                    Text("Loading video...")
+                        .foregroundColor(.white)
+                        .font(.subheadline)
+                }
+            }
+        }
+        .onAppear {
+            if let existingPlayer = videoPlayers[url] {
+                player = existingPlayer
+            } else {
+                let newPlayer = AVPlayer(url: url)
+                videoPlayers[url] = newPlayer
+                player = newPlayer
+            }
+        }
+    }
+    
+    /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
+    private func configureGIFLooping(for player: AVPlayer) {
+        guard let playerItem = player.currentItem else { return }
+        
+        // CRITICAL: Set playback rate to 1.0 to prevent fast playback
+        player.rate = 1.0
+        
+        // Set actionAtItemEnd to .none to prevent pausing at end
+        player.actionAtItemEnd = .none
+        
+        // Add observer to loop when video ends
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak player] _ in
+            guard let player = player else { return }
+            // Seek to beginning and play again
+            player.seek(to: .zero)
+            player.rate = 1.0
+            player.play()
         }
     }
 }

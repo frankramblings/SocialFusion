@@ -3,7 +3,7 @@ import SwiftUI
 /// Modifier that conditionally applies clipping
 private struct ConditionalClippedModifier: ViewModifier {
     let shouldClip: Bool
-    
+
     func body(content: Content) -> some View {
         if shouldClip {
             content.clipped()
@@ -66,18 +66,27 @@ struct PostCardView: View {
         // Always use originalPost if it exists, even if content appears empty
         // The contentView() method handles empty content display internally
         // This ensures boosts show the original post content, not blank placeholders
-        
+
         // Check if this is a boost (via originalPost or boostedBy)
         let isBoost = post.originalPost != nil || (boostedBy ?? post.boostedBy) != nil
-        
-        if isBoost, let original = post.originalPost {
+
+        if isBoost {
             // This is a boost/repost - use the original post for display
-            // Always return originalPost - don't fall back to wrapper post
-            // The wrapper post has empty content by design
-            return original
+            if let original = post.originalPost {
+                // Always return originalPost - don't fall back to wrapper post
+                // The wrapper post has empty content by design
+                return original
+            } else {
+                // CRITICAL: If boost has no originalPost, this is an error state
+                // Log warning but still return post to prevent crash
+                // This shouldn't happen, but handle gracefully
+                print("⚠️ [PostCardView] Boost detected but originalPost is nil for post \(post.id)")
+                // Return post as fallback - contentView will handle empty content
+                return post
+            }
         }
-        
-        // For regular posts or boosts without originalPost (shouldn't happen, but handle gracefully)
+
+        // For regular posts
         return post
     }
 
@@ -107,28 +116,59 @@ struct PostCardView: View {
 
     // Get the reply info - check displayPost (which is originalPost for boosts)
     private var replyInfo: (username: String, id: String?, platform: SocialPlatform)? {
-        // CRITICAL FIX: Check originalPost first for boosts, then check wrapper post
-        // This ensures we catch reply info from the original post being boosted
+        // CRITICAL FIX: For boosts, prioritize originalPost reply info since that's what's being displayed
+        // For regular posts, check the post itself
+        // This ensures reply banners show correctly for both regular replies and boosted replies
+
+        // Debug logging
+        print("🔍 [PostCardView] replyInfo check for post \(post.id):")
+        print("  - post.inReplyToUsername: \(post.inReplyToUsername ?? "nil")")
+        print("  - post.inReplyToID: \(post.inReplyToID ?? "nil")")
+        print("  - has originalPost: \(post.originalPost != nil)")
+
+        // If this is a boost, check the original post first (since that's what we're displaying)
         if let original = post.originalPost {
-            // This is a boost - check the original post for reply info
+            print("  - original.inReplyToUsername: \(original.inReplyToUsername ?? "nil")")
+            print("  - original.inReplyToID: \(original.inReplyToID ?? "nil")")
             if let username = original.inReplyToUsername, !username.isEmpty {
+                print("🔍 [PostCardView] Reply info found in originalPost: \(username)")
                 return (username, original.inReplyToID, original.platform)
             }
         }
-        
-        // Check the wrapper post (for regular posts or if original post doesn't have reply info)
+
+        // Then check if the wrapper post itself is a reply (for non-boosted replies)
         if let username = post.inReplyToUsername, !username.isEmpty {
+            print("🔍 [PostCardView] Reply info found in wrapper post: \(username)")
             return (username, post.inReplyToID, post.platform)
         }
-        
-        // Also check displayPost as fallback (should be same as above, but just in case)
+
+        // Fallback: check displayPost (should be same as above, but just in case)
         let displayUsername = displayPost.inReplyToUsername
         let displayReplyID = displayPost.inReplyToID
+        print("  - displayPost.inReplyToUsername: \(displayUsername ?? "nil")")
+        print("  - displayPost.inReplyToID: \(displayReplyID ?? "nil")")
         if let username = displayUsername, !username.isEmpty {
+            print("🔍 [PostCardView] Reply info found in displayPost: \(username)")
             return (username, displayReplyID, displayPost.platform)
         }
-        
+
+        print("🔍 [PostCardView] No reply info found for post \(post.id)")
         return nil
+    }
+    
+    // Debug helper to log boost/reply state
+    private func logBannerState() {
+        let hasOriginalPost = post.originalPost != nil
+        let hasBoostedBy = (boostedBy ?? post.boostedBy) != nil
+        let hasReplyInfo = replyInfo != nil
+        print("🔍 [PostCardView] Banner state for post \(post.id):")
+        print("  - hasOriginalPost: \(hasOriginalPost)")
+        print("  - hasBoostedBy: \(hasBoostedBy) (boostedBy param: \(boostedBy ?? "nil"), post.boostedBy: \(post.boostedBy ?? "nil"))")
+        print("  - hasReplyInfo: \(hasReplyInfo)")
+        if hasOriginalPost {
+            print("  - originalPost.id: \(post.originalPost?.id ?? "nil")")
+            print("  - originalPost.content.isEmpty: \(post.originalPost?.content.isEmpty ?? true)")
+        }
     }
 
     // Helper to log reply info (called from onAppear to avoid ViewBuilder issues)
@@ -247,10 +287,19 @@ struct PostCardView: View {
         self.postActionCoordinator = postActionCoordinator
 
         // Extract boost information from TimelineEntry
-        if case .boost(let boostedBy) = entry.kind {
-            self.boostedBy = boostedBy
+        // CRITICAL: Always preserve boostedBy from both TimelineEntry and post
+        // This ensures boost banners show even if one source is missing
+        if case .boost(let entryBoostedBy) = entry.kind {
+            // Use TimelineEntry boostedBy first, but fall back to post.boostedBy if entry is empty
+            self.boostedBy = entryBoostedBy.isEmpty ? entry.post.boostedBy : entryBoostedBy
         } else {
-            self.boostedBy = nil
+            // Not a boost in TimelineEntry, but check if post has originalPost (might be a boost)
+            // This handles cases where TimelineEntry kind wasn't set correctly
+            if entry.post.originalPost != nil {
+                self.boostedBy = entry.post.boostedBy ?? entry.post.authorUsername
+            } else {
+                self.boostedBy = entry.post.boostedBy
+            }
         }
     }
 
@@ -312,19 +361,60 @@ struct PostCardView: View {
         let finalBoostedBy = boostedBy ?? postBoostedBy
         let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasBoostHandle = boostHandle != nil && !boostHandle!.isEmpty
-        
-        guard hasOriginalPost || hasBoostHandle else { return nil }
-        
+
+        // Debug logging
+        print("🔍 [PostCardView] boostHandleToShow check for post \(post.id):")
+        print("  - hasOriginalPost: \(hasOriginalPost)")
+        print("  - postBoostedBy: \(postBoostedBy ?? "nil")")
+        print("  - boostedBy param: \(boostedBy ?? "nil")")
+        print("  - finalBoostedBy: \(finalBoostedBy ?? "nil")")
+        print("  - boostHandle: \(boostHandle ?? "nil")")
+        print("  - hasBoostHandle: \(hasBoostHandle)")
+
+        // CRITICAL: If there's an originalPost, this is definitely a boost - always show banner
+        // Also show banner if boostedBy is set (even without originalPost, though that shouldn't happen)
+        if !hasOriginalPost && !hasBoostHandle {
+            print("  - Returning nil: no originalPost and no boostHandle")
+            return nil
+        }
+
+        // If we have originalPost, we MUST return a handle (even if boostedBy is missing)
+        // Priority: use the boostedBy parameter, then post.boostedBy, then authorUsername
         if let handle = boostHandle, !handle.isEmpty {
+            print("  - Returning boostHandle: \(handle)")
             return handle
         } else if let handle = postBoostedBy, !handle.isEmpty {
+            print("  - Returning postBoostedBy: \(handle)")
             return handle
         } else if hasOriginalPost {
-            return post.authorUsername
+            // For boosts with originalPost, always show the booster's username even if boostedBy isn't set
+            // This ensures boost banners always appear for posts with originalPost
+            // Use authorUsername as fallback - it should always be set for valid posts
+            if !post.authorUsername.isEmpty {
+                print("ℹ️ [PostCardView] Using post.authorUsername as boost handle fallback: \(post.authorUsername)")
+                return post.authorUsername
+            }
+            // Last resort: try to extract from post ID if it follows the repost-{handle}-{uri} pattern
+            if post.id.hasPrefix("repost-") {
+                let components = post.id.split(separator: "-", maxSplits: 2)
+                if components.count >= 2 {
+                    let extractedHandle = String(components[1])
+                    print("ℹ️ [PostCardView] Extracted boost handle from post ID: \(extractedHandle)")
+                    return extractedHandle
+                }
+            }
+            // If we have originalPost but no handle, use originalPost author as fallback
+            if let original = post.originalPost, !original.authorUsername.isEmpty {
+                print("ℹ️ [PostCardView] Using originalPost.authorUsername as boost handle fallback: \(original.authorUsername)")
+                return original.authorUsername
+            }
+            // Final fallback: if we have originalPost, show something
+            print("⚠️ [PostCardView] Boost detected (has originalPost) but no handle available for post \(post.id)")
+            return "Someone"  // Last resort fallback
         }
         return nil
     }
-    
+
     // Computed property for boost banner to simplify body
     @ViewBuilder
     private var boostBannerView: some View {
@@ -336,17 +426,34 @@ struct PostCardView: View {
                 .onAppear {
                     let postBoostedBy = post.boostedBy
                     let finalBoostedBy = boostedBy ?? postBoostedBy
+                    print("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
                     logBoostBanner(
                         boostHandle: handleToShow, postBoostedBy: postBoostedBy,
                         finalBoostedBy: finalBoostedBy)
                 }
+        } else {
+            EmptyView()
         }
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {  // Apple standard: 8pt spacing
             // Boost banner if this post was boosted/reposted
-            boostBannerView
+            // CRITICAL FIX: Explicitly check and render boost banner to ensure it always shows
+            if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
+                BoostBanner(handle: handleToShow, platform: post.platform)
+                    .padding(.horizontal, 12)  // Apple standard: 12pt for content
+                    .padding(.vertical, 6)  // Adequate touch target
+                    .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
+                    .onAppear {
+                        let postBoostedBy = post.boostedBy
+                        let finalBoostedBy = boostedBy ?? postBoostedBy
+                        print("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
+                        logBoostBanner(
+                            boostHandle: handleToShow, postBoostedBy: postBoostedBy,
+                            finalBoostedBy: finalBoostedBy)
+                    }
+            }
 
             // Expanding reply banner if this post is a reply
             // Check both wrapper post and original post for reply info
@@ -395,6 +502,29 @@ struct PostCardView: View {
             )
             .padding(.horizontal, 8)  // Reduced from 12 to give more space for text
             .padding(.top, 4)
+            .onAppear {
+                // Debug logging for boost content
+                let isBoost = post.originalPost != nil || (boostedBy ?? post.boostedBy) != nil
+                if isBoost {
+                    let hasOriginalPost = post.originalPost != nil
+                    let displayContentEmpty = displayPost.content.isEmpty
+                    let displayHasAttachments = !displayPost.attachments.isEmpty
+                    let displayHasQuotedPost = displayPost.quotedPost != nil
+                    
+                    print("🔍 [PostCardView] Boost content state for post \(post.id):")
+                    print("  - hasOriginalPost: \(hasOriginalPost)")
+                    print("  - displayPost.id: \(displayPost.id)")
+                    print("  - displayPost.content.isEmpty: \(displayContentEmpty)")
+                    print("  - displayPost.attachments.count: \(displayPost.attachments.count)")
+                    print("  - displayPost.quotedPost: \(displayHasQuotedPost ? "exists" : "nil")")
+                    print("  - post.boostedBy: \(post.boostedBy ?? "nil")")
+                    print("  - boostedBy param: \(boostedBy ?? "nil")")
+                    
+                    if displayContentEmpty && !displayHasAttachments && !displayHasQuotedPost {
+                        print("⚠️ [PostCardView] Boost post \(post.id) appears blank - no content, attachments, or quoted post")
+                    }
+                }
+            }
 
             // Poll section
             if let poll = displayPost.poll {
@@ -425,7 +555,7 @@ struct PostCardView: View {
                 let hasGIF = attachmentsToShow.contains { $0.type == .animatedGIF }
                 // Use 70% of screen height for GIFs (balanced between full display and feed usability)
                 let mediaMaxHeight = hasGIF ? min(UIScreen.main.bounds.height * 0.7, 800) : 600
-                
+
                 UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: mediaMaxHeight)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 4)

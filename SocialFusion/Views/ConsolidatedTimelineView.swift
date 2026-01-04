@@ -433,7 +433,14 @@ struct ConsolidatedTimelineView: View {
         let entryKind: TimelineEntryKind
         if post.originalPost != nil {
             // This is a boost - use boostedBy if available, otherwise use authorUsername
+            // CRITICAL: Ensure boostedBy is set on the post if it's missing
+            if post.boostedBy == nil && !post.authorUsername.isEmpty {
+                post.boostedBy = post.authorUsername
+            }
             let boostedByHandle = post.boostedBy ?? post.authorUsername
+            if boostedByHandle.isEmpty {
+                print("⚠️ [ConsolidatedTimelineView] Boost detected but no boostedBy handle for post \(post.id)")
+            }
             entryKind = .boost(boostedBy: boostedByHandle)
         } else if let parentId = post.inReplyToID {
             entryKind = .reply(parentId: parentId)
