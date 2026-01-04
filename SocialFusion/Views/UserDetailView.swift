@@ -17,10 +17,14 @@ struct UserDetailView: View {
                 // Profile Header
                 VStack(spacing: 16) {
                     if let avatarURL = user.avatarURL, let url = URL(string: avatarURL) {
-                        AsyncImage(url: url) { image in
+                        CachedAsyncImage(url: url, priority: .high) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
                             Circle().fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                )
                         }
                         .frame(width: 80, height: 80)
                         .clipShape(Circle())

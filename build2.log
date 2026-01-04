@@ -1,0 +1,1095 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2" build
+
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (1 target)
+    Target 'SocialFusion' in project 'SocialFusion' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ClangStatCache /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion.xcodeproj
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -o /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache
+
+SwiftDriver SocialFusion normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-SwiftDriver -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SocialFusion -Onone -enforce-exclusivity\=checked @/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -F /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache -output-file-map /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion_const_extract_protocols.json -Xcc -iquote -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-generated-files.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-own-target-headers.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-all-target-headers.hmap -Xcc -iquote -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-project-headers.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources-normal/arm64 -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources/arm64 -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-Swift.h -working-directory /Users/frankemanuele/Documents/GitHub/SocialFusion -experimental-emit-module-separately -disable-cmo
+
+SwiftCompile normal arm64 Compiling\ EdgeCaseHandler.swift,\ EnhancedEmptyStateView.swift,\ ErrorHandler.swift,\ ExpandingReplyBanner.swift,\ FeatureFlagManager.swift,\ FeatureFlags.swift,\ FetchQuotePostView.swift,\ GIFUnfurlContainer.swift,\ GIFUnfurlingService.swift,\ GradualMigrationManager.swift,\ HTMLFormatter.swift,\ HTMLString.swift,\ KeychainHelper.swift,\ KeychainManager.swift,\ KeychainService.swift,\ LaunchAnimationView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/EdgeCaseHandler.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/EnhancedEmptyStateView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/ErrorHandler.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ExpandingReplyBanner.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/FeatureFlagManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/FeatureFlags.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/FetchQuotePostView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/GIFUnfurlContainer.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/GIFUnfurlingService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/GradualMigrationManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/HTMLFormatter.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/HTMLString.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/KeychainHelper.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/KeychainManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/KeychainService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LaunchAnimationView.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/EdgeCaseHandler.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/EnhancedEmptyStateView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/ErrorHandler.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ExpandingReplyBanner.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/FeatureFlagManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/FeatureFlags.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/FetchQuotePostView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/FetchQuotePostView.swift:175:27: warning: value 'error' was defined but never used; consider replacing with boolean test
+            } else if let error = error {
+                      ~~~~^~~~~~~~
+                                        != nil
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/GIFUnfurlContainer.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/GIFUnfurlingService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/GradualMigrationManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/GradualMigrationManager.swift:118:13: warning: immutable property will not be decoded because it is declared with an initial value which cannot be overwritten
+        let id = UUID()
+            ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/GradualMigrationManager.swift:118:13: note: set the initial value via the initializer or explicitly define a CodingKeys enum including a 'id' case to silence this warning
+        let id = UUID()
+            ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/GradualMigrationManager.swift:118:13: note: make the property mutable instead
+        let id = UUID()
+        ~~~ ^
+        var
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/HTMLFormatter.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/HTMLString.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/KeychainHelper.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/KeychainManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/KeychainService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LaunchAnimationView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ AccessibilityHelpers.swift,\ AccountManager.swift,\ AccountPickerView.swift,\ AccountService.swift,\ AccountTimelineView.swift,\ AccountsView.swift,\ ActionBar.swift,\ AddAccountView.swift,\ AnimatedGIFView.swift,\ AppVersionManager.swift,\ AsyncImageFromProvider.swift,\ AsyncLoader.swift,\ AudioPlayerView.swift,\ AuthWebView.swift,\ AutomaticTokenRefreshService.swift,\ BlueskyAPIClient.swift,\ BlueskyModels.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/AccessibilityHelpers.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountPickerView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountTimelineView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountsView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ActionBar.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AddAccountView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/AnimatedGIFView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/AppVersionManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AsyncImageFromProvider.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Components/AsyncLoader.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/AudioPlayerView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AuthWebView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AutomaticTokenRefreshService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyAPIClient.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/AccessibilityHelpers.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountManager.swift:375:9: warning: will never be executed
+        return []
+        ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountPickerView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountPickerView.swift:305:25: warning: initialization of immutable value 'account' was never used; consider replacing with assignment to '_' or removing it
+                    let account = try await serviceManager.addMastodonAccount(
+                    ~~~~^~~~~~~
+                    _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountPickerView.swift:316:25: warning: initialization of immutable value 'account' was never used; consider replacing with assignment to '_' or removing it
+                    let account = try await serviceManager.addBlueskyAccount(
+                    ~~~~^~~~~~~
+                    _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountService.swift:157:13: warning: result of call to 'saveAccount' is unused
+            saveAccount(account)
+            ^          ~~~~~~~~~
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountService.swift:179:18: warning: immutable value 'newAccessToken' was never used; consider replacing with '_' or removing it
+            let (newAccessToken, _) = try await BlueskyService.shared.refreshSession(for: account)
+                 ^~~~~~~~~~~~~~
+                 _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountTimelineView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AccountsView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ActionBar.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AddAccountView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/AnimatedGIFView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/AppVersionManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AsyncImageFromProvider.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Components/AsyncLoader.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/AudioPlayerView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/AudioPlayerView.swift:342:27: warning: value 'track' was defined but never used; consider replacing with boolean test
+                guard let track = track else {
+                      ~~~~^~~~~~~~
+                                        != nil
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/AuthWebView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AutomaticTokenRefreshService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyAPIClient.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ BlueskyPost.swift,\ BlueskyService.swift,\ BlueskyThreadResolver.swift,\ BoostBanner.swift,\ CachedAsyncImage.swift,\ ChatView.swift,\ Color+Theme.swift,\ ComposeView.swift,\ ConnectionManager.swift,\ ConsolidatedTimelineView.swift,\ ContentView.swift,\ DateParser.swift,\ DebugBlueskyView.swift,\ DebugOptionsView.swift,\ DirectTokenEntryView.swift,\ DraftPost.swift,\ DraftStore.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyPost.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyThreadResolver.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/BoostBanner.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/CachedAsyncImage.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ChatView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/Color+Theme.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ComposeView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/ConnectionManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ConsolidatedTimelineView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ContentView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/DateParser.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugOptionsView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DirectTokenEntryView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/DraftPost.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/DraftStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyPost.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyService.swift:638:17: warning: initialization of variable 'postsWithQuotes' was never used; consider replacing with assignment to '_' or removing it
+            var postsWithQuotes = 0
+            ~~~~^~~~~~~~~~~~~~~
+            _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyService.swift:2185:13: warning: initialization of immutable value 'content' was never used; consider replacing with assignment to '_' or removing it
+        let content = post.record.text
+        ~~~~^~~~~~~
+        _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyService.swift:3588:13: warning: variable 'currentProfile' was never mutated; consider changing to 'let' constant
+        var currentProfile =
+        ~~~ ^
+        let
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/BlueskyThreadResolver.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/BoostBanner.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/CachedAsyncImage.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/CachedAsyncImage.swift:439:22: warning: capture 'stableID' was never used
+            .sink { [stableID] loadedImage in
+                     ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ChatView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/Color+Theme.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ComposeView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/ConnectionManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/ConnectionManager.swift:130:24: warning: immutable value 'response' was never used; consider replacing with '_' or removing it
+            let (data, response) = try await send(request)
+                       ^~~~~~~~
+                       _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/ConnectionManager.swift:304:23: warning: value 'self' was defined but never used; consider replacing with boolean test
+            guard let self = self else { return }
+                  ~~~~^~~~~~~
+                                  != nil
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ConsolidatedTimelineView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ConsolidatedTimelineView.swift:140:17: warning: 'init(destination:isActive:label:)' was deprecated in iOS 16.0: use NavigationLink(value:label:), or navigationDestination(isPresented:destination:), inside a NavigationStack or NavigationSplitView
+                NavigationLink(
+                ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ConsolidatedTimelineView.swift:159:17: warning: 'init(destination:isActive:label:)' was deprecated in iOS 16.0: use NavigationLink(value:label:), or navigationDestination(isPresented:destination:), inside a NavigationStack or NavigationSplitView
+                NavigationLink(
+                ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ConsolidatedTimelineView.swift:173:17: warning: 'init(destination:isActive:label:)' was deprecated in iOS 16.0: use NavigationLink(value:label:), or navigationDestination(isPresented:destination:), inside a NavigationStack or NavigationSplitView
+                NavigationLink(
+                ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ConsolidatedTimelineView.swift:421:13: warning: initialization of immutable value 'entry' was never used; consider replacing with assignment to '_' or removing it
+        let entry = TimelineEntry(
+        ~~~~^~~~~
+        _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ContentView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/DateParser.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift:147:19: warning: value 'token' was defined but never used; consider replacing with boolean test
+        guard let token = account.getAccessToken() else {
+              ~~~~^~~~~~~~
+                                                   != nil
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift:210:19: warning: value 'blueskyAccount' was defined but never used; consider replacing with boolean test
+        guard let blueskyAccount = serviceManager.blueskyAccounts.first else {
+              ~~~~^~~~~~~~~~~~~~~~~
+                                                                        != nil
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift:225:11: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+        } catch {
+          ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift:261:16: warning: value 'blueskyAccount' was defined but never used; consider replacing with boolean test
+        if let blueskyAccount = serviceManager.blueskyAccounts.first {
+           ~~~~^~~~~~~~~~~~~~~~~
+                                                                     != nil
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugBlueskyView.swift:269:15: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+            } catch {
+              ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugOptionsView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DebugOptionsView.swift:126:45: warning: 'appendInterpolation' is deprecated: Localized string interpolation produces an unlocalized, debug description for this type of value. Use a type supported by LocalizedStringKey.StringInterpolation or initialize a LocalizedStringResource instead with an interpolated value that conforms to CustomLocalizedStringResourceConvertible.
+                        Text("Total loads: \(profileStats["total_loads"] ?? 0)")
+                                            ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/DirectTokenEntryView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/DraftPost.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/DraftStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ LinkDetection.swift,\ LinkPreview.swift,\ LinkPreviewCache.swift,\ LinkPreviewSelector.swift,\ LiquidGlassComponents.swift,\ LiquidGlassConfiguration.swift,\ LoadingState.swift,\ MastodonAPIClient.swift,\ MastodonModels.swift,\ MastodonPost.swift,\ MastodonService.swift,\ MediaConfiguration.swift,\ MediaErrorHandler.swift,\ MediaFullscreenView.swift,\ MediaGridView.swift,\ MediaMemoryManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/LinkDetection.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LinkPreview.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/LinkPreviewCache.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LinkPreviewSelector.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LiquidGlassComponents.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LiquidGlassConfiguration.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Components/LoadingState.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonAPIClient.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/MastodonModels.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/MastodonPost.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Configuration/MediaConfiguration.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MediaErrorHandler.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MediaFullscreenView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/MediaGridView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MediaMemoryManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/LinkDetection.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LinkPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/LinkPreviewCache.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LinkPreviewSelector.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LiquidGlassComponents.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/LiquidGlassConfiguration.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Components/LoadingState.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonAPIClient.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/MastodonModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/MastodonPost.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1182:82: warning: left side of nil coalescing operator '??' has non-optional type 'String', so the right side is never used
+                    logger.error("❌ MASTODON: API Error: \(errorResponse.error ?? "Unknown error")")
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1183:75: warning: left side of nil coalescing operator '??' has non-optional type 'String', so the right side is never used
+                    print("❌ MASTODON: API Error: \(errorResponse.error ?? "Unknown error")")
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1505:20: warning: no 'async' operations occur within 'await' expression
+            return await self.convertMastodonStatusToPost(status, account: account)
+                   ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1604:20: warning: no 'async' operations occur within 'await' expression
+            return await self.convertMastodonStatusToPost(status, account: account)
+                   ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1678:16: warning: no 'async' operations occur within 'await' expression
+        return await self.convertMastodonStatusToPost(status, account: account)
+               ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1722:16: warning: no 'async' operations occur within 'await' expression
+        return await self.convertMastodonStatusToPost(status, account: account)
+               ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:1790:16: warning: no 'async' operations occur within 'await' expression
+        return await self.convertMastodonStatusToPost(status, account: account)
+               ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:2149:66: warning: immutable value 'replyToId' was never used; consider replacing with '_' or removing it
+        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
+                                                             ~~~~^~~~~~~~~
+                                                             _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:2491:16: warning: immutable value 'replyToAccountId' was never used; consider replacing with '_' or removing it
+        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId,
+           ~~~~^~~~~~~~~~~~~~~~
+           _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:2644:16: warning: no 'async' operations occur within 'await' expression
+        return await self.convertMastodonStatusToPost(status, account: account)
+               ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:2677:21: warning: no 'async' operations occur within 'await' expression
+        let posts = await convertToGenericPosts(statuses: statuses)
+                    ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:2766:57: warning: capture of 'mastodonAccount' with non-Sendable type 'MastodonAccount' in a '@Sendable' closure
+                        "✅ Updated Mastodon account \(mastodonAccount.username) with profile image URL"
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/MastodonModels.swift:45:15: note: consider making struct 'MastodonAccount' conform to the 'Sendable' protocol
+public struct MastodonAccount: Codable {
+              ^
+                                      , Sendable
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MastodonService.swift:2883:20: warning: no 'async' operations occur within 'await' expression
+            return await self.convertMastodonStatusToPost(status, account: account)
+                   ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Configuration/MediaConfiguration.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MediaErrorHandler.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MediaFullscreenView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MediaFullscreenView.swift:74:31: warning: value 'currentAttachment' was defined but never used; consider replacing with boolean test
+                } else if let currentAttachment = currentAttachment {
+                          ~~~~^~~~~~~~~~~~~~~~~~~~
+                                                                    != nil
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MediaFullscreenView.swift:664:30: warning: 'windows' was deprecated in iOS 15.0: Use UIWindowScene.windows on a relevant window scene instead
+        UIApplication.shared.windows.first?.rootViewController?
+                             ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MediaFullscreenView.swift:526:9: warning: default will never be executed
+        default:
+        ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/MediaGridView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MediaMemoryManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ SocialFusion (in target 'SocialFusion' from project 'SocialFusion')
+
+EmitSwiftModule normal arm64 (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post.swift:1297:10: warning: associated value 'bluesky' of 'Sendable'-conforming enum 'UnifiedChatMessage' has non-Sendable type 'BlueskyChatMessage'; this is an error in the Swift 6 language mode
+    case bluesky(BlueskyChatMessage)
+         ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyModels.swift:334:13: note: consider making enum 'BlueskyChatMessage' conform to the 'Sendable' protocol
+public enum BlueskyChatMessage: Codable, Identifiable {
+            ^
+                                                     , Sendable
+
+SwiftCompile normal arm64 Compiling\ URLService.swift,\ UnifiedAccountsIcon.swift,\ UnifiedInteractionButtons.swift,\ UnifiedMediaGridView.swift,\ UnifiedPostStore.swift,\ UnifiedTimelineController.swift,\ UnifiedTimelineView.swift,\ UserDefaults+Keychain.swift,\ UserDetailView.swift,\ Utilities.swift,\ YouTubeExtractor.swift,\ FullscreenMediaView.swift,\ FullscreenMediaCoordinator.swift,\ AuthenticatedVideoAssetLoader.swift,\ AccountAccessor.swift,\ GeneratedAssetSymbols.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/URLService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UnifiedAccountsIcon.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/UnifiedInteractionButtons.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/UnifiedMediaGridView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/UnifiedPostStore.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/UnifiedTimelineController.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UnifiedTimelineView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/UserDefaults+Keychain.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UserDetailView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/Utilities.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/YouTubeExtractor.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/FullscreenMediaView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/FullscreenMediaCoordinator.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AuthenticatedVideoAssetLoader.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountAccessor.swift /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/URLService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UnifiedAccountsIcon.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/UnifiedInteractionButtons.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/UnifiedMediaGridView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/UnifiedPostStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/UnifiedTimelineController.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UnifiedTimelineView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/UserDefaults+Keychain.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UserDetailView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/UserDetailView.swift:83:31: warning: value 'error' was defined but never used; consider replacing with boolean test
+                } else if let error = error {
+                          ~~~~^~~~~~~~
+                                            != nil
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/Utilities.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/YouTubeExtractor.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/FullscreenMediaView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/FullscreenMediaCoordinator.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AuthenticatedVideoAssetLoader.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountAccessor.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountAccessor.swift:34:9: warning: default will never be executed
+        default:
+        ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/AccountAccessor.swift:52:9: warning: default will never be executed
+        default:
+        ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ String+HTML.swift,\ SystemImagePicker.swift,\ TagDetailView.swift,\ TestPlayground.swift,\ Text+HTML.swift,\ TimeFormatters.swift,\ TimelineCard.swift,\ TimelineConfiguration.swift,\ TimelineController.swift,\ TimelineEntry.swift,\ TimelineState.swift,\ TimelineSwiftDataStore.swift,\ TimelineV2ValidationRunner.swift,\ TimelineV2ValidationView.swift,\ TimelineViewModel.swift,\ TokenManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/String+HTML.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SystemImagePicker.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/TagDetailView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/TestPlayground.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/Text+HTML.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TimeFormatters.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/TimelineCard.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/State/TimelineConfiguration.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/TimelineController.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/TimelineEntry.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/TimelineState.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/TimelineSwiftDataStore.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TimelineV2ValidationRunner.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/TimelineV2ValidationView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/TimelineViewModel.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TokenManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/String+HTML.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SystemImagePicker.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/TagDetailView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/TagDetailView.swift:32:31: warning: value 'error' was defined but never used; consider replacing with boolean test
+                } else if let error = error {
+                          ~~~~^~~~~~~~
+                                            != nil
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/TestPlayground.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/Text+HTML.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TimeFormatters.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/TimelineCard.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/State/TimelineConfiguration.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/TimelineController.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/TimelineEntry.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/TimelineState.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/TimelineState.swift:45:16: warning: value 'original' was defined but never used; consider replacing with boolean test
+        if let original = post.originalPost {
+           ~~~~^~~~~~~~~~~
+                                            != nil
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/TimelineState.swift:197:13: warning: initialization of immutable value 'wasFirstLoad' was never used; consider replacing with assignment to '_' or removing it
+        let wasFirstLoad = !isInitialized
+        ~~~~^~~~~~~~~~~~
+        _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/TimelineSwiftDataStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TimelineV2ValidationRunner.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TimelineV2ValidationRunner.swift:96:11: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+        } catch {
+          ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TimelineV2ValidationRunner.swift:460:11: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+        } catch {
+          ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/TimelineV2ValidationView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/TimelineViewModel.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/TimelineViewModel.swift:236:29: warning: default will never be executed
+                            default:
+                            ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/TimelineViewModel.swift:420:29: warning: default will never be executed
+                            default:
+                            ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/TimelineViewModel.swift:707:13: warning: default will never be executed
+            default:
+            ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/TokenManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ PostDivider.swift,\ PostLinkPreview.swift,\ PostMenu.swift,\ PostMetrics.swift,\ PostNavigationEnvironment.swift,\ PostNormalizer.swift,\ PostNormalizerImpl.swift,\ PostPlatformBadge.swift,\ PostPollView.swift,\ PostShareButton.swift,\ PostStore.swift,\ PostTimestamp.swift,\ PostViewModel.swift,\ PreviewLinkSelection.swift,\ ProfileImageView.swift,\ ProfileView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostDivider.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostLinkPreview.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostMenu.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostMetrics.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostNavigationEnvironment.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PostNormalizer.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/PostNormalizerImpl.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostPlatformBadge.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostPollView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostShareButton.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/PostStore.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostTimestamp.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/PostViewModel.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PreviewLinkSelection.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ProfileImageView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ProfileView.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostDivider.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostLinkPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostMenu.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostMetrics.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostNavigationEnvironment.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PostNormalizer.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/PostNormalizerImpl.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostPlatformBadge.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostPollView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostShareButton.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/PostStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/PostStore.swift:32:19: warning: variable 'post' was never mutated; consider changing to 'let' constant
+        guard var post = posts[postID] else { return }
+              ~~~ ^
+              let
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/PostStore.swift:54:19: warning: variable 'post' was never mutated; consider changing to 'let' constant
+        guard var post = posts[postID] else { return }
+              ~~~ ^
+              let
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostTimestamp.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/ViewModels/PostViewModel.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PreviewLinkSelection.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ProfileImageView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ProfileView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/ProfileView.swift:98:31: warning: value 'error' was defined but never used; consider replacing with boolean test
+                } else if let error = error {
+                          ~~~~^~~~~~~~
+                                            != nil
+
+SwiftCompile normal arm64 Compiling\ PlatformBadge.swift,\ PlatformDot.swift,\ PlatformLogoBadge.swift,\ Post+ContentView.swift,\ Post.swift,\ PostActionBar.swift,\ PostActionCoordinator.swift,\ PostActionState.swift,\ PostActionStore.swift,\ PostAuthorImageView.swift,\ PostAuthorView.swift,\ PostAvatar.swift,\ PostCardView.swift,\ PostComposerTopBar.swift,\ PostContent.swift,\ PostDetailView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/PlatformBadge.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PlatformDot.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PlatformLogoBadge.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post+ContentView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostActionBar.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionCoordinator.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PostActionState.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionStore.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostAuthorImageView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostAuthorView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostAvatar.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostCardView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostComposerTopBar.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostContent.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostDetailView.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/PlatformBadge.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PlatformDot.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PlatformLogoBadge.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post+ContentView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post+ContentView.swift:214:45: warning: conditional cast from 'Post' to 'any BlueskyQuotedPostProvider' always succeeds
+        } else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
+                                            ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post+ContentView.swift:706:24: warning: value 'thumbnailUrl' was defined but never used; consider replacing with boolean test
+                if let thumbnailUrl = json["thumbnail_url"] as? String {
+                   ~~~~^~~~~~~~~~~~~~~                      ~~~
+                                                            is
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post+ContentView.swift:770:35: warning: 'javaScriptEnabled' was deprecated in iOS 14.0: Use WKWebpagePreferences.allowsContentJavaScript to disable content JavaScript on a per-navigation basis
+        configuration.preferences.javaScriptEnabled = true
+                                  ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post.swift:1297:10: warning: associated value 'bluesky' of 'Sendable'-conforming enum 'UnifiedChatMessage' has non-Sendable type 'BlueskyChatMessage'; this is an error in the Swift 6 language mode
+    case bluesky(BlueskyChatMessage)
+         ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/BlueskyModels.swift:334:13: note: consider making enum 'BlueskyChatMessage' conform to the 'Sendable' protocol
+public enum BlueskyChatMessage: Codable, Identifiable {
+            ^
+                                                     , Sendable
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/Post.swift:390:13: warning: initialization of immutable value 'authorId' was never used; consider replacing with assignment to '_' or removing it
+        let authorId =
+        ~~~~^~~~~~~~
+        _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostActionBar.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionCoordinator.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionCoordinator.swift:127:13: warning: initialization of immutable value 'currentState' was never used; consider replacing with assignment to '_' or removing it
+        let currentState = store.ensureState(for: post)
+        ~~~~^~~~~~~~~~~~
+        _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionCoordinator.swift:143:13: warning: initialization of immutable value 'currentState' was never used; consider replacing with assignment to '_' or removing it
+        let currentState = store.ensureState(for: post)
+        ~~~~^~~~~~~~~~~~
+        _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionCoordinator.swift:159:13: warning: initialization of immutable value 'currentState' was never used; consider replacing with assignment to '_' or removing it
+        let currentState = store.ensureState(for: post)
+        ~~~~^~~~~~~~~~~~
+        _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PostActionState.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Stores/PostActionStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostAuthorImageView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostAuthorView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostAvatar.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostCardView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostComposerTopBar.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostContent.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PostDetailView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ MediaPerformanceMonitor.swift,\ MigrationControlPanel.swift,\ MigrationTestController.swift,\ MonitoringService.swift,\ MutedKeywordsView.swift,\ NativeYouTubePlayer.swift,\ NetworkConfig.swift,\ NetworkService.swift,\ NotificationManager.swift,\ NotificationName+Extensions.swift,\ NotificationsView.swift,\ OAuthManager.swift,\ OnboardingView.swift,\ ParentPostPreview.swift,\ PerformantLinkPreview.swift,\ PersistentModels.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MediaPerformanceMonitor.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MigrationControlPanel.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/MonitoringService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MutedKeywordsView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/NativeYouTubePlayer.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/NetworkConfig.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/NetworkService.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/NotificationManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/NotificationName+Extensions.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/NotificationsView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/OAuthManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/OnboardingView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ParentPostPreview.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PerformantLinkPreview.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PersistentModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/MediaPerformanceMonitor.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MigrationControlPanel.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift:28:15: warning: result of call to 'testCompatibilityBridge()' is unused
+        await testCompatibilityBridge()
+              ^                      ~~
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift:28:9: warning: no 'async' operations occur within 'await' expression
+        await testCompatibilityBridge()
+        ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift:46:17: warning: initialization of immutable value 'hasEntries' was never used; consider replacing with assignment to '_' or removing it
+            let hasEntries = !timelineController.entries.isEmpty
+            ~~~~^~~~~~~~~~
+            _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift:52:11: warning: 'catch' block is unreachable because no errors are thrown in 'do' block
+        } catch {
+          ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift:82:13: warning: initialization of immutable value 'scrollPosition' was never used; consider replacing with assignment to '_' or removing it
+        let scrollPosition = ScrollPosition.top
+        ~~~~^~~~~~~~~~~~~~
+        _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Controllers/MigrationTestController.swift:92:13: warning: initialization of immutable value 'timelineController' was never used; consider replacing with assignment to '_' or removing it
+        let timelineController = TimelineController(serviceManager: serviceManager)
+        ~~~~^~~~~~~~~~~~~~~~~~
+        _
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/MonitoringService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/MutedKeywordsView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/NativeYouTubePlayer.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/NetworkConfig.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/NetworkConfig.swift:32:47: warning: 'languageCode' was deprecated in iOS 16: renamed to 'language.languageCode.identifier'
+            "Accept-Language": Locale.current.languageCode ?? "en",
+                                              ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/NetworkConfig.swift:32:47: note: use 'language.languageCode.identifier' instead
+            "Accept-Language": Locale.current.languageCode ?? "en",
+                                              ^~~~~~~~~~~~
+                                              language.languageCode.identifier
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Networking/NetworkService.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/NotificationManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Extensions/NotificationName+Extensions.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/NotificationsView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/OAuthManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/OAuthManager.swift:102:37: warning: 'windows' was deprecated in iOS 15.0: Use UIWindowScene.windows on a relevant window scene instead
+        return UIApplication.shared.windows.first { $0.isKeyWindow } ?? UIWindow()
+                                    ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/OnboardingView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ParentPostPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/PerformantLinkPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/PersistentModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 Compiling\ QuotePostView.swift,\ ReliableScrollView.swift,\ RobotsTxtChecker.swift,\ SearchView.swift,\ SettingsView.swift,\ SimpleEdgeCaseHandling.swift,\ SmartMediaView.swift,\ SmartPositionManager.swift,\ SocialAccount.swift,\ SocialFusionApp.swift,\ SocialFusionTimelineDebug.swift,\ SocialModels.swift,\ SocialPlatform.swift,\ SocialServiceManager.swift,\ StabilizedAsyncImage.swift,\ StabilizedLinkPreview.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/QuotePostView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ReliableScrollView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/RobotsTxtChecker.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/SearchView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/SettingsView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/SimpleEdgeCaseHandling.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SmartMediaView.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/State/SmartPositionManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialAccount.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/SocialFusionApp.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/SocialFusionTimelineDebug.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialModels.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialPlatform.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/SocialServiceManager.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/StabilizedAsyncImage.swift /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/StabilizedLinkPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/QuotePostView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/ReliableScrollView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/RobotsTxtChecker.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/SearchView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/SettingsView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/SettingsView.swift:387:45: warning: 'appendInterpolation' is deprecated: Localized string interpolation produces an unlocalized, debug description for this type of value. Use a type supported by LocalizedStringKey.StringInterpolation or initialize a LocalizedStringResource instead with an interpolated value that conforms to CustomLocalizedStringResourceConvertible.
+                        Text("Total loads: \(profileStats["total_loads"] ?? 0)")
+                                            ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/SimpleEdgeCaseHandling.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SmartMediaView.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SmartMediaView.swift:95:17: warning: initialization of immutable value 'initialRatio' was never used; consider replacing with assignment to '_' or removing it
+            let initialRatio = attachment.aspectRatio.map { CGFloat($0) }
+            ~~~~^~~~~~~~~~~~
+            _
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SmartMediaView.swift:592:34: warning: class property 'isMainThread' is unavailable from asynchronous contexts; Work intended for the main actor should be marked with @MainActor; this is an error in the Swift 6 language mode
+                "thread": Thread.isMainThread ? "main" : "background",
+                                 ^
+/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSThread.h:51:34: note: 'isMainThread' declared here
+@property (class, readonly) BOOL isMainThread API_AVAILABLE(macos(10.5), ios(2.0), watchos(2.0), tvos(9.0)) NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Work intended for the main actor should be marked with @MainActor"); // reports whether current thread is main
+                                 ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SmartMediaView.swift:686:46: warning: class property 'isMainThread' is unavailable from asynchronous contexts; Work intended for the main actor should be marked with @MainActor; this is an error in the Swift 6 language mode
+                            "thread": Thread.isMainThread ? "main" : "background",
+                                             ^
+/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSThread.h:51:34: note: 'isMainThread' declared here
+@property (class, readonly) BOOL isMainThread API_AVAILABLE(macos(10.5), ios(2.0), watchos(2.0), tvos(9.0)) NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Work intended for the main actor should be marked with @MainActor"); // reports whether current thread is main
+                                 ^
+/Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/SmartMediaView.swift:806:34: warning: class property 'isMainThread' is unavailable from asynchronous contexts; Work intended for the main actor should be marked with @MainActor; this is an error in the Swift 6 language mode
+                "thread": Thread.isMainThread ? "main" : "background",
+                                 ^
+/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk/System/Library/Frameworks/Foundation.framework/Headers/NSThread.h:51:34: note: 'isMainThread' declared here
+@property (class, readonly) BOOL isMainThread API_AVAILABLE(macos(10.5), ios(2.0), watchos(2.0), tvos(9.0)) NS_SWIFT_UNAVAILABLE_FROM_ASYNC("Work intended for the main actor should be marked with @MainActor"); // reports whether current thread is main
+                                 ^
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/State/SmartPositionManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialAccount.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/SocialFusionApp.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Utilities/SocialFusionTimelineDebug.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Models/SocialPlatform.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Services/SocialServiceManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/StabilizedAsyncImage.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftCompile normal arm64 /Users/frankemanuele/Documents/GitHub/SocialFusion/SocialFusion/Views/Components/StabilizedLinkPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling PostDivider.swift, PostLinkPreview.swift, PostMenu.swift, PostMetrics.swift, PostNavigationEnvironment.swift, PostNormalizer.swift, PostNormalizerImpl.swift, PostPlatformBadge.swift, PostPollView.swift, PostShareButton.swift, PostStore.swift, PostTimestamp.swift, PostViewModel.swift, PreviewLinkSelection.swift, ProfileImageView.swift, ProfileView.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for SocialFusion (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriver\ Compilation\ Requirements SocialFusion normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SocialFusion -Onone -enforce-exclusivity\=checked @/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -F /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache -output-file-map /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion_const_extract_protocols.json -Xcc -iquote -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-generated-files.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-own-target-headers.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-all-target-headers.hmap -Xcc -iquote -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-project-headers.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources-normal/arm64 -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources/arm64 -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-Swift.h -working-directory /Users/frankemanuele/Documents/GitHub/SocialFusion -experimental-emit-module-separately -disable-cmo
+
+Copy /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.abi.json (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.abi.json /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+Copy /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.swiftsourceinfo (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.swiftsourceinfo /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+SwiftDriverJobDiscovery normal arm64 Compiling String+HTML.swift, SystemImagePicker.swift, TagDetailView.swift, TestPlayground.swift, Text+HTML.swift, TimeFormatters.swift, TimelineCard.swift, TimelineConfiguration.swift, TimelineController.swift, TimelineEntry.swift, TimelineState.swift, TimelineSwiftDataStore.swift, TimelineV2ValidationRunner.swift, TimelineV2ValidationView.swift, TimelineViewModel.swift, TokenManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling URLService.swift, UnifiedAccountsIcon.swift, UnifiedInteractionButtons.swift, UnifiedMediaGridView.swift, UnifiedPostStore.swift, UnifiedTimelineController.swift, UnifiedTimelineView.swift, UserDefaults+Keychain.swift, UserDetailView.swift, Utilities.swift, YouTubeExtractor.swift, FullscreenMediaView.swift, FullscreenMediaCoordinator.swift, AuthenticatedVideoAssetLoader.swift, AccountAccessor.swift, GeneratedAssetSymbols.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling MediaPerformanceMonitor.swift, MigrationControlPanel.swift, MigrationTestController.swift, MonitoringService.swift, MutedKeywordsView.swift, NativeYouTubePlayer.swift, NetworkConfig.swift, NetworkService.swift, NotificationManager.swift, NotificationName+Extensions.swift, NotificationsView.swift, OAuthManager.swift, OnboardingView.swift, ParentPostPreview.swift, PerformantLinkPreview.swift, PersistentModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling LinkDetection.swift, LinkPreview.swift, LinkPreviewCache.swift, LinkPreviewSelector.swift, LiquidGlassComponents.swift, LiquidGlassConfiguration.swift, LoadingState.swift, MastodonAPIClient.swift, MastodonModels.swift, MastodonPost.swift, MastodonService.swift, MediaConfiguration.swift, MediaErrorHandler.swift, MediaFullscreenView.swift, MediaGridView.swift, MediaMemoryManager.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling AccessibilityHelpers.swift, AccountManager.swift, AccountPickerView.swift, AccountService.swift, AccountTimelineView.swift, AccountsView.swift, ActionBar.swift, AddAccountView.swift, AnimatedGIFView.swift, AppVersionManager.swift, AsyncImageFromProvider.swift, AsyncLoader.swift, AudioPlayerView.swift, AuthWebView.swift, AutomaticTokenRefreshService.swift, BlueskyAPIClient.swift, BlueskyModels.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling PlatformBadge.swift, PlatformDot.swift, PlatformLogoBadge.swift, Post+ContentView.swift, Post.swift, PostActionBar.swift, PostActionCoordinator.swift, PostActionState.swift, PostActionStore.swift, PostAuthorImageView.swift, PostAuthorView.swift, PostAvatar.swift, PostCardView.swift, PostComposerTopBar.swift, PostContent.swift, PostDetailView.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling QuotePostView.swift, ReliableScrollView.swift, RobotsTxtChecker.swift, SearchView.swift, SettingsView.swift, SimpleEdgeCaseHandling.swift, SmartMediaView.swift, SmartPositionManager.swift, SocialAccount.swift, SocialFusionApp.swift, SocialFusionTimelineDebug.swift, SocialModels.swift, SocialPlatform.swift, SocialServiceManager.swift, StabilizedAsyncImage.swift, StabilizedLinkPreview.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling EdgeCaseHandler.swift, EnhancedEmptyStateView.swift, ErrorHandler.swift, ExpandingReplyBanner.swift, FeatureFlagManager.swift, FeatureFlags.swift, FetchQuotePostView.swift, GIFUnfurlContainer.swift, GIFUnfurlingService.swift, GradualMigrationManager.swift, HTMLFormatter.swift, HTMLString.swift, KeychainHelper.swift, KeychainManager.swift, KeychainService.swift, LaunchAnimationView.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriverJobDiscovery normal arm64 Compiling BlueskyPost.swift, BlueskyService.swift, BlueskyThreadResolver.swift, BoostBanner.swift, CachedAsyncImage.swift, ChatView.swift, Color+Theme.swift, ComposeView.swift, ConnectionManager.swift, ConsolidatedTimelineView.swift, ContentView.swift, DateParser.swift, DebugBlueskyView.swift, DebugOptionsView.swift, DirectTokenEntryView.swift, DraftPost.swift, DraftStore.swift (in target 'SocialFusion' from project 'SocialFusion')
+
+SwiftDriver\ Compilation SocialFusion normal arm64 com.apple.xcode.tools.swift.compiler (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-Swift-Compilation -- /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name SocialFusion -Onone -enforce-exclusivity\=checked @/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Index.noindex/DataStore -Xcc -D_LIBCPP_HARDENING_MODE\=_LIBCPP_HARDENING_MODE_DEBUG -swift-version 5 -I /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -F /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -c -j10 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator26.2-23C53-7d00a8b37fbd7999ea79df8ebc024bf0.sdkstatcache -output-file-map /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -explicit-module-build -module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SwiftExplicitPrecompiledModules -clang-scanner-module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -sdk-module-cache-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/frankemanuele/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion_const_extract_protocols.json -Xcc -iquote -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-generated-files.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-own-target-headers.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-all-target-headers.hmap -Xcc -iquote -Xcc /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-project-headers.hmap -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources-normal/arm64 -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources/arm64 -Xcc -I/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-Swift.h -working-directory /Users/frankemanuele/Documents/GitHub/SocialFusion -experimental-emit-module-separately -disable-cmo
+
+Ld /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib normal (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -dynamiclib -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -O0 -L/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -F/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -filelist /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.LinkFileList -install_name @rpath/SocialFusion.debug.dylib -Xlinker -rpath -Xlinker /usr/lib/swift -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.swiftmodule @/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion-linker-args.resp -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -Xlinker -no_adhoc_codesign -o /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib
+
+ConstructStubExecutorLinkFileList /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-ExecutorLinkFileList-normal-arm64.txt (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    construct-stub-executor-link-file-list /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'SocialFusion' from project 'SocialFusion')
+
+Ld /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion normal (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk -O0 -L/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -F/Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker @executable_path/Frameworks -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion-ExecutorLinkFileList-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion.app-Simulated.xcent -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __ents_der -Xlinker /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion.app-Simulated.xcent.der /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion
+
+CopySwiftLibs /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib --scan-folder /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/Frameworks --scan-folder /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/PlugIns --scan-folder /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SystemExtensions --scan-folder /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/Extensions --platform iphonesimulator --toolchain /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+
+ExtractAppIntentsMetadata (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name SocialFusion --sdk-root /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator26.2.sdk --xcode-version 17C52 --platform-family iOS --deployment-target 16.0 --bundle-identifier com.socialfusionapp.app --output /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app --target-triple arm64-apple-ios16.0-simulator --binary-file /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion --dependency-file /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion_dependency_info.dat --stringsdata-file /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.SwiftFileList --metadata-file-list /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion.DependencyMetadataFileList --static-metadata-file-list /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion.DependencyStaticMetadataFileList --swift-const-vals-list /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/Objects-normal/arm64/SocialFusion.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-01-02 00:21:44.780 appintentsmetadataprocessor[13974:13375843] Starting appintentsmetadataprocessor export
+2026-01-02 00:21:44.782 appintentsmetadataprocessor[13974:13375843] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+AppIntentsSSUTraining (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/Info.plist --temp-dir-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/ssu --bundle-id com.socialfusionapp.app --product-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app --extracted-metadata-path /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/Metadata.appintents --metadata-file-list /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Intermediates.noindex/SocialFusion.build/Debug-iphonesimulator/SocialFusion.build/SocialFusion.DependencyMetadataFileList --archive-ssu-assets
+2026-01-02 00:21:44.810 appintentsnltrainingprocessor[13975:13375844] Parsing options for appintentsnltrainingprocessor
+2026-01-02 00:21:44.811 appintentsnltrainingprocessor[13975:13375844] No AppShortcuts found - Skipping.
+
+CodeSign /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/SocialFusion.debug.dylib
+
+CodeSign /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/__preview.dylib (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app/__preview.dylib
+
+CodeSign /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app
+
+RegisterExecutionPolicyException /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-RegisterExecutionPolicyException /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app
+
+Validate /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    builtin-validationUtility /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app -shallow-bundle -infoplist-subpath Info.plist
+
+Touch /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app (in target 'SocialFusion' from project 'SocialFusion')
+    cd /Users/frankemanuele/Documents/GitHub/SocialFusion
+    /usr/bin/touch -c /Users/frankemanuele/Library/Developer/Xcode/DerivedData/SocialFusion-dmcylkdxdnugaugctnmrhexeekqr/Build/Products/Debug-iphonesimulator/SocialFusion.app
+
+** BUILD SUCCEEDED **
+

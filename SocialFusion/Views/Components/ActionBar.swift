@@ -36,6 +36,7 @@ struct ActionBar: View {
     // Track operation state per button
     @State private var isLikeProcessing = false
     @State private var isRepostProcessing = false
+    @State private var isReplyProcessing = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -44,7 +45,15 @@ struct ActionBar: View {
                 count: post.replyCount,
                 isReplied: post.isReplied,
                 platform: post.platform,
-                onTap: { onAction(.reply) }
+                isProcessing: isReplyProcessing,
+                onTap: {
+                    isReplyProcessing = true
+                    onAction(.reply)
+                    Task {
+                        try? await Task.sleep(nanoseconds: 500_000_000)
+                        isReplyProcessing = false
+                    }
+                }
             )
             .accessibilityLabel("Reply")
             .frame(maxWidth: .infinity)
@@ -67,19 +76,15 @@ struct ActionBar: View {
             .frame(maxWidth: .infinity)
 
             // Quote button
-            Button {
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-
-                onAction(.quote)
-            } label: {
-                Image(systemName: "quote.opening")
-                    .font(.system(size: iconSize))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(SmoothScaleButtonStyle())
-            .accessibilityLabel("Quote Post")
+            UnifiedQuoteButton(
+                isQuoted: post.isQuoted,
+                platform: post.platform,
+                isProcessing: false, // Quote opens compose view, no async processing needed
+                onTap: {
+                    onAction(.quote)
+                }
+            )
+            .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
             .frame(maxWidth: .infinity)
 
             // Like button
@@ -100,19 +105,10 @@ struct ActionBar: View {
             .frame(maxWidth: .infinity)
 
             // Share button
-            Button {
-                // Add haptic feedback
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-
-                onAction(.share)
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: iconSize))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(SmoothScaleButtonStyle())
-            .accessibilityLabel("Share")
+            PostShareButton(
+                post: post,
+                onTap: { onAction(.share) }
+            )
             .frame(maxWidth: .infinity)
 
             // Menu button (three dots)
@@ -194,27 +190,29 @@ struct ActionBarV2: View {
     private var isPending: Bool { store.pendingKeys.contains(actionKey) }
 
     private var quoteButton: some View {
-        Button {
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
-        } label: {
-            Image(systemName: "quote.opening")
-                .font(.system(size: 18))
-                .foregroundColor(.secondary)
-        }
-        .buttonStyle(SmoothScaleButtonStyle())
-        .accessibilityLabel("Quote Post")
+        UnifiedQuoteButton(
+            isQuoted: state.isQuoted,
+            platform: post.platform,
+            isProcessing: false, // Quote opens compose view, no async processing needed
+            onTap: {
+                onAction(.quote)
+            }
+        )
+        .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
     }
 
     var body: some View {
         HStack(spacing: 0) {
             UnifiedReplyButton(
                 count: state.replyCount,
-                isReplied: post.isReplied,
+                isReplied: state.isReplied,
                 platform: post.platform,
-                onTap: onReply
+                isProcessing: false, // Reply opens compose view, no async processing needed
+                onTap: {
+                    onReply()
+                }
             )
-            .accessibilityLabel(post.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+            .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
             .frame(maxWidth: .infinity)
 
             UnifiedRepostButton(
@@ -238,17 +236,10 @@ struct ActionBarV2: View {
             quoteButton
                 .frame(maxWidth: .infinity)
 
-            Button {
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.impactOccurred()
-                onShare()
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 18))
-                    .foregroundColor(.secondary)
-            }
-            .buttonStyle(SmoothScaleButtonStyle())
-            .accessibilityLabel("Share")
+            PostShareButton(
+                post: post,
+                onTap: onShare
+            )
             .frame(maxWidth: .infinity)
 
             Menu {

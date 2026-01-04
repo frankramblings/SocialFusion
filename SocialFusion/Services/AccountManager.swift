@@ -3,6 +3,8 @@ import Foundation
 import Security
 import SwiftUI
 
+// Note: PersistenceManager is accessed via its shared instance
+
 /// AccountManager handles all operations related to social media accounts
 class AccountManager: ObservableObject {
     static let shared = AccountManager()
@@ -41,22 +43,74 @@ class AccountManager: ObservableObject {
     func loadAccounts() {
         isLoading = true
 
-        // Load Mastodon accounts from Keychain
-        mastodonAccounts = loadAccountsFromKeychain(service: mastodonKeychainService)
-            .filter { validateAccount($0) }
+        // Try to load from PersistenceManager first (same as SocialServiceManager)
+        Task { @MainActor in
+            if let loadedAccounts = await PersistenceManager.shared.loadAccounts() {
+                // Split accounts by platform
+                self.mastodonAccounts = loadedAccounts.filter { $0.platform == .mastodon }
+                    .filter { validateAccount($0) }
+                self.blueskyAccounts = loadedAccounts.filter { $0.platform == .bluesky }
+                    .filter { validateAccount($0) }
+                
+                print(
+                    "✅ [AccountManager] Loaded \(self.mastodonAccounts.count) Mastodon accounts and \(self.blueskyAccounts.count) Bluesky accounts from PersistenceManager"
+                )
+                
+                self.isLoading = false
+                self.validateSelectedAccounts()
+                return
+            }
+            
+            // Fallback to Keychain if PersistenceManager has no accounts
+            // Load Mastodon accounts from Keychain
+            self.mastodonAccounts = self.loadAccountsFromKeychain(service: self.mastodonKeychainService)
+                .filter { self.validateAccount($0) }
 
-        // Load Bluesky accounts from Keychain
-        blueskyAccounts = loadAccountsFromKeychain(service: blueskyKeychainService)
-            .filter { validateAccount($0) }
+            // Load Bluesky accounts from Keychain
+            self.blueskyAccounts = self.loadAccountsFromKeychain(service: self.blueskyKeychainService)
+                .filter { self.validateAccount($0) }
 
-        print(
-            "Loaded \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
-        )
+            print(
+                "⚠️ [AccountManager] Loaded \(self.mastodonAccounts.count) Mastodon accounts and \(self.blueskyAccounts.count) Bluesky accounts from Keychain (PersistenceManager had none)"
+            )
 
-        isLoading = false
+            self.isLoading = false
 
-        // Validate selected accounts
-        validateSelectedAccounts()
+            // Validate selected accounts
+            self.validateSelectedAccounts()
+        }
+    }
+    
+    /// Async method to ensure accounts are loaded
+    @MainActor
+    func loadAccountsAsync() async {
+        // If already loaded, return immediately
+        if !mastodonAccounts.isEmpty || !blueskyAccounts.isEmpty {
+            return
+        }
+        
+        // If loading is in progress, wait for it
+        if isLoading {
+            // Wait for loading to complete (poll every 100ms, max 2 seconds)
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                if !isLoading {
+                    return
+                }
+            }
+        }
+        
+        // If still empty, trigger a load and wait
+        if mastodonAccounts.isEmpty && blueskyAccounts.isEmpty {
+            loadAccounts()
+            // Wait for loading to complete
+            for _ in 0..<20 {
+                try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
+                if !isLoading {
+                    return
+                }
+            }
+        }
     }
 
     /// Load selected account IDs from UserDefaults

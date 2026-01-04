@@ -893,16 +893,8 @@ struct ExpandableTextView: View {
                     && !URLService.shared.isGIFURL($0)
             }
 
-            print("🔗 [Mastodon URL Processing] Original content: \(processedContent.prefix(200))")
-            print(
-                "🔗 [Mastodon URL Processing] Found \(previewableLinks.count) previewable links, \(post.attachments.count) attachments"
-            )
-            print(
-                "🔗 [Mastodon URL Processing] Will remove URLs: \(post.attachments.isEmpty && !previewableLinks.isEmpty)"
-            )
-            for (i, link) in previewableLinks.enumerated() {
-                print("🔗 [Mastodon URL Removal] Link \(i): \(link.absoluteString)")
-            }
+            // REMOVED: Print statements causing AttributeGraph cycles during view rendering
+            // These were being called repeatedly during SwiftUI's view update cycle
 
             // CRITICAL: Only remove URLs if there are no attachments
             // This ensures that when posts have media attachments, URLs remain visible and clickable
@@ -931,9 +923,7 @@ struct ExpandableTextView: View {
                             of: pattern, with: "", options: [.regularExpression, .caseInsensitive])
                         let afterCount = processedContent.count
                         if beforeCount != afterCount {
-                            print(
-                                "🔗 [Mastodon URL Removal] Pattern '\(pattern.prefix(50))...' removed \(beforeCount - afterCount) characters"
-                            )
+                            // REMOVED: Print statement causing AttributeGraph cycles
                             break  // Stop at first successful pattern to avoid over-removal
                         }
                     }
@@ -944,31 +934,14 @@ struct ExpandableTextView: View {
                     )
                     .trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    if originalContent != processedContent {
-                        print(
-                            "🔗 [Mastodon URL Removal] Content changed after processing link: \(link.absoluteString)"
-                        )
-                    } else {
-                        print(
-                            "🔗 [Mastodon URL Removal] ⚠️ No changes made for link: \(link.absoluteString)"
-                        )
-                    }
+                    // REMOVED: Print statements causing AttributeGraph cycles
+                    // Content processing happens silently to avoid view update side effects
                 }
-
-                print("🔗 [Mastodon URL Removal] Final content: \(processedContent.prefix(200))")
             } else if !post.attachments.isEmpty {
-                print(
-                    "🔗 [Mastodon URL Processing] ✅ Preserving URLs because post has \(post.attachments.count) media attachments"
-                )
-            } else if previewableLinks.isEmpty {
-                print(
-                    "🔗 [Mastodon URL Processing] No previewable links found, keeping original content"
-                )
+                // REMOVED: Print statement causing AttributeGraph cycles
+                // URLs are preserved when post has attachments
             }
-        } else if platform == .bluesky {
-            print(
-                "🔗 [Bluesky URL Processing] ✅ Preserving all URLs (matches native Bluesky behavior)"
-            )
+            // REMOVED: Print statements causing AttributeGraph cycles during view rendering
         }
 
         if shouldTruncate && !isExpanded {
@@ -985,16 +958,17 @@ struct ExpandableTextView: View {
     private var contentToDisplay: String {
         let htmlString = HTMLString(raw: displayContent)
         let plainText = htmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         let originalHtmlString = HTMLString(raw: content)
-        let originalPlainText = originalHtmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        let originalPlainText = originalHtmlString.plainText.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+
         // Use original content if displayContent was stripped too aggressively
         // This is especially important for Mastodon posts that might have only URLs or HTML entities
         if plainText.isEmpty && !originalPlainText.isEmpty {
             return content
         }
-        
+
         // For Mastodon, if both are empty but raw content exists, use raw content
         // This handles cases where HTML might not convert to plain text but still has content
         if platform == .mastodon && plainText.isEmpty && originalPlainText.isEmpty {
@@ -1003,10 +977,10 @@ struct ExpandableTextView: View {
                 return content
             }
         }
-        
+
         return displayContent
     }
-    
+
     // Computed property to check if content exists
     // For Mastodon, be more lenient - check if there's any meaningful content
     // even if it's just HTML entities or whitespace that might render as visible text
@@ -1015,23 +989,26 @@ struct ExpandableTextView: View {
         // First check processed content
         let htmlString = HTMLString(raw: displayContent)
         let plainText = htmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+
         // Check original content as fallback
         let originalHtmlString = HTMLString(raw: content)
-        let originalPlainText = originalHtmlString.plainText.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        let originalPlainText = originalHtmlString.plainText.trimmingCharacters(
+            in: .whitespacesAndNewlines)
+
         // For Mastodon, also check if the raw HTML has any non-whitespace content
         // This catches cases where HTML entities or tags might render as visible content
         let hasRawContent = !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        
+
         // Check for other content types that indicate the post has meaningful content
+        // Use the post's attachments (which should be displayPost when called from PostCardView)
         let hasMedia = !post.attachments.isEmpty
         let hasQuotePost = post.quotedPost != nil || post.quotedPostUri != nil
-        
+
         // Check for link previews if enabled
         var hasLinkPreview = false
         if showLinkPreview {
-            let plainTextForLinks = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let plainTextForLinks =
+                platform == .mastodon ? HTMLString(raw: content).plainText : content
             let allLinks = URLService.shared.extractLinks(from: plainTextForLinks)
             let previewableLinks = allLinks.filter {
                 !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
@@ -1039,7 +1016,7 @@ struct ExpandableTextView: View {
             }
             hasLinkPreview = !previewableLinks.isEmpty
         }
-        
+
         // Content exists if:
         // 1. Plain text is not empty (after HTML processing), OR
         // 2. Original plain text is not empty, OR
@@ -1047,10 +1024,11 @@ struct ExpandableTextView: View {
         // 4. Post has media attachments, OR
         // 5. Post has a quote post, OR
         // 6. Post has link previews
-        return !plainText.isEmpty || !originalPlainText.isEmpty || (platform == .mastodon && hasRawContent)
+        return !plainText.isEmpty || !originalPlainText.isEmpty
+            || (platform == .mastodon && hasRawContent)
             || hasMedia || hasQuotePost || hasLinkPreview
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if hasContent {
@@ -1081,7 +1059,7 @@ struct ExpandableTextView: View {
                 }
             }
             // Note: VStack requires at least one child, so we use EmptyView() if no content
-            
+
             // Show More button
             if shouldTruncate && !isExpanded {
                 Button(action: {

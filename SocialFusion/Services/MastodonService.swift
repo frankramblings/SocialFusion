@@ -31,6 +31,39 @@ public final class MastodonService: @unchecked Sendable {
 
     public init() {}
 
+    // MARK: - Rate Limit Helpers
+
+    /// Parse Mastodon rate limit reset time from x-ratelimit-reset header
+    /// Mastodon uses ISO 8601 timestamp format: 2026-01-01T01:55:00.588881Z
+    private func parseRateLimitReset(_ resetHeader: String?) -> TimeInterval? {
+        guard let resetHeader = resetHeader else { return nil }
+
+        // Try ISO 8601 format first (Mastodon standard)
+        let iso8601Formatter = ISO8601DateFormatter()
+        iso8601Formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        if let resetDate = iso8601Formatter.date(from: resetHeader) {
+            let now = Date()
+            let secondsUntilReset = resetDate.timeIntervalSince(now)
+            return max(0, secondsUntilReset)  // Ensure non-negative
+        }
+
+        // Fallback: Try standard ISO 8601 without fractional seconds
+        iso8601Formatter.formatOptions = [.withInternetDateTime]
+        if let resetDate = iso8601Formatter.date(from: resetHeader) {
+            let now = Date()
+            let secondsUntilReset = resetDate.timeIntervalSince(now)
+            return max(0, secondsUntilReset)
+        }
+
+        // Fallback: Try parsing as seconds (Retry-After format)
+        if let seconds = TimeInterval(resetHeader) {
+            return max(0, seconds)
+        }
+
+        return nil
+    }
+
     // MARK: - Authentication Utilities
 
     /// Creates an authenticated request with automatic token refresh
@@ -506,8 +539,44 @@ public final class MastodonService: @unchecked Sendable {
 
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+        }
+
+        // Handle rate limiting (429) with specific error type
+        if httpResponse.statusCode == 429 {
+            let resetHeader = httpResponse.value(forHTTPHeaderField: "x-ratelimit-reset")
+            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+
+            // Parse rate limit reset time
+            let retrySeconds: TimeInterval
+            if let resetTime = parseRateLimitReset(resetHeader) {
+                retrySeconds = resetTime
+            } else if let retryAfterValue = retryAfter, let seconds = TimeInterval(retryAfterValue)
+            {
+                retrySeconds = seconds
+            } else {
+                retrySeconds = 60  // Default to 60 seconds if we can't parse
+            }
+
+            logger.error(
+                "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
+            )
+            print(
+                "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
+            )
+
+            throw ServiceError.rateLimitError(
+                reason: "Too many requests to Mastodon server",
+                retryAfter: retrySeconds
+            )
+        }
+
+        guard httpResponse.statusCode == 200 else {
+            let statusCode = httpResponse.statusCode
 
             // Try to decode error response for better error messages
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
@@ -539,7 +608,7 @@ public final class MastodonService: @unchecked Sendable {
     }
 
     /// Verify credentials using a SocialAccount (automatically handles token refreshing)
-    func verifyCredentials(account: SocialAccount) async throws -> MastodonAccount {
+    public func verifyCredentials(account: SocialAccount) async throws -> MastodonAccount {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
@@ -557,12 +626,48 @@ public final class MastodonService: @unchecked Sendable {
             url: url, method: "GET", account: account)
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 0,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
+        }
+
+        // Handle rate limiting (429) with specific error type
+        if httpResponse.statusCode == 429 {
+            let resetHeader = httpResponse.value(forHTTPHeaderField: "x-ratelimit-reset")
+            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+
+            // Parse rate limit reset time
+            let retrySeconds: TimeInterval
+            if let resetTime = parseRateLimitReset(resetHeader) {
+                retrySeconds = resetTime
+            } else if let retryAfterValue = retryAfter, let seconds = TimeInterval(retryAfterValue)
+            {
+                retrySeconds = seconds
+            } else {
+                retrySeconds = 60  // Default to 60 seconds if we can't parse
+            }
+
+            logger.error(
+                "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
+            )
+            print(
+                "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
+            )
+
+            throw ServiceError.rateLimitError(
+                reason: "Too many requests to Mastodon server",
+                retryAfter: retrySeconds
+            )
+        }
+
+        guard httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
                 throw errorResponse
             }
             throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                domain: "MastodonService", code: httpResponse.statusCode,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to verify credentials"])
         }
 
@@ -791,7 +896,48 @@ public final class MastodonService: @unchecked Sendable {
                 throw ServiceError.unauthorized("Authentication failed or expired")
             }
 
+            // Handle rate limiting (429) with specific error type
+            if httpResponse.statusCode == 429 {
+                let resetHeader = httpResponse.value(forHTTPHeaderField: "x-ratelimit-reset")
+                let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+
+                // Parse rate limit reset time
+                let retrySeconds: TimeInterval
+                if let resetTime = parseRateLimitReset(resetHeader) {
+                    retrySeconds = resetTime
+                } else if let retryAfterValue = retryAfter,
+                    let seconds = TimeInterval(retryAfterValue)
+                {
+                    retrySeconds = seconds
+                } else {
+                    retrySeconds = 60  // Default to 60 seconds if we can't parse
+                }
+
+                logger.error("❌ MASTODON: Rate limited - retry after: \(retrySeconds) seconds")
+                print("❌ MASTODON: Rate limited - retry after: \(retrySeconds) seconds")
+
+                // Log rate limit headers for debugging
+                if let remaining = httpResponse.value(forHTTPHeaderField: "x-ratelimit-remaining") {
+                    logger.info("🔍 MASTODON: Rate limit remaining: \(remaining)")
+                    print("🔍 MASTODON: Rate limit remaining: \(remaining)")
+                }
+                if let limit = httpResponse.value(forHTTPHeaderField: "x-ratelimit-limit") {
+                    logger.info("🔍 MASTODON: Rate limit limit: \(limit)")
+                    print("🔍 MASTODON: Rate limit limit: \(limit)")
+                }
+
+                throw ServiceError.rateLimitError(
+                    reason: "Too many requests to Mastodon server",
+                    retryAfter: retrySeconds
+                )
+            }
+
             if httpResponse.statusCode != 200 {
+                // Log response body for debugging
+                if let responseString = String(data: data, encoding: .utf8) {
+                    logger.error("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
+                    print("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
+                }
                 throw ServiceError.apiError(
                     "Server returned status code \(httpResponse.statusCode)")
             }
@@ -978,36 +1124,99 @@ public final class MastodonService: @unchecked Sendable {
     public func fetchUserTimeline(
         userId: String, for account: SocialAccount, limit: Int = 40, maxId: String? = nil
     ) async throws -> [Post] {
+        logger.info(
+            "🔍 MASTODON: Fetching user timeline for userId: \(userId), account: \(account.username)"
+        )
+        print(
+            "🔍 MASTODON: Fetching user timeline for userId: \(userId), account: \(account.username)"
+        )
+
+        // Validate userId is not empty
+        guard !userId.isEmpty else {
+            logger.error("❌ MASTODON: userId is empty")
+            print("❌ MASTODON: userId is empty")
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "User ID is empty"])
+        }
+
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
         var urlString = "\(serverUrl)/api/v1/accounts/\(userId)/statuses?limit=\(limit)"
         if let maxId = maxId {
             urlString += "&max_id=\(maxId)"
         }
 
+        logger.info("🔍 MASTODON: Request URL: \(urlString)")
+        print("🔍 MASTODON: Request URL: \(urlString)")
+
         guard let url = URL(string: urlString) else {
+            logger.error("❌ MASTODON: Invalid URL: \(urlString)")
+            print("❌ MASTODON: Invalid URL: \(urlString)")
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
 
-        let request = try await createAuthenticatedRequest(
-            url: url, method: "GET", account: account)
-        let (data, response) = try await session.data(for: request)
+        do {
+            let request = try await createAuthenticatedRequest(
+                url: url, method: "GET", account: account)
+            let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                throw errorResponse
+            guard let httpResponse = response as? HTTPURLResponse else {
+                logger.error("❌ MASTODON: Invalid HTTP response")
+                print("❌ MASTODON: Invalid HTTP response")
+                throw NSError(
+                    domain: "MastodonService",
+                    code: 0,
+                    userInfo: [NSLocalizedDescriptionKey: "Invalid HTTP response"])
             }
-            throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to fetch user timeline"])
+
+            logger.info("🔍 MASTODON: HTTP Status Code: \(httpResponse.statusCode)")
+            print("🔍 MASTODON: HTTP Status Code: \(httpResponse.statusCode)")
+
+            if httpResponse.statusCode != 200 {
+                // Try to decode error response
+                if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                    logger.error("❌ MASTODON: API Error: \(errorResponse.error ?? "Unknown error")")
+                    print("❌ MASTODON: API Error: \(errorResponse.error ?? "Unknown error")")
+                    throw errorResponse
+                }
+
+                // Log response body for debugging
+                if let responseString = String(data: data, encoding: .utf8) {
+                    logger.error("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
+                    print("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
+                }
+
+                let errorMessage = "Failed to fetch user timeline: HTTP \(httpResponse.statusCode)"
+                logger.error("❌ MASTODON: \(errorMessage)")
+                print("❌ MASTODON: \(errorMessage)")
+                throw NSError(
+                    domain: "MastodonService",
+                    code: httpResponse.statusCode,
+                    userInfo: [NSLocalizedDescriptionKey: errorMessage])
+            }
+
+            // Check if response is empty
+            if data.isEmpty {
+                logger.info("✅ MASTODON: Empty response - user has no posts")
+                print("✅ MASTODON: Empty response - user has no posts")
+                return []
+            }
+
+            let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
+            logger.info("✅ MASTODON: Successfully fetched \(statuses.count) statuses")
+            print("✅ MASTODON: Successfully fetched \(statuses.count) statuses")
+
+            // Convert to our app's Post model
+            return statuses.map { convertMastodonStatusToPost($0, account: account) }
+        } catch {
+            logger.error("❌ MASTODON: Error fetching user timeline: \(error.localizedDescription)")
+            print("❌ MASTODON: Error fetching user timeline: \(error.localizedDescription)")
+            throw error
         }
-
-        let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
-
-        // Convert to our app's Post model
-        return statuses.map { convertMastodonStatusToPost($0, account: account) }
     }
 
     /// Search for content on Mastodon
@@ -1581,7 +1790,7 @@ public final class MastodonService: @unchecked Sendable {
         return await self.convertMastodonStatusToPost(status, account: account)
     }
 
-/// Fetch relationship between current user and other accounts
+    /// Fetch relationship between current user and other accounts
     func fetchRelationships(accountIds: [String], account: SocialAccount) async throws
         -> [MastodonRelationship]
     {
@@ -1910,6 +2119,28 @@ public final class MastodonService: @unchecked Sendable {
     }
 
     /// Converts a Mastodon status to a generic Post
+    /// Extracts custom emoji from a MastodonStatus into a dictionary mapping shortcode to URL
+    private func extractEmojiMap(from status: MastodonStatus) -> [String: String]? {
+        guard !status.emojis.isEmpty else {
+            print("📝 [Emoji] No emojis found in status \(status.id.prefix(10))")
+            return nil
+        }
+        var emojiMap: [String: String] = [:]
+        for emoji in status.emojis {
+            // Use staticUrl if available (smaller, faster), otherwise fall back to url
+            let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+            if !emojiURL.isEmpty {
+                emojiMap[emoji.shortcode] = emojiURL
+            }
+        }
+        if !emojiMap.isEmpty {
+            print(
+                "✅ [Emoji] Extracted \(emojiMap.count) emoji from status: \(Array(emojiMap.keys).prefix(5))"
+            )
+        }
+        return emojiMap.isEmpty ? nil : emojiMap
+    }
+
     public func convertMastodonStatusToPost(
         _ status: MastodonStatus, account: SocialAccount? = nil
     ) -> Post {
@@ -1928,6 +2159,14 @@ public final class MastodonService: @unchecked Sendable {
 
         // Check if this is a reblog/boost
         if let reblog = status.reblog {
+            // Debug: Log reblog structure
+            logger.info(
+                "[Mastodon] 🔍 Processing reblog: id=\(reblog.id ?? "nil"), hasMediaAttachments=\(reblog.mediaAttachments?.count ?? 0), mediaAttachments=\(reblog.mediaAttachments?.map { $0.url }.joined(separator: ", ") ?? "none")"
+            )
+            print(
+                "[Mastodon] 🔍 Processing reblog: id=\(reblog.id ?? "nil"), hasMediaAttachments=\(reblog.mediaAttachments?.count ?? 0)"
+            )
+
             var originalPost = Post(
                 id: reblog.id ?? "",
                 content: reblog.content ?? "",
@@ -1946,26 +2185,71 @@ public final class MastodonService: @unchecked Sendable {
                 }(),
                 platform: .mastodon,
                 originalURL: reblog.url ?? "",
-                attachments: (reblog.mediaAttachments ?? []).compactMap { media in
-                    let attachmentType: Post.Attachment.AttachmentType
-                    switch media.type {
-                    case "image":
-                        attachmentType = .image
-                    case "video":
-                        attachmentType = .video
-                    case "gifv":
-                        attachmentType = .gifv
-                    case "audio":
-                        attachmentType = .audio
-                    default:
-                        return nil  // Skip unsupported types
-                    }
-                    return Post.Attachment(
-                        url: media.url,
-                        type: attachmentType,
-                        altText: media.description
+                attachments: {
+                    // Debug: Check what we're working with
+                    let mediaAttachmentsArray = reblog.mediaAttachments ?? []
+                    logger.info(
+                        "[Mastodon] 🔍 reblog.mediaAttachments is \(reblog.mediaAttachments == nil ? "nil" : "not nil"), count: \(mediaAttachmentsArray.count)"
                     )
-                },
+                    if mediaAttachmentsArray.isEmpty && reblog.mediaAttachments != nil {
+                        logger.warning(
+                            "[Mastodon] ⚠️ reblog.mediaAttachments exists but is empty for reblog \(reblog.id ?? "unknown")"
+                        )
+                    }
+
+                    let parsedAttachments = mediaAttachmentsArray.compactMap {
+                        media -> Post.Attachment? in
+                        let attachmentType: Post.Attachment.AttachmentType
+                        switch media.type {
+                        case "image":
+                            // Check if image is actually a GIF file
+                            if let url = URL(string: media.url), URLService.shared.isGIFURL(url) {
+                                attachmentType = .animatedGIF
+                            } else {
+                                attachmentType = .image
+                            }
+                        case "video":
+                            attachmentType = .video
+                        case "gifv":
+                            // For gifv attachments, check if remoteUrl exists and is a GIF file
+                            // Mastodon stores the original GIF in remoteUrl and the video version in url
+                            if let remoteUrlString = media.remoteUrl, !remoteUrlString.isEmpty,
+                                let remoteURL = URL(string: remoteUrlString),
+                                URLService.shared.isGIFURL(remoteURL)
+                            {
+                                // Use the original GIF file instead of the video
+                                return Post.Attachment(
+                                    url: remoteUrlString,
+                                    type: .animatedGIF,
+                                    altText: media.description ?? "Animated GIF"
+                                )
+                            } else {
+                                // For .gifv type, always use video version (will loop automatically)
+                                // Don't check if main URL is a GIF - .gifv URLs are always videos
+                                attachmentType = .gifv
+                            }
+                        case "audio":
+                            attachmentType = .audio
+                        default:
+                            return nil  // Skip unsupported types
+                        }
+                        return Post.Attachment(
+                            url: media.url,
+                            type: attachmentType,
+                            altText: media.description
+                        )
+                    }
+                    // Log attachments for debugging
+                    if !parsedAttachments.isEmpty {
+                        logger.info(
+                            "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
+                        )
+                        print(
+                            "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
+                        )
+                    }
+                    return parsedAttachments
+                }(),
                 mentions: (reblog.mentions ?? []).compactMap { $0.username },
                 tags: (reblog.tags ?? []).compactMap { $0.name },
                 isReposted: false,
@@ -1975,18 +2259,90 @@ public final class MastodonService: @unchecked Sendable {
                 replyCount: 0,
                 platformSpecificId: reblog.id ?? "",
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
-                blueskyRepostRecordURI: nil
+                blueskyRepostRecordURI: nil,
+                customEmojiMap: nil  // MastodonReblog doesn't include emojis in its structure
             )
 
             // Hydrate originalPost if content is empty (defensive, rare)
-            if originalPost.content.isEmpty, let acct = account {
+            // BUT: Don't hydrate if there are attachments - attachments are valid content
+            if originalPost.content.isEmpty,
+                originalPost.attachments.isEmpty,
+                let acct = account
+            {
+                logger.info(
+                    "[Mastodon] 🔄 Hydrating reblog originalPost \(originalPost.id) - content empty and no attachments"
+                )
                 Task {
                     if let hydrated = try? await self.fetchPostByID(originalPost.id, account: acct),
                         !hydrated.content.isEmpty
                     {
-                        originalPost = hydrated
+                        // Preserve attachments from original if hydrated post doesn't have them
+                        if !originalPost.attachments.isEmpty && hydrated.attachments.isEmpty {
+                            // Create a new Post instance with preserved attachments
+                            let preservedHydrated = Post(
+                                id: hydrated.id,
+                                content: hydrated.content,
+                                authorName: hydrated.authorName,
+                                authorUsername: hydrated.authorUsername,
+                                authorId: hydrated.authorId,
+                                authorProfilePictureURL: hydrated.authorProfilePictureURL,
+                                createdAt: hydrated.createdAt,
+                                platform: hydrated.platform,
+                                originalURL: hydrated.originalURL,
+                                attachments: originalPost.attachments,  // Preserve original attachments
+                                mentions: hydrated.mentions,
+                                tags: hydrated.tags,
+                                originalPost: hydrated.originalPost,
+                                isReposted: hydrated.isReposted,
+                                isLiked: hydrated.isLiked,
+                                isReplied: hydrated.isReplied,
+                                likeCount: hydrated.likeCount,
+                                repostCount: hydrated.repostCount,
+                                replyCount: hydrated.replyCount,
+                                isFollowingAuthor: hydrated.isFollowingAuthor,
+                                isMutedAuthor: hydrated.isMutedAuthor,
+                                isBlockedAuthor: hydrated.isBlockedAuthor,
+                                platformSpecificId: hydrated.platformSpecificId,
+                                boostedBy: hydrated.boostedBy,
+                                parent: hydrated.parent,
+                                inReplyToID: hydrated.inReplyToID,
+                                inReplyToUsername: hydrated.inReplyToUsername,
+                                quotedPostUri: hydrated.quotedPostUri,
+                                quotedPostAuthorHandle: hydrated.quotedPostAuthorHandle,
+                                quotedPost: hydrated.quotedPost,
+                                poll: hydrated.poll,
+                                cid: hydrated.cid,
+                                primaryLinkURL: hydrated.primaryLinkURL,
+                                primaryLinkTitle: hydrated.primaryLinkTitle,
+                                primaryLinkDescription: hydrated.primaryLinkDescription,
+                                primaryLinkThumbnailURL: hydrated.primaryLinkThumbnailURL,
+                                blueskyLikeRecordURI: hydrated.blueskyLikeRecordURI,
+                                blueskyRepostRecordURI: hydrated.blueskyRepostRecordURI,
+                                customEmojiMap: hydrated.customEmojiMap
+                            )
+                            originalPost = preservedHydrated
+                            logger.info(
+                                "[Mastodon] ✅ Preserved \(originalPost.attachments.count) attachments during hydration"
+                            )
+                        } else {
+                            originalPost = hydrated
+                        }
                     }
                 }
+            } else if !originalPost.attachments.isEmpty {
+                logger.info(
+                    "[Mastodon] ⏭️ Skipping hydration for reblog \(originalPost.id) - has \(originalPost.attachments.count) attachments"
+                )
+            }
+
+            // Log final attachment count before creating boost wrapper
+            logger.info(
+                "[Mastodon] 🔄 Creating boost wrapper for \(status.id) with originalPost having \(originalPost.attachments.count) attachments"
+            )
+            if !originalPost.attachments.isEmpty {
+                logger.info(
+                    "[Mastodon] 📎 Attachment URLs: \(originalPost.attachments.map { $0.url }.joined(separator: ", "))"
+                )
             }
 
             let boostPost = Post(
@@ -2015,10 +2371,24 @@ public final class MastodonService: @unchecked Sendable {
                 likeCount: status.favouritesCount,
                 repostCount: status.reblogsCount,
                 replyCount: status.repliesCount,  // Add reply count
-                boostedBy: (status.account.displayName?.isEmpty ?? true)
-                    ? status.account.acct : (status.account.displayName ?? status.account.acct),
+                boostedBy: {
+                    // Use displayName if available and not empty, otherwise use acct
+                    let displayName = status.account.displayName
+                    let acct = status.account.acct
+                    let boostedByValue = (!(displayName?.isEmpty ?? true)) ? displayName! : acct
+                    logger.info(
+                        "[Mastodon] Setting boostedBy for boost wrapper: displayName=\(displayName ?? "nil"), acct=\(acct), final=\(boostedByValue)"
+                    )
+                    return boostedByValue
+                }(),
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
-                blueskyRepostRecordURI: nil
+                blueskyRepostRecordURI: nil,
+                customEmojiMap: nil  // Boost posts don't have their own emoji
+            )
+
+            // Log final state after creating boost wrapper
+            logger.info(
+                "[Mastodon] ✅ Created boost wrapper. Final originalPost attachments: \(boostPost.originalPost?.attachments.count ?? 0), boostedBy: \(boostPost.boostedBy ?? "nil")"
             )
 
             return boostPost
@@ -2041,17 +2411,48 @@ public final class MastodonService: @unchecked Sendable {
             let attachmentType: Post.Attachment.AttachmentType
             switch media.type {
             case "image":
-                attachmentType = .image
+                // Check if image is actually a GIF file
+                let isGIF = URLService.shared.isGIFURL(url)
+                print("[Mastodon] Processing image attachment: url=\(media.url), isGIF=\(isGIF)")
+                if isGIF {
+                    print("[Mastodon] ✅ Detected GIF image: \(url)")
+                    attachmentType = .animatedGIF
+                } else {
+                    attachmentType = .image
+                }
             case "video":
                 attachmentType = .video
             case "gifv":
-                attachmentType = .gifv
+                // For gifv attachments, check if remoteUrl exists and is a GIF file
+                // Mastodon stores the original GIF in remoteUrl and the video version in url
+                print(
+                    "[Mastodon] Processing gifv attachment: url=\(media.url), remoteUrl=\(media.remoteUrl ?? "nil")"
+                )
+                if let remoteUrlString = media.remoteUrl, !remoteUrlString.isEmpty,
+                    let remoteURL = URL(string: remoteUrlString),
+                    URLService.shared.isGIFURL(remoteURL)
+                {
+                    // Use the original GIF file instead of the video
+                    print("[Mastodon] ✅ Using remoteUrl GIF: \(remoteUrlString)")
+                    return Post.Attachment(
+                        url: remoteUrlString,
+                        type: .animatedGIF,
+                        altText: alt
+                    )
+                } else {
+                    // For .gifv type, always use video version (will loop automatically at normal speed)
+                    // Don't check if main URL is a GIF - .gifv URLs are always videos
+                    print("[Mastodon] ⚠️ Using gifv video (no GIF remoteUrl): \(url)")
+                    attachmentType = .gifv
+                }
             case "audio":
                 attachmentType = .audio
             default:
                 return nil  // Skip unsupported types
             }
-            print("[Mastodon] Parsed \(media.type) attachment: \(url) alt: \(alt)")
+            print(
+                "[Mastodon] Parsed \(media.type) attachment: \(url) alt: \(alt) -> \(attachmentType)"
+            )
             return Post.Attachment(
                 url: media.url,
                 type: attachmentType,
@@ -2136,7 +2537,8 @@ public final class MastodonService: @unchecked Sendable {
             inReplyToID: status.inReplyToId,
             inReplyToUsername: replyToUsername,
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
-            blueskyRepostRecordURI: nil
+            blueskyRepostRecordURI: nil,
+            customEmojiMap: extractEmojiMap(from: status)
         )
 
         // DEBUG: Print interaction counts for debugging
@@ -2306,6 +2708,30 @@ public final class MastodonService: @unchecked Sendable {
                 print(
                     "📡 Mastodon API response status for \(account.username): \(httpResponse.statusCode)"
                 )
+
+                // Handle rate limiting (429) gracefully for background profile updates
+                if httpResponse.statusCode == 429 {
+                    let resetHeader = httpResponse.value(forHTTPHeaderField: "x-ratelimit-reset")
+                    let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+
+                    // Parse rate limit reset time
+                    let retrySeconds: TimeInterval
+                    if let resetTime = parseRateLimitReset(resetHeader) {
+                        retrySeconds = resetTime
+                    } else if let retryAfterValue = retryAfter,
+                        let seconds = TimeInterval(retryAfterValue)
+                    {
+                        retrySeconds = seconds
+                    } else {
+                        retrySeconds = 60  // Default to 60 seconds if we can't parse
+                    }
+
+                    print(
+                        "⚠️ Rate limited while updating profile for \(account.username) - retry after: \(Int(retrySeconds)) seconds"
+                    )
+                    return  // Silently fail for background operations
+                }
+
                 if httpResponse.statusCode != 200 {
                     print(
                         "❌ Mastodon API returned error status \(httpResponse.statusCode) for \(account.username)"
@@ -2693,7 +3119,7 @@ public final class MastodonService: @unchecked Sendable {
             let descendants = contextResponse.descendants.compactMap { status in
                 convertMastodonStatusToPost(status, account: account)
             }
-            
+
             // Fetch the main status itself (context endpoint doesn't include it)
             let mainPost = try? await fetchStatus(id: statusId, account: account)
 

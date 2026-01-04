@@ -297,9 +297,23 @@ struct ComposeView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    // Reply context
+    // Reply and quote context
     let replyingTo: Post?
+    let quotingTo: Post?
     @State private var isTextFieldFocused: Bool = false
+    
+    init(replyingTo: Post? = nil, quotingTo: Post? = nil) {
+        self.replyingTo = replyingTo
+        self.quotingTo = quotingTo
+        // Initialize with the default visibility from user preferences
+        _selectedVisibility = State(
+            initialValue: UserDefaults.standard.integer(forKey: "defaultPostVisibility"))
+
+        // For replies or quotes, filter platforms to match the original post
+        if let post = replyingTo ?? quotingTo {
+            _selectedPlatforms = State(initialValue: [post.platform])
+        }
+    }
 
     // Add SocialServiceManager for actual posting
     @EnvironmentObject private var socialServiceManager: SocialServiceManager
@@ -360,9 +374,21 @@ struct ComposeView: View {
         if !hasAccountsForSelectedPlatforms {
             return "No Accounts"
         } else if isPosting {
-            return replyingTo != nil ? "Replying..." : "Posting..."
+            if quotingTo != nil {
+                return "Quoting..."
+            } else if replyingTo != nil {
+                return "Replying..."
+            } else {
+                return "Posting..."
+            }
         } else {
-            return replyingTo != nil ? "Reply" : "Post"
+            if quotingTo != nil {
+                return "Quote"
+            } else if replyingTo != nil {
+                return "Reply"
+            } else {
+                return "Post"
+            }
         }
     }
 
@@ -431,17 +457,6 @@ struct ComposeView: View {
         return "What's on your mind?"
     }
 
-    init(replyingTo: Post? = nil) {
-        self.replyingTo = replyingTo
-        // Initialize with the default visibility from user preferences
-        _selectedVisibility = State(
-            initialValue: UserDefaults.standard.integer(forKey: "defaultPostVisibility"))
-
-        // For replies, filter platforms to match the original post
-        if let post = replyingTo {
-            _selectedPlatforms = State(initialValue: [post.platform])
-        }
-    }
 
     var body: some View {
         NavigationView {
@@ -1095,7 +1110,11 @@ struct ComposeView: View {
         }
 
         isPosting = true
-        postingStatus = replyingTo != nil ? "Sending reply..." : "Posting..."
+        if quotingTo != nil {
+            postingStatus = "Creating quote..."
+        } else {
+            postingStatus = replyingTo != nil ? "Sending reply..." : "Posting..."
+        }
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
         // Convert visibility index to string
@@ -1113,6 +1132,33 @@ struct ComposeView: View {
 
         Task {
             do {
+                // Handle quote posts
+                if let quoteTarget = quotingTo {
+                    let mediaData: [Data] = threadPosts[0].images.compactMap { image in
+                        image.jpegData(compressionQuality: 0.8)
+                    }
+                    let mediaAltTexts = normalizedAltTexts(for: threadPosts[0])
+                    
+                    let createdPosts = try await socialServiceManager.createQuotePost(
+                        content: threadPosts[0].text,
+                        quotedPost: quoteTarget,
+                        platforms: selectedPlatforms
+                    )
+                    
+                    // Register quote success with PostActionCoordinator
+                    if FeatureFlagManager.isEnabled(.postActionsV2) {
+                        await MainActor.run {
+                            socialServiceManager.postActionCoordinator.registerQuoteSuccess(for: quoteTarget)
+                        }
+                    }
+                    
+                    await MainActor.run {
+                        isPosting = false
+                        dismiss()
+                    }
+                    return
+                }
+                
                 var previousPostsByPlatform: [SocialPlatform: Post] = [:]
                 if let replyTarget = replyingTo {
                     previousPostsByPlatform[replyTarget.platform] = replyTarget
@@ -1163,6 +1209,13 @@ struct ComposeView: View {
                                 accountOverride: selectedAccount(for: platform)
                             )
                             updatedPrevious[platform] = reply
+                            
+                            // Register reply success with PostActionCoordinator
+                            if FeatureFlagManager.isEnabled(.postActionsV2) {
+                                await MainActor.run {
+                                    socialServiceManager.postActionCoordinator.registerReplySuccess(for: parentPost)
+                                }
+                            }
                         }
                         previousPostsByPlatform = updatedPrevious
                     }

@@ -46,15 +46,12 @@ public struct QuotedPostView: View {
             // Author avatar with platform indicator
             ZStack(alignment: .bottomTrailing) {
                 let stableImageURL = URL(string: post.authorProfilePictureURL)
-                AsyncImage(url: stableImageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable()
-                    case .failure(_), .empty:
-                        Circle().fill(Color.gray.opacity(0.3))
-                    @unknown default:
-                        Circle().fill(Color.gray.opacity(0.3))
-                    }
+                CachedAsyncImage(url: stableImageURL, priority: .high) { image in
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                } placeholder: {
+                    Circle().fill(Color.gray.opacity(0.3))
                 }
                 .frame(width: 32, height: 32)
                 .clipShape(Circle())
@@ -154,9 +151,15 @@ struct FetchQuotePostView: View {
     private let maxRetries = 2
 
     private var platform: SocialPlatform {
-        if url.absoluteString.contains("bsky.app") || url.absoluteString.contains("bsky.social") {
+        let urlString = url.absoluteString.lowercased()
+        // Check for Bluesky URLs (various formats)
+        if urlString.contains("bsky.app") || 
+           urlString.contains("bsky.social") ||
+           url.scheme == "at" ||
+           urlString.contains("at://") {
             return .bluesky
         }
+        // Default to Mastodon for other social media URLs
         return .mastodon
     }
 
@@ -175,8 +178,8 @@ struct FetchQuotePostView: View {
                 }
             } else if isLoading {
                 LoadingQuoteView(platform: platform)
-            } else if let error = error {
-                // Show error state with retry option
+            } else if error != nil && retryCount <= maxRetries {
+                // Show error state with retry option (only if we haven't exceeded max retries)
                 VStack(spacing: 8) {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
@@ -186,6 +189,7 @@ struct FetchQuotePostView: View {
                             .foregroundColor(.secondary)
                         Spacer()
                         Button("Retry") {
+                            retryCount = 0  // Reset retry count for manual retry
                             Task {
                                 await fetchPost()
                             }
@@ -202,6 +206,7 @@ struct FetchQuotePostView: View {
                 }
             } else {
                 // Fallback to regular link preview if we can't fetch the post
+                // This ensures something always displays, preventing posts from disappearing
                 LinkPreview(url: url)
             }
         }
@@ -218,7 +223,16 @@ struct FetchQuotePostView: View {
         let hasText = !post.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         let hasMedia = !post.attachments.isEmpty
         let hasAuthor = !post.authorName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        return hasText || hasMedia || hasAuthor
+        
+        let isValid = hasText || hasMedia || hasAuthor
+        
+        if !isValid {
+            print("🔗 [FetchQuotePostView] Post has no meaningful content - text: \(hasText), media: \(hasMedia), author: \(hasAuthor)")
+        } else {
+            print("🔗 [FetchQuotePostView] Post has meaningful content - text: \(hasText), media: \(hasMedia) (\(post.attachments.count) attachments), author: \(hasAuthor)")
+        }
+        
+        return isValid
     }
 
     private func fetchPost() async {
@@ -241,30 +255,65 @@ struct FetchQuotePostView: View {
         do {
             let post: Post?
 
-            if url.host?.contains("bsky.social") == true {
+            // Determine platform based on URL
+            let urlString = url.absoluteString.lowercased()
+            let isBluesky = urlString.contains("bsky.app") || 
+                           urlString.contains("bsky.social") ||
+                           url.scheme == "at" ||
+                           urlString.contains("at://")
+            
+            if isBluesky {
                 post = try await fetchBlueskyPost()
-            } else if url.host?.contains("mastodon") == true || url.host?.contains("social") == true
-            {
+            } else if url.host?.contains("mastodon") == true || 
+                      url.host?.contains("social") == true ||
+                      urlString.contains("/statuses/") ||
+                      urlString.contains("/@") {
                 post = try await fetchMastodonPost()
             } else {
+                print("🔗 [FetchQuotePostView] Unsupported platform for URL: \(url)")
                 throw NSError(
                     domain: "FetchQuotePostView",
                     code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "Unsupported platform"]
+                    userInfo: [NSLocalizedDescriptionKey: "Unsupported platform for URL: \(url.absoluteString)"]
                 )
             }
 
             if let post = post {
-                self.quotedPost = post
+                // Validate that the post has meaningful content before setting it
+                if hasMeaningfulContent(post) {
+                    await MainActor.run {
+                        self.quotedPost = post
+                        self.isLoading = false
+                        self.error = nil
+                    }
+                } else {
+                    // Post was fetched but has no meaningful content - fallback to LinkPreview
+                    // Don't throw error, just don't set the quotedPost
+                    print("🔗 [FetchQuotePostView] Post fetched but has no meaningful content, falling back to LinkPreview: \(url)")
+                    await MainActor.run {
+                        self.isLoading = false
+                        self.error = nil
+                        // Leave quotedPost as nil so it falls through to LinkPreview
+                    }
+                }
+            } else {
+                // Post fetch returned nil - fallback to LinkPreview instead of error
+                // This ensures the post still displays even if quote fetch fails
+                print("🔗 [FetchQuotePostView] Post fetch returned nil, falling back to LinkPreview: \(url)")
+                await MainActor.run {
+                    self.isLoading = false
+                    self.error = nil
+                    // Leave quotedPost as nil so it falls through to LinkPreview
+                }
             }
-            self.isLoading = false
-            self.error = nil
 
         } catch {
             print("🔗 [FetchQuotePostView] Error fetching post: \(error)")
-            self.retryCount += 1
-            self.isLoading = false
-            self.error = error
+            await MainActor.run {
+                self.retryCount += 1
+                self.isLoading = false
+                self.error = error
+            }
 
             // Retry with exponential backoff
             if retryCount <= maxRetries {
@@ -273,37 +322,75 @@ struct FetchQuotePostView: View {
 
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 await fetchPost()
+            } else {
+                // After max retries, fallback to LinkPreview instead of showing error
+                // This ensures the post still displays
+                print("🔗 [FetchQuotePostView] Max retries exceeded, falling back to LinkPreview")
+                await MainActor.run {
+                    self.isLoading = false
+                    self.error = nil  // Clear error so it falls through to LinkPreview
+                }
             }
         }
     }
 
     private func fetchBlueskyPost() async throws -> Post? {
         let components = url.path.split(separator: "/")
-        guard components.count >= 4,
-            components[components.count - 2] == "post"
-        else {
+        
+        // Bluesky URLs can be in different formats:
+        // - https://bsky.app/profile/handle/post/postid (4+ components)
+        // - https://handle.bsky.social/post/postid (2 components)
+        // - at://did:plc:xxx/... (AT Protocol URI)
+        
+        var postID: String?
+        
+        // Try to find "post" in the path and get the ID after it
+        if let postIndex = components.firstIndex(where: { $0 == "post" }),
+           postIndex + 1 < components.count {
+            postID = String(components[postIndex + 1])
+        } else if components.count >= 2 {
+            // Fallback: try last component as post ID
+            postID = String(components[components.count - 1])
+        }
+        
+        // Handle AT Protocol URIs (at://did:plc:xxx/app.bsky.feed.post/xxx)
+        if url.scheme == "at" {
+            let uriString = url.absoluteString
+            if let postIdRange = uriString.range(of: "/app.bsky.feed.post/") {
+                let postIdStart = uriString.index(postIdRange.upperBound, offsetBy: 0)
+                postID = String(uriString[postIdStart...])
+            }
+        }
+        
+        guard let postID = postID, !postID.isEmpty else {
+            print("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid Bluesky post URL format"]
+                userInfo: [NSLocalizedDescriptionKey: "Invalid Bluesky post URL format: \(url.absoluteString)"]
             )
         }
-
-        let postID = String(components[components.count - 1])
+        
+        print("🔗 [FetchQuotePostView] Extracted Bluesky post ID: \(postID) from URL: \(url)")
         return try await serviceManager.fetchBlueskyPostByID(postID)
     }
 
     private func fetchMastodonPost() async throws -> Post? {
         let components = url.path.split(separator: "/")
         guard components.count >= 2 else {
+            print("🔗 [FetchQuotePostView] Invalid Mastodon URL format: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid Mastodon post URL format"]
+                userInfo: [NSLocalizedDescriptionKey: "Invalid Mastodon post URL format: \(url.absoluteString)"]
             )
         }
 
+        // Mastodon URLs are typically: /@handle/statuses/postid or /web/statuses/postid
+        // The post ID is usually the last component
         let postID = String(components[components.count - 1])
+        
+        print("🔗 [FetchQuotePostView] Extracted Mastodon post ID: \(postID) from URL: \(url)")
 
         guard let account = serviceManager.accounts.first(where: { $0.platform == .mastodon })
         else {

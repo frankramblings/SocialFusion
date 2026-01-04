@@ -1,4 +1,71 @@
 import SwiftUI
+import Photos
+import UniformTypeIdentifiers
+import UIKit
+
+// MARK: - Custom Activity Item Source for Media Sharing
+
+/// Custom activity item source that properly exposes media types to iOS share sheet
+class MediaActivityItemSource: NSObject, UIActivityItemSource {
+    let mediaURL: URL
+    let mediaType: Post.Attachment.AttachmentType
+    
+    init(mediaURL: URL, mediaType: Post.Attachment.AttachmentType) {
+        self.mediaURL = mediaURL
+        self.mediaType = mediaType
+        super.init()
+    }
+    
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        // Return placeholder - iOS will use this to determine available activities
+        return mediaURL
+    }
+    
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        // Return the actual item to share
+        return mediaURL
+    }
+    
+    func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+        // Return proper UTI so iOS recognizes the media type
+        switch mediaType {
+        case .image:
+            return UTType.image.identifier
+        case .animatedGIF:
+            return UTType.gif.identifier
+        case .video, .gifv:
+            return UTType.movie.identifier
+        case .audio:
+            return UTType.audio.identifier
+        }
+    }
+    
+    func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
+        return "Shared Media"
+    }
+}
+
+/// Custom activity item source for UIImage objects
+class ImageActivityItemSource: NSObject, UIActivityItemSource {
+    let image: UIImage
+    
+    init(image: UIImage) {
+        self.image = image
+        super.init()
+    }
+    
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        return image
+    }
+    
+    func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        return image
+    }
+    
+    func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+        return UTType.image.identifier
+    }
+}
 
 /// A view that displays media in fullscreen with zoom and swipe capabilities
 struct FullscreenMediaView: View {
@@ -15,6 +82,7 @@ struct FullscreenMediaView: View {
     @State private var currentIndex: Int
     @State private var overlaysVisible: Bool = true
     @State private var showAltText: Bool = false
+    @State private var isSharing: Bool = false
 
     init(
         media: Post.Attachment, allMedia: [Post.Attachment], showAltTextInitially: Bool = false,
@@ -86,14 +154,25 @@ struct FullscreenMediaView: View {
                                                     }
                                                 }
                                             },
-                                        DragGesture(minimumDistance: 10)
+                                        // Higher minimumDistance (25) reduces interference with TabView's horizontal swipe gesture
+                                        // TabView can recognize horizontal swipes before this gesture activates
+                                        DragGesture(minimumDistance: 25)
                                             .onChanged { value in
                                                 if currentScale > 1.0 {
                                                     // When zoomed: pan the image with immediate visual feedback
                                                     dragOffset = value.translation
                                                 } else {
-                                                    // When not zoomed: show visual feedback for swipe-to-dismiss in any direction
-                                                    dragOffset = value.translation
+                                                    // When not zoomed: check if this is a horizontal swipe
+                                                    let absWidth = abs(value.translation.width)
+                                                    let absHeight = abs(value.translation.height)
+                                                    let isPrimarilyHorizontal = absWidth > absHeight * 1.5
+                                                    let hasMultipleImages = allMedia.count > 1
+                                                    
+                                                    // CRITICAL: For horizontal swipes with multiple images, don't update dragOffset
+                                                    // This prevents the gesture from interfering with TabView's swipe
+                                                    if !isPrimarilyHorizontal || !hasMultipleImages {
+                                                        dragOffset = value.translation
+                                                    }
                                                 }
                                             }
                                             .onEnded { value in
@@ -108,7 +187,7 @@ struct FullscreenMediaView: View {
                                                     previousOffset = currentOffset
                                                     dragOffset = .zero
                                                 } else {
-                                                    // When not zoomed: check for swipe-to-dismiss in ANY direction
+                                                    // When not zoomed: check for swipe-to-dismiss
                                                     let absWidth = abs(value.translation.width)
                                                     let absHeight = abs(value.translation.height)
                                                     let distance = sqrt(
@@ -120,38 +199,51 @@ struct FullscreenMediaView: View {
                                                                 value.predictedEndTranslation
                                                                     .height, 2))
 
-                                                    // Thresholds: horizontal swipes need to be stronger to avoid conflicts with TabView
-                                                    let verticalThreshold: CGFloat = 100
-                                                    let horizontalThreshold: CGFloat = 150  // Higher threshold for horizontal
-                                                    let diagonalThreshold: CGFloat = 100
-                                                    let velocityThreshold: CGFloat = 500
-
+                                                    // Adjust thresholds based on number of images
+                                                    let hasMultipleImages = allMedia.count > 1
+                                                    
                                                     // Check if swipe is primarily horizontal
-                                                    let isPrimarilyHorizontal =
-                                                        absWidth > absHeight * 1.5
-
-                                                    // Dismiss if:
-                                                    // - Strong vertical swipe (>100px)
-                                                    // - Strong diagonal swipe (both >100px)
-                                                    // - Strong horizontal swipe (>150px) - higher threshold to avoid TabView conflict
-                                                    // - High velocity swipe (500+)
+                                                    let isPrimarilyHorizontal = absWidth > absHeight * 1.5
+                                                    
+                                                    // CRITICAL: When there are multiple images, completely ignore horizontal swipes
+                                                    // Let TabView handle horizontal navigation - only dismiss on vertical/diagonal swipes
+                                                    if hasMultipleImages && isPrimarilyHorizontal {
+                                                        // Reset drag offset and let TabView handle the horizontal swipe
+                                                        withAnimation(
+                                                            .spring(
+                                                                response: 0.3, dampingFraction: 0.8)
+                                                        ) {
+                                                            dragOffset = .zero
+                                                        }
+                                                        return // Don't process horizontal swipes when multiple images
+                                                    }
+                                                    
+                                                    // For vertical/diagonal swipes (or single image), allow dismissal
+                                                    let verticalThreshold: CGFloat = hasMultipleImages ? 200 : 100
+                                                    let diagonalThreshold: CGFloat = hasMultipleImages ? 200 : 100
+                                                    let velocityThreshold: CGFloat = hasMultipleImages ? 1500 : 500
+                                                    
+                                                    // Only allow dismissal for vertical/diagonal swipes when multiple images
+                                                    // For single image, allow all directions
                                                     let shouldDismiss: Bool
-                                                    if isPrimarilyHorizontal {
-                                                        // Horizontal swipes need to be stronger
-                                                        shouldDismiss =
-                                                            absWidth > horizontalThreshold
-                                                            || velocity > velocityThreshold
-                                                    } else {
-                                                        // Vertical/diagonal swipes use normal threshold
+                                                    if hasMultipleImages {
+                                                        // Multiple images: only dismiss on vertical/diagonal swipes
                                                         shouldDismiss =
                                                             distance > diagonalThreshold
                                                             || absHeight > verticalThreshold
-                                                            || absWidth > diagonalThreshold
+                                                            || velocity > velocityThreshold
+                                                    } else {
+                                                        // Single image: allow dismissal in any direction (original behavior)
+                                                        let horizontalThreshold: CGFloat = 150
+                                                        shouldDismiss =
+                                                            distance > diagonalThreshold
+                                                            || absHeight > verticalThreshold
+                                                            || absWidth > horizontalThreshold
                                                             || velocity > velocityThreshold
                                                     }
 
                                                     if shouldDismiss {
-                                                        // Swipe to dismiss in any direction
+                                                        // Swipe to dismiss
                                                         withAnimation(.easeOut(duration: 0.3)) {
                                                             onDismiss()
                                                         }
@@ -288,27 +380,16 @@ struct FullscreenMediaView: View {
 
                                 // Share button (lower right)
                                 Button(action: {
-                                    // Share the image URL
-                                    if let url = URL(string: allMedia[currentIndex].url) {
-                                        let av = UIActivityViewController(
-                                            activityItems: [url], applicationActivities: nil)
-                                        if let windowScene = UIApplication.shared.connectedScenes
-                                            .first as? UIWindowScene,
-                                            let window = windowScene.windows.first,
-                                            let rootVC = window.rootViewController
-                                        {
-                                            rootVC.present(av, animated: true, completion: nil)
-                                        }
-                                    }
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    shareMedia(at: currentIndex)
                                 }) {
-                                    Image(systemName: "square.and.arrow.up")
+                                    Image(systemName: isSharing ? "checkmark" : "square.and.arrow.up")
                                         .font(.title2)
-                                        .foregroundColor(.white)
+                                        .foregroundColor(isSharing ? .green : .white)
                                         .padding(12)
                                 }
                                 .buttonStyle(GlassyButtonStyle())
-                                .accessibilityLabel("Share image")
+                                .disabled(isSharing)
+                                .accessibilityLabel(isSharing ? "Sharing..." : "Share image")
                             }
 
                             // Page indicator dots (only if multiple images)
@@ -376,6 +457,23 @@ struct FullscreenMediaView: View {
             )
         }
 
+        // Handle animated GIFs separately to ensure they animate properly
+        if attachment.type == .animatedGIF {
+            return AnyView(
+                GeometryReader { geometry in
+                    GIFUnfurlContainer(
+                        url: url,
+                        maxHeight: geometry.size.height,
+                        cornerRadius: 0,
+                        showControls: false,
+                        contentMode: .scaleAspectFit,
+                        onTap: nil
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            )
+        }
+
         // Use CachedAsyncImage for loading uncached images
         // The cache will handle the image, and each view instance has its own state
         return AnyView(
@@ -399,6 +497,210 @@ struct FullscreenMediaView: View {
             // Use a stable ID based on URL only (not attachment.id) to allow cache reuse
             .id("fullscreen-\(url.absoluteString)")
         )
+    }
+
+    private func shareMedia(at index: Int) {
+        guard index < allMedia.count else { return }
+        let attachment = allMedia[index]
+        
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        isSharing = true
+        
+        Task {
+            do {
+                var activityItems: [Any] = []
+                var tempFileURL: URL?
+                
+                guard let url = URL(string: attachment.url) else {
+                    await MainActor.run { isSharing = false }
+                    return
+                }
+                
+                // Handle different media types with proper activity item sources
+                switch attachment.type {
+                case .image:
+                    // Static images - use ImageActivityItemSource for better Photos integration
+                    let imageCache = ImageCache.shared
+                    if let cachedImage = imageCache.getCachedImage(for: url) {
+                        // Use ImageActivityItemSource to ensure "Save to Photos" is available
+                        activityItems.append(ImageActivityItemSource(image: cachedImage))
+                    } else {
+                        let (data, _) = try await URLSession.shared.data(from: url)
+                        if let image = UIImage(data: data) {
+                            // Use ImageActivityItemSource to ensure "Save to Photos" is available
+                            activityItems.append(ImageActivityItemSource(image: image))
+                        } else {
+                            // Fallback to URL with item source
+                            activityItems.append(MediaActivityItemSource(mediaURL: url, mediaType: .image))
+                        }
+                    }
+                    
+                case .animatedGIF:
+                    // GIFs - download and save to temp file, then use file URL
+                    // File URLs with .gif extension enable "Save to Photos" for GIFs
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let fileName = "shared_gif_\(UUID().uuidString).gif"
+                    tempFileURL = tempDir.appendingPathComponent(fileName)
+                    
+                    if let tempURL = tempFileURL {
+                        try data.write(to: tempURL)
+                        // Pass file URL directly - iOS will recognize .gif extension and enable "Save to Photos"
+                        activityItems.append(tempURL)
+                    } else {
+                        // Fallback to URL with item source
+                        activityItems.append(MediaActivityItemSource(mediaURL: url, mediaType: .animatedGIF))
+                    }
+                    
+                case .video, .gifv:
+                    // Videos and GIFV - download and save to temp file with proper content type
+                    // File URLs with video extensions enable "Save to Photos" for videos
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    
+                    // Determine file extension from URL or content type
+                    let fileExtension = url.pathExtension.isEmpty ? "mp4" : url.pathExtension
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let fileName = attachment.type == .gifv 
+                        ? "shared_gifv_\(UUID().uuidString).\(fileExtension)"
+                        : "shared_video_\(UUID().uuidString).\(fileExtension)"
+                    tempFileURL = tempDir.appendingPathComponent(fileName)
+                    
+                    if let tempURL = tempFileURL {
+                        try data.write(to: tempURL)
+                        // Pass file URL directly - iOS will recognize video extensions and enable "Save to Photos"
+                        // Also enables sharing to Messages, Mail, AirDrop, etc.
+                        activityItems.append(tempURL)
+                    } else {
+                        // Fallback to URL with item source
+                        activityItems.append(MediaActivityItemSource(mediaURL: url, mediaType: attachment.type))
+                    }
+                    
+                case .audio:
+                    // Audio - download and save to temp file
+                    let (data, _) = try await URLSession.shared.data(from: url)
+                    let fileExtension = url.pathExtension.isEmpty ? "mp3" : url.pathExtension
+                    let tempDir = FileManager.default.temporaryDirectory
+                    let fileName = "shared_audio_\(UUID().uuidString).\(fileExtension)"
+                    tempFileURL = tempDir.appendingPathComponent(fileName)
+                    
+                    if let tempURL = tempFileURL {
+                        try data.write(to: tempURL)
+                        activityItems.append(MediaActivityItemSource(mediaURL: tempURL, mediaType: .audio))
+                    } else {
+                        activityItems.append(MediaActivityItemSource(mediaURL: url, mediaType: .audio))
+                    }
+                }
+                
+                // Present share sheet with actual media
+                await MainActor.run {
+                    let av = UIActivityViewController(
+                        activityItems: activityItems,
+                        applicationActivities: nil
+                    )
+                    
+                    // Don't exclude activity types - let iOS show all available options
+                    // This enables Save to Photos, Messages, Mail, AirDrop, etc.
+                    // Only exclude activity types that truly don't make sense for media
+                    av.excludedActivityTypes = [
+                        .assignToContact,  // Don't assign media to contacts
+                        .addToReadingList   // Reading list doesn't make sense for media
+                    ]
+                    
+                    // iOS will automatically show media-specific options:
+                    // - "Save to Photos" for images, GIFs, and videos (when using UIImage or file URLs)
+                    // - "Messages" for all media types
+                    // - "Mail" for all media types
+                    // - "AirDrop" for all media types
+                    // - Other apps that support the media type (e.g., photo editing apps)
+                    // ImageActivityItemSource ensures UIImage is properly recognized for Photos integration
+                    // File URLs with proper extensions (.gif, .mp4, etc.) enable video/GIF saving to Photos
+                    
+                    // Clean up temp file after sharing completes
+                    if let tempURL = tempFileURL {
+                        av.completionWithItemsHandler = { activityType, completed, returnedItems, error in
+                            // Clean up temp file after a delay to ensure sharing completed
+                            Task {
+                                try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                                try? FileManager.default.removeItem(at: tempURL)
+                            }
+                        }
+                    }
+                    
+                    // Find the topmost view controller to present from
+                    if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+                       let rootVC = window.rootViewController
+                    {
+                        // Find the topmost presented view controller
+                        var topVC = rootVC
+                        while let presented = topVC.presentedViewController {
+                            topVC = presented
+                        }
+                        
+                        // For iPad support
+                        if let popover = av.popoverPresentationController {
+                            popover.sourceView = topVC.view
+                            popover.sourceRect = CGRect(
+                                x: topVC.view.bounds.midX, 
+                                y: topVC.view.bounds.midY, 
+                                width: 0, 
+                                height: 0
+                            )
+                            popover.permittedArrowDirections = []
+                        }
+                        
+                        topVC.present(av, animated: true) {
+                            // Reset sharing state after a delay
+                            Task {
+                                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                await MainActor.run {
+                                    withAnimation(.easeInOut(duration: 0.3)) {
+                                        isSharing = false
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Fallback: reset sharing state if presentation fails
+                        isSharing = false
+                    }
+                }
+            } catch {
+                // On error, fallback to sharing URL
+                await MainActor.run {
+                    if let url = URL(string: attachment.url) {
+                        let av = UIActivityViewController(
+                            activityItems: [url],
+                            applicationActivities: nil
+                        )
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let window = windowScene.windows.first,
+                           let rootVC = window.rootViewController
+                        {
+                            if let popover = av.popoverPresentationController {
+                                popover.sourceView = window
+                                popover.sourceRect = CGRect(x: window.bounds.midX, y: window.bounds.midY, width: 0, height: 0)
+                                popover.permittedArrowDirections = []
+                            }
+                            
+                            rootVC.present(av, animated: true) {
+                                Task {
+                                    try? await Task.sleep(nanoseconds: 1_500_000_000)
+                                    await MainActor.run {
+                                        withAnimation(.easeInOut(duration: 0.3)) {
+                                            isSharing = false
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        isSharing = false
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -159,20 +159,32 @@ struct ProfileView: View {
         isLoading = true
         error = nil
         do {
+            print("🔍 ProfileView: Fetching posts for account: \(account.username)")
+            print("🔍 ProfileView: platformSpecificId: '\(account.platformSpecificId)'")
+            print("🔍 ProfileView: platform: \(account.platform)")
+            print("🔍 ProfileView: serverURL: \(account.serverURL?.absoluteString ?? "nil")")
+            
             let searchUser = SearchUser(
-                id: account.platformSpecificId,
+                id: account.platformSpecificId.isEmpty ? "" : account.platformSpecificId,
                 username: account.username,
                 displayName: account.displayName,
                 avatarURL: account.profileImageURL?.absoluteString,
                 platform: account.platform
             )
+            print("🔍 ProfileView: Created SearchUser with id: '\(searchUser.id)'")
+            
             let (newPosts, nextCursor) = try await serviceManager.fetchUserPosts(
                 user: searchUser, account: account)
+            print("✅ ProfileView: Successfully fetched \(newPosts.count) posts")
             posts = newPosts
             cursor = nextCursor
             canLoadMore = nextCursor != nil && !newPosts.isEmpty
         } catch {
-            print("Failed to fetch user posts: \(error)")
+            print("❌ ProfileView: Failed to fetch user posts: \(error)")
+            print("❌ ProfileView: Error details: \(error.localizedDescription)")
+            if let nsError = error as NSError? {
+                print("❌ ProfileView: Error domain: \(nsError.domain), code: \(nsError.code)")
+            }
             self.error = error
         }
         isLoading = false

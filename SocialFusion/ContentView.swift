@@ -8,6 +8,7 @@ struct ContentView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject var appVersionManager: AppVersionManager
     @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
+    @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
     @State private var selectedTab = 0
 
     // Account selection state
@@ -42,39 +43,59 @@ struct ContentView: View {
     @State private var sidebarSelection: Int? = 0
 
     var body: some View {
-        if horizontalSizeClass == .regular {
-            NavigationSplitView {
-                sidebar
-                    .navigationTitle("SocialFusion")
-                    .listStyle(SidebarListStyle())
-            } content: {
-                detailView
-            } detail: {
-                if let post = navigationEnvironment.selectedPost {
-                    PostDetailView(
-                        viewModel: PostViewModel(post: post, serviceManager: serviceManager)
-                    )
-                    .id(post.id)
-                } else if let user = navigationEnvironment.selectedUser {
-                    UserDetailView(user: user)
-                        .id(user.id)
-                } else if let tag = navigationEnvironment.selectedTag {
-                    TagDetailView(tag: tag)
-                        .id(tag.id)
-                } else {
-                    VStack(spacing: 20) {
-                        Image(systemName: "hand.tap")
-                            .font(.system(size: 50))
-                            .foregroundColor(.secondary.opacity(0.3))
-                        Text("Select a post to see details")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
+        ZStack {
+            if horizontalSizeClass == .regular {
+                NavigationSplitView {
+                    sidebar
+                        .navigationTitle("SocialFusion")
+                        .listStyle(SidebarListStyle())
+                } content: {
+                    detailView
+                } detail: {
+                    if let post = navigationEnvironment.selectedPost {
+                        PostDetailView(
+                            viewModel: PostViewModel(post: post, serviceManager: serviceManager)
+                        )
+                        .id(post.id)
+                    } else if let user = navigationEnvironment.selectedUser {
+                        UserDetailView(user: user)
+                            .id(user.id)
+                    } else if let tag = navigationEnvironment.selectedTag {
+                        TagDetailView(tag: tag)
+                            .id(tag.id)
+                    } else {
+                        VStack(spacing: 20) {
+                            Image(systemName: "hand.tap")
+                                .font(.system(size: 50))
+                                .foregroundColor(.secondary.opacity(0.3))
+                            Text("Select a post to see details")
+                                .font(.headline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
+            } else {
+                tabView
             }
-        } else {
-            tabView
+
+            // Fullscreen media overlay - presented at root level to avoid clipping
+            if mediaCoordinator.showFullscreen, let media = mediaCoordinator.selectedMedia {
+                FullscreenMediaOverlay(
+                    media: media,
+                    allMedia: mediaCoordinator.allMedia,
+                    showAltTextInitially: mediaCoordinator.showAltTextInitially,
+                    mediaNamespace: mediaCoordinator.mediaNamespace,
+                    thumbnailFrames: mediaCoordinator.thumbnailFrames,
+                    dismissalDirection: $mediaCoordinator.dismissalDirection,
+                    onDismiss: {
+                        mediaCoordinator.dismiss()
+                    }
+                )
+                .transition(.opacity)
+                .zIndex(1000)
+            }
         }
+        .environmentObject(mediaCoordinator)
     }
 
     private var sidebar: some View {

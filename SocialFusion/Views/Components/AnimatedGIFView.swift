@@ -23,6 +23,8 @@ private struct AnimatedGIFViewRepresentable: UIViewRepresentable {
         let imageView = UIImageView()
         imageView.contentMode = .scaleAspectFill
         imageView.clipsToBounds = true
+        // CRITICAL: Set infinite loop for animated GIFs (0 = infinite)
+        imageView.animationRepeatCount = 0
         return imageView
     }
 
@@ -41,6 +43,8 @@ private struct AnimatedGIFViewRepresentable: UIViewRepresentable {
                     // Create animated image from GIF data
                     if let animatedImage = UIImage.animatedImageWithData(data) {
                         uiView.image = animatedImage
+                        // Ensure looping is enabled for animated GIFs
+                        uiView.animationRepeatCount = 0
                     } else {
                         // Fallback to static image if animation fails
                         uiView.image = UIImage(data: data)

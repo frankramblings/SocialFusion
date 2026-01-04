@@ -1141,6 +1141,7 @@ public final class BlueskyService: Sendable {
             {
                 inReplyToID = parentUri
                 logger.info("Found reply post with parent: \(parentUri)")
+                print("[Bluesky] 🔍 Found reply - parentUri: \(parentUri)")
 
                 // Try to extract username from parent
                 if let parentAuthor = parent["author"] as? [String: Any],
@@ -1148,6 +1149,8 @@ public final class BlueskyService: Sendable {
                 {
                     inReplyToUsername = parentHandle
                     logger.info("[Bluesky] Setting inReplyToUsername to: \(parentHandle)")
+                    print("[Bluesky] ✅ Setting inReplyToUsername to: \(parentHandle)")
+
                     // If we have sufficient information, create a simple parent post
                     if let parentDisplayName = parentAuthor["displayName"] as? String,
                         let parentAvatar = parentAuthor["avatar"] as? String
@@ -1277,30 +1280,107 @@ public final class BlueskyService: Sendable {
 
             // Process media attachments - handle different API embed formats
             var attachments: [Post.Attachment] = []
-            if let embed = post["embed"] as? [String: Any] {
-                print(
-                    "[Bluesky] 🔍 Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
-                )
+
+            // Helper function to parse attachments from an embed dictionary
+            func parseAttachments(from embed: [String: Any], source: String) {
                 logger.info(
-                    "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
+                    "[Bluesky] 🔍 Parsing attachments from \(source) for post \(uri): \(embed.keys.joined(separator: ", "))"
                 )
 
-                // First try the images array format
-                if let images = embed["images"] as? [[String: Any]] {
+                // Check for recordWithMedia embed type - can contain images or videos
+                if let embedType = embed["$type"] as? String,
+                    embedType == "app.bsky.embed.recordWithMedia#view",
+                    let media = embed["media"] as? [String: Any]
+                {
+                    // Check for images in recordWithMedia
+                    if let images = media["images"] as? [[String: Any]] {
+                        logger.info(
+                            "[Bluesky] 🖼️ Found recordWithMedia embed with \(images.count) images")
+                        for image in images {
+                            if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
+                                URL(string: fullsize) != nil
+                            {
+                                let alt = image["alt"] as? String ?? "Image"
+                                var width: Int? = nil
+                                var height: Int? = nil
+                                if let aspectRatio = image["aspectRatio"] as? [String: Any] {
+                                    width = aspectRatio["width"] as? Int
+                                    height = aspectRatio["height"] as? Int
+                                }
+                                attachments.append(
+                                    Post.Attachment(
+                                        url: fullsize,
+                                        type: .image,
+                                        altText: alt,
+                                        width: width,
+                                        height: height
+                                    )
+                                )
+                                logger.debug(
+                                    "[Bluesky] 🖼️ Parsed image from recordWithMedia: \(fullsize)")
+                            }
+                        }
+                    }
+                    // Check for videos in recordWithMedia
+                    else if let mediaType = media["$type"] as? String,
+                        mediaType == "app.bsky.embed.video#view"
+                    {
+                        logger.info("[Bluesky] 🎥 Found recordWithMedia embed with video")
+                        var videoUrl: String? = nil
+                        var alt = "Video"
+                        var width: Int? = nil
+                        var height: Int? = nil
+
+                        // Try playlist URL first (HLS stream) - common format for Bluesky videos
+                        if let playlist = media["playlist"] as? String, !playlist.isEmpty {
+                            videoUrl = playlist
+                            if let aspectRatio = media["aspectRatio"] as? [String: Any] {
+                                width = aspectRatio["width"] as? Int
+                                height = aspectRatio["height"] as? Int
+                            }
+                            logger.info(
+                                "[Bluesky] 🎥 Found video playlist in recordWithMedia: \(playlist)")
+                        }
+                        // Fallback to video.url
+                        else if let video = media["video"] as? [String: Any],
+                            let url = video["url"] as? String, !url.isEmpty
+                        {
+                            videoUrl = url
+                            alt = video["alt"] as? String ?? "Video"
+                            if let aspectRatio = video["aspectRatio"] as? [String: Any] {
+                                width = aspectRatio["width"] as? Int
+                                height = aspectRatio["height"] as? Int
+                            }
+                            logger.info("[Bluesky] 🎥 Found video URL in recordWithMedia: \(url)")
+                        }
+
+                        if let url = videoUrl, URL(string: url) != nil {
+                            attachments.append(
+                                Post.Attachment(
+                                    url: url,
+                                    type: .video,
+                                    altText: alt,
+                                    width: width,
+                                    height: height
+                                )
+                            )
+                            logger.info("[Bluesky] 🎥 Parsed video from recordWithMedia: \(url)")
+                        }
+                    }
+                }
+                // First try the images array format (direct images embed)
+                else if let images = embed["images"] as? [[String: Any]] {
                     for image in images {
                         if let fullsize = image["fullsize"] as? String, !fullsize.isEmpty,
                             URL(string: fullsize) != nil
                         {
                             let alt = image["alt"] as? String ?? "Image"
-
-                            // Extract aspect ratio if available
                             var width: Int? = nil
                             var height: Int? = nil
                             if let aspectRatio = image["aspectRatio"] as? [String: Any] {
                                 width = aspectRatio["width"] as? Int
                                 height = aspectRatio["height"] as? Int
                             }
-
                             attachments.append(
                                 Post.Attachment(
                                     url: fullsize,
@@ -1315,31 +1395,46 @@ public final class BlueskyService: Sendable {
                 }
                 // Handle video embeds
                 else if let embedType = embed["$type"] as? String,
-                    embedType == "app.bsky.embed.video#view",
-                    let video = embed["video"] as? [String: Any],
-                    let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
-                    URL(string: videoUrl) != nil
+                    embedType == "app.bsky.embed.video#view"
                 {
-                    let alt = video["alt"] as? String ?? "Video"
-
-                    // Video embeds also often have aspect ratio metadata
+                    // Video embeds can have video URL in different places
+                    var videoUrl: String? = nil
+                    var alt = "Video"
                     var width: Int? = nil
                     var height: Int? = nil
-                    if let aspectRatio = video["aspectRatio"] as? [String: Any] {
-                        width = aspectRatio["width"] as? Int
-                        height = aspectRatio["height"] as? Int
+
+                    // Try video.url first
+                    if let video = embed["video"] as? [String: Any],
+                        let url = video["url"] as? String, !url.isEmpty
+                    {
+                        videoUrl = url
+                        alt = video["alt"] as? String ?? "Video"
+                        if let aspectRatio = video["aspectRatio"] as? [String: Any] {
+                            width = aspectRatio["width"] as? Int
+                            height = aspectRatio["height"] as? Int
+                        }
+                    }
+                    // Try playlist URL (HLS stream) - this is the common format for Bluesky videos
+                    else if let playlist = embed["playlist"] as? String, !playlist.isEmpty {
+                        videoUrl = playlist
+                        if let aspectRatio = embed["aspectRatio"] as? [String: Any] {
+                            width = aspectRatio["width"] as? Int
+                            height = aspectRatio["height"] as? Int
+                        }
                     }
 
-                    logger.info("[Bluesky] Parsed video attachment: \(videoUrl)")
-                    attachments.append(
-                        Post.Attachment(
-                            url: videoUrl,
-                            type: .video,
-                            altText: alt,
-                            width: width,
-                            height: height
+                    if let url = videoUrl, URL(string: url) != nil {
+                        logger.info("[Bluesky] Parsed video attachment from \(source): \(url)")
+                        attachments.append(
+                            Post.Attachment(
+                                url: url,
+                                type: .video,
+                                altText: alt,
+                                width: width,
+                                height: height
+                            )
                         )
-                    )
+                    }
                 }
                 // Then try the other common formats for images
                 else if let media = embed["media"] as? [String: Any],
@@ -1349,7 +1444,8 @@ public final class BlueskyService: Sendable {
                     let url = imgUrl["url"] as? String, !url.isEmpty, URL(string: url) != nil
                 {
                     let alt = media["alt"] as? String ?? "Image"
-                    logger.debug("[Bluesky] Parsed image attachment: \(url) alt: \(alt)")
+                    logger.debug(
+                        "[Bluesky] Parsed image attachment from \(source): \(url) alt: \(alt)")
                     attachments.append(
                         Post.Attachment(
                             url: url,
@@ -1357,7 +1453,42 @@ public final class BlueskyService: Sendable {
                             altText: alt
                         ))
                 }
-                // Note: Quote posts are handled separately below, don't skip non-image embeds
+            }
+
+            // For reposts, check record.embed first (original post's media)
+            // This is where the original post's attachments are stored
+            if let recordEmbed = record["embed"] as? [String: Any] {
+                parseAttachments(from: recordEmbed, source: "record.embed")
+            }
+
+            // Then check top-level embed (might have additional media or quote posts)
+            if let topLevelEmbed = post["embed"] as? [String: Any] {
+                print(
+                    "[Bluesky] 🔍 Processing embed for post \(uri): \(topLevelEmbed.keys.joined(separator: ", "))"
+                )
+                logger.info(
+                    "[Bluesky] Processing embed for post \(uri): \(topLevelEmbed.keys.joined(separator: ", "))"
+                )
+
+                // Only parse attachments if it's not a quote post embed (those are handled separately)
+                let embedType = topLevelEmbed["$type"] as? String
+                if embedType != "app.bsky.embed.record#view" {
+                    parseAttachments(from: topLevelEmbed, source: "post.embed")
+                }
+            }
+
+            // Also check if there's an embed in the record's value (for nested structures)
+            if let recordValue = record["value"] as? [String: Any],
+                let valueEmbed = recordValue["embed"] as? [String: Any]
+            {
+                parseAttachments(from: valueEmbed, source: "record.value.embed")
+            }
+
+            // Log attachments after parsing
+            if !attachments.isEmpty {
+                logger.info(
+                    "[Bluesky] 📎 Parsed \(attachments.count) attachments for post \(uri): \(attachments.map { $0.url }.joined(separator: ", "))"
+                )
             }
 
             // Extract mentions and hashtags
@@ -1540,18 +1671,35 @@ public final class BlueskyService: Sendable {
                                     }
                                 }
                             }
-                            // Handle video embeds in quoted posts
-                            else if let embedType = quotedEmbed["$type"] as? String,
-                                embedType == "app.bsky.embed.video#view",
-                                let video = quotedEmbed["video"] as? [String: Any],
-                                let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
-                                URL(string: videoUrl) != nil
+                            // Handle video embeds in quoted posts - check for playlist URL (HLS)
+                            else if let quotedEmbedType = quotedEmbed["$type"] as? String,
+                                quotedEmbedType == "app.bsky.embed.video#view"
                             {
-                                let alt = video["alt"] as? String ?? "Video"
-                                logger.info("[Bluesky] 🎥 Parsed quoted post video: \(videoUrl)")
-                                quotedAttachments.append(
-                                    Post.Attachment(url: videoUrl, type: .video, altText: alt)
-                                )
+                                var videoUrl: String? = nil
+                                var alt = "Video"
+
+                                // Try playlist URL first (HLS stream) - this is the common format for Bluesky videos
+                                if let playlist = quotedEmbed["playlist"] as? String,
+                                    !playlist.isEmpty
+                                {
+                                    videoUrl = playlist
+                                    logger.info(
+                                        "[Bluesky] 🎥 Found quoted post video playlist: \(playlist)")
+                                }
+                                // Fallback to video.url
+                                else if let video = quotedEmbed["video"] as? [String: Any],
+                                    let url = video["url"] as? String, !url.isEmpty
+                                {
+                                    videoUrl = url
+                                    alt = video["alt"] as? String ?? "Video"
+                                    logger.info("[Bluesky] 🎥 Found quoted post video URL: \(url)")
+                                }
+
+                                if let url = videoUrl, URL(string: url) != nil {
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: url, type: .video, altText: alt)
+                                    )
+                                }
                             }
                         }
 
@@ -1807,9 +1955,51 @@ public final class BlueskyService: Sendable {
                         displayDate = createdAtDate
                     }
 
+                    logger.info(
+                        "[Bluesky] 📎 Creating originalPost for repost \(uri) with \(attachments.count) direct attachments"
+                    )
+                    if !attachments.isEmpty {
+                        logger.info(
+                            "[Bluesky] 📎 Direct attachment URLs: \(attachments.map { $0.url }.joined(separator: ", "))"
+                        )
+                    }
+
+                    // Log quoted post status
+                    if let quoted = quotedPost {
+                        logger.info(
+                            "[Bluesky] 📎 Quoted post has \(quoted.attachments.count) attachments: \(quoted.attachments.map { $0.url }.joined(separator: ", "))"
+                        )
+                    } else {
+                        logger.info("[Bluesky] 📎 No quoted post found for this repost")
+                    }
+
+                    // For reposts, if the original post has a quote post with attachments but no direct attachments,
+                    // use the quoted post's attachments as the original post's attachments
+                    // This handles cases where a reposted post only has a quote post embed
+                    var finalAttachments = attachments
+                    if finalAttachments.isEmpty, let quoted = quotedPost,
+                        !quoted.attachments.isEmpty
+                    {
+                        logger.info(
+                            "[Bluesky] 📎 Original post has no direct attachments, but quoted post has \(quoted.attachments.count) attachments - using quoted post attachments"
+                        )
+                        finalAttachments = quoted.attachments
+                    } else if !finalAttachments.isEmpty {
+                        logger.info(
+                            "[Bluesky] 📎 Using \(finalAttachments.count) direct attachments for originalPost"
+                        )
+                    } else {
+                        logger.warning(
+                            "[Bluesky] ⚠️ Original post has no attachments and no quoted post attachments available"
+                        )
+                    }
+
+                    // Ensure content is not empty - use text if finalContent is empty
+                    let contentToUse = finalContent.isEmpty ? text : finalContent
+
                     originalPost = Post(
                         id: uri,
-                        content: finalContent,
+                        content: contentToUse,
                         authorName: authorName,
                         authorUsername: authorUsername,
                         authorProfilePictureURL: authorAvatarURL,
@@ -1817,7 +2007,7 @@ public final class BlueskyService: Sendable {
                         platform: .bluesky,
                         originalURL:
                             "https://bsky.app/profile/\(authorUsername)/post/\(uri.split(separator: "/").last ?? "")",
-                        attachments: attachments,
+                        attachments: finalAttachments,
                         mentions: mentions,
                         tags: tags,
                         isReposted: viewer?["repost"] as? String != nil,
@@ -1844,20 +2034,35 @@ public final class BlueskyService: Sendable {
                     )
                     originalPost?.quotedPost = quotedPost
 
+                    logger.info(
+                        "[Bluesky] ✅ Created originalPost with content length: \(contentToUse.count), attachments: \(originalPost?.attachments.count ?? 0) (quoted post has \(quotedPost?.attachments.count ?? 0) attachments), inReplyToUsername: \(inReplyToUsername ?? "nil")"
+                    )
+
                     // Hydrate originalPost if content is empty (defensive, rare)
-                    if let unwrappedOriginal = originalPost, unwrappedOriginal.content.isEmpty {
+                    // BUT: Don't hydrate if there are attachments - attachments are valid content
+                    if let unwrappedOriginal = originalPost,
+                        unwrappedOriginal.content.isEmpty,
+                        unwrappedOriginal.attachments.isEmpty
+                    {
+                        // Only hydrate if there are no attachments (attachments are valid content)
                         if let hydrated = try? await self.fetchPostByID(
                             unwrappedOriginal.id, account: account), !hydrated.content.isEmpty
                         {
                             originalPost = hydrated
                         }
                     }
+                    // If originalPost has attachments but empty content, keep it as-is
+                    // (attachments are valid content even without text)
 
                     // Create the repost wrapper with repost timestamp for timeline positioning
                     let repostId = "repost-\(reposterUsername)-\(uri)"
 
                     // Check if the current user has reposted this content (from the original post's viewer info)
                     let userHasReposted = viewer?["repost"] as? String != nil
+
+                    logger.info(
+                        "[Bluesky] 🔄 Creating repost wrapper \(repostId) with originalPost having \(originalPost?.attachments.count ?? 0) attachments"
+                    )
 
                     let repost = Post(
                         id: repostId,
@@ -1884,6 +2089,10 @@ public final class BlueskyService: Sendable {
                         cid: nil,
                         blueskyLikeRecordURI: nil,
                         blueskyRepostRecordURI: viewer?["repost"] as? String
+                    )
+
+                    logger.info(
+                        "[Bluesky] ✅ Created repost wrapper. Final originalPost attachments: \(repost.originalPost?.attachments.count ?? 0)"
                     )
 
                     posts.append(repost)
@@ -2408,7 +2617,7 @@ public final class BlueskyService: Sendable {
                 // Note: We use image/jpeg as a default; in a more advanced version, we'd detect the actual type
                 let blobResponse = try await uploadBlob(
                     data: mediaData, mimeType: "image/jpeg", account: account)
-                
+
                 let altText = index < mediaAltTexts.count ? mediaAltTexts[index] : ""
                 images.append([
                     "alt": altText,
@@ -3143,7 +3352,7 @@ public final class BlueskyService: Sendable {
         return try await getPost(uri: uri, account: account)
     }
 
-/// Follow a user on Bluesky
+    /// Follow a user on Bluesky
     func followUser(did: String, account: SocialAccount) async throws -> String {
         let accessToken = try await account.getValidAccessToken()
         let url = URL(
@@ -3291,45 +3500,53 @@ public final class BlueskyService: Sendable {
     /// Unblock a user on Bluesky
     func unblockUser(did: String, account: SocialAccount) async throws {
         let accessToken = try await account.getValidAccessToken()
-        
+
         // 1. We need to find the block record URI to delete it
         // app.bsky.graph.getBlocks returns blocked users
-        let getBlocksUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.getBlocks")!
+        let getBlocksUrl = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.getBlocks"
+        )!
         var getBlocksRequest = URLRequest(url: getBlocksUrl)
         getBlocksRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        
+
         let (blocksData, _) = try await session.data(for: getBlocksRequest)
         let blocksJson = try JSONSerialization.jsonObject(with: blocksData) as? [String: Any] ?? [:]
         let blocks = blocksJson["blocks"] as? [[String: Any]] ?? []
-        
+
         // Find the block record for this DID
         // Note: The block record URI is usually what we need to delete
         // But app.bsky.graph.getBlocks returns viewer state which includes the block URI
         guard let blockInfo = blocks.first(where: { ($0["did"] as? String) == did }),
-              let viewer = blockInfo["viewer"] as? [String: Any],
-              let blockUri = viewer["blocking"] as? String else {
+            let viewer = blockInfo["viewer"] as? [String: Any],
+            let blockUri = viewer["blocking"] as? String
+        else {
             // Not blocked or couldn't find URI
             return
         }
-        
+
         // 2. Delete the record
-        let deleteUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.deleteRecord")!
+        let deleteUrl = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.deleteRecord"
+        )!
         var deleteRequest = URLRequest(url: deleteUrl)
         deleteRequest.httpMethod = "POST"
         deleteRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         deleteRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
         let rkey = blockUri.components(separatedBy: "/").last ?? ""
         let deleteParams: [String: Any] = [
             "repo": account.platformSpecificId,
             "collection": "app.bsky.graph.block",
-            "rkey": rkey
+            "rkey": rkey,
         ]
-        
+
         deleteRequest.httpBody = try JSONSerialization.data(withJSONObject: deleteParams)
-        
+
         let (_, deleteResponse) = try await session.data(for: deleteRequest)
-        guard let httpResponse = deleteResponse as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = deleteResponse as? HTTPURLResponse, httpResponse.statusCode == 200
+        else {
             throw ServiceError.apiError("Failed to unblock user on Bluesky")
         }
     }
@@ -3369,56 +3586,64 @@ public final class BlueskyService: Sendable {
         displayName: String?, description: String?, avatarData: Data?, account: SocialAccount
     ) async throws -> SocialAccount {
         let accessToken = try await account.getValidAccessToken()
-        
+
         // 1. Fetch current profile to get current values (especially for fields we're not updating)
-        let profileUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.actor.getProfile?actor=\(account.platformSpecificId)")!
+        let profileUrl = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.actor.getProfile?actor=\(account.platformSpecificId)"
+        )!
         var profileRequest = URLRequest(url: profileUrl)
         profileRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        
+
         let (profileData, _) = try await session.data(for: profileRequest)
-        var currentProfile = try JSONSerialization.jsonObject(with: profileData) as? [String: Any] ?? [:]
-        
+        var currentProfile =
+            try JSONSerialization.jsonObject(with: profileData) as? [String: Any] ?? [:]
+
         // 2. Upload avatar if provided
         var avatarBlob: [String: Any]? = nil
         if let avatarData = avatarData {
-            let blobResult = try await uploadBlob(data: avatarData, mimeType: "image/jpeg", account: account)
+            let blobResult = try await uploadBlob(
+                data: avatarData, mimeType: "image/jpeg", account: account)
             avatarBlob = blobResult["blob"] as? [String: Any]
         }
-        
+
         // 3. Prepare the update record
         var record: [String: Any] = [
             "$type": "app.bsky.actor.profile",
             "displayName": displayName ?? currentProfile["displayName"] as? String ?? "",
-            "description": description ?? currentProfile["description"] as? String ?? ""
+            "description": description ?? currentProfile["description"] as? String ?? "",
         ]
-        
+
         if let avatarBlob = avatarBlob {
             record["avatar"] = avatarBlob
         } else if let currentAvatar = currentProfile["avatar"] {
             // Keep existing avatar if not updating
             record["avatar"] = currentAvatar
         }
-        
+
         // 4. Put the record
-        let putUrl = URL(string: "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.putRecord")!
+        let putUrl = URL(
+            string:
+                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.putRecord"
+        )!
         let parameters: [String: Any] = [
             "repo": account.platformSpecificId,
             "collection": "app.bsky.actor.profile",
             "rkey": "self",
-            "record": record
+            "record": record,
         ]
-        
+
         var request = URLRequest(url: putUrl)
         request.httpMethod = "POST"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
-        
+
         let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw ServiceError.apiError("Failed to update Bluesky profile")
         }
-        
+
         // Update local account object
         if let displayName = displayName {
             account.displayName = displayName
@@ -3426,7 +3651,7 @@ public final class BlueskyService: Sendable {
         if let description = description {
             account.bio = description
         }
-        
+
         return account
     }
 
@@ -3644,7 +3869,9 @@ public final class BlueskyThreadResolver: ThreadParticipantResolver {
     private let service: BlueskyService
     private let accountProvider: @Sendable () async -> SocialAccount?
 
-    public init(service: BlueskyService, accountProvider: @escaping @Sendable () async -> SocialAccount?) {
+    public init(
+        service: BlueskyService, accountProvider: @escaping @Sendable () async -> SocialAccount?
+    ) {
         self.service = service
         self.accountProvider = accountProvider
     }
@@ -3700,12 +3927,15 @@ extension BlueskyService {
     }
 
     /// Fetch messages for a specific conversation
-    internal func fetchMessages(convoId: String, for account: SocialAccount) async throws -> [BlueskyChatMessage] {
+    internal func fetchMessages(convoId: String, for account: SocialAccount) async throws
+        -> [BlueskyChatMessage]
+    {
         guard let accessToken = account.accessToken else {
             throw BlueskyTokenError.noAccessToken
         }
 
-        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getMessages?convoId=\(convoId)"
+        let apiURL =
+            "\(getChatProxyURL(for: account))/chat.bsky.convo.getMessages?convoId=\(convoId)"
         guard let url = URL(string: apiURL) else {
             throw BlueskyTokenError.invalidServerURL
         }
@@ -3720,7 +3950,9 @@ extension BlueskyService {
     }
 
     /// Send a message in a conversation
-    internal func sendMessage(convoId: String, text: String, for account: SocialAccount) async throws -> BlueskyMessageView {
+    internal func sendMessage(convoId: String, text: String, for account: SocialAccount)
+        async throws -> BlueskyMessageView
+    {
         guard let accessToken = account.accessToken else {
             throw BlueskyTokenError.noAccessToken
         }
@@ -3739,7 +3971,7 @@ extension BlueskyService {
             "convoId": convoId,
             "message": [
                 "text": text
-            ]
+            ],
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)

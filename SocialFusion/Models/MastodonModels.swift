@@ -167,7 +167,7 @@ public struct MastodonMediaAttachment: Codable {
     public let id: String
     public let type: String
     public let url: String
-    public let previewUrl: String
+    public let previewUrl: String?  // Optional - some media attachments don't have preview_url
     public let remoteUrl: String?
     public let description: String?
 

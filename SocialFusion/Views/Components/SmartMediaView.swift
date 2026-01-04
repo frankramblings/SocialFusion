@@ -1,7 +1,9 @@
 import AVKit
 import ImageIO
+import ObjectiveC
 import SwiftUI
 import UIKit
+import os.log
 
 /// A professional-grade media display component that handles all media types robustly
 struct SmartMediaView: View {
@@ -11,6 +13,10 @@ struct SmartMediaView: View {
     let maxHeight: CGFloat?
     let cornerRadius: CGFloat
     let onTap: (() -> Void)?
+
+    // Hero transition support
+    let heroID: String?
+    let mediaNamespace: Namespace.ID?
 
     @State private var loadingState: LoadingState = .loading
     @State private var retryCount: Int = 0
@@ -35,6 +41,8 @@ struct SmartMediaView: View {
         maxWidth: CGFloat? = nil,
         maxHeight: CGFloat? = nil,
         cornerRadius: CGFloat = 12,
+        heroID: String? = nil,
+        mediaNamespace: Namespace.ID? = nil,
         onTap: (() -> Void)? = nil
     ) {
         self.attachment = attachment
@@ -42,6 +50,8 @@ struct SmartMediaView: View {
         self.maxWidth = maxWidth
         self.maxHeight = maxHeight
         self.cornerRadius = cornerRadius
+        self.heroID = heroID
+        self.mediaNamespace = mediaNamespace
         self.onTap = onTap
     }
 
@@ -77,36 +87,45 @@ struct SmartMediaView: View {
                 }
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
             .onAppear { print("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
             // Flag-driven unfurling with local fallback
             let url = URL(string: attachment.url)
+            let initialRatio = attachment.aspectRatio.map { CGFloat($0) }
+            // Use adaptive max height: allow taller GIFs to display fully
+            // Only apply maxHeight if explicitly provided, otherwise let GIF display at natural height
+            let adaptiveMaxHeight = maxHeight ?? UIScreen.main.bounds.height * 0.8
             if let url = url {
                 GIFUnfurlContainer(
                     url: url,
-                    maxHeight: maxHeight ?? 500,
+                    maxHeight: adaptiveMaxHeight,
                     cornerRadius: cornerRadius,
                     showControls: true,
                     contentMode: contentMode == .fill ? .scaleAspectFill : .scaleAspectFit,
                     onTap: { onTap?() }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.gray.opacity(0.08))
+                // Don't apply frame constraints here - GIFUnfurlContainer handles its own sizing
+                // Only constrain maxWidth to prevent overflow
+                .frame(maxWidth: maxWidth ?? .infinity)
                 .onAppear {
                     print(
-                        "[SmartMediaView] animatedGIF appear url=\(attachment.url) cornerRadius=\(cornerRadius)"
+                        "[SmartMediaView] 🎬 animatedGIF appear url=\(attachment.url) cornerRadius=\(cornerRadius) type=\(attachment.type)"
                     )
                 }
             } else {
                 // Fallback if URL is invalid
                 loadingView
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: maxWidth ?? .infinity, maxHeight: maxHeight ?? .infinity)
+                    .onAppear {
+                        print("[SmartMediaView] ❌ Invalid URL for animatedGIF: \(attachment.url)")
+                    }
             }
         } else {
             // Use CachedAsyncImage for static images with progressive loading support
             let imageURL = URL(string: attachment.url)
             let thumbnailURL = attachment.thumbnailURL.flatMap { URL(string: $0) }
-            
+
             // Use progressive loading if thumbnail is available
             if let imageURL = imageURL, let thumbnailURL = thumbnailURL {
                 // Progressive loading: show thumbnail first, then full image
@@ -126,6 +145,7 @@ struct SmartMediaView: View {
                         .resizable()
                         .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                         .onAppear {
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 1_000_000)
@@ -139,11 +159,13 @@ struct SmartMediaView: View {
                             .resizable()
                             .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .blur(radius: 1) // Slight blur for progressive effect
+                            .clipped()
+                            .blur(radius: 1)  // Slight blur for progressive effect
                     } placeholder: {
                         loadingView
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
                     .onAppear {
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 1_000_000)
@@ -177,6 +199,7 @@ struct SmartMediaView: View {
                         .resizable()
                         .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                         .onAppear {
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 1_000_000)
@@ -186,6 +209,7 @@ struct SmartMediaView: View {
                 } placeholder: {
                     loadingView
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
                         .onAppear {
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 1_000_000)
@@ -211,20 +235,48 @@ struct SmartMediaView: View {
 
         Group {
             if contentMode == .fill {
-                // Grid mode: Fixed aspect ratio (usually square)
+                // Grid mode: Fill the container (aspect ratio constraint applied at container level)
                 mediaContent
                     .frame(maxWidth: maxWidth, maxHeight: maxHeight)
                     .contentShape(Rectangle())
+                    .clipped()
             } else {
-                // Detail/Single mode: Adaptive aspect ratio
-                mediaContent
-                    .aspectRatio(ratio, contentMode: .fit)
-                    .frame(maxWidth: maxWidth)
-                    .frame(maxHeight: maxHeight)
+                // Detail/Single mode: Container size matches image exactly
+                // Background only visible during loading state
+                // Note: animatedGIF uses GIFUnfurlContainer which handles its own sizing via GeometryReader
+                if attachment.type == .animatedGIF {
+                    // GIFUnfurlContainer manages its own aspect ratio and sizing via GeometryReader
+                    // Don't apply additional frame constraints - let it size itself naturally
+                    mediaContent
+                        .background(
+                            // Only show gray background during loading - completely removed when loaded
+                            Group {
+                                if case .loading = loadingState {
+                                    Color.gray.opacity(0.05)
+                                }
+                                // No background when loaded - container wraps tightly around image
+                            }
+                        )
+                } else {
+                    // For other media types, apply aspect ratio constraint
+                    mediaContent
+                        .aspectRatio(ratio, contentMode: .fit)
+                        .frame(maxWidth: maxWidth)
+                        .frame(maxHeight: maxHeight)
+                        .background(
+                            // Only show gray background during loading - completely removed when loaded
+                            Group {
+                                if case .loading = loadingState {
+                                    Color.gray.opacity(0.05)
+                                }
+                                // No background when loaded - container wraps tightly around image
+                            }
+                        )
+                }
             }
         }
-        .background(Color.gray.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .applyHeroTransition(heroID: heroID, namespace: mediaNamespace, isSource: true)
         .onTapGesture {
             if attachment.type != .audio {  // Don't override audio player tap handling
                 onTap?()
@@ -317,6 +369,8 @@ private struct VideoPlayerView: View {
     @StateObject private var memoryManager = MediaMemoryManager.shared
     @StateObject private var performanceMonitor = MediaPerformanceMonitor.shared
 
+    private let logger = Logger(subsystem: "com.socialfusion.app", category: "VideoPlayerView")
+
     var body: some View {
         Group {
             if let player = playerModel.player, !hasError {
@@ -324,6 +378,11 @@ private struct VideoPlayerView: View {
                     VideoPlayer(player: player)
                         .aspectRatio(aspectRatio, contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .onChange(of: player.isMuted) { newValue in
+                            // Sync mute state when VideoPlayer controls change it
+                            // This ensures the mute button works properly
+                            playerModel.isMuted = newValue
+                        }
                         .onAppear {
                             // Detect size from track
                             Task {
@@ -343,6 +402,8 @@ private struct VideoPlayerView: View {
                             }
 
                             if isGIF {
+                                // Ensure playback rate is 1.0 for GIF videos
+                                player.rate = 1.0
                                 player.play()
                             }
                         }
@@ -476,6 +537,13 @@ private struct VideoPlayerView: View {
 
         do {
             if let cachedPlayer = memoryManager.getCachedPlayer(for: url) {
+                // CRITICAL: Ensure player allows muting and is properly configured
+                cachedPlayer.allowsExternalPlayback = false  // Disable AirPlay to ensure mute works properly
+
+                // CRITICAL: Configure looping for GIFs (gifv videos from Mastodon)
+                if isGIF {
+                    configureGIFLooping(for: cachedPlayer)
+                }
                 playerModel.setPlayer(cachedPlayer)
                 hasError = false
                 isLoading = false
@@ -487,6 +555,15 @@ private struct VideoPlayerView: View {
                 return try await createPlayer(for: url)
             }
 
+            // CRITICAL: Ensure player allows muting and is properly configured
+            // VideoPlayer's built-in mute button should work, but we ensure the player is ready
+            player.allowsExternalPlayback = false  // Disable AirPlay to ensure mute works properly
+
+            // CRITICAL: Configure looping for GIFs (gifv videos from Mastodon)
+            if isGIF {
+                configureGIFLooping(for: player)
+            }
+
             memoryManager.cachePlayer(player, for: url)
             performanceMonitor.trackPlayerCreation()
 
@@ -496,7 +573,8 @@ private struct VideoPlayerView: View {
             performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: true)
 
         } catch {
-            print("❌ [VideoPlayerView] Failed to setup player: \(error)")
+            logger.error(
+                "❌ Failed to setup player: \(error.localizedDescription, privacy: .public)")
             hasError = true
             isLoading = false
             performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: false)
@@ -504,35 +582,574 @@ private struct VideoPlayerView: View {
     }
 
     private func createPlayer(for url: URL) async throws -> AVPlayer {
-        return try await withCheckedThrowingContinuation { continuation in
+        // #region agent log
+        let logData: [String: Any] = [
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "location": "SmartMediaView.swift:583",
+            "message": "createPlayer called",
+            "data": [
+                "url": url.absoluteString,
+                "isFileURL": url.isFileURL,
+                "thread": Thread.isMainThread ? "main" : "background",
+            ],
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "A",
+        ]
+        if let logJSON = try? JSONSerialization.data(withJSONObject: logData),
+            let logString = String(data: logJSON, encoding: .utf8)
+        {
+            if let fileHandle = FileHandle(
+                forWritingAtPath:
+                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
+            {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(("\n" + logString).data(using: .utf8) ?? Data())
+                fileHandle.closeFile()
+            } else {
+                try? logString.write(
+                    toFile: "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                    atomically: false, encoding: .utf8)
+            }
+        }
+        // #endregion
+
+        // Check if this URL needs authentication
+        let (needsAuth, platform) = AuthenticatedVideoAssetLoader.needsAuthentication(url: url)
+
+        // Check if this is an HLS playlist (.m3u8) - these should be played directly, not downloaded
+        let isHLSPlaylist = url.absoluteString.contains(".m3u8") || url.pathExtension == "m3u8"
+
+        if needsAuth, let platform = platform {
+            if let account = await AuthenticatedVideoAssetLoader.getAccountForPlatform(platform) {
+                // Get access token (try to get valid token)
+                do {
+                    let token = try await account.getValidAccessToken()
+                    logger.info(
+                        "✅ Using authenticated video loading for \(platform.rawValue, privacy: .public)"
+                    )
+
+                    // For HLS playlists (.m3u8), use AVAssetResourceLoaderDelegate instead of downloading
+                    // AVFoundation can handle HLS streams directly with authentication
+                    // CRITICAL: .m3u8 files are playlists, not videos - they MUST be streamed, not downloaded
+                    if isHLSPlaylist {
+                        logger.info(
+                            "📺 Detected HLS playlist (.m3u8) - using resource loader delegate for streaming"
+                        )
+                        // Create a custom scheme URL to trigger the resource loader
+                        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                        components?.scheme = "authenticated-video"
+                        guard let customSchemeURL = components?.url else {
+                            throw NSError(
+                                domain: "VideoPlayerView", code: -1,
+                                userInfo: [
+                                    NSLocalizedDescriptionKey: "Failed to create custom scheme URL"
+                                ])
+                        }
+                        let asset = AVURLAsset(url: customSchemeURL)
+                        let loader = AuthenticatedVideoAssetLoader(
+                            authToken: token, originalURL: url, platform: platform)
+                        asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
+                        // Retain the loader to prevent deallocation
+                        objc_setAssociatedObject(
+                            asset, "loader", loader, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                        return try await createPlayerWithAsset(asset: asset)
+                    }
+
+                    // For authenticated videos (non-HLS), download to temp file immediately
+                    // The resource loader approach is unreliable with AVFoundation for non-HLS videos
+                    logger.info(
+                        "📥 Downloading authenticated video to temp file for reliable playback")
+                    let tempFileURL = try await AuthenticatedVideoAssetLoader.downloadToTempFile(
+                        url: url, authToken: token, platform: platform)
+
+                    // Small delay to ensure file system has synced
+                    try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
+
+                    // Verify file is readable before creating asset
+                    let fileManager = FileManager.default
+                    guard fileManager.fileExists(atPath: tempFileURL.path) else {
+                        throw NSError(
+                            domain: "VideoPlayerView", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Downloaded file does not exist"])
+                    }
+
+                    let fileAsset = AVURLAsset(url: tempFileURL)
+
+                    // #region agent log
+                    let logData2: [String: Any] = [
+                        "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                        "location": "SmartMediaView.swift:644",
+                        "message": "asset_created_from_temp_file",
+                        "data": [
+                            "tempFileURL": tempFileURL.absoluteString,
+                            "fileExists": FileManager.default.fileExists(atPath: tempFileURL.path),
+                            "thread": Thread.isMainThread ? "main" : "background",
+                        ],
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "C",
+                    ]
+                    if let logJSON2 = try? JSONSerialization.data(withJSONObject: logData2),
+                        let logString2 = String(data: logJSON2, encoding: .utf8)
+                    {
+                        if let fileHandle = FileHandle(
+                            forWritingAtPath:
+                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
+                        ) {
+                            fileHandle.seekToEndOfFile()
+                            fileHandle.write(("\n" + logString2).data(using: .utf8) ?? Data())
+                            fileHandle.closeFile()
+                        } else {
+                            try? logString2.write(
+                                toFile:
+                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                                atomically: false, encoding: .utf8)
+                        }
+                    }
+                    // #endregion
+
+                    // Load asset tracks and playable property to help AVFoundation recognize the file format
+                    logger.info(
+                        "🔍 Loading asset properties for file: \(tempFileURL.lastPathComponent, privacy: .public)"
+                    )
+                    async let tracksTask = fileAsset.loadTracks(withMediaType: .video)
+                    async let playableTask = fileAsset.load(.isPlayable)
+
+                    // Wait for both to complete
+                    let tracks = try await tracksTask
+                    let isPlayable = try await playableTask
+
+                    logger.info("✅ Asset loaded - tracks: \(tracks.count), playable: \(isPlayable)")
+
+                    if !isPlayable {
+                        throw NSError(
+                            domain: "VideoPlayerView", code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Video file is not playable"])
+                    }
+
+                    logger.info(
+                        "✅ Playing from temporary file: \(tempFileURL.lastPathComponent, privacy: .public)"
+                    )
+                    return try await createPlayerWithAsset(asset: fileAsset)
+                } catch {
+                    // If token refresh fails, try with current token
+                    if let token = account.getAccessToken() {
+                        logger.warning(
+                            "⚠️ Using existing token (refresh failed): \(error.localizedDescription, privacy: .public)"
+                        )
+
+                        // CRITICAL: For HLS playlists, use resource loader, don't download
+                        if isHLSPlaylist {
+                            logger.info("📺 Retry: Using resource loader for HLS playlist")
+                            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                            components?.scheme = "authenticated-video"
+                            guard let customSchemeURL = components?.url else {
+                                throw NSError(
+                                    domain: "VideoPlayerView", code: -1,
+                                    userInfo: [
+                                        NSLocalizedDescriptionKey:
+                                            "Failed to create custom scheme URL"
+                                    ])
+                            }
+                            let asset = AVURLAsset(url: customSchemeURL)
+                            let loader = AuthenticatedVideoAssetLoader(
+                                authToken: token, originalURL: url, platform: platform)
+                            asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
+                            objc_setAssociatedObject(
+                                asset, "loader", loader, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+                            return try await createPlayerWithAsset(asset: asset)
+                        }
+
+                        logger.info("📥 Downloading authenticated video to temp file")
+                        let tempFileURL =
+                            try await AuthenticatedVideoAssetLoader.downloadToTempFile(
+                                url: url, authToken: token, platform: platform)
+                        let fileAsset = AVURLAsset(url: tempFileURL)
+                        return try await createPlayerWithAsset(asset: fileAsset)
+                    } else {
+                        logger.warning(
+                            "⚠️ No token available for \(platform.rawValue, privacy: .public), trying unauthenticated asset"
+                        )
+                        let asset = AVURLAsset(url: url)
+                        return try await createPlayerWithAsset(asset: asset)
+                    }
+                }
+            } else {
+                // No account available, but URL needs auth - try unauthenticated first
+                // Some Mastodon instances allow public media access
+                logger.warning(
+                    "⚠️ URL needs auth for \(platform.rawValue, privacy: .public) but no account available, trying unauthenticated"
+                )
+                let asset = AVURLAsset(url: url)
+                return try await createPlayerWithAsset(asset: asset)
+            }
+        } else {
+            // No authentication needed, use regular asset
             let asset = AVURLAsset(url: url)
+            return try await createPlayerWithAsset(asset: asset)
+        }
+    }
+
+    private func createPlayerWithAsset(asset: AVURLAsset) async throws -> AVPlayer {
+        let logger = Logger(subsystem: "com.socialfusion.app", category: "VideoPlayerView")
+        logger.info(
+            "🎬 Creating AVPlayerItem for asset: \(asset.url.absoluteString, privacy: .public)")
+
+        // #region agent log
+        let logData3: [String: Any] = [
+            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            "location": "SmartMediaView.swift:728",
+            "message": "createPlayerWithAsset_start",
+            "data": [
+                "assetURL": asset.url.absoluteString,
+                "isFileURL": asset.url.isFileURL,
+                "thread": Thread.isMainThread ? "main" : "background",
+            ],
+            "sessionId": "debug-session",
+            "runId": "run1",
+            "hypothesisId": "A",
+        ]
+        if let logJSON3 = try? JSONSerialization.data(withJSONObject: logData3),
+            let logString3 = String(data: logJSON3, encoding: .utf8)
+        {
+            if let fileHandle = FileHandle(
+                forWritingAtPath:
+                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
+            {
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(("\n" + logString3).data(using: .utf8) ?? Data())
+                fileHandle.closeFile()
+            } else {
+                try? logString3.write(
+                    toFile: "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                    atomically: false, encoding: .utf8)
+            }
+        }
+        // #endregion
+
+        return try await withCheckedThrowingContinuation { continuation in
             let playerItem = AVPlayerItem(asset: asset)
             let player = AVPlayer(playerItem: playerItem)
 
             var hasResumed = false
 
-            _ = playerItem.observe(\.status, options: [.new]) { item, _ in
-                guard !hasResumed else { return }
+            // #region agent log
+            let logData4: [String: Any] = [
+                "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                "location": "SmartMediaView.swift:734",
+                "message": "playerItem_created",
+                "data": [
+                    "assetURL": asset.url.absoluteString,
+                    "initialStatus": playerItem.status.rawValue,
+                    "thread": Thread.isMainThread ? "main" : "background",
+                ],
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "A",
+            ]
+            if let logJSON4 = try? JSONSerialization.data(withJSONObject: logData4),
+                let logString4 = String(data: logJSON4, encoding: .utf8)
+            {
+                if let fileHandle = FileHandle(
+                    forWritingAtPath:
+                        "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
+                {
+                    fileHandle.seekToEndOfFile()
+                    fileHandle.write(("\n" + logString4).data(using: .utf8) ?? Data())
+                    fileHandle.closeFile()
+                } else {
+                    try? logString4.write(
+                        toFile:
+                            "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                        atomically: false, encoding: .utf8)
+                }
+            }
+            // #endregion
+
+            logger.info("🎬 AVPlayerItem created, initial status: \(playerItem.status.rawValue)")
+
+            // Check initial status
+            if playerItem.status == .readyToPlay {
+                hasResumed = true
+                logger.info("✅ Player item already ready to play")
+                continuation.resume(returning: player)
+                return
+            }
+
+            if playerItem.status == .failed {
+                hasResumed = true
+                let error =
+                    playerItem.error
+                    ?? MediaErrorHandler.MediaError.playerSetupFailed(
+                        "Player item failed immediately")
+                logger.error(
+                    "❌ Player item failed immediately: \(error.localizedDescription, privacy: .public)"
+                )
+                continuation.resume(throwing: error)
+                return
+            }
+
+            _ = playerItem.observe(\.status, options: [.new, .initial]) { item, _ in
+                guard !hasResumed else {
+                    // #region agent log
+                    let logData5: [String: Any] = [
+                        "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                        "location": "SmartMediaView.swift:762",
+                        "message": "status_observer_skipped_already_resumed",
+                        "data": [
+                            "status": item.status.rawValue,
+                            "thread": Thread.isMainThread ? "main" : "background",
+                        ],
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "E",
+                    ]
+                    if let logJSON5 = try? JSONSerialization.data(withJSONObject: logData5),
+                        let logString5 = String(data: logJSON5, encoding: .utf8)
+                    {
+                        if let fileHandle = FileHandle(
+                            forWritingAtPath:
+                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
+                        ) {
+                            fileHandle.seekToEndOfFile()
+                            fileHandle.write(("\n" + logString5).data(using: .utf8) ?? Data())
+                            fileHandle.closeFile()
+                        } else {
+                            try? logString5.write(
+                                toFile:
+                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                                atomically: false, encoding: .utf8)
+                        }
+                    }
+                    // #endregion
+                    return
+                }
+
+                let statusDescription: String
+                switch item.status {
+                case .unknown:
+                    statusDescription = "unknown"
+                case .readyToPlay:
+                    statusDescription = "readyToPlay"
+                case .failed:
+                    statusDescription = "failed"
+                @unknown default:
+                    statusDescription = "unknown(\(item.status.rawValue))"
+                }
+
+                logger.info(
+                    "🎬 Player item status changed to: \(statusDescription, privacy: .public)")
+
+                // #region agent log
+                let logData6: [String: Any] = [
+                    "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                    "location": "SmartMediaView.swift:777",
+                    "message": "status_changed",
+                    "data": [
+                        "status": statusDescription,
+                        "statusRaw": item.status.rawValue,
+                        "hasError": item.error != nil,
+                        "errorCode": (item.error as NSError?)?.code ?? -1,
+                        "thread": Thread.isMainThread ? "main" : "background",
+                    ],
+                    "sessionId": "debug-session",
+                    "runId": "run1",
+                    "hypothesisId": "D",
+                ]
+                if let logJSON6 = try? JSONSerialization.data(withJSONObject: logData6),
+                    let logString6 = String(data: logJSON6, encoding: .utf8)
+                {
+                    if let fileHandle = FileHandle(
+                        forWritingAtPath:
+                            "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
+                    {
+                        fileHandle.seekToEndOfFile()
+                        fileHandle.write(("\n" + logString6).data(using: .utf8) ?? Data())
+                        fileHandle.closeFile()
+                    } else {
+                        try? logString6.write(
+                            toFile:
+                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                            atomically: false, encoding: .utf8)
+                    }
+                }
+                // #endregion
 
                 switch item.status {
                 case .readyToPlay:
                     hasResumed = true
+                    logger.info("✅ Player item ready to play")
+                    // #region agent log
+                    let logData7: [String: Any] = [
+                        "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                        "location": "SmartMediaView.swift:784",
+                        "message": "continuation_resume_success",
+                        "data": [
+                            "thread": Thread.isMainThread ? "main" : "background"
+                        ],
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "E",
+                    ]
+                    if let logJSON7 = try? JSONSerialization.data(withJSONObject: logData7),
+                        let logString7 = String(data: logJSON7, encoding: .utf8)
+                    {
+                        if let fileHandle = FileHandle(
+                            forWritingAtPath:
+                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
+                        ) {
+                            fileHandle.seekToEndOfFile()
+                            fileHandle.write(("\n" + logString7).data(using: .utf8) ?? Data())
+                            fileHandle.closeFile()
+                        } else {
+                            try? logString7.write(
+                                toFile:
+                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                                atomically: false, encoding: .utf8)
+                        }
+                    }
+                    // #endregion
                     continuation.resume(returning: player)
                 case .failed:
                     hasResumed = true
-                    continuation.resume(
-                        throwing: item.error
-                            ?? MediaErrorHandler.MediaError.playerSetupFailed("Unknown error"))
+                    let error =
+                        item.error
+                        ?? MediaErrorHandler.MediaError.playerSetupFailed("Unknown error")
+                    if let nsError = item.error as NSError? {
+                        logger.error(
+                            "❌ Player item failed: \(error.localizedDescription, privacy: .public) - Domain: \(nsError.domain, privacy: .public), Code: \(nsError.code)"
+                        )
+                        if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+                        {
+                            logger.error(
+                                "❌ Underlying error: \(underlyingError.localizedDescription, privacy: .public) - Domain: \(underlyingError.domain, privacy: .public), Code: \(underlyingError.code)"
+                            )
+                        }
+                    } else {
+                        logger.error(
+                            "❌ Player item failed: \(error.localizedDescription, privacy: .public)")
+                    }
+                    // #region agent log
+                    let logData8: [String: Any] = [
+                        "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+                        "location": "SmartMediaView.swift:804",
+                        "message": "continuation_resume_error",
+                        "data": [
+                            "errorDomain": (item.error as NSError?)?.domain ?? "unknown",
+                            "errorCode": (item.error as NSError?)?.code ?? -1,
+                            "thread": Thread.isMainThread ? "main" : "background",
+                        ],
+                        "sessionId": "debug-session",
+                        "runId": "run1",
+                        "hypothesisId": "E",
+                    ]
+                    if let logJSON8 = try? JSONSerialization.data(withJSONObject: logData8),
+                        let logString8 = String(data: logJSON8, encoding: .utf8)
+                    {
+                        if let fileHandle = FileHandle(
+                            forWritingAtPath:
+                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
+                        ) {
+                            fileHandle.seekToEndOfFile()
+                            fileHandle.write(("\n" + logString8).data(using: .utf8) ?? Data())
+                            fileHandle.closeFile()
+                        } else {
+                            try? logString8.write(
+                                toFile:
+                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
+                                atomically: false, encoding: .utf8)
+                        }
+                    }
+                    // #endregion
+                    continuation.resume(throwing: error)
                 case .unknown:
+                    logger.debug("🎬 Player item status: unknown (waiting...)")
                     break
                 @unknown default:
                     break
                 }
             }
 
+            // Also check for errors periodically, even if status hasn't changed
+            var errorCheckCount = 0
+            let errorCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) {
+                timer in
+                errorCheckCount += 1
+                if hasResumed {
+                    timer.invalidate()
+                    return
+                }
+
+                // For local files, give more time - AVFoundation may need to scan the file
+                let isLocalFile = asset.url.isFileURL
+                if isLocalFile && errorCheckCount > 20 {
+                    // Local files might need more time to scan - if still unknown after 10 seconds, something's wrong
+                    hasResumed = true
+                    timer.invalidate()
+                    let error =
+                        playerItem.error
+                        ?? MediaErrorHandler.MediaError.playerSetupFailed(
+                            "Local file failed to load after 10 seconds")
+                    logger.error(
+                        "❌ Local file failed to load: \(error.localizedDescription, privacy: .public)"
+                    )
+                    if let nsError = playerItem.error as NSError? {
+                        logger.error(
+                            "❌ AVPlayerItem error domain: \(nsError.domain, privacy: .public), code: \(nsError.code), userInfo: \(nsError.userInfo)"
+                        )
+                    }
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                if let error = playerItem.error {
+                    hasResumed = true
+                    timer.invalidate()
+                    logger.error(
+                        "❌ Player item error detected: \(error.localizedDescription, privacy: .public)"
+                    )
+                    if let nsError = error as NSError? {
+                        logger.error(
+                            "❌ Error domain: \(nsError.domain, privacy: .public), code: \(nsError.code)"
+                        )
+                        logger.error("❌ Error userInfo: \(nsError.userInfo)")
+                    }
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                // Check status even if observer hasn't fired
+                if playerItem.status == .readyToPlay {
+                    hasResumed = true
+                    timer.invalidate()
+                    logger.info("✅ Player item ready (detected via timer check)")
+                    continuation.resume(returning: player)
+                    return
+                }
+
+                if errorCheckCount >= 30 {
+                    timer.invalidate()
+                }
+            }
+            RunLoop.main.add(errorCheckTimer, forMode: .common)
+
             DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
                 guard !hasResumed else { return }
+                errorCheckTimer.invalidate()
                 hasResumed = true
+                logger.error(
+                    "❌ Player item timed out after 30 seconds - status: \(playerItem.status.rawValue)"
+                )
+                if let error = playerItem.error {
+                    logger.error(
+                        "❌ Player item error: \(error.localizedDescription, privacy: .public)")
+                    if let nsError = error as NSError? {
+                        logger.error(
+                            "❌ Error domain: \(nsError.domain, privacy: .public), code: \(nsError.code)"
+                        )
+                    }
+                }
                 continuation.resume(throwing: MediaErrorHandler.MediaError.loadTimeout)
             }
         }
@@ -550,24 +1167,68 @@ private struct VideoPlayerView: View {
     private func cleanup() {
         playerModel.player?.pause()
     }
+
+    /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
+    private func configureGIFLooping(for player: AVPlayer) {
+        guard let playerItem = player.currentItem else { return }
+
+        // CRITICAL: Set playback rate to 1.0 to prevent fast playback
+        // Some videos might have incorrect rate metadata
+        player.rate = 1.0
+
+        // Set actionAtItemEnd to .none to prevent pausing at end
+        player.actionAtItemEnd = .none
+
+        // Remove any existing observer first to avoid duplicates
+        NotificationCenter.default.removeObserver(
+            self,
+            name: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem
+        )
+
+        // Add observer to loop when video ends
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak player] _ in
+            // Seek back to beginning and play again for infinite loop
+            player?.seek(to: .zero)
+            player?.rate = 1.0  // Ensure rate stays at 1.0
+            player?.play()
+        }
+
+        logger.info("🔄 Configured GIF looping for player with rate=1.0")
+    }
 }
 
 class VideoPlayerViewModel: ObservableObject {
     @Published var player: AVPlayer?
     @Published var isBuffering = false
     @Published var bufferProgress: Float = 0
+    @Published var isMuted = false
 
     private var statusObserver: NSKeyValueObservation?
     private var bufferObserver: NSKeyValueObservation?
     private var progressObserver: NSKeyValueObservation?
+    private var loopObserver: NSObjectProtocol?
+    private var muteObserver: NSKeyValueObservation?
 
     func setPlayer(_ player: AVPlayer) {
         self.player = player
+        // Initialize mute state
+        self.isMuted = player.isMuted
         setupObservers()
     }
 
+    func toggleMute() {
+        guard let player = player else { return }
+        player.isMuted.toggle()
+        isMuted = player.isMuted
+    }
+
     private func setupObservers() {
-        guard let item = player?.currentItem else { return }
+        guard let item = player?.currentItem, let player = player else { return }
 
         bufferObserver = item.observe(\.isPlaybackLikelyToKeepUp, options: [.new]) {
             [weak self] item, change in
@@ -588,12 +1249,24 @@ class VideoPlayerViewModel: ObservableObject {
                 }
             }
         }
+
+        // Observe mute state changes to keep UI in sync
+        muteObserver = player.observe(\.isMuted, options: [.new, .initial]) {
+            [weak self] player, _ in
+            DispatchQueue.main.async {
+                self?.isMuted = player.isMuted
+            }
+        }
     }
 
     deinit {
         statusObserver?.invalidate()
         bufferObserver?.invalidate()
         progressObserver?.invalidate()
+        muteObserver?.invalidate()
+        if let observer = loopObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 }
 
@@ -627,6 +1300,8 @@ private struct AnimatedGIFViewComponent: UIViewRepresentable {
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
         imageView.translatesAutoresizingMaskIntoConstraints = false
+        // CRITICAL: Set infinite loop for animated GIFs (0 = infinite)
+        imageView.animationRepeatCount = 0
 
         containerView.addSubview(imageView)
         containerView.imageView = imageView
@@ -663,6 +1338,8 @@ private struct AnimatedGIFViewComponent: UIViewRepresentable {
                 await MainActor.run {
                     if let animatedImage = UIImage.animatedImageWithData(data) {
                         imageView.image = animatedImage
+                        // Ensure looping is enabled for animated GIFs
+                        imageView.animationRepeatCount = 0
                     } else {
                         imageView.image = UIImage(data: data)
                     }
@@ -722,6 +1399,21 @@ extension UIImage {
             let delay = gifProps[kCGImagePropertyGIFDelayTime as String] as? NSNumber
         else { return 0.1 }
         return delay.doubleValue
+    }
+}
+
+// MARK: - Hero Transition Extension
+
+extension View {
+    /// Applies matchedGeometryEffect for hero transitions when heroID and namespace are provided
+    @ViewBuilder
+    func applyHeroTransition(heroID: String?, namespace: Namespace.ID?, isSource: Bool) -> some View
+    {
+        if let heroID = heroID, let namespace = namespace {
+            self.matchedGeometryEffect(id: heroID, in: namespace, isSource: isSource)
+        } else {
+            self
+        }
     }
 }
 

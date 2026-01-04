@@ -20,6 +20,7 @@
 		0D6AB43027928C6CEB7D48B7 /* PostComposerTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F634194815DBF317A2C069 /* PostComposerTopBar.swift */; };
 		0DB5E3ED99E21E910A5EE892 /* PlatformDot.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC99876AEDC3988BB0F10156 /* PlatformDot.swift */; };
 		0ED9321E76B98C2F47082788 /* ConsolidatedTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 789A5C219B9818CD0A7651B5 /* ConsolidatedTimelineView.swift */; };
+		1083C26B2CF7FA06C2D8146C /* FullscreenMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0188E04849470BC2F0BBD543 /* FullscreenMediaView.swift */; };
 		10851E043653E4AFB96E681B /* SocialPlatform.swift in Sources */ = {isa = PBXBuildFile; fileRef = A44B59B6037ADBC6C87E7AD6 /* SocialPlatform.swift */; };
 		11491516E1B9F31BE7165DBF /* DebugOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A77E7121365985484CA241F /* DebugOptionsView.swift */; };
 		116A03178FD8BA4E72D524DD /* TimeFormatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */; };
@@ -85,6 +86,7 @@
 		7A331CD75A314559EBA081B0 /* ProfileImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8666C8162ED89B555D689B9F /* ProfileImageView.swift */; };
 		7A9F46A075A6DE929623F59B /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022CFA9F095E5B027A26BCE5 /* KeychainManager.swift */; };
 		7B7C6A8649D80404C26F4502 /* GIFUnfurlContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9174B189FF99326AFF6539AD /* GIFUnfurlContainer.swift */; };
+		7D06D75D838968889979F837 /* FullscreenMediaCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DA1EF61353DAEB28C54F175 /* FullscreenMediaCoordinator.swift */; };
 		7E4155789C5E894B1D0549F7 /* BoostBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3473A00930E15E5E41079A5 /* BoostBanner.swift */; };
 		847578673A14BEC2A7A5EBE5 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D71CA3ECEDDF31E65ED2F3D /* AudioPlayerView.swift */; };
 		852008D8C2D23E171ED8DF24 /* NotificationName+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6877E827AA4A781CFFB180 /* NotificationName+Extensions.swift */; };
@@ -132,6 +134,7 @@
 		B5CABD29745A1FF549735548 /* MigrationControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D5262296CBE424119169BF /* MigrationControlPanel.swift */; };
 		BBB534342132A9D816BDE940 /* QuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D469B3E0B4B4763498E1224A /* QuotePostView.swift */; };
 		BBF9A9C3A80B9774931A39DF /* BlueskyPost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842002BDF43C77771C2516F3 /* BlueskyPost.swift */; };
+		BDD57945C280229F6893835C /* AuthenticatedVideoAssetLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B49D68780CD8D8FFF35893 /* AuthenticatedVideoAssetLoader.swift */; };
 		BF9232370B901A0FFEB7868E /* PostActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A3C88EBD267A6FFDD144DC /* PostActionBar.swift */; };
 		C042A08CA3E29AC303753A32 /* TimelineConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05A2D305BD96F21680B8746 /* TimelineConfiguration.swift */; };
 		C12E278F89C75E0FB3426126 /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE242BBA43431E76F7DC4E9F /* SearchView.swift */; };
@@ -166,6 +169,7 @@
 		F0FEE97841E1BFE76F092DCF /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 255ADE201981E507154D54E5 /* ContentView.swift */; };
 		F12982D299B8BA46B982917D /* AccountService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E96497E08946ECFC06C2620E /* AccountService.swift */; };
 		F2B3CD86D065126B32D48F84 /* SocialFusionApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B99202C32522904104EA1A6 /* SocialFusionApp.swift */; };
+		F3393DBB06D2247962193CD7 /* AccountAccessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE8265437746162C30F7328 /* AccountAccessor.swift */; };
 		F740A1F7180B71326E6959F9 /* TimelineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4F840231A23A53E8D1AD0F4 /* TimelineCard.swift */; };
 		F8D8EEE37552A7584FD88B29 /* PostActionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4042894BCB021D7EA32D968E /* PostActionCoordinator.swift */; };
 		FA9BFC76BC04492F9D12FD68 /* MastodonService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA61806327EC6FFD9AE8BD96 /* MastodonService.swift */; };
@@ -177,6 +181,7 @@
 /* Begin PBXFileReference section */
 		001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedEmptyStateView.swift; sourceTree = "<group>"; };
 		005A11BDDF8059DB64CF13D7 /* PROFILE_IMAGE_LOADING_IMPROVEMENTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PROFILE_IMAGE_LOADING_IMPROVEMENTS.md; sourceTree = "<group>"; };
+		0188E04849470BC2F0BBD543 /* FullscreenMediaView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FullscreenMediaView.swift; sourceTree = "<group>"; };
 		022CFA9F095E5B027A26BCE5 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		0380FF70F8415BBC8F2B7D53 /* BlueskyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyAPIClient.swift; sourceTree = "<group>"; };
 		04B2419982A092CA7DD0E500 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
@@ -207,6 +212,7 @@
 		2AB52206B26658AB75187524 /* UnifiedPostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedPostStore.swift; sourceTree = "<group>"; };
 		2AFE90EF41329A63BD590FBC /* Text+HTML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Text+HTML.swift"; sourceTree = "<group>"; };
 		2BE37AAC1F0E00EA31F0F1E0 /* YouTubeExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeExtractor.swift; sourceTree = "<group>"; };
+		2DA1EF61353DAEB28C54F175 /* FullscreenMediaCoordinator.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FullscreenMediaCoordinator.swift; sourceTree = "<group>"; };
 		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemImagePicker.swift; sourceTree = "<group>"; };
 		300AA939D84D2C52B01BDE86 /* HTMLString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLString.swift; sourceTree = "<group>"; };
@@ -265,6 +271,7 @@
 		789A5C219B9818CD0A7651B5 /* ConsolidatedTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsolidatedTimelineView.swift; sourceTree = "<group>"; };
 		7971F092BFD3A1DA68989B1A /* AppVersionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionManager.swift; sourceTree = "<group>"; };
 		7A775D3F2651AB9DF5BC960B /* PostAuthorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostAuthorView.swift; sourceTree = "<group>"; };
+		7BE8265437746162C30F7328 /* AccountAccessor.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AccountAccessor.swift; sourceTree = "<group>"; };
 		7D1679C676D4AD9498F658AC /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
 		7F8BEE46CD8A36947B8D79D8 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
 		81CC3C1029CDB0CF7A31D30D /* MutedKeywordsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MutedKeywordsView.swift; sourceTree = "<group>"; };
@@ -342,6 +349,7 @@
 		EC99876AEDC3988BB0F10156 /* PlatformDot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDot.swift; sourceTree = "<group>"; };
 		EDBF4B50F55E308329F45732 /* DirectTokenEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectTokenEntryView.swift; sourceTree = "<group>"; };
 		F31A69F88143E7CC7B5BBB19 /* GradualMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradualMigrationManager.swift; sourceTree = "<group>"; };
+		F4B49D68780CD8D8FFF35893 /* AuthenticatedVideoAssetLoader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AuthenticatedVideoAssetLoader.swift; sourceTree = "<group>"; };
 		F9A4904D8102015C9E925FD4 /* AccountTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTimelineView.swift; sourceTree = "<group>"; };
 		FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatters.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -352,6 +360,7 @@
 			children = (
 				D1361C49DB68F7EC3C6FDD2C /* PostViewModel.swift */,
 				6F97A18E7B0EBE12A434E395 /* TimelineViewModel.swift */,
+				2DA1EF61353DAEB28C54F175 /* FullscreenMediaCoordinator.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -537,6 +546,8 @@
 				B6083697C2911B63A7599A73 /* PostNormalizerImpl.swift */,
 				73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */,
 				4930A3036E639A6B4378AC0A /* TimelineSwiftDataStore.swift */,
+				F4B49D68780CD8D8FFF35893 /* AuthenticatedVideoAssetLoader.swift */,
+				7BE8265437746162C30F7328 /* AccountAccessor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -635,6 +646,7 @@
 				B4F840231A23A53E8D1AD0F4 /* TimelineCard.swift */,
 				C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */,
 				09865BAC6E267F39F883A07D /* UnifiedMediaGridView.swift */,
+				0188E04849470BC2F0BBD543 /* FullscreenMediaView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -665,8 +677,6 @@
 			dependencies = (
 			);
 			name = SocialFusion;
-			packageProductDependencies = (
-			);
 			productName = SocialFusion;
 			productReference = 2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */;
 			productType = "com.apple.product-type.application";
@@ -678,7 +688,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1400;
+				LastUpgradeCheck = 2620;
 			};
 			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -690,6 +700,7 @@
 			);
 			mainGroup = 4383FFA39CCDB6E82979FB67;
 			minimizedProjectReferenceProxies = 1;
+			productRefGroup = A2991A82CF7626115148BD35 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -878,6 +889,10 @@
 				1D981212542723BDBDFDD141 /* UserDetailView.swift in Sources */,
 				5DCE82E8B7F9961D3DDC3DBD /* Utilities.swift in Sources */,
 				078A6A8DCA608DAF262E62C8 /* YouTubeExtractor.swift in Sources */,
+				1083C26B2CF7FA06C2D8146C /* FullscreenMediaView.swift in Sources */,
+				7D06D75D838968889979F837 /* FullscreenMediaCoordinator.swift in Sources */,
+				BDD57945C280229F6893835C /* AuthenticatedVideoAssetLoader.swift in Sources */,
+				F3393DBB06D2247962193CD7 /* AccountAccessor.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -899,9 +914,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 72;
-				DEVELOPMENT_TEAM = 9XH4G9XR8X;
+				CURRENT_PROJECT_VERSION = 80;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -951,8 +966,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -966,6 +983,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -1007,8 +1025,10 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -1029,6 +1049,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -1039,9 +1060,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 72;
-				DEVELOPMENT_TEAM = 9XH4G9XR8X;
+				CURRENT_PROJECT_VERSION = 80;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

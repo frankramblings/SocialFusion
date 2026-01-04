@@ -82,9 +82,12 @@ struct PostActionBar: View {
 
                 UnifiedReplyButton(
                     count: state.replyCount,
-                    isReplied: post.isReplied,
+                    isReplied: state.isReplied,
                     platform: post.platform,
-                    onTap: onReply
+                    isProcessing: false, // Reply opens compose view, no async processing needed
+                    onTap: {
+                        onReply()
+                    }
                 )
                 .accessibilityLabel("Reply")
                 .frame(maxWidth: .infinity)
@@ -107,6 +110,18 @@ struct PostActionBar: View {
                 .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
                 .frame(maxWidth: .infinity)
 
+                UnifiedQuoteButton(
+                    isQuoted: state.isQuoted,
+                    platform: post.platform,
+                    isProcessing: false, // Quote opens compose view, no async processing needed
+                    onTap: {
+                        // Quote action would be handled by onQuote if provided
+                        // For now, this is a placeholder
+                    }
+                )
+                .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .frame(maxWidth: .infinity)
+
                 PostShareButton(
                     post: post,
                     onTap: onShare
@@ -117,7 +132,10 @@ struct PostActionBar: View {
                     count: replyCount,
                     isReplied: isReplied,
                     platform: post.platform,
-                    onTap: onReply
+                    isProcessing: false, // Reply opens compose view, no async processing needed
+                    onTap: {
+                        onReply()
+                    }
                 )
                 .accessibilityLabel("Reply")
                 .frame(maxWidth: .infinity)
@@ -138,6 +156,18 @@ struct PostActionBar: View {
                     onTap: onLike
                 )
                 .accessibilityLabel(isLiked ? "Unlike" : "Like")
+                .frame(maxWidth: .infinity)
+
+                UnifiedQuoteButton(
+                    isQuoted: post.isQuoted,
+                    platform: post.platform,
+                    isProcessing: false, // Quote opens compose view, no async processing needed
+                    onTap: {
+                        // Quote action would be handled by onQuote if provided
+                        // For now, this is a placeholder
+                    }
+                )
+                .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -173,9 +203,12 @@ struct SmallPostActionBar: View {
 
                 SmallUnifiedReplyButton(
                     count: state.replyCount,
-                    isReplied: post.isReplied,
+                    isReplied: state.isReplied,
                     platform: post.platform,
-                    onTap: onReply
+                    isProcessing: false, // Reply opens compose view, no async processing needed
+                    onTap: {
+                        onReply()
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
@@ -183,7 +216,9 @@ struct SmallPostActionBar: View {
                     isReposted: state.isReposted,
                     count: state.repostCount,
                     isProcessing: isProcessing,
-                    onTap: { coordinator.toggleRepost(for: post) }
+                    onTap: {
+                        coordinator.toggleRepost(for: post)
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
@@ -191,7 +226,20 @@ struct SmallPostActionBar: View {
                     isLiked: state.isLiked,
                     count: state.likeCount,
                     isProcessing: isProcessing,
-                    onTap: { coordinator.toggleLike(for: post) }
+                    onTap: {
+                        coordinator.toggleLike(for: post)
+                    }
+                )
+                .frame(maxWidth: .infinity)
+
+                SmallUnifiedQuoteButton(
+                    isQuoted: state.isQuoted,
+                    platform: post.platform,
+                    isProcessing: false, // Quote opens compose view, no async processing needed
+                    onTap: {
+                        // Quote action would be handled by onQuote if provided
+                        // For now, this is a placeholder
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
@@ -207,21 +255,41 @@ struct SmallPostActionBar: View {
                     count: post.replyCount,
                     isReplied: post.isReplied,
                     platform: post.platform,
-                    onTap: onReply
+                    isProcessing: false, // Reply opens compose view, no async processing needed
+                    onTap: {
+                        onReply()
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
                 SmallUnifiedRepostButton(
                     isReposted: post.isReposted,
                     count: post.repostCount,
-                    onTap: onRepost
+                    isProcessing: false,
+                    onTap: {
+                        onRepost()
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
                 SmallUnifiedLikeButton(
                     isLiked: post.isLiked,
                     count: post.likeCount,
-                    onTap: onLike
+                    isProcessing: false,
+                    onTap: {
+                        onLike()
+                    }
+                )
+                .frame(maxWidth: .infinity)
+
+                SmallUnifiedQuoteButton(
+                    isQuoted: post.isQuoted,
+                    platform: post.platform,
+                    isProcessing: false, // Quote opens compose view, no async processing needed
+                    onTap: {
+                        // Quote action would be handled by onQuote if provided
+                        // For now, this is a placeholder
+                    }
                 )
                 .frame(maxWidth: .infinity)
 
@@ -246,6 +314,7 @@ struct PostActionBarWithViewModel: View {
     let onRepost: () -> Void
     let onLike: () -> Void
     let onShare: () -> Void
+    let onQuote: () -> Void
     @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
 
@@ -256,6 +325,7 @@ struct PostActionBarWithViewModel: View {
         onRepost: @escaping () -> Void,
         onLike: @escaping () -> Void,
         onShare: @escaping () -> Void,
+        onQuote: @escaping () -> Void = {},
         postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil
     ) {
@@ -265,6 +335,7 @@ struct PostActionBarWithViewModel: View {
         self.onRepost = onRepost
         self.onLike = onLike
         self.onShare = onShare
+        self.onQuote = onQuote
         self.postActionStore = postActionStore
         self.postActionCoordinator = postActionCoordinator
     }
@@ -281,9 +352,12 @@ struct PostActionBarWithViewModel: View {
 
                 UnifiedReplyButton(
                     count: state.replyCount,
-                    isReplied: viewModel.post.isReplied,
+                    isReplied: state.isReplied,
                     platform: viewModel.post.platform,
-                    onTap: onReply
+                    isProcessing: false, // Reply opens compose view, no async processing needed
+                    onTap: {
+                        onReply()
+                    }
                 )
                 .accessibilityLabel("Reply")
                 .frame(maxWidth: .infinity)
@@ -306,6 +380,17 @@ struct PostActionBarWithViewModel: View {
                 .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
                 .frame(maxWidth: .infinity)
 
+                UnifiedQuoteButton(
+                    isQuoted: state.isQuoted,
+                    platform: viewModel.post.platform,
+                    isProcessing: false, // Quote opens compose view, no async processing needed
+                    onTap: {
+                        onQuote()
+                    }
+                )
+                .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .frame(maxWidth: .infinity)
+
                 PostShareButton(
                     post: viewModel.post,
                     onTap: onShare
@@ -316,7 +401,10 @@ struct PostActionBarWithViewModel: View {
                     count: viewModel.replyCount,
                     isReplied: viewModel.post.isReplied,
                     platform: viewModel.post.platform,
-                    onTap: onReply
+                    isProcessing: false, // Reply opens compose view, no async processing needed
+                    onTap: {
+                        onReply()
+                    }
                 )
                 .accessibilityLabel("Reply")
                 .frame(maxWidth: .infinity)
@@ -337,6 +425,17 @@ struct PostActionBarWithViewModel: View {
                     onTap: onLike
                 )
                 .accessibilityLabel(viewModel.isLiked ? "Unlike" : "Like")
+                .frame(maxWidth: .infinity)
+
+                UnifiedQuoteButton(
+                    isQuoted: viewModel.post.isQuoted,
+                    platform: viewModel.post.platform,
+                    isProcessing: false, // Quote opens compose view, no async processing needed
+                    onTap: {
+                        onQuote()
+                    }
+                )
+                .accessibilityLabel(viewModel.post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(

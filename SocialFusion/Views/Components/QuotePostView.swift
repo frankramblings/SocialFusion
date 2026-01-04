@@ -1,5 +1,12 @@
 import SwiftUI
 
+// Media display constants (inlined for compatibility)
+private enum MediaConstants {
+    enum CornerRadius {
+        static let feed: CGFloat = 12
+    }
+}
+
 /// A compact view of a quoted post - styled like ParentPostPreview
 public struct QuotePostView: View {
     public let post: Post
@@ -129,7 +136,7 @@ public struct QuotePostView: View {
             attachments: post.attachments,
             maxHeight: 220
         )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .padding(.top, 4)
     }
 

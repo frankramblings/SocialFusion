@@ -65,7 +65,7 @@ public struct MastodonPost: Codable, Identifiable {
         public let id: String
         public let type: String
         public let url: String
-        public let previewUrl: String
+        public let previewUrl: String?  // Optional - some media attachments don't have preview_url
         public let remoteUrl: String?
         public let textUrl: String?
         public let description: String?
@@ -96,6 +96,12 @@ public struct MastodonReblog: Codable {
     public let mediaAttachments: [MastodonPost.MastodonMediaAttachment]?
     public let mentions: [MastodonPost.MastodonMention]?
     public let tags: [MastodonPost.MastodonTag]?
+
+    enum CodingKeys: String, CodingKey {
+        case id, uri, url, content, account, mentions, tags
+        case createdAt = "created_at"
+        case mediaAttachments = "media_attachments"
+    }
 }
 
 // MARK: - Preview Helper

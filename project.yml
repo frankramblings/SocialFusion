@@ -16,7 +16,6 @@ targets:
         excludes:
           - Networking/NetworkError.swift
           - Views/Utilities/URLServiceWrapper.swift
-          - Views/Components/FullscreenMediaView.swift
           - Extensions/NotificationCenter+Extensions.swift
           - Models/TimelineState+Bridge.swift
           - Models/TimelineState+Verification.swift
@@ -57,7 +56,6 @@ targets:
           UISceneConfigurations:
             UIWindowSceneSessionRoleApplication:
               - UISceneConfigurationName: Default Configuration
-                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
 
 schemes:
   SocialFusion:

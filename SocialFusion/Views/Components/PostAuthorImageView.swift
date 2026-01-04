@@ -34,7 +34,7 @@ struct PostAuthorImageView: View {
 
             // Overlay actual profile image when available
             if let stableImageURL = stableImageURL {
-                AsyncImage(url: stableImageURL) { image in
+                CachedAsyncImage(url: stableImageURL, priority: .high) { image in
                     image
                         .resizable()
                         .aspectRatio(contentMode: .fill)

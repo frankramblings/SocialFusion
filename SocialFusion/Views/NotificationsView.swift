@@ -398,10 +398,15 @@ struct NotificationRow: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         if let avatarURL = notification.fromAccount.avatarURL, let url = URL(string: avatarURL) {
-                            AsyncImage(url: url) { image in
+                            CachedAsyncImage(url: url, priority: .high) { image in
                                 image.resizable()
+                                    .aspectRatio(contentMode: .fill)
                             } placeholder: {
                                 Circle().fill(Color.gray.opacity(0.3))
+                                    .overlay(
+                                        ProgressView()
+                                            .scaleEffect(0.5)
+                                    )
                             }
                             .frame(width: 32, height: 32)
                             .clipShape(Circle())
@@ -667,10 +672,15 @@ struct DMConversationRow: View {
     var body: some View {
         HStack(spacing: 12) {
             if let avatarURL = conversation.participant.avatarURL, let url = URL(string: avatarURL) {
-                AsyncImage(url: url) { image in
+                CachedAsyncImage(url: url, priority: .high) { image in
                     image.resizable()
+                        .aspectRatio(contentMode: .fill)
                 } placeholder: {
                     Circle().fill(Color.gray.opacity(0.3))
+                        .overlay(
+                            ProgressView()
+                                .scaleEffect(0.5)
+                        )
                 }
                 .frame(width: 50, height: 50)
                 .clipShape(Circle())

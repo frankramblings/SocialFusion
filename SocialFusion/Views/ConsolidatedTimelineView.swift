@@ -108,11 +108,13 @@ struct ConsolidatedTimelineView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @StateObject private var controller: UnifiedTimelineController
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
+    @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
     @State private var isRefreshing = false
     @State private var scrollVelocity: CGFloat = 0
     @State private var lastScrollTime = Date()
     @State private var scrollCancellationTimer: Timer?
     @State private var replyingToPost: Post? = nil
+    @State private var quotingToPost: Post? = nil
     @State private var showAddAccountView = false
     @State private var reportingPost: Post? = nil
     @State private var showReportDialog = false
@@ -136,6 +138,20 @@ struct ConsolidatedTimelineView: View {
     var body: some View {
         contentView
             .environmentObject(navigationEnvironment)
+            .environmentObject(mediaCoordinator)
+            .fullScreenCover(isPresented: $mediaCoordinator.showFullscreen) {
+                if let media = mediaCoordinator.selectedMedia {
+                    FullscreenMediaOverlay(
+                        media: media,
+                        allMedia: mediaCoordinator.allMedia,
+                        showAltTextInitially: mediaCoordinator.showAltTextInitially,
+                        mediaNamespace: mediaCoordinator.mediaNamespace,
+                        thumbnailFrames: mediaCoordinator.thumbnailFrames,
+                        dismissalDirection: $mediaCoordinator.dismissalDirection,
+                        onDismiss: { mediaCoordinator.dismiss() }
+                    )
+                }
+            }
             .background(
                 NavigationLink(
                     destination: navigationEnvironment.selectedPost.map { post in
@@ -185,6 +201,10 @@ struct ConsolidatedTimelineView: View {
             )
             .sheet(item: $replyingToPost) { post in
                 ComposeView(replyingTo: post)
+                    .environmentObject(serviceManager)
+            }
+            .sheet(item: $quotingToPost) { post in
+                ComposeView(quotingTo: post)
                     .environmentObject(serviceManager)
             }
             .sheet(isPresented: $showAddAccountView) {
@@ -439,17 +459,46 @@ struct ConsolidatedTimelineView: View {
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },
             onShare: {
-                if let url = URL(string: post.originalURL) {
-                    let activityVC = UIActivityViewController(
-                        activityItems: [url], applicationActivities: nil)
-                    if let windowScene = UIApplication.shared.connectedScenes.first
-                        as? UIWindowScene,
-                        let rootVC = windowScene.windows.first?.rootViewController
-                    {
-                        rootVC.present(activityVC, animated: true)
+                guard let url = URL(string: post.originalURL) else { return }
+                
+                let activityVC = UIActivityViewController(
+                    activityItems: [url], 
+                    applicationActivities: nil
+                )
+                
+                // Exclude some activity types that don't make sense for URLs
+                activityVC.excludedActivityTypes = [
+                    .assignToContact,
+                    .addToReadingList
+                ]
+                
+                // Find the topmost view controller to present from
+                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+                   let rootVC = window.rootViewController {
+                    
+                    // Find the topmost presented view controller
+                    var topVC = rootVC
+                    while let presented = topVC.presentedViewController {
+                        topVC = presented
                     }
+                    
+                    // Configure for iPad
+                    if let popover = activityVC.popoverPresentationController {
+                        popover.sourceView = topVC.view
+                        popover.sourceRect = CGRect(
+                            x: topVC.view.bounds.midX, 
+                            y: topVC.view.bounds.midY, 
+                            width: 0, 
+                            height: 0
+                        )
+                        popover.permittedArrowDirections = []
+                    }
+                    
+                    topVC.present(activityVC, animated: true, completion: nil)
                 }
-            }
+            },
+            onQuote: { quotingToPost = post }
         )
         .id(post.id)
     }

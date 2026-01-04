@@ -139,11 +139,25 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     // to prevent cycles when Posts contain other Posts
     public var originalPost: Post? {
         didSet {
-            if let original = originalPost, Post.detectCycle(start: self, next: original) {
-                print(
-                    "[Post] Cycle detected in originalPost chain for post id: \(id). Breaking cycle."
-                )
-                originalPost = nil
+            // Only check for cycles if we're actually setting a non-nil value
+            // CRITICAL: Preserve existing originalPost - don't clear it unless we detect a real cycle
+            if let original = originalPost {
+                // Only detect cycles if we're setting a NEW originalPost (different from oldValue)
+                // This prevents clearing originalPost when it's being set to the same value
+                if oldValue?.id != original.id {
+                    if Post.detectCycle(start: self, next: original) {
+                        print(
+                            "[Post] ⚠️ Cycle detected in originalPost chain for post id: \(id). Breaking cycle."
+                        )
+                        // Only clear if we detected a real cycle
+                        originalPost = nil
+                    } else {
+                        // No cycle detected - originalPost is valid, log for debugging
+                        if oldValue != nil {
+                            print("[Post] ✅ Updated originalPost for post \(id) - no cycle detected")
+                        }
+                    }
+                }
             }
         }
     }
@@ -158,6 +172,11 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         }
     }
     @Published public var isReplied: Bool = false {
+        didSet {
+            objectWillChange.send()
+        }
+    }
+    @Published public var isQuoted: Bool = false {
         didSet {
             objectWillChange.send()
         }
@@ -239,6 +258,10 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     // Bluesky AT Protocol record URIs for unlike/unrepost functionality
     public var blueskyLikeRecordURI: String?  // URI of the like record created by this user
     public var blueskyRepostRecordURI: String?  // URI of the repost record created by this user
+
+    // Custom emoji support (Mastodon/Fediverse)
+    // Maps emoji shortcode (e.g., "neofox_floof") to its image URL
+    public var customEmojiMap: [String: String]?
 
     // Computed property for a stable unique identifier
     public var stableId: String {
@@ -328,6 +351,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case poll
         case blueskyLikeRecordURI
         case blueskyRepostRecordURI
+        case customEmojiMap
     }
 
     // MARK: - Poll Support (nested types for UI components)
@@ -382,7 +406,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let content = try container.decode(String.self, forKey: .content)
         let authorName = try container.decode(String.self, forKey: .authorName)
         let authorUsername = try container.decode(String.self, forKey: .authorUsername)
-        let authorId = try container.decodeIfPresent(String.self, forKey: .authorId) ?? authorUsername
+        let authorId =
+            try container.decodeIfPresent(String.self, forKey: .authorId) ?? authorUsername
         let authorProfilePictureURL = try container.decode(
             String.self, forKey: .authorProfilePictureURL)
         let createdAt = try container.decode(Date.self, forKey: .createdAt)
@@ -398,9 +423,12 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let likeCount = try container.decode(Int.self, forKey: .likeCount)
         let repostCount = try container.decode(Int.self, forKey: .repostCount)
         let replyCount = try container.decodeIfPresent(Int.self, forKey: .replyCount) ?? 0
-        let isFollowingAuthor = try container.decodeIfPresent(Bool.self, forKey: .isFollowingAuthor) ?? false
-        let isMutedAuthor = try container.decodeIfPresent(Bool.self, forKey: .isMutedAuthor) ?? false
-        let isBlockedAuthor = try container.decodeIfPresent(Bool.self, forKey: .isBlockedAuthor) ?? false
+        let isFollowingAuthor =
+            try container.decodeIfPresent(Bool.self, forKey: .isFollowingAuthor) ?? false
+        let isMutedAuthor =
+            try container.decodeIfPresent(Bool.self, forKey: .isMutedAuthor) ?? false
+        let isBlockedAuthor =
+            try container.decodeIfPresent(Bool.self, forKey: .isBlockedAuthor) ?? false
         let platformSpecificId = try container.decode(String.self, forKey: .platformSpecificId)
         let boostedBy = try container.decodeIfPresent(String.self, forKey: .boostedBy)
         let parent = try container.decodeIfPresent(Post.self, forKey: .parent)
@@ -413,14 +441,18 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let cid = try container.decodeIfPresent(String.self, forKey: .cid)
         let primaryLinkURL = try container.decodeIfPresent(URL.self, forKey: .primaryLinkURL)
         let primaryLinkTitle = try container.decodeIfPresent(String.self, forKey: .primaryLinkTitle)
-        let primaryLinkDescription = try container.decodeIfPresent(String.self, forKey: .primaryLinkDescription)
-        let primaryLinkThumbnailURL = try container.decodeIfPresent(URL.self, forKey: .primaryLinkThumbnailURL)
+        let primaryLinkDescription = try container.decodeIfPresent(
+            String.self, forKey: .primaryLinkDescription)
+        let primaryLinkThumbnailURL = try container.decodeIfPresent(
+            URL.self, forKey: .primaryLinkThumbnailURL)
         let quotedPost = try container.decodeIfPresent(Post.self, forKey: .quotedPost)
         let poll = try container.decodeIfPresent(Poll.self, forKey: .poll)
         let blueskyLikeRecordURI = try container.decodeIfPresent(
             String.self, forKey: .blueskyLikeRecordURI)
         let blueskyRepostRecordURI = try container.decodeIfPresent(
             String.self, forKey: .blueskyRepostRecordURI)
+        let customEmojiMap = try container.decodeIfPresent(
+            [String: String].self, forKey: .customEmojiMap)
         self.init(
             id: id,
             content: content,
@@ -458,7 +490,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             primaryLinkDescription: primaryLinkDescription,
             primaryLinkThumbnailURL: primaryLinkThumbnailURL,
             blueskyLikeRecordURI: blueskyLikeRecordURI,
-            blueskyRepostRecordURI: blueskyRepostRecordURI
+            blueskyRepostRecordURI: blueskyRepostRecordURI,
+            customEmojiMap: customEmojiMap
         )
         self.cid = cid
         self.primaryLinkURL = primaryLinkURL
@@ -507,6 +540,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encodeIfPresent(poll, forKey: .poll)
         try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
         try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
+        try container.encodeIfPresent(customEmojiMap, forKey: .customEmojiMap)
     }
 
     public init(
@@ -547,7 +581,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         primaryLinkDescription: String? = nil,
         primaryLinkThumbnailURL: URL? = nil,
         blueskyLikeRecordURI: String? = nil,
-        blueskyRepostRecordURI: String? = nil
+        blueskyRepostRecordURI: String? = nil,
+        customEmojiMap: [String: String]? = nil
     ) {
         self.id = id
         self.content = content
@@ -585,6 +620,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.primaryLinkThumbnailURL = primaryLinkThumbnailURL
         self.blueskyLikeRecordURI = blueskyLikeRecordURI
         self.blueskyRepostRecordURI = blueskyRepostRecordURI
+        self.customEmojiMap = customEmojiMap
         // Defensive: prevent self-reference on construction
         if let parent = parent, parent.id == id {
             print(
@@ -1226,8 +1262,9 @@ public struct NotificationAccount: Sendable, Codable {
     public let username: String
     public let displayName: String?
     public let avatarURL: String?
-    
-    public init(id: String, username: String, displayName: String? = nil, avatarURL: String? = nil) {
+
+    public init(id: String, username: String, displayName: String? = nil, avatarURL: String? = nil)
+    {
         self.id = id
         self.username = username
         self.displayName = displayName
@@ -1242,8 +1279,11 @@ public struct DirectMessage: Identifiable, Codable, Sendable {
     public let content: String
     public let createdAt: Date
     public let platform: SocialPlatform
-    
-    public init(id: String, sender: NotificationAccount, recipient: NotificationAccount, content: String, createdAt: Date, platform: SocialPlatform) {
+
+    public init(
+        id: String, sender: NotificationAccount, recipient: NotificationAccount, content: String,
+        createdAt: Date, platform: SocialPlatform
+    ) {
         self.id = id
         self.sender = sender
         self.recipient = recipient
@@ -1259,8 +1299,11 @@ public struct DMConversation: Identifiable, Codable, Sendable {
     public let lastMessage: DirectMessage
     public let unreadCount: Int
     public let platform: SocialPlatform
-    
-    public init(id: String, participant: NotificationAccount, lastMessage: DirectMessage, unreadCount: Int, platform: SocialPlatform) {
+
+    public init(
+        id: String, participant: NotificationAccount, lastMessage: DirectMessage, unreadCount: Int,
+        platform: SocialPlatform
+    ) {
         self.id = id
         self.participant = participant
         self.lastMessage = lastMessage
@@ -1272,14 +1315,14 @@ public struct DMConversation: Identifiable, Codable, Sendable {
 public enum UnifiedChatMessage: Identifiable, Sendable {
     case bluesky(BlueskyChatMessage)
     case mastodon(Post)
-    
+
     public var id: String {
         switch self {
         case .bluesky(let msg): return msg.id
         case .mastodon(let post): return post.id
         }
     }
-    
+
     public var text: String {
         switch self {
         case .bluesky(let msg):
@@ -1296,7 +1339,7 @@ public enum UnifiedChatMessage: Identifiable, Sendable {
             return htmlString.plainText
         }
     }
-    
+
     public var sentAt: Date {
         switch self {
         case .bluesky(let msg):
@@ -1307,7 +1350,7 @@ public enum UnifiedChatMessage: Identifiable, Sendable {
         case .mastodon(let post): return post.createdAt
         }
     }
-    
+
     public var authorId: String {
         switch self {
         case .bluesky(let msg):
@@ -1319,4 +1362,3 @@ public enum UnifiedChatMessage: Identifiable, Sendable {
         }
     }
 }
-

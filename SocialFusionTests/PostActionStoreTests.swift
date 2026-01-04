@@ -53,6 +53,8 @@ final class PostActionStoreTests: XCTestCase {
             platform: post.platform,
             isLiked: true,
             isReposted: true,
+            isReplied: false,
+            isQuoted: false,
             likeCount: 42,
             repostCount: 7,
             replyCount: 3

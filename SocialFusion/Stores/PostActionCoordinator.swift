@@ -176,6 +176,13 @@ final class PostActionCoordinator: ObservableObject {
         store.registerLocalReply(for: post.stableId)
     }
 
+    func registerQuoteSuccess(for post: Post) {
+        guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
+
+        store.ensureState(for: post)
+        store.registerLocalQuote(for: post.stableId)
+    }
+
     func refreshIfStale(for post: Post) {
         guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
 
@@ -232,7 +239,7 @@ final class PostActionCoordinator: ObservableObject {
             do {
                 let state = try await perform(action)
                 await MainActor.run {
-                    self.completeSuccess(for: key, with: state)
+                    self.completeSuccess(for: key, with: state, post: action.post)
                 }
             } catch {
                 await MainActor.run {
@@ -270,11 +277,55 @@ final class PostActionCoordinator: ObservableObject {
         }
     }
 
-    private func completeSuccess(for key: PostActionStore.ActionKey, with state: PostActionState) {
+    private func completeSuccess(for key: PostActionStore.ActionKey, with state: PostActionState, post: Post) {
         inflightTasks[key] = nil
         store.setInflight(false, for: key)
         store.reconcile(from: state)
-        logger.debug("Reconciled state for key \(key, privacy: .public)")
+        
+        // CRITICAL: Update the Post model to keep it in sync with PostActionStore
+        // This ensures that when PostDetailView creates a PostViewModel, it reads the correct state
+        // Use the reconciled state from the store to ensure consistency with reconcile logic
+        // IMPORTANT: Preserve originalPost and boostedBy - these should never be cleared by action updates
+        let preservedOriginalPost = post.originalPost
+        let preservedBoostedBy = post.boostedBy
+        
+        if let reconciledState = store.state(for: key) {
+            post.isLiked = reconciledState.isLiked
+            post.isReposted = reconciledState.isReposted
+            post.likeCount = reconciledState.likeCount
+            post.repostCount = reconciledState.repostCount
+            post.replyCount = reconciledState.replyCount
+            post.isReplied = reconciledState.isReplied
+            post.isQuoted = reconciledState.isQuoted
+            post.isFollowingAuthor = reconciledState.isFollowingAuthor
+            post.isMutedAuthor = reconciledState.isMutedAuthor
+            post.isBlockedAuthor = reconciledState.isBlockedAuthor
+        } else {
+            // Fallback to server state if reconciled state not available
+            post.isLiked = state.isLiked
+            post.isReposted = state.isReposted
+            post.likeCount = state.likeCount
+            post.repostCount = state.repostCount
+            post.replyCount = state.replyCount
+            post.isReplied = state.isReplied
+            post.isQuoted = state.isQuoted
+            post.isFollowingAuthor = state.isFollowingAuthor
+            post.isMutedAuthor = state.isMutedAuthor
+            post.isBlockedAuthor = state.isBlockedAuthor
+        }
+        
+        // CRITICAL: Restore originalPost and boostedBy if they were accidentally cleared
+        // These properties are essential for boost banners and should never be lost
+        if post.originalPost == nil && preservedOriginalPost != nil {
+            post.originalPost = preservedOriginalPost
+            logger.warning("Restored originalPost for key \(key, privacy: .public) - it was cleared during update")
+        }
+        if post.boostedBy == nil && preservedBoostedBy != nil {
+            post.boostedBy = preservedBoostedBy
+            logger.warning("Restored boostedBy for key \(key, privacy: .public) - it was cleared during update")
+        }
+        
+        logger.debug("Reconciled state for key \(key, privacy: .public) and updated Post model")
         drainDeferredActionIfNeeded(for: key)
     }
 

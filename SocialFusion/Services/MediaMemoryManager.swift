@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -11,9 +12,9 @@ class MediaMemoryManager: ObservableObject {
     // MARK: - Configuration
 
     private struct Config {
-        static let maxCacheSize: Int = 100 * 1024 * 1024  // 100MB
+        static let maxCacheSize: Int = 500 * 1024 * 1024  // 500MB (increased for videos)
         static let maxImageCacheCount = 50
-        static let maxVideoCacheCount = 10
+        static let maxVideoCacheCount = 20  // Increased for better video caching
         static let lowMemoryThreshold: Float = 0.8  // 80% of available memory
         static let compressionQuality: CGFloat = 0.8
         static let maxImageDimension: CGFloat = 2048
@@ -24,6 +25,7 @@ class MediaMemoryManager: ObservableObject {
     private var imageCache = NSCache<NSString, UIImage>()
     private var videoPlayerCache = NSCache<NSString, AVPlayer>()
     private var gifDataCache = NSCache<NSString, NSData>()
+    private var animatedGIFCache = NSCache<NSString, UIImage>()
 
     // Memory monitoring
     @Published private(set) var currentMemoryUsage: Float = 0.0
@@ -51,22 +53,29 @@ class MediaMemoryManager: ObservableObject {
     private func setupCaches() {
         // Image cache
         imageCache.countLimit = Config.maxImageCacheCount
-        imageCache.totalCostLimit = Config.maxCacheSize / 2  // 50MB for images
+        imageCache.totalCostLimit = Config.maxCacheSize / 5  // 100MB for images (reduced from 50%)
         imageCache.name = "MediaImageCache"
 
-        // Video player cache
+        // Video player cache - videos need more memory
         videoPlayerCache.countLimit = Config.maxVideoCacheCount
+        videoPlayerCache.totalCostLimit = Config.maxCacheSize / 2  // 250MB for videos
         videoPlayerCache.name = "MediaVideoCache"
 
         // GIF data cache
         gifDataCache.countLimit = Config.maxImageCacheCount / 2  // Fewer GIFs
         gifDataCache.totalCostLimit = Config.maxCacheSize / 4  // 25MB for GIFs
         gifDataCache.name = "MediaGIFCache"
+        
+        // Animated GIF UIImage cache
+        animatedGIFCache.countLimit = Config.maxImageCacheCount / 2  // Fewer GIFs
+        animatedGIFCache.totalCostLimit = Config.maxCacheSize / 4  // 25MB for animated GIFs
+        animatedGIFCache.name = "AnimatedGIFCache"
 
         // Set eviction policies
         imageCache.evictsObjectsWithDiscardedContent = true
         videoPlayerCache.evictsObjectsWithDiscardedContent = true
         gifDataCache.evictsObjectsWithDiscardedContent = true
+        animatedGIFCache.evictsObjectsWithDiscardedContent = true
     }
 
     // MARK: - Memory Monitoring
@@ -214,26 +223,155 @@ class MediaMemoryManager: ObservableObject {
 
         // Check cache first
         if let cachedData = gifDataCache.object(forKey: key) {
+            print("✅ [MediaMemoryManager] Using cached GIF data for: \(url.absoluteString)")
             return cachedData as Data
         }
 
-        // Download GIF data
-        let (data, _) = try await URLSession.shared.data(from: url)
+        print("🔄 [MediaMemoryManager] Loading GIF from: \(url.absoluteString)")
+        
+        // Create a URLSession configuration with timeout
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30.0
+        config.timeoutIntervalForResource = 60.0
+        config.waitsForConnectivity = true
+        let session = URLSession(configuration: config)
+        
+        do {
+            // Download GIF data with better error handling
+            let (data, response) = try await session.data(from: url)
+            
+            // Check HTTP response status
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📡 [MediaMemoryManager] HTTP Status: \(httpResponse.statusCode) for \(url.absoluteString)")
+                
+                if httpResponse.statusCode != 200 {
+                    let errorMsg = "HTTP \(httpResponse.statusCode) for \(url.absoluteString)"
+                    print("❌ [MediaMemoryManager] \(errorMsg)")
+                    throw NSError(domain: "MediaMemoryManager", code: httpResponse.statusCode, 
+                                 userInfo: [NSLocalizedDescriptionKey: errorMsg])
+                }
+            }
+            
+            // Validate we got data
+            guard !data.isEmpty else {
+                let errorMsg = "Empty response for \(url.absoluteString)"
+                print("❌ [MediaMemoryManager] \(errorMsg)")
+                throw NSError(domain: "MediaMemoryManager", code: -1, 
+                             userInfo: [NSLocalizedDescriptionKey: errorMsg])
+            }
+            
+            print("✅ [MediaMemoryManager] Loaded \(data.count) bytes from \(url.absoluteString)")
 
-        // Check size limits
-        let maxGIFSize = 10 * 1024 * 1024  // 10MB max for GIFs
-        if data.count > maxGIFSize {
-            print(
-                "⚠️ [MediaMemoryManager] GIF too large (\(data.count / (1024*1024))MB), skipping cache"
-            )
+            // Check size limits
+            let maxGIFSize = 10 * 1024 * 1024  // 10MB max for GIFs
+            if data.count > maxGIFSize {
+                print(
+                    "⚠️ [MediaMemoryManager] GIF too large (\(data.count / (1024*1024))MB), skipping cache"
+                )
+                return data
+            }
+
+            // Cache the data
+            let nsData = data as NSData
+            gifDataCache.setObject(nsData, forKey: key, cost: data.count)
+
             return data
+        } catch {
+            print("❌ [MediaMemoryManager] Failed to load GIF from \(url.absoluteString): \(error.localizedDescription)")
+            print("❌ [MediaMemoryManager] Error details: \(error)")
+            throw error
         }
-
-        // Cache the data
-        let nsData = data as NSData
-        gifDataCache.setObject(nsData, forKey: key, cost: data.count)
-
-        return data
+    }
+    
+    /// Get cached animated GIF UIImage if available
+    func getCachedAnimatedGIF(for url: URL) -> UIImage? {
+        let key = url.absoluteString as NSString
+        return animatedGIFCache.object(forKey: key)
+    }
+    
+    /// Cache an animated GIF UIImage
+    func cacheAnimatedGIF(_ image: UIImage, for url: URL) {
+        let key = url.absoluteString as NSString
+        let cost = calculateImageMemoryCost(image)
+        animatedGIFCache.setObject(image, forKey: key, cost: cost)
+    }
+    
+    /// Load or get cached animated GIF UIImage
+    func loadAnimatedGIF(from url: URL) async throws -> UIImage {
+        // Check cache first
+        if let cachedImage = getCachedAnimatedGIF(for: url) {
+            print("✅ [MediaMemoryManager] Using cached animated GIF for: \(url.absoluteString)")
+            return cachedImage
+        }
+        
+        print("🔄 [MediaMemoryManager] Loading animated GIF from: \(url.absoluteString)")
+        
+        // Load data (this will use the data cache)
+        let data: Data
+        do {
+            data = try await loadOptimizedGIF(from: url)
+        } catch {
+            print("❌ [MediaMemoryManager] Failed to load GIF data: \(error.localizedDescription)")
+            throw error
+        }
+        
+        // Validate data is not empty
+        guard !data.isEmpty else {
+            let errorMsg = "Empty GIF data for \(url.absoluteString)"
+            print("❌ [MediaMemoryManager] \(errorMsg)")
+            throw NSError(domain: "MediaMemoryManager", code: -1, 
+                         userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+        
+        // Create animated UIImage
+        guard let image = createAnimatedImage(from: data) else {
+            let errorMsg = "Failed to create animated image from data (\(data.count) bytes) for \(url.absoluteString)"
+            print("❌ [MediaMemoryManager] \(errorMsg)")
+            // Log first few bytes to help diagnose
+            let preview = data.prefix(20).map { String(format: "%02x", $0) }.joined(separator: " ")
+            print("❌ [MediaMemoryManager] Data preview (first 20 bytes): \(preview)")
+            throw NSError(domain: "MediaMemoryManager", code: -1, 
+                         userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+        
+        // Verify it's actually animated
+        if let images = image.images, images.count > 1 {
+            print("✅ [MediaMemoryManager] Created animated GIF with \(images.count) frames, duration: \(image.duration)s from \(url.absoluteString)")
+            print("✅ [MediaMemoryManager] First frame size: \(images.first?.size ?? .zero), animationDuration: \(image.duration)")
+        } else {
+            print("⚠️ [MediaMemoryManager] Created GIF but it may not be animated (frames: \(image.images?.count ?? 0), duration: \(image.duration))")
+            print("⚠️ [MediaMemoryManager] Image properties - images array: \(image.images != nil ? "exists" : "nil"), count: \(image.images?.count ?? 0)")
+        }
+        
+        // Cache the UIImage
+        cacheAnimatedGIF(image, for: url)
+        
+        return image
+    }
+    
+    private func createAnimatedImage(from data: Data) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let count = CGImageSourceGetCount(source)
+        var frames: [UIImage] = []
+        var duration: Double = 0
+        
+        for i in 0..<count {
+            guard let cgImage = CGImageSourceCreateImageAtIndex(source, i, nil) else { continue }
+            let frameDuration = getFrameDuration(from: source, at: i)
+            duration += frameDuration
+            frames.append(UIImage(cgImage: cgImage))
+        }
+        
+        guard !frames.isEmpty else { return nil }
+        return UIImage.animatedImage(with: frames, duration: duration)
+    }
+    
+    private func getFrameDuration(from source: CGImageSource, at index: Int) -> Double {
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil),
+              let gifProps = (properties as NSDictionary)[kCGImagePropertyGIFDictionary as String] as? NSDictionary,
+              let delay = gifProps[kCGImagePropertyGIFDelayTime as String] as? NSNumber
+        else { return 0.1 }
+        return delay.doubleValue > 0 ? delay.doubleValue : 0.1
     }
 
     // MARK: - Video Player Management
@@ -277,6 +415,10 @@ class MediaMemoryManager: ObservableObject {
             let originalLimit = gifDataCache.countLimit
             gifDataCache.countLimit = max(1, originalLimit - 1)
             gifDataCache.countLimit = originalLimit
+            
+            let originalGIFLimit = animatedGIFCache.countLimit
+            animatedGIFCache.countLimit = max(1, originalGIFLimit - 1)
+            animatedGIFCache.countLimit = originalGIFLimit
         }
 
         // Note: NSCache doesn't support enumeration, so we'll clear the entire cache
@@ -289,6 +431,7 @@ class MediaMemoryManager: ObservableObject {
         // Clear all caches
         imageCache.removeAllObjects()
         gifDataCache.removeAllObjects()
+        animatedGIFCache.removeAllObjects()
 
         // Note: NSCache doesn't support enumeration, so we'll clear the entire cache
         // Players will be deallocated when removed from cache
@@ -308,6 +451,7 @@ class MediaMemoryManager: ObservableObject {
     func clearAllCaches() {
         imageCache.removeAllObjects()
         gifDataCache.removeAllObjects()
+        animatedGIFCache.removeAllObjects()
         videoPlayerCache.removeAllObjects()
 
         print("🧹 [MediaMemoryManager] All caches cleared")

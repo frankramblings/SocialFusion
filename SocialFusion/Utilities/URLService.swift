@@ -385,13 +385,44 @@ class URLService {
             || host == "m.youtube.com"
     }
 
+    /// Check if a URL is from a Mastodon instance (for media URLs)
+    func isMastodonMediaURL(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+
+        // Check for common Mastodon instance patterns
+        // Mastodon media URLs typically have paths like /media_attachments/ or /files/
+        let path = url.path.lowercased()
+        let isMediaPath =
+            path.contains("/media_attachments/") || path.contains("/files/")
+            || path.contains("/cache/")
+
+        // Check for Mastodon instance domains (common patterns)
+        let isMastodonInstance =
+            host.contains("mastodon") || host.contains(".social") || host.contains("mas.to")
+            || host.contains("mstdn") || host.contains("fediverse")
+
+        return isMastodonInstance && isMediaPath
+    }
+
     /// Check if URL is a direct GIF file URL
     func isGIFURL(_ url: URL) -> Bool {
         let urlString = url.absoluteString.lowercased()
         let host = url.host?.lowercased() ?? ""
 
-        // Check if URL has .gif extension
-        if urlString.hasSuffix(".gif") {
+        // CRITICAL: Exclude .gifv files (these are videos, not GIFs)
+        if urlString.contains(".gifv") || url.pathExtension.lowercased() == "gifv" {
+            return false
+        }
+
+        // Check if URL has .gif extension (most reliable check)
+        if urlString.hasSuffix(".gif") || urlString.contains(".gif?") || urlString.contains(".gif#")
+        {
+            return true
+        }
+
+        // Check file extension from path
+        let pathExtension = url.pathExtension.lowercased()
+        if pathExtension == "gif" {
             return true
         }
 
@@ -414,9 +445,11 @@ class URLService {
             }
         }
 
-        // Check URL path for gif-like patterns
+        // Check URL path for gif-like patterns (but be careful not to match "gifv")
         let path = url.path.lowercased()
-        if path.contains("gif") || path.contains("giphy") || path.contains("tenor") {
+        if (path.contains("/gif") || path.contains("giphy") || path.contains("tenor"))
+            && !path.contains("gifv")
+        {
             return true
         }
 

@@ -6,6 +6,8 @@ public struct PostActionState: Codable, Equatable {
     public let platform: SocialPlatform
     public var isLiked: Bool
     public var isReposted: Bool
+    public var isReplied: Bool
+    public var isQuoted: Bool
     public var likeCount: Int
     public var repostCount: Int
     public var replyCount: Int
@@ -19,6 +21,8 @@ public struct PostActionState: Codable, Equatable {
         platform: SocialPlatform,
         isLiked: Bool,
         isReposted: Bool,
+        isReplied: Bool,
+        isQuoted: Bool,
         likeCount: Int,
         repostCount: Int,
         replyCount: Int,
@@ -31,6 +35,8 @@ public struct PostActionState: Codable, Equatable {
         self.platform = platform
         self.isLiked = isLiked
         self.isReposted = isReposted
+        self.isReplied = isReplied
+        self.isQuoted = isQuoted
         self.likeCount = likeCount
         self.repostCount = repostCount
         self.replyCount = replyCount
@@ -49,6 +55,8 @@ extension PostActionState {
             platform: post.platform,
             isLiked: post.isLiked,
             isReposted: post.isReposted,
+            isReplied: post.isReplied,
+            isQuoted: post.isQuoted,
             likeCount: post.likeCount,
             repostCount: post.repostCount,
             replyCount: post.replyCount,

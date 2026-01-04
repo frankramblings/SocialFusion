@@ -172,9 +172,11 @@ struct UnifiedReplyButton: View {
     let count: Int
     let isReplied: Bool
     let platform: SocialPlatform
-    let onTap: () -> Void
+    let isProcessing: Bool
+    let onTap: () async -> Void
 
     @State private var isPressed = false
+    @State private var errorShake = false
 
     var body: some View {
         Button {
@@ -182,7 +184,7 @@ struct UnifiedReplyButton: View {
             let impactFeedback = UIImpactFeedbackGenerator(style: .light)
             impactFeedback.impactOccurred()
 
-            onTap()
+            Task { await onTap() }
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "bubble.left")
@@ -215,7 +217,9 @@ struct UnifiedReplyButton: View {
                     }
                 }
             }
+            .opacity(isProcessing ? 0.6 : 1.0)
             .scaleEffect(isPressed ? 0.85 : 1.0)
+            .offset(x: errorShake ? -5 : 0)
             .frame(minWidth: 44, minHeight: 44)
         }
         .buttonStyle(.plain)
@@ -255,11 +259,70 @@ struct UnifiedReplyButton: View {
     }
 }
 
+// MARK: - Unified Quote Button
+
+struct UnifiedQuoteButton: View {
+    let isQuoted: Bool
+    let platform: SocialPlatform
+    let isProcessing: Bool
+    let onTap: () async -> Void
+
+    @State private var isPressed = false
+    @State private var errorShake = false
+
+    private var platformColor: Color {
+        switch platform {
+        case .mastodon:
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+        case .bluesky:
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+        }
+    }
+
+    var body: some View {
+        Button {
+            // Haptic feedback
+            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+            impactFeedback.impactOccurred()
+
+            Task { await onTap() }
+        } label: {
+            Image(systemName: "quote.opening")
+                .font(.system(size: 18))
+                .foregroundColor(isQuoted ? platformColor : .secondary)
+                .scaleEffect(isQuoted ? 1.1 : 1.0)
+                .animation(
+                    .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
+                    value: isQuoted
+                )
+        }
+        .opacity(isProcessing ? 0.6 : 1.0)
+        .scaleEffect(isPressed ? 0.85 : 1.0)
+        .offset(x: errorShake ? -5 : 0)
+        .frame(minWidth: 44, minHeight: 44)
+        .buttonStyle(.plain)
+        .animation(
+            .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05),
+            value: isPressed
+        )
+        .onLongPressGesture(
+            minimumDuration: 0, maximumDistance: .infinity,
+            pressing: { pressing in
+                withAnimation(
+                    .interactiveSpring(response: 0.25, dampingFraction: 0.8, blendDuration: 0.05)
+                ) {
+                    isPressed = pressing
+                }
+            }, perform: {}
+        )
+    }
+}
+
 struct UnifiedInteractionButtons: View {
     let post: Post
     @ObservedObject var store: PostActionStore
     let coordinator: PostActionCoordinator
-    let onReply: () -> Void
+    let onReply: () async -> Void
     let onShare: () -> Void
     let includeShare: Bool
 
@@ -267,7 +330,7 @@ struct UnifiedInteractionButtons: View {
         post: Post,
         store: PostActionStore,
         coordinator: PostActionCoordinator,
-        onReply: @escaping () -> Void,
+        onReply: @escaping () async -> Void,
         onShare: @escaping () -> Void,
         includeShare: Bool = true
     ) {
@@ -297,11 +360,12 @@ struct UnifiedInteractionButtons: View {
         HStack {
             UnifiedReplyButton(
                 count: state.replyCount,
-                isReplied: post.isReplied,
+                isReplied: state.isReplied,
                 platform: post.platform,
-                onTap: onReply
+                isProcessing: isProcessing,
+                onTap: { await onReply() }
             )
-            .accessibilityLabel(post.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+            .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
 
             Spacer()
 
@@ -323,21 +387,26 @@ struct UnifiedInteractionButtons: View {
             )
             .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
 
+            Spacer()
+
+            UnifiedQuoteButton(
+                isQuoted: state.isQuoted,
+                platform: post.platform,
+                isProcessing: false, // Quote opens compose view, no async processing needed
+                onTap: {
+                    await onReply() // Quote uses reply handler for now
+                }
+            )
+            .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+
             if includeShare {
                 Spacer()
 
-                Button {
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                    impactFeedback.impactOccurred()
-                    onShare()
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 18))
-                        .foregroundColor(.secondary)
-                }
+                PostShareButton(
+                    post: post,
+                    onTap: onShare
+                )
                 .frame(width: 44, height: 44)
-                .buttonStyle(SmoothScaleButtonStyle())
-                .accessibilityLabel("Share")
             }
         }
         .opacity(isPending ? 0.7 : 1.0)
@@ -354,6 +423,7 @@ struct UnifiedInteractionButtons: View {
                 count: 42,
                 isReplied: false,
                 platform: .bluesky,
+                isProcessing: false,
                 onTap: {}
             )
 
@@ -377,6 +447,7 @@ struct UnifiedInteractionButtons: View {
                 count: 0,
                 isReplied: true,
                 platform: .mastodon,
+                isProcessing: false,
                 onTap: {}
             )
 
@@ -404,13 +475,15 @@ struct SmallUnifiedReplyButton: View {
     let count: Int
     let isReplied: Bool
     let platform: SocialPlatform
-    let onTap: () -> Void
+    let isProcessing: Bool
+    let onTap: () async -> Void
     
     var body: some View {
         UnifiedReplyButton(
             count: count,
             isReplied: isReplied,
             platform: platform,
+            isProcessing: isProcessing,
             onTap: onTap
         )
         .scaleEffect(0.85) // Make it smaller
@@ -421,14 +494,14 @@ struct SmallUnifiedRepostButton: View {
     let isReposted: Bool
     let count: Int
     var isProcessing: Bool = false
-    let onTap: () -> Void
+    let onTap: () async -> Void
     
     var body: some View {
         UnifiedRepostButton(
             isReposted: isReposted,
             count: count,
             isProcessing: isProcessing,
-            onTap: { onTap() }
+            onTap: onTap
         )
         .scaleEffect(0.85)
     }
@@ -438,14 +511,31 @@ struct SmallUnifiedLikeButton: View {
     let isLiked: Bool
     let count: Int
     var isProcessing: Bool = false
-    let onTap: () -> Void
+    let onTap: () async -> Void
     
     var body: some View {
         UnifiedLikeButton(
             isLiked: isLiked,
             count: count,
             isProcessing: isProcessing,
-            onTap: { onTap() }
+            onTap: onTap
+        )
+        .scaleEffect(0.85)
+    }
+}
+
+struct SmallUnifiedQuoteButton: View {
+    let isQuoted: Bool
+    let platform: SocialPlatform
+    var isProcessing: Bool = false
+    let onTap: () async -> Void
+    
+    var body: some View {
+        UnifiedQuoteButton(
+            isQuoted: isQuoted,
+            platform: platform,
+            isProcessing: isProcessing,
+            onTap: onTap
         )
         .scaleEffect(0.85)
     }

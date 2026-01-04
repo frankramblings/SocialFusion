@@ -131,10 +131,15 @@ struct SearchView: View {
                                     if let avatarURL = user.avatarURL,
                                         let url = URL(string: avatarURL)
                                     {
-                                        AsyncImage(url: url) { image in
+                                        CachedAsyncImage(url: url, priority: .high) { image in
                                             image.resizable()
+                                                .aspectRatio(contentMode: .fill)
                                         } placeholder: {
                                             Circle().fill(Color.gray.opacity(0.3))
+                                                .overlay(
+                                                    ProgressView()
+                                                        .scaleEffect(0.5)
+                                                )
                                         }
                                         .frame(width: 40, height: 40)
                                         .clipShape(Circle())

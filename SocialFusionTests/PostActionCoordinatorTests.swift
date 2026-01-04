@@ -89,6 +89,8 @@ final class PostActionCoordinatorTests: XCTestCase {
                 platform: post.platform,
                 isLiked: true,
                 isReposted: false,
+                isReplied: false,
+                isQuoted: false,
                 likeCount: 10,
                 repostCount: 1,
                 replyCount: 2

@@ -124,7 +124,19 @@ final class PostActionStore: ObservableObject {
             return
         }
 
+        current.isReplied = true
         current.replyCount += 1
+        current.lastUpdatedAt = Date()
+        actions[key] = current
+    }
+
+    func registerLocalQuote(for key: ActionKey) {
+        guard var current = actions[key] else {
+            logger.debug("registerLocalQuote called without state for key \(key, privacy: .public)")
+            return
+        }
+
+        current.isQuoted = true
         current.lastUpdatedAt = Date()
         actions[key] = current
     }
@@ -164,9 +176,46 @@ final class PostActionStore: ObservableObject {
     }
 
     func reconcile(from serverState: PostActionState) {
-        actions[serverState.stableId] = serverState.updated(with: Date())
-        pendingKeys.remove(serverState.stableId)
-        inflightKeys.remove(serverState.stableId)
+        let key = serverState.stableId
+        
+        // Merge intelligently: preserve counts that weren't part of the action
+        // If we have existing state, merge server state with existing state
+        if var existing = actions[key] {
+            // Update action-specific fields from server
+            existing.isLiked = serverState.isLiked
+            existing.isReposted = serverState.isReposted
+            existing.likeCount = serverState.likeCount
+            existing.repostCount = serverState.repostCount
+            
+            // Preserve replyCount and isReplied from existing state if server state has zero/missing
+            // Only update if server state has a higher value (server is authoritative for increases)
+            if serverState.replyCount > existing.replyCount {
+                existing.replyCount = serverState.replyCount
+            }
+            // Preserve isReplied unless server explicitly says it's true
+            if serverState.isReplied {
+                existing.isReplied = true
+            }
+            
+            // Preserve isQuoted similarly
+            if serverState.isQuoted {
+                existing.isQuoted = true
+            }
+            
+            // Update author relationship fields
+            existing.isFollowingAuthor = serverState.isFollowingAuthor
+            existing.isMutedAuthor = serverState.isMutedAuthor
+            existing.isBlockedAuthor = serverState.isBlockedAuthor
+            
+            existing.lastUpdatedAt = Date()
+            actions[key] = existing
+        } else {
+            // No existing state, use server state as-is
+            actions[key] = serverState.updated(with: Date())
+        }
+        
+        pendingKeys.remove(key)
+        inflightKeys.remove(key)
     }
 
     // MARK: - Pending & In-flight helpers

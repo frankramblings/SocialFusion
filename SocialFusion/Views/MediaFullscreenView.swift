@@ -3,8 +3,8 @@ import Combine
 import ImageIO
 import SwiftUI
 
-/// View for displaying media attachments in fullscreen mode
-struct FullscreenMediaView: View {
+/// View for displaying media attachments in fullscreen mode (Legacy - use FullscreenMediaView in Components instead)
+struct LegacyFullscreenMediaView: View {
     // For single attachment view
     var attachment: Post.Attachment? = nil
     // For gallery view with multiple attachments
@@ -488,7 +488,11 @@ struct FullscreenMediaView: View {
                 VideoPlayer(player: player)
                     .edgesIgnoringSafeArea(.all)
                     .onAppear {
+                        // CRITICAL: Configure looping for GIF videos
+                        configureGIFLooping(for: player)
                         currentPlayer = player
+                        // Ensure playback rate is 1.0 before playing
+                        player.rate = 1.0
                         player.play()
                     }
             } else {
@@ -548,10 +552,18 @@ struct FullscreenMediaView: View {
         if videoPlayers[url] == nil {
             isVideoBuffering = true
             let player = createPlayer(for: url)
+            // CRITICAL: Configure looping for GIF videos (gifv)
+            if currentAttachment?.type == .gifv {
+                configureGIFLooping(for: player)
+            }
             videoPlayers[url] = player
             currentPlayer = player
         } else {
             currentPlayer = videoPlayers[url]
+            // CRITICAL: Configure looping for GIF videos (gifv) even if cached
+            if currentAttachment?.type == .gifv {
+                configureGIFLooping(for: currentPlayer!)
+            }
             currentPlayer?.seek(to: .zero)
             currentPlayer?.play()
         }
@@ -698,6 +710,33 @@ struct FullscreenMediaView: View {
         }
     }
 
+    /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
+    private func configureGIFLooping(for player: AVPlayer) {
+        guard let playerItem = player.currentItem else { return }
+
+        // CRITICAL: Set playback rate to 1.0 to prevent fast playback
+        // Some videos might have incorrect rate metadata
+        player.rate = 1.0
+
+        // Set actionAtItemEnd to .none to prevent pausing at end
+        player.actionAtItemEnd = .none
+
+        // Add observer to loop when video ends
+        let loopObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { [weak player] _ in
+            // Seek back to beginning and play again for infinite loop
+            player?.seek(to: .zero)
+            player?.rate = 1.0  // Ensure rate stays at 1.0
+            player?.play()
+        }
+
+        // Store observer for cleanup
+        observers.append(loopObserver)
+    }
+
     // Create and configure a player with proper buffering setup
     private func createPlayer(for url: URL) -> AVPlayer {
         let player = AVPlayer(url: url)
@@ -792,7 +831,7 @@ struct MediaFullscreenView: View {
 
     var body: some View {
         // Redirect to the new FullscreenMediaView for better functionality
-        FullscreenMediaView(
+        LegacyFullscreenMediaView(
             attachment: attachment, attachments: attachments.isEmpty ? [] : attachments)
     }
 }
@@ -806,6 +845,8 @@ struct FullscreenAnimatedGIFView: UIViewRepresentable {
         imageView.contentMode = .scaleAspectFit
         imageView.clipsToBounds = true
         imageView.backgroundColor = .black
+        // CRITICAL: Set infinite loop for animated GIFs (0 = infinite)
+        imageView.animationRepeatCount = 0
         return imageView
     }
 
@@ -819,6 +860,8 @@ struct FullscreenAnimatedGIFView: UIViewRepresentable {
                     // Create animated image from GIF data
                     if let animatedImage = createAnimatedImage(from: data) {
                         uiView.image = animatedImage
+                        // Ensure looping is enabled for animated GIFs
+                        uiView.animationRepeatCount = 0
                     } else {
                         // Fallback to static image if animation fails
                         uiView.image = UIImage(data: data)

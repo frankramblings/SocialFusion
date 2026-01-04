@@ -2,6 +2,21 @@ import Foundation
 import SwiftUI
 import UIKit
 
+// MARK: - Conditional Modifiers
+
+/// Modifier that conditionally applies clipShape
+private struct ConditionalClipShapeModifier: ViewModifier {
+    let shouldClip: Bool
+    
+    func body(content: Content) -> some View {
+        if shouldClip {
+            content.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        } else {
+            content
+        }
+    }
+}
+
 // MARK: - Main Post Detail View
 
 /// Post detail view with Ivory-inspired visual hierarchy
@@ -22,6 +37,8 @@ struct PostDetailView: View {
     // Reply composer state
     @State private var isReplying: Bool = false
     @State private var isQuickReplyActive: Bool = false
+    @State private var replyingToPost: Post? = nil
+    @State private var quotingToPost: Post? = nil
     @State private var inlineReplyText: String = ""
     @State private var isSendingQuickReply: Bool = false
     @State private var quickReplyErrorMessage: String?
@@ -44,6 +61,7 @@ struct PostDetailView: View {
     @State private var isInitialPositioned: Bool = false
     @State private var scrollTargetID: String? = nil
     @State private var scrollTrigger: Int = 0
+    @State private var dragOffset: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -155,6 +173,34 @@ struct PostDetailView: View {
                     .allowsHitTesting(true)
                 }
             }
+            .offset(x: max(0, dragOffset))
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { value in
+                        // Only activate if starting from the left edge
+                        if value.startLocation.x < 20 && value.translation.width > 0 {
+                            dragOffset = min(value.translation.width, geometry.size.width * 0.5)
+                        }
+                    }
+                    .onEnded { value in
+                        // If dragged far enough, go back
+                        if dragOffset > 100 {
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                dragOffset = geometry.size.width
+                            }
+                            // Clear navigation after animation
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                navigationEnvironment.clearNavigation()
+                                dragOffset = 0
+                            }
+                        } else {
+                            // Spring back if not far enough
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                dragOffset = 0
+                            }
+                        }
+                    }
+            )
             .sheet(isPresented: $isReplying) {
                 ComposeView(replyingTo: activeReplyPost ?? viewModel.post)
                     .environmentObject(serviceManager)
@@ -171,18 +217,14 @@ struct PostDetailView: View {
                     .font(.body.weight(.medium))
                     .foregroundColor(.primary)
                     .padding(8)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
             },
             trailing: Menu {
                 postMenuItems
             } label: {
                 Image(systemName: "ellipsis.circle")
-                    .font(.body)
+                    .font(.body.weight(.medium))
                     .foregroundColor(.primary)
                     .padding(8)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
             }
             .menuStyle(.borderlessButton)
         )
@@ -192,6 +234,14 @@ struct PostDetailView: View {
             }
         } message: {
             Text(quickReplyErrorMessage ?? "Something went wrong while sending your reply.")
+        }
+        .sheet(item: $replyingToPost) { post in
+            ComposeView(replyingTo: post)
+                .environmentObject(serviceManager)
+        }
+        .sheet(item: $quotingToPost) { post in
+            ComposeView(quotingTo: post)
+                .environmentObject(serviceManager)
         }
         .onAppear {
             if focusReplyComposer && !isQuickReplyActive {
@@ -275,6 +325,7 @@ struct PostDetailView: View {
                     onRepost: { handleAction(.repost) },
                     onLike: { handleAction(.like) },
                     onShare: { handleAction(.share) },
+                    onQuote: { handleAction(.quote) },
                     postActionStore: serviceManager.postActionStore,
                     postActionCoordinator: serviceManager.postActionCoordinator
                 )
@@ -587,25 +638,9 @@ struct PostDetailView: View {
                 }
             }
         case .share:
-            if targetPost.id == viewModel.post.id {
-                viewModel.share()
-            } else {
-                // Generic share for context posts
-                let urlString = targetPost.originalURL
-                if let url = URL(string: urlString) {
-                    let activityVC = UIActivityViewController(
-                        activityItems: [url], applicationActivities: nil)
-                    if let windowScene = UIApplication.shared.connectedScenes.first
-                        as? UIWindowScene,
-                        let window = windowScene.windows.first,
-                        let rootVC = window.rootViewController
-                    {
-                        rootVC.present(activityVC, animated: true)
-                    }
-                }
-            }
+            sharePost(targetPost)
         case .quote:
-            NSLog("📊 PostDetailView: Quote action for post: %@", targetPost.id)
+            quotingToPost = targetPost
         case .follow:
             Task {
                 await viewModel.followUser()
@@ -637,6 +672,47 @@ struct PostDetailView: View {
 
     private func reportPost() {
         NSLog("Report post: %@", viewModel.post.id)
+    }
+    
+    private func sharePost(_ post: Post) {
+        guard let url = URL(string: post.originalURL) else { return }
+        
+        let activityVC = UIActivityViewController(
+            activityItems: [url],
+            applicationActivities: nil
+        )
+        
+        // Exclude some activity types that don't make sense for URLs
+        activityVC.excludedActivityTypes = [
+            .assignToContact,
+            .addToReadingList
+        ]
+        
+        // Find the topmost view controller to present from
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+           let rootVC = window.rootViewController {
+            
+            // Find the topmost presented view controller
+            var topVC = rootVC
+            while let presented = topVC.presentedViewController {
+                topVC = presented
+            }
+            
+            // Configure for iPad
+            if let popover = activityVC.popoverPresentationController {
+                popover.sourceView = topVC.view
+                popover.sourceRect = CGRect(
+                    x: topVC.view.bounds.midX,
+                    y: topVC.view.bounds.midY,
+                    width: 0,
+                    height: 0
+                )
+                popover.permittedArrowDirections = []
+            }
+            
+            topVC.present(activityVC, animated: true, completion: nil)
+        }
     }
 
     // MARK: - Reply Composer Helpers
@@ -735,6 +811,12 @@ struct PostDetailView: View {
                 )
                 await MainActor.run {
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    
+                    // Register reply success with PostActionCoordinator
+                    if FeatureFlagManager.isEnabled(.postActionsV2) {
+                        serviceManager.postActionCoordinator.registerReplySuccess(for: target)
+                    }
+                    
                     resetQuickReplyState()
                     if target.id == viewModel.post.id {
                         viewModel.replyCount += 1
@@ -980,24 +1062,37 @@ struct SelectedPostView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 if !post.attachments.isEmpty {
+                    // Check if any attachment is a GIF - if so, use taller maxHeight
+                    // Balance: Allow taller GIFs but still maintain reasonable bounds
+                    let hasGIF = post.attachments.contains { $0.type == .animatedGIF }
+                    // Use 75% of screen height for GIFs in detail view (more space than feed)
+                    let mediaMaxHeight = hasGIF ? min(UIScreen.main.bounds.height * 0.75, 900) : 600
+                    
                     UnifiedMediaGridView(
                         attachments: post.attachments,
-                        maxHeight: 600
+                        maxHeight: mediaMaxHeight
                     )
+                    .frame(maxWidth: .infinity)
+                    // Apply clipShape but UnifiedMediaGridView/SmartMediaView handle aspect ratio properly
+                    // This prevents overflow while allowing GIFs to display at their natural aspect ratio
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
 
                 // Poll section
                 if let poll = post.poll {
-                    PostPollView(poll: poll, onVote: { optionIndex in
-                        Task {
-                            do {
-                                try await serviceManager.voteInPoll(post: post, optionIndex: optionIndex)
-                            } catch {
-                                print("❌ Failed to vote: \(error.localizedDescription)")
+                    PostPollView(
+                        poll: poll,
+                        onVote: { optionIndex in
+                            Task {
+                                do {
+                                    try await serviceManager.voteInPoll(
+                                        post: post, optionIndex: optionIndex)
+                                } catch {
+                                    print("❌ Failed to vote: \(error.localizedDescription)")
+                                }
                             }
                         }
-                    })
+                    )
                     .padding(.vertical, 8)
                 }
             }
@@ -1121,20 +1216,25 @@ struct PostRow: View {
                         attachments: post.attachments,
                         maxHeight: 300
                     )
+                    .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
 
                 // Poll section
                 if let poll = post.poll {
-                    PostPollView(poll: poll, onVote: { optionIndex in
-                        Task {
-                            do {
-                                try await serviceManager.voteInPoll(post: post, optionIndex: optionIndex)
-                            } catch {
-                                print("❌ Failed to vote: \(error.localizedDescription)")
+                    PostPollView(
+                        poll: poll,
+                        onVote: { optionIndex in
+                            Task {
+                                do {
+                                    try await serviceManager.voteInPoll(
+                                        post: post, optionIndex: optionIndex)
+                                } catch {
+                                    print("❌ Failed to vote: \(error.localizedDescription)")
+                                }
                             }
                         }
-                    })
+                    )
                     .padding(.top, 4)
                 }
 

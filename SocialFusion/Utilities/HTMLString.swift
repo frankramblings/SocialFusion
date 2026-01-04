@@ -121,13 +121,24 @@ public struct EmojiTextApp: View {
             .environment(\.layoutDirection, .leftToRight)
     }
 
-    // Build AttributedString with robust mention/tag/web link handling
+    // Build AttributedString with robust mention/tag/web link handling and custom emoji support
     static func buildAttributedString(
         htmlString: HTMLString, customEmoji: [String: URL]?, font: Font, foregroundColor: Color,
         mentions: [String], tags: [String]
     ) -> AttributedString {
+        // First, process HTML to replace emoji img tags and shortcodes BEFORE parsing
+        var processedHTML = htmlString.raw
+        
+        // Replace custom emoji shortcodes with images BEFORE HTML parsing
+        if let emojiMap = customEmoji, !emojiMap.isEmpty {
+            print("🎨 [Emoji] Processing \(emojiMap.count) custom emoji: \(Array(emojiMap.keys).prefix(5))")
+            processedHTML = replaceEmojiInHTML(html: processedHTML, emojiMap: emojiMap)
+        } else {
+            print("⚠️ [Emoji] No custom emoji map provided")
+        }
+        
         // Parse HTML and build AttributedString
-        guard let data = htmlString.raw.data(using: .utf8) else {
+        guard let data = processedHTML.data(using: .utf8) else {
             return AttributedString(htmlString.plainText)
         }
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
@@ -138,6 +149,11 @@ public struct EmojiTextApp: View {
             data: data, options: options, documentAttributes: nil)
         var attributed = AttributedString(
             nsAttr ?? NSAttributedString(string: htmlString.plainText))
+        
+        // Also replace any remaining :shortcode: patterns in the parsed text
+        if let emojiMap = customEmoji, !emojiMap.isEmpty {
+            attributed = replaceCustomEmoji(in: attributed, emojiMap: emojiMap, font: font)
+        }
 
         // Gather mention/tag URLs
         let mentionURLs = mentions.compactMap { URL(string: $0) }
@@ -192,13 +208,209 @@ public struct EmojiTextApp: View {
         }
         return attributed
     }
+    
+    /// Replaces emoji img tags and :shortcode: patterns in HTML with data URI img tags
+    private static func replaceEmojiInHTML(html: String, emojiMap: [String: URL]) -> String {
+        var processedHTML = html
+        
+        // Pattern 1: Replace <img> tags that reference emoji (Mastodon sends these)
+        // Mastodon sends: <img src="..." alt=":shortcode:" class="emoji" />
+        let imgPattern = #"<img[^>]*alt=":([a-zA-Z0-9_-]+):"[^>]*>"#
+        if let regex = try? NSRegularExpression(pattern: imgPattern, options: []) {
+            let nsString = processedHTML as NSString
+            let matches = regex.matches(
+                in: processedHTML, options: [],
+                range: NSRange(location: 0, length: nsString.length)
+            )
+            
+            // Process in reverse to preserve indices
+            for match in matches.reversed() {
+                guard match.numberOfRanges >= 2 else { continue }
+                let shortcodeRange = match.range(at: 1)
+                
+                guard shortcodeRange.location != NSNotFound,
+                      let shortcode = nsString.substring(with: shortcodeRange) as String?,
+                      let emojiURL = emojiMap[shortcode]
+                else { continue }
+                
+                // Load image and convert to data URI for reliable rendering
+                if let imageData = try? Data(contentsOf: emojiURL),
+                   let image = UIImage(data: imageData),
+                   let pngData = image.pngData() {
+                    let base64 = pngData.base64EncodedString()
+                    let dataURI = "data:image/png;base64,\(base64)"
+                    let replacement = #"<img src="\#(dataURI)" alt=":\#(shortcode):" class="emoji" style="width: 20px; height: 20px; vertical-align: middle;" />"#
+                    let fullRange = match.range(at: 0)
+                    processedHTML = (processedHTML as NSString).replacingCharacters(in: fullRange, with: replacement)
+                } else {
+                    // Fallback: use the URL directly (might not work in all cases)
+                    let replacement = #"<img src="\#(emojiURL.absoluteString)" alt=":\#(shortcode):" class="emoji" style="width: 20px; height: 20px; vertical-align: middle;" />"#
+                    let fullRange = match.range(at: 0)
+                    processedHTML = (processedHTML as NSString).replacingCharacters(in: fullRange, with: replacement)
+                }
+            }
+        }
+        
+        // Pattern 2: Replace :shortcode: text patterns with img tags using data URIs
+        let shortcodePattern = #":([a-zA-Z0-9_-]+):"#
+        if let regex = try? NSRegularExpression(pattern: shortcodePattern, options: []) {
+            let nsString = processedHTML as NSString
+            let matches = regex.matches(
+                in: processedHTML, options: [],
+                range: NSRange(location: 0, length: nsString.length)
+            )
+            
+            // Process in reverse to preserve indices
+            for match in matches.reversed() {
+                guard match.numberOfRanges >= 2 else { continue }
+                let shortcodeRange = match.range(at: 1)
+                
+                guard shortcodeRange.location != NSNotFound,
+                      let shortcode = nsString.substring(with: shortcodeRange) as String?,
+                      let emojiURL = emojiMap[shortcode]
+                else { continue }
+                
+                // Check if this shortcode is already inside an img tag (skip it)
+                let fullRange = match.range(at: 0)
+                let beforeStart = max(0, fullRange.location - 20)
+                let afterEnd = min(nsString.length, fullRange.location + fullRange.length + 20)
+                let contextRange = NSRange(location: beforeStart, length: afterEnd - beforeStart)
+                let context = nsString.substring(with: contextRange)
+                
+                // Skip if already in an img tag
+                if context.contains("<img") {
+                    continue
+                }
+                
+                // Load image and convert to data URI
+                if let imageData = try? Data(contentsOf: emojiURL),
+                   let image = UIImage(data: imageData),
+                   let pngData = image.pngData() {
+                    let base64 = pngData.base64EncodedString()
+                    let dataURI = "data:image/png;base64,\(base64)"
+                    let replacement = #"<img src="\#(dataURI)" alt=":\#(shortcode):" class="emoji" style="width: 20px; height: 20px; vertical-align: middle;" />"#
+                    processedHTML = (processedHTML as NSString).replacingCharacters(in: fullRange, with: replacement)
+                } else {
+                    // Fallback: use URL directly
+                    let replacement = #"<img src="\#(emojiURL.absoluteString)" alt=":\#(shortcode):" class="emoji" style="width: 20px; height: 20px; vertical-align: middle;" />"#
+                    processedHTML = (processedHTML as NSString).replacingCharacters(in: fullRange, with: replacement)
+                }
+            }
+        }
+        
+        return processedHTML
+    }
+    
+    /// Replaces :shortcode: patterns in AttributedString with custom emoji images
+    private static func replaceCustomEmoji(
+        in attributed: AttributedString, emojiMap: [String: URL], font: Font
+    ) -> AttributedString {
+        // Convert to NSMutableAttributedString for easier manipulation
+        let nsMutable = NSMutableAttributedString(attributed)
+        let fullText = nsMutable.string
+        
+        // Pattern to match :shortcode: (allowing alphanumeric, underscore, and hyphen)
+        // Mastodon emoji shortcodes can contain letters, numbers, underscores, and hyphens
+        let emojiPattern = #":([a-zA-Z0-9_-]+):"#
+        
+        guard let regex = try? NSRegularExpression(pattern: emojiPattern, options: []) else {
+            return attributed
+        }
+        
+        let nsString = fullText as NSString
+        let matches = regex.matches(
+            in: fullText, options: [],
+            range: NSRange(location: 0, length: nsString.length)
+        )
+        
+        // Process matches in reverse order to preserve indices
+        for match in matches.reversed() {
+            guard match.numberOfRanges >= 2 else { continue }
+            let fullRange = match.range(at: 0)  // Full match including colons
+            let shortcodeRange = match.range(at: 1)  // Just the shortcode
+            
+            guard shortcodeRange.location != NSNotFound,
+                  let shortcode = nsString.substring(with: shortcodeRange) as String?,
+                  let emojiURL = emojiMap[shortcode]
+            else { continue }
+            
+            // Create NSTextAttachment with emoji image
+            let attachment = NSTextAttachment()
+            
+            // Load emoji image synchronously
+            // Note: In production, you'd want to cache these and load asynchronously
+            do {
+                let imageData = try Data(contentsOf: emojiURL)
+                if let image = UIImage(data: imageData) {
+                    // Use a reasonable emoji size (typically 20-24 points)
+                    // This matches common emoji rendering sizes
+                    let emojiSize: CGFloat = 20
+                    let scaledImage = image.scaled(to: CGSize(width: emojiSize, height: emojiSize))
+                    attachment.image = scaledImage
+                    
+                    // Adjust vertical alignment to center with text baseline
+                    let fontDescender: CGFloat = -4  // Approximate descender for body font
+                    attachment.bounds = CGRect(
+                        x: 0,
+                        y: fontDescender,
+                        width: emojiSize,
+                        height: emojiSize
+                    )
+                    
+                    // Replace the :shortcode: text with the image attachment
+                    let attachmentString = NSAttributedString(attachment: attachment)
+                    nsMutable.replaceCharacters(in: fullRange, with: attachmentString)
+                } else {
+                    print("⚠️ [Emoji] Failed to create UIImage from data for \(shortcode)")
+                }
+            } catch {
+                print("⚠️ [Emoji] Failed to load emoji image for \(shortcode) from \(emojiURL): \(error)")
+            }
+        }
+        
+        return AttributedString(nsMutable)
+    }
+}
+
+extension UIImage {
+    /// Scales an image to the specified size while maintaining aspect ratio
+    func scaled(to size: CGSize) -> UIImage {
+        let aspectRatio = self.size.width / self.size.height
+        var targetSize = size
+        
+        if aspectRatio > 1 {
+            // Wider than tall
+            targetSize.height = size.width / aspectRatio
+        } else {
+            // Taller than wide or square
+            targetSize.width = size.height * aspectRatio
+        }
+        
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            self.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
 }
 
 extension Post {
     /// Returns a dictionary of custom emoji shortcodes to URLs for this post
     public var customEmoji: [String: URL]? {
-        // For now, we return nil, but in a full implementation
-        // this would return platform-specific emoji mappings
-        return nil
+        guard let emojiMap = customEmojiMap, !emojiMap.isEmpty else {
+            // For boosted/reposted posts, check the original post
+            if let original = originalPost {
+                return original.customEmoji
+            }
+            return nil
+        }
+        
+        // Convert [String: String] to [String: URL]
+        var result: [String: URL] = [:]
+        for (shortcode, urlString) in emojiMap {
+            if let url = URL(string: urlString) {
+                result[shortcode] = url
+            }
+        }
+        return result.isEmpty ? nil : result
     }
 }

@@ -1,5 +1,18 @@
 import SwiftUI
 
+/// Modifier that conditionally applies clipping
+private struct ConditionalClippedModifier: ViewModifier {
+    let shouldClip: Bool
+    
+    func body(content: Content) -> some View {
+        if shouldClip {
+            content.clipped()
+        } else {
+            content
+        }
+    }
+}
+
 /// A view that displays a post card with all its components
 struct PostCardView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
@@ -15,6 +28,7 @@ struct PostCardView: View {
     let onRepost: () -> Void
     let onLike: () -> Void
     let onShare: () -> Void
+    let onQuote: () -> Void
     let onMediaTap: (Post.Attachment) -> Void
     let onOpenInBrowser: () -> Void
     let onCopyLink: () -> Void
@@ -47,12 +61,23 @@ struct PostCardView: View {
 
     // Determine which post to display: use original for boosts, otherwise self.post
     private var displayPost: Post {
-        // For boosts, always use the original post for display content
+        // CRITICAL FIX: For boosts, always use the original post for display content
         // The wrapper post is just a container with empty content
-        if let original = post.originalPost {
+        // Always use originalPost if it exists, even if content appears empty
+        // The contentView() method handles empty content display internally
+        // This ensures boosts show the original post content, not blank placeholders
+        
+        // Check if this is a boost (via originalPost or boostedBy)
+        let isBoost = post.originalPost != nil || (boostedBy ?? post.boostedBy) != nil
+        
+        if isBoost, let original = post.originalPost {
             // This is a boost/repost - use the original post for display
+            // Always return originalPost - don't fall back to wrapper post
+            // The wrapper post has empty content by design
             return original
         }
+        
+        // For regular posts or boosts without originalPost (shouldn't happen, but handle gracefully)
         return post
     }
 
@@ -82,18 +107,27 @@ struct PostCardView: View {
 
     // Get the reply info - check displayPost (which is originalPost for boosts)
     private var replyInfo: (username: String, id: String?, platform: SocialPlatform)? {
-        // Use displayPost which is the actual post being shown (originalPost for boosts, post for regular posts)
-        // This ensures we get reply info from the correct post
-        let displayUsername = displayPost.inReplyToUsername
-        let displayReplyID = displayPost.inReplyToID
-
-        if let username = displayUsername, !username.isEmpty {
-            return (username, displayReplyID, displayPost.platform)
+        // CRITICAL FIX: Check originalPost first for boosts, then check wrapper post
+        // This ensures we catch reply info from the original post being boosted
+        if let original = post.originalPost {
+            // This is a boost - check the original post for reply info
+            if let username = original.inReplyToUsername, !username.isEmpty {
+                return (username, original.inReplyToID, original.platform)
+            }
         }
-        // Fallback: check wrapper post (in case the boost wrapper itself is a reply, though rare)
+        
+        // Check the wrapper post (for regular posts or if original post doesn't have reply info)
         if let username = post.inReplyToUsername, !username.isEmpty {
             return (username, post.inReplyToID, post.platform)
         }
+        
+        // Also check displayPost as fallback (should be same as above, but just in case)
+        let displayUsername = displayPost.inReplyToUsername
+        let displayReplyID = displayPost.inReplyToID
+        if let username = displayUsername, !username.isEmpty {
+            return (username, displayReplyID, displayPost.platform)
+        }
+        
         return nil
     }
 
@@ -186,7 +220,8 @@ struct PostCardView: View {
         onReply: @escaping () -> Void = {},
         onRepost: @escaping () -> Void = {},
         onLike: @escaping () -> Void = {},
-        onShare: @escaping () -> Void = {}
+        onShare: @escaping () -> Void = {},
+        onQuote: @escaping () -> Void = {}
     ) {
         self.post = entry.post
         self.replyCount = 0
@@ -200,6 +235,7 @@ struct PostCardView: View {
         self.onRepost = onRepost
         self.onLike = onLike
         self.onShare = onShare
+        self.onQuote = onQuote
         self.onMediaTap = { _ in }
         self.onOpenInBrowser = {}
         self.onCopyLink = {}
@@ -232,6 +268,7 @@ struct PostCardView: View {
         onRepost: @escaping () -> Void,
         onLike: @escaping () -> Void,
         onShare: @escaping () -> Void,
+        onQuote: @escaping () -> Void = {},
         onMediaTap: @escaping (Post.Attachment) -> Void,
         onOpenInBrowser: @escaping () -> Void,
         onCopyLink: @escaping () -> Void,
@@ -254,6 +291,7 @@ struct PostCardView: View {
         self.onRepost = onRepost
         self.onLike = onLike
         self.onShare = onShare
+        self.onQuote = onQuote
         self.onMediaTap = onMediaTap
         self.onOpenInBrowser = onOpenInBrowser
         self.onCopyLink = onCopyLink
@@ -267,31 +305,48 @@ struct PostCardView: View {
         self.postActionCoordinator = postActionCoordinator
     }
 
+    // Helper to get boost handle for banner
+    private var boostHandleToShow: String? {
+        let hasOriginalPost = post.originalPost != nil
+        let postBoostedBy = post.boostedBy
+        let finalBoostedBy = boostedBy ?? postBoostedBy
+        let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasBoostHandle = boostHandle != nil && !boostHandle!.isEmpty
+        
+        guard hasOriginalPost || hasBoostHandle else { return nil }
+        
+        if let handle = boostHandle, !handle.isEmpty {
+            return handle
+        } else if let handle = postBoostedBy, !handle.isEmpty {
+            return handle
+        } else if hasOriginalPost {
+            return post.authorUsername
+        }
+        return nil
+    }
+    
+    // Computed property for boost banner to simplify body
+    @ViewBuilder
+    private var boostBannerView: some View {
+        if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
+            BoostBanner(handle: handleToShow, platform: post.platform)
+                .padding(.horizontal, 12)  // Apple standard: 12pt for content
+                .padding(.vertical, 6)  // Adequate touch target
+                .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
+                .onAppear {
+                    let postBoostedBy = post.boostedBy
+                    let finalBoostedBy = boostedBy ?? postBoostedBy
+                    logBoostBanner(
+                        boostHandle: handleToShow, postBoostedBy: postBoostedBy,
+                        finalBoostedBy: finalBoostedBy)
+                }
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {  // Apple standard: 8pt spacing
             // Boost banner if this post was boosted/reposted
-            // Show banner if boostedBy is set (regardless of originalPost existence)
-            // Also check for originalPost to catch boosts that might not have boostedBy set
-            let postBoostedBy = post.boostedBy
-            let finalBoostedBy = boostedBy ?? postBoostedBy
-            let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
-
-            // CRITICAL FIX: Show boost banner if we have originalPost OR if boostedBy is set
-            // This ensures boosts are always shown with a banner
-            if post.originalPost != nil || (boostHandle != nil && !boostHandle!.isEmpty) {
-                let handleToShow = boostHandle ?? post.authorUsername
-                if !handleToShow.isEmpty {
-                    BoostBanner(handle: handleToShow, platform: post.platform)
-                        .padding(.horizontal, 12)  // Apple standard: 12pt for content
-                        .padding(.vertical, 6)  // Adequate touch target
-                        .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
-                        .onAppear {
-                            logBoostBanner(
-                                boostHandle: handleToShow, postBoostedBy: postBoostedBy,
-                                finalBoostedBy: finalBoostedBy)
-                        }
-                }
-            }
+            boostBannerView
 
             // Expanding reply banner if this post is a reply
             // Check both wrapper post and original post for reply info
@@ -365,10 +420,18 @@ struct PostCardView: View {
             let attachmentsToShow =
                 displayAttachments.isEmpty ? displayPost.attachments : displayAttachments
             if !attachmentsToShow.isEmpty {
-                UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: 600)
+                // Check if any attachment is a GIF - if so, use taller maxHeight
+                // Balance: Allow taller GIFs but still maintain reasonable bounds
+                let hasGIF = attachmentsToShow.contains { $0.type == .animatedGIF }
+                // Use 70% of screen height for GIFs (balanced between full display and feed usability)
+                let mediaMaxHeight = hasGIF ? min(UIScreen.main.bounds.height * 0.7, 800) : 600
+                
+                UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: mediaMaxHeight)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 4)
                     .padding(.top, 4)
+                    // Apply clipping but UnifiedMediaGridView/SmartMediaView handle aspect ratio properly
+                    // This prevents overflow while allowing GIFs to display at their natural aspect ratio
                     .clipped()
                     .onAppear {
                         print(
@@ -443,7 +506,7 @@ struct PostCardView: View {
                     case .share:
                         onShare()
                     case .quote:
-                        print("🔗 Quote action triggered for post: \(displayPost.id)")
+                        onQuote()
                     case .follow:
                         if let viewModel = viewModel {
                             Task { await viewModel.followUser() }
@@ -482,7 +545,7 @@ struct PostCardView: View {
                     case .share:
                         onShare()
                     case .quote:
-                        print("🔗 Quote action triggered for post: \(displayPost.id)")
+                        onQuote()
                     case .follow:
                         if let viewModel = viewModel {
                             Task { await viewModel.followUser() }
