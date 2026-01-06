@@ -190,8 +190,10 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Apply optimistic update for immediate UI feedback
     private func applyOptimisticUpdate(for intent: PostActionIntent) {
-        // Defer state updates to prevent "Publishing changes from within view updates" warnings
+        // CRITICAL FIX: Defer state updates to prevent "Publishing changes from within view updates" warnings
+        // Add delay to ensure we're outside the view update cycle
         Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
             updatePostInPlace(intent.postId) { post in
                 switch intent {
                 case .like:
@@ -222,8 +224,10 @@ class UnifiedTimelineController: ObservableObject {
     /// Confirm optimistic update with server response
     private func confirmOptimisticUpdate(for intent: PostActionIntent, with updatedPost: Post) async
     {
-        // Defer state updates to prevent "Publishing changes from within view updates" warnings
+        // CRITICAL FIX: Defer state updates to prevent "Publishing changes from within view updates" warnings
+        // Add delay to ensure we're outside the view update cycle
         Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
             updatePostInPlace(intent.postId) { post in
                 post.isLiked = updatedPost.isLiked
                 post.likeCount = updatedPost.likeCount
@@ -235,8 +239,10 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Revert optimistic update on failure
     private func revertOptimisticUpdate(for intent: PostActionIntent) async {
-        // Defer state updates to prevent "Publishing changes from within view updates" warnings
+        // CRITICAL FIX: Defer state updates to prevent "Publishing changes from within view updates" warnings
+        // Add delay to ensure we're outside the view update cycle
         Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
             updatePostInPlace(intent.postId) { post in
                 switch intent {
                 case .like:

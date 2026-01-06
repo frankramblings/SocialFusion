@@ -1191,13 +1191,16 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         // Reset loading state
+        // CRITICAL FIX: Defer state updates to prevent "Publishing changes from within view updates" warnings
         Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
             isLoadingTimeline = true
             timelineError = nil
         }
 
         defer {
             Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
                 isLoadingTimeline = false
             }
         }
@@ -1765,6 +1768,8 @@ public final class SocialServiceManager: ObservableObject {
                 // Use post.boostedBy if available, otherwise fall back to post.authorUsername
                 let boostedByHandle = post.boostedBy ?? post.authorUsername
                 // CRITICAL FIX: Ensure boostedBy is set on the post itself for consistency
+                // Set synchronously before adding to timeline - this happens during timeline processing,
+                // not during view updates, so it's safe
                 if post.boostedBy == nil {
                     post.boostedBy = post.authorUsername
                 }

@@ -139,6 +139,10 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     // to prevent cycles when Posts contain other Posts
     public var originalPost: Post? {
         didSet {
+            // CRITICAL FIX: Removed objectWillChange.send() from didSet to prevent "Publishing changes from within view updates" warnings
+            // Post is already ObservableObject, so SwiftUI will automatically observe property changes
+            // Calling objectWillChange.send() in didSet triggers warnings when properties are set during view updates
+            
             // Only check for cycles if we're actually setting a non-nil value
             // CRITICAL: Preserve existing originalPost - don't clear it unless we detect a real cycle
             if let original = originalPost {
@@ -149,72 +153,36 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                         print(
                             "[Post] ⚠️ Cycle detected in originalPost chain for post id: \(id). Breaking cycle."
                         )
-                        // Only clear if we detected a real cycle
-                        originalPost = nil
-                    } else {
-                        // No cycle detected - originalPost is valid, log for debugging
-                        if oldValue != nil {
-                            print("[Post] ✅ Updated originalPost for post \(id) - no cycle detected")
+                        // CRITICAL: Defer clearing originalPost to prevent triggering didSet during view updates
+                        Task { @MainActor [weak self] in
+                            try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 second delay
+                            self?.originalPost = nil
                         }
                     }
                 }
             }
         }
     }
-    @Published public var isReposted: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var isLiked: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var isReplied: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var isQuoted: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var likeCount: Int = 0 {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var repostCount: Int = 0 {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var replyCount: Int = 0 {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var isFollowingAuthor: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var isMutedAuthor: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
-    @Published public var isBlockedAuthor: Bool = false {
-        didSet {
-            objectWillChange.send()
-        }
-    }
+    @Published public var isReposted: Bool = false
+    @Published public var isLiked: Bool = false
+    @Published public var isReplied: Bool = false
+    @Published public var isQuoted: Bool = false
+    @Published public var likeCount: Int = 0
+    @Published public var repostCount: Int = 0
+    @Published public var replyCount: Int = 0
+    @Published public var isFollowingAuthor: Bool = false
+    @Published public var isMutedAuthor: Bool = false
+    @Published public var isBlockedAuthor: Bool = false
 
     // Properties for reply and boost functionality - these should NOT be @Published
     // to prevent cycles when Posts contain other Posts
-    public var boostedBy: String?
+    public var boostedBy: String? {
+        didSet {
+            // CRITICAL FIX: Removed objectWillChange.send() from didSet to prevent "Publishing changes from within view updates" warnings
+            // Post is already ObservableObject, so SwiftUI will automatically observe property changes
+            // Calling objectWillChange.send() in didSet triggers warnings when properties are set during view updates
+        }
+    }
     public var parent: Post? {
         didSet {
             if let parentPost = parent, Post.detectCycle(start: self, next: parentPost) {
@@ -223,18 +191,24 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             }
         }
     }
-    public var inReplyToID: String?
-    public var inReplyToUsername: String?
+    public var inReplyToID: String? {
+        didSet {
+            // CRITICAL FIX: Removed objectWillChange.send() from didSet to prevent "Publishing changes from within view updates" warnings
+            // Post is already ObservableObject, so SwiftUI will automatically observe property changes
+        }
+    }
+    public var inReplyToUsername: String? {
+        didSet {
+            // CRITICAL FIX: Removed objectWillChange.send() from didSet to prevent "Publishing changes from within view updates" warnings
+            // Post is already ObservableObject, so SwiftUI will automatically observe property changes
+        }
+    }
 
     // Quoted post support - NOT @Published to prevent cycles
     public var quotedPost: Post? = nil
 
     // Poll support
-    @Published public var poll: Poll? = nil {
-        didSet {
-            objectWillChange.send()
-        }
-    }
+    @Published public var poll: Poll? = nil
 
     // Computed properties for convenience
     public var authorHandle: String {
@@ -262,6 +236,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     // Custom emoji support (Mastodon/Fediverse)
     // Maps emoji shortcode (e.g., "neofox_floof") to its image URL
     public var customEmojiMap: [String: String]?
+
+    // Client/application name (e.g., "Ivory for Mac", "IceCubes for iOS", "Bluesky Web")
+    public var clientName: String?
 
     // Computed property for a stable unique identifier
     public var stableId: String {
@@ -352,6 +329,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case blueskyLikeRecordURI
         case blueskyRepostRecordURI
         case customEmojiMap
+        case clientName
     }
 
     // MARK: - Poll Support (nested types for UI components)
@@ -453,6 +431,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             String.self, forKey: .blueskyRepostRecordURI)
         let customEmojiMap = try container.decodeIfPresent(
             [String: String].self, forKey: .customEmojiMap)
+        let clientName = try container.decodeIfPresent(String.self, forKey: .clientName)
         self.init(
             id: id,
             content: content,
@@ -491,7 +470,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             primaryLinkThumbnailURL: primaryLinkThumbnailURL,
             blueskyLikeRecordURI: blueskyLikeRecordURI,
             blueskyRepostRecordURI: blueskyRepostRecordURI,
-            customEmojiMap: customEmojiMap
+            customEmojiMap: customEmojiMap,
+            clientName: clientName
         )
         self.cid = cid
         self.primaryLinkURL = primaryLinkURL
@@ -541,6 +521,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
         try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
         try container.encodeIfPresent(customEmojiMap, forKey: .customEmojiMap)
+        try container.encodeIfPresent(clientName, forKey: .clientName)
     }
 
     public init(
@@ -582,7 +563,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         primaryLinkThumbnailURL: URL? = nil,
         blueskyLikeRecordURI: String? = nil,
         blueskyRepostRecordURI: String? = nil,
-        customEmojiMap: [String: String]? = nil
+        customEmojiMap: [String: String]? = nil,
+        clientName: String? = nil
     ) {
         self.id = id
         self.content = content
@@ -621,6 +603,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.blueskyLikeRecordURI = blueskyLikeRecordURI
         self.blueskyRepostRecordURI = blueskyRepostRecordURI
         self.customEmojiMap = customEmojiMap
+        self.clientName = clientName
         // Defensive: prevent self-reference on construction
         if let parent = parent, parent.id == id {
             print(

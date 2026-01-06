@@ -316,6 +316,9 @@ final class PostActionCoordinator: ObservableObject {
         
         // CRITICAL: Restore originalPost and boostedBy if they were accidentally cleared
         // These properties are essential for boost banners and should never be lost
+        // CRITICAL FIX: Set synchronously - this happens during state reconciliation, not during view updates
+        // Since we removed objectWillChange.send() from didSet handlers, setting these properties
+        // won't trigger "Publishing changes from within view updates" warnings
         if post.originalPost == nil && preservedOriginalPost != nil {
             post.originalPost = preservedOriginalPost
             logger.warning("Restored originalPost for key \(key, privacy: .public) - it was cleared during update")

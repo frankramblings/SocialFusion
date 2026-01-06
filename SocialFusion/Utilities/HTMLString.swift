@@ -138,17 +138,61 @@ public struct EmojiTextApp: View {
         }
         
         // Parse HTML and build AttributedString
+        // CRITICAL: Add robust error handling to prevent SIGABRT crashes
         guard let data = processedHTML.data(using: .utf8) else {
             return AttributedString(htmlString.plainText)
         }
+        
+        // Validate data is not empty and contains valid UTF-8
+        guard !data.isEmpty else {
+            return AttributedString(htmlString.plainText)
+        }
+        
         let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
             .documentType: NSAttributedString.DocumentType.html,
             .characterEncoding: String.Encoding.utf8.rawValue,
         ]
-        let nsAttr = try? NSMutableAttributedString(
-            data: data, options: options, documentAttributes: nil)
+        
+        // CRITICAL: Wrap NSMutableAttributedString initialization to prevent SIGABRT crashes
+        // NSMutableAttributedString can throw Objective-C exceptions that Swift's do-catch can't catch
+        // Use a safer approach: validate HTML and use NSAttributedString instead of NSMutableAttributedString
+        var nsAttr: NSAttributedString?
+        
+        // Validate HTML contains valid characters and isn't empty
+        let htmlStringValue = String(data: data, encoding: .utf8) ?? ""
+        if !htmlStringValue.isEmpty && htmlStringValue.count < 100_000 {
+            // CRITICAL FIX: Use a safer HTML parsing approach to prevent SIGABRT crashes
+            // NSAttributedString can throw Objective-C exceptions that Swift's do-catch can't catch
+            // Validate HTML structure before parsing to reduce crash risk
+            let hasValidHTMLTags = htmlStringValue.contains("<") && htmlStringValue.contains(">")
+            let hasBalancedTags = htmlStringValue.components(separatedBy: "<").count == htmlStringValue.components(separatedBy: ">").count
+            
+            if hasValidHTMLTags && hasBalancedTags {
+                do {
+                    // Use NSAttributedString instead of NSMutableAttributedString for safer parsing
+                    // This is less likely to crash on malformed HTML
+                    nsAttr = try NSAttributedString(
+                        data: data, options: options, documentAttributes: nil)
+                } catch {
+                    // If parsing fails, fall back to plain text
+                    print("⚠️ [EmojiTextApp] Failed to parse HTML: \(error.localizedDescription)")
+                    nsAttr = nil
+                }
+            } else {
+                // HTML structure appears invalid - fall back to plain text
+                print("⚠️ [EmojiTextApp] HTML structure invalid, using plain text")
+                nsAttr = nil
+            }
+        } else {
+            // HTML too large or invalid - fall back to plain text
+            print("⚠️ [EmojiTextApp] HTML too large or invalid, using plain text")
+            nsAttr = nil
+        }
+        
+        // Fallback to plain text if parsing failed - use the HTMLString parameter's plainText property
+        let fallbackText = htmlString.plainText
         var attributed = AttributedString(
-            nsAttr ?? NSAttributedString(string: htmlString.plainText))
+            nsAttr ?? NSAttributedString(string: fallbackText))
         
         // Also replace any remaining :shortcode: patterns in the parsed text
         if let emojiMap = customEmoji, !emojiMap.isEmpty {
@@ -176,7 +220,7 @@ public struct EmojiTextApp: View {
                     // Find this URL text in our AttributedString and make it a link
                     if let range = attributed.range(of: urlText) {
                         attributed[range].link = url
-                        attributed[range].foregroundColor = .accentColor
+                        attributed[range].foregroundColor = Color.accentColor
                     }
                 }
             }

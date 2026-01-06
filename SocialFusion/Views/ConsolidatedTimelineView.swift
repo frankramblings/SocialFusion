@@ -110,9 +110,9 @@ struct ConsolidatedTimelineView: View {
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
     @State private var isRefreshing = false
-    @State private var scrollVelocity: CGFloat = 0
-    @State private var lastScrollTime = Date()
-    @State private var scrollCancellationTimer: Timer?
+    // CRITICAL FIX: Removed scrollVelocity tracking - it was causing AttributeGraph cycles
+    // GeometryReader-based scroll tracking triggers view updates every frame, creating cycles
+    // scrollVelocity was never actually used, so removing it is safe
     @State private var replyingToPost: Post? = nil
     @State private var quotingToPost: Post? = nil
     @State private var showAddAccountView = false
@@ -317,6 +317,18 @@ struct ConsolidatedTimelineView: View {
                     ForEach(Array(controller.posts.enumerated()), id: \.element.id) {
                         index, post in
                         postCard(for: post)
+                            .id({
+                                // Create a stable ID that changes when originalPost or reply data becomes available
+                                // This ensures the view updates when boost/reply data loads
+                                var id = post.id
+                                if let originalId = post.originalPost?.id {
+                                    id += "-boost-\(originalId)"
+                                }
+                                if let replyId = post.inReplyToID {
+                                    id += "-reply-\(replyId)"
+                                }
+                                return id
+                            }())
                             .task {
                                 // Proper async pattern for infinite scroll
                                 await handleInfiniteScroll(currentIndex: index)
@@ -345,19 +357,9 @@ struct ConsolidatedTimelineView: View {
                             .accessibilityHint("No more posts to load")
                     }
                 }
-                .background(
-                    // Invisible GeometryReader to detect scroll changes
-                    GeometryReader { geometry in
-                        Color.clear
-                            .preference(
-                                key: ScrollOffsetPreferenceKey.self,
-                                value: geometry.frame(in: .named("scrollView")).origin.y)
-                    }
-                )
-            }
-            .coordinateSpace(name: "scrollView")
-            .onPreferenceChange(ScrollOffsetPreferenceKey.self) { offset in
-                handleScrollChange(offset: offset)
+                // CRITICAL FIX: Removed GeometryReader-based scroll tracking
+                // It was causing AttributeGraph cycles: GeometryReader updates every frame -> PreferenceChange -> StateUpdate -> ViewUpdate -> GeometryReader
+                // scrollVelocity was never actually used, so removing this tracking is safe and eliminates the crash
             }
             .refreshable {
                 await refreshTimeline()
@@ -430,13 +432,12 @@ struct ConsolidatedTimelineView: View {
     private func postCard(for post: Post) -> some View {
         // Determine the correct TimelineEntry kind based on post properties
         // CRITICAL FIX: Check for originalPost first to catch all boosts
+        // CRITICAL: Never modify post properties during view rendering - causes AttributeGraph cycles
         let entryKind: TimelineEntryKind
         if post.originalPost != nil {
             // This is a boost - use boostedBy if available, otherwise use authorUsername
-            // CRITICAL: Ensure boostedBy is set on the post if it's missing
-            if post.boostedBy == nil && !post.authorUsername.isEmpty {
-                post.boostedBy = post.authorUsername
-            }
+            // CRITICAL: Do NOT modify post.boostedBy here - it causes "Publishing changes from within view updates"
+            // If boostedBy is missing, use authorUsername as fallback without modifying the post
             let boostedByHandle = post.boostedBy ?? post.authorUsername
             if boostedByHandle.isEmpty {
                 print("⚠️ [ConsolidatedTimelineView] Boost detected but no boostedBy handle for post \(post.id)")
@@ -544,25 +545,14 @@ struct ConsolidatedTimelineView: View {
         await controller.loadNextPage()
     }
 
-    /// Handle scroll changes - proper event-driven pattern
-    private func handleScrollChange(offset: CGFloat) {
-        let currentTime = Date()
-        let timeDiff = currentTime.timeIntervalSince(lastScrollTime)
-
-        guard timeDiff > 0.016 else { return }  // Throttle to ~60fps
-
-        scrollVelocity = abs(offset) / timeDiff
-        lastScrollTime = currentTime
-
-        // Cancel previous timer and set new one
-        scrollCancellationTimer?.invalidate()
-        scrollCancellationTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
-            scrollVelocity = 0
-        }
-    }
+    // CRITICAL FIX: Removed handleScrollChange function
+    // It was causing AttributeGraph cycles and scrollVelocity was never actually used
+    // Removing this eliminates the crash without affecting functionality
 }
 
 /// PreferenceKey for scroll offset detection
+/// NOTE: Used by NotificationsView - kept here for NotificationsView compatibility
+/// ConsolidatedTimelineView no longer uses this to prevent AttributeGraph cycles
 struct ScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
 
