@@ -1866,17 +1866,33 @@ public final class BlueskyService: Sendable {
                             }
                             // Handle video embeds in recordWithMedia
                             else if let embedType = media["$type"] as? String,
-                                embedType == "app.bsky.embed.video#view",
-                                let video = media["video"] as? [String: Any],
-                                let videoUrl = video["url"] as? String, !videoUrl.isEmpty,
-                                URL(string: videoUrl) != nil
+                                embedType == "app.bsky.embed.video#view"
                             {
-                                let alt = video["alt"] as? String ?? "Video"
-                                logger.info(
-                                    "[Bluesky] 🎥 Parsed recordWithMedia video: \(videoUrl)")
-                                quotedAttachments.append(
-                                    Post.Attachment(url: videoUrl, type: .video, altText: alt)
-                                )
+                                var videoUrl: String? = nil
+                                var alt = "Video"
+                                
+                                // Try playlist URL first (HLS stream) - common format for Bluesky videos
+                                if let playlist = media["playlist"] as? String, !playlist.isEmpty {
+                                    videoUrl = playlist
+                                    logger.info(
+                                        "[Bluesky] 🎥 Found quoted post video playlist in recordWithMedia: \(playlist)")
+                                }
+                                // Fallback to video.url
+                                else if let video = media["video"] as? [String: Any],
+                                    let url = video["url"] as? String, !url.isEmpty
+                                {
+                                    videoUrl = url
+                                    alt = video["alt"] as? String ?? "Video"
+                                    logger.info("[Bluesky] 🎥 Found quoted post video URL in recordWithMedia: \(url)")
+                                }
+                                
+                                if let url = videoUrl, URL(string: url) != nil {
+                                    logger.info(
+                                        "[Bluesky] 🎥 Parsed recordWithMedia video: \(url)")
+                                    quotedAttachments.append(
+                                        Post.Attachment(url: url, type: .video, altText: alt)
+                                    )
+                                }
                             }
                         }
 
@@ -2385,12 +2401,32 @@ public final class BlueskyService: Sendable {
                 {
                     processImages(images)
                 } else if embedType == "app.bsky.embed.video#view" {
-                    if let playlist = embed["playlist"] as? String {
-                        let thumbnail = embed["thumbnail"] as? String
+                    var videoUrl: String? = nil
+                    var alt = "Video"
+                    var thumbnail: String? = nil
+                    
+                    // Try playlist URL first (HLS stream) - common format for Bluesky videos
+                    if let playlist = embed["playlist"] as? String, !playlist.isEmpty {
+                        videoUrl = playlist
+                        thumbnail = embed["thumbnail"] as? String
+                        logger.info("[Bluesky] 🎥 Found video playlist: \(playlist)")
+                    }
+                    // Fallback to video.url
+                    else if let video = embed["video"] as? [String: Any],
+                        let url = video["url"] as? String, !url.isEmpty
+                    {
+                        videoUrl = url
+                        alt = video["alt"] as? String ?? "Video"
+                        thumbnail = embed["thumbnail"] as? String
+                        logger.info("[Bluesky] 🎥 Found video URL: \(url)")
+                    }
+                    
+                    if let url = videoUrl, URL(string: url) != nil {
                         attachments.append(
                             Post.Attachment(
-                                url: playlist, type: .video, altText: "Video",
+                                url: url, type: .video, altText: alt,
                                 thumbnailURL: thumbnail))
+                        logger.info("[Bluesky] 🎥 Parsed video attachment: \(url)")
                     }
                 } else if embedType == "app.bsky.embed.external#view",
                     let external = embed["external"] as? [String: Any]

@@ -65,52 +65,68 @@ public struct QuotePostView: View {
     }
 
     private var authorAvatar: some View {
-        ZStack(alignment: .bottomTrailing) {
-            StabilizedAsyncImage(
-                url: URL(string: post.authorProfilePictureURL),
-                idealHeight: 36,
-                aspectRatio: 1.0,
-                contentMode: .fill,
-                cornerRadius: 18
-            )
-            .frame(width: 36, height: 36)
-            .overlay(
-                Circle()
-                    .stroke(Color(.systemBackground), lineWidth: 1)
-            )
+        Button(action: {
+            navigationEnvironment.navigateToUser(from: post)
+        }) {
+            ZStack(alignment: .bottomTrailing) {
+                StabilizedAsyncImage(
+                    url: URL(string: post.authorProfilePictureURL),
+                    idealHeight: 36,
+                    aspectRatio: 1.0,
+                    contentMode: .fill,
+                    cornerRadius: 18
+                )
+                .frame(width: 36, height: 36)
+                .overlay(
+                    Circle()
+                        .stroke(Color(.systemBackground), lineWidth: 1)
+                )
 
-            PlatformDot(
-                platform: post.platform, size: 16, useLogo: true  // Increased from 14 to 16 for better visibility
-            )
-            .background(
-                Circle()
-                    .fill(Color(.systemBackground))
-                    .frame(width: 20, height: 20)
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                colorScheme == .dark
-                                    ? Color.white.opacity(0.2) : Color.black.opacity(0.1),
-                                lineWidth: 0.5)
-                    )
-                    .shadow(
-                        color: .black.opacity(colorScheme == .dark ? 0.3 : 0.15), radius: 2, x: 0,
-                        y: 1)
-            )
-            .offset(x: 3, y: 3)
+                PlatformDot(
+                    platform: post.platform, size: 16, useLogo: true  // Increased from 14 to 16 for better visibility
+                )
+                .background(
+                    Circle()
+                        .fill(Color(.systemBackground))
+                        .frame(width: 20, height: 20)
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    colorScheme == .dark
+                                        ? Color.white.opacity(0.2) : Color.black.opacity(0.1),
+                                    lineWidth: 0.5)
+                        )
+                        .shadow(
+                            color: .black.opacity(colorScheme == .dark ? 0.3 : 0.15), radius: 2, x: 0,
+                            y: 1)
+                )
+                .offset(x: 3, y: 3)
+            }
+            .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
         }
-        .frame(width: 36, height: 36)  // Explicit container frame to prevent layout shifts
+        .buttonStyle(PlainButtonStyle())
     }
 
     private var authorInfo: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(post.authorName)
-                .font(.subheadline)
-                .fontWeight(.semibold)
+            Button(action: {
+                navigationEnvironment.navigateToUser(from: post)
+            }) {
+                Text(post.authorName)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+            }
+            .buttonStyle(PlainButtonStyle())
 
-            Text("@\(post.authorUsername)")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            Button(action: {
+                navigationEnvironment.navigateToUser(from: post)
+            }) {
+                Text("@\(post.authorUsername)")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .buttonStyle(PlainButtonStyle())
         }
     }
 

@@ -334,11 +334,32 @@ struct PostDetailView: View {
                 .padding(.top, 2)  // Reduced to close gap
                 .padding(.bottom, 2)
 
-                // Full timestamp
-                HStack {
+                // Full timestamp and client attribution
+                HStack(spacing: 8) {
                     Text(dateFormatter.string(from: viewModel.post.createdAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
+                    
+                    // Client/app attribution (e.g., "Ivory for Mac", "IceCubes for iOS")
+                    // Only show for Mastodon posts (Bluesky doesn't provide this info in API)
+                    // For boosts, show the originalPost's clientName (the actual content)
+                    if viewModel.post.platform == .mastodon {
+                        // Check originalPost first (for boosts), then fall back to wrapper post
+                        let clientName = viewModel.post.originalPost?.clientName ?? viewModel.post.clientName
+                        if let clientName = clientName,
+                           !clientName.isEmpty,
+                           clientName.trimmingCharacters(in: .whitespaces).count > 0 {
+                            HStack(spacing: 4) {
+                                Image(systemName: "globe")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary.opacity(0.7))
+                                Text(clientName)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                    }
+                    
                     Spacer()
                 }
                 .padding(.leading, 60)

@@ -240,6 +240,25 @@ class MediaErrorHandler: ObservableObject {
                 return .unknown(avError.localizedDescription)
             }
         }
+        
+        // CoreMedia errors (format description errors, etc.)
+        // Check for CoreMediaErrorDomain errors (e.g., -12881)
+        if let nsError = error as NSError?,
+           nsError.domain == "CoreMediaErrorDomain"
+        {
+            // Format description errors (-12881) are often retryable
+            // They can occur due to timing issues with HLS segment loading
+            let code = nsError.code
+            if code == -12881 {
+                // kCMFormatDescriptionError_InvalidParameter
+                // This can happen when AVFoundation hasn't fully processed content info
+                return .unknown("Format description error (code: \(code))")
+            } else if code == -12783 || code == -12753 {
+                // Allocation/timebase errors - often retryable
+                return .unknown("Media processing error (code: \(code))")
+            }
+            return .unknown("CoreMedia error (code: \(code))")
+        }
 
         // HTTP errors
         if let httpError = error as? HTTPError {

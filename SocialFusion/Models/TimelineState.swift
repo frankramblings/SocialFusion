@@ -43,8 +43,9 @@ struct EnhancedTimelineEntry: Identifiable, Equatable {
         // Determine the kind based on post properties (same logic as SocialServiceManager.makeTimelineEntries)
         let kind: TimelineEntryKind
         if let original = post.originalPost {
-            // This is a boost/repost
-            kind = .boost(boostedBy: post.authorUsername)
+            // This is a boost/repost - use boostedBy if available, otherwise fall back to authorUsername
+            let boostedByHandle = post.boostedBy ?? post.authorUsername
+            kind = .boost(boostedBy: boostedByHandle)
         } else if let parentId = post.inReplyToID {
             // This is a reply
             kind = .reply(parentId: parentId)

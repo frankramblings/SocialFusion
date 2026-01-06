@@ -3,6 +3,7 @@ import SwiftUI
 struct UserDetailView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     let user: SearchUser
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var posts: [Post] = []
     @State private var profile: BlueskyProfile? = nil // Only for Bluesky
     @State private var isLoading = false
@@ -106,7 +107,8 @@ struct UserDetailView: View {
                                     post: post,
                                     createdAt: post.createdAt
                                 ),
-                                postActionStore: serviceManager.postActionStore
+                                postActionStore: serviceManager.postActionStore,
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
                             )
                             .onAppear {
                                 if post.id == posts.last?.id && canLoadMore && !isLoadingMore {
@@ -126,6 +128,20 @@ struct UserDetailView: View {
                 }
             }
         }
+        .background(
+            NavigationLink(
+                destination: navigationEnvironment.selectedUser.map { selectedUser in
+                    UserDetailView(user: selectedUser)
+                        .environmentObject(serviceManager)
+                },
+                isActive: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                ),
+                label: { EmptyView() }
+            )
+            .hidden()
+        )
         .navigationTitle(user.displayName ?? user.username)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

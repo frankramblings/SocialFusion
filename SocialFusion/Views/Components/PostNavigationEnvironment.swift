@@ -28,6 +28,31 @@ class PostNavigationEnvironment: ObservableObject {
             }
         }
     }
+    
+    /// Navigate to a user's profile from a Post
+    func navigateToUser(from post: Post) {
+        // CRITICAL FIX: For boosted posts, navigate to the original author, not the booster
+        let targetPost = post.originalPost ?? post
+        print("🧭 [PostNavigationEnvironment] Navigating to user profile: \(targetPost.authorUsername) on \(targetPost.platform) (from post \(post.id), isBoost: \(post.originalPost != nil))")
+        
+        // Defer state updates to prevent AttributeGraph cycles
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            
+            // CRITICAL FIX: Use authorId instead of authorUsername for SearchUser.id
+            // The API needs the actual user ID (numeric for Mastodon, DID for Bluesky), not the username
+            let userId = targetPost.authorId.isEmpty ? targetPost.authorUsername : targetPost.authorId
+            
+            let user = SearchUser(
+                id: userId,
+                username: targetPost.authorUsername,
+                displayName: targetPost.authorName,
+                avatarURL: targetPost.authorProfilePictureURL.isEmpty ? nil : targetPost.authorProfilePictureURL,
+                platform: targetPost.platform
+            )
+            selectedUser = user
+        }
+    }
 
     /// Clear navigation state
     func clearNavigation() {

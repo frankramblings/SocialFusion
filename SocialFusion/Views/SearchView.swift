@@ -8,6 +8,7 @@ struct SearchView: View {
     @Binding var selectedAccountId: String?
     @Binding var previousAccountId: String?
     
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var searchText = ""
     @State private var searchResult: SearchResult? = nil
     @State private var isSearching = false
@@ -119,7 +120,8 @@ struct SearchView: View {
                                     post: post,
                                     createdAt: post.createdAt
                                 ),
-                                postActionStore: serviceManager.postActionStore
+                                postActionStore: serviceManager.postActionStore,
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
                             )
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
@@ -262,6 +264,20 @@ struct SearchView: View {
                 }
             }
         }
+        .background(
+            NavigationLink(
+                destination: navigationEnvironment.selectedUser.map { user in
+                    UserDetailView(user: user)
+                        .environmentObject(serviceManager)
+                },
+                isActive: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                ),
+                label: { EmptyView() }
+            )
+            .hidden()
+        )
         .navigationTitle("Search")
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {

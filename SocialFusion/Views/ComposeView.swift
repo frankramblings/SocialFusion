@@ -17,6 +17,7 @@ public struct ThreadPost: Identifiable {
 struct ReplyContextHeader: View {
     let post: Post
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
 
     private var platformColor: Color {
         switch post.platform {
@@ -60,32 +61,48 @@ struct ReplyContextHeader: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Author info
                 HStack(spacing: 8) {
-                    let stableImageURL = URL(string: post.authorProfilePictureURL)
-                    CachedAsyncImage(url: stableImageURL) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } placeholder: {
-                        Circle()
-                            .fill(Color.gray.opacity(0.3))
-                            .overlay(
-                                ProgressView()
-                                    .scaleEffect(0.6)
-                            )
+                    Button(action: {
+                        navigationEnvironment.navigateToUser(from: post)
+                    }) {
+                        let stableImageURL = URL(string: post.authorProfilePictureURL)
+                        CachedAsyncImage(url: stableImageURL) { image in
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        } placeholder: {
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .overlay(
+                                    ProgressView()
+                                        .scaleEffect(0.6)
+                                )
+                        }
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
                     }
-                    .frame(width: 32, height: 32)
-                    .clipShape(Circle())
+                    .buttonStyle(PlainButtonStyle())
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(post.authorName)
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .lineLimit(1)
+                        Button(action: {
+                            navigationEnvironment.navigateToUser(from: post)
+                        }) {
+                            Text(post.authorName)
+                                .font(.subheadline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(.primary)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(PlainButtonStyle())
 
-                        Text("@\(post.authorUsername)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
+                        Button(action: {
+                            navigationEnvironment.navigateToUser(from: post)
+                        }) {
+                            Text("@\(post.authorUsername)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
 
                     Spacer()
@@ -318,6 +335,7 @@ struct ComposeView: View {
     // Add SocialServiceManager for actual posting
     @EnvironmentObject private var socialServiceManager: SocialServiceManager
     @EnvironmentObject private var draftStore: DraftStore
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
 
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 
@@ -464,6 +482,7 @@ struct ComposeView: View {
                 // Reply context header (only shown for replies)
                 if let replyingTo = replyingTo {
                     ReplyContextHeader(post: replyingTo)
+                        .environmentObject(navigationEnvironment)
                 }
 
                 // Platform selection (hidden for replies since platform is predetermined)
@@ -789,6 +808,20 @@ struct ComposeView: View {
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
+            .background(
+                NavigationLink(
+                    destination: navigationEnvironment.selectedUser.map { user in
+                        UserDetailView(user: user)
+                            .environmentObject(socialServiceManager)
+                    },
+                    isActive: Binding(
+                        get: { navigationEnvironment.selectedUser != nil },
+                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                    ),
+                    label: { EmptyView() }
+                )
+                .hidden()
+            )
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -1224,20 +1257,7 @@ struct ComposeView: View {
                 await MainActor.run {
                     isPosting = false
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    alertTitle =
-                        threadPosts.count > 1
-                        ? "Thread Sent!" : (replyingTo != nil ? "Reply Sent!" : "Success!")
-
-                    if threadPosts.count > 1 {
-                        alertMessage = "Your thread of \(threadPosts.count) posts has been shared."
-                    } else if replyingTo != nil {
-                        alertMessage = "Your reply has been posted successfully."
-                    } else {
-                        alertMessage = "Your post has been shared."
-                    }
-
-                    showAlert = true
-
+                    
                     // Reset the compose view
                     threadPosts = [ThreadPost()]
                     activePostIndex = 0
@@ -1247,7 +1267,8 @@ struct ComposeView: View {
                     selectedAccounts.removeAll()
                     hydrateAccountSelection()
 
-                    // Dismiss the view
+                    // Dismiss the view immediately - no need for success alert
+                    // User will see their post appear in the timeline
                     dismiss()
                 }
 

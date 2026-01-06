@@ -463,6 +463,7 @@ struct ConsolidatedTimelineView: View {
             postActionCoordinator: controller.postActionCoordinator,
             onPostTap: { navigationEnvironment.navigateToPost(post) },
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
+            onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
             onReply: { replyingToPost = post },
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },

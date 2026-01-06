@@ -700,6 +700,11 @@ private struct VideoPlayerView: View {
 
         performanceMonitor.trackMediaLoadStart(url: url.absoluteString)
 
+        // CRITICAL: Simulator-specific handling - add warning for video playback issues
+        #if targetEnvironment(simulator)
+        logger.info("⚠️ [SIMULATOR] Setting up video player - videos may not play correctly in simulator")
+        #endif
+
         do {
             if let cachedPlayer = memoryManager.getCachedPlayer(for: url) {
                 // CRITICAL: Ensure player allows muting and is properly configured
@@ -754,8 +759,14 @@ private struct VideoPlayerView: View {
             performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: true)
 
         } catch {
+            #if targetEnvironment(simulator)
+            logger.error(
+                "❌ [SIMULATOR] Failed to setup player: \(error.localizedDescription, privacy: .public)")
+            logger.info("⚠️ [SIMULATOR] Video playback errors are common in simulator - test on a real device for accurate behavior")
+            #else
             logger.error(
                 "❌ Failed to setup player: \(error.localizedDescription, privacy: .public)")
+            #endif
             hasError = true
             isLoading = false
             performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: false)
@@ -1076,8 +1087,15 @@ private struct VideoPlayerView: View {
         // AVFoundation requires main thread for player item creation to avoid timebase errors
         return try await withCheckedThrowingContinuation { continuation in
             Task { @MainActor in
+                // CRITICAL: Simulator-specific handling - simulators often crash on video playback
+                // Add logging for simulator to help diagnose issues
+                #if targetEnvironment(simulator)
+                logger.info("⚠️ [SIMULATOR] Creating AVPlayerItem - videos may not play correctly in simulator")
+                #endif
+                
                 // CRITICAL: Configure player item AFTER asset properties are loaded
                 // This ensures format description is available, preventing -12881 errors
+                // Note: AVPlayerItem(asset:) doesn't throw, so we don't need do-catch here
                 let playerItem = AVPlayerItem(asset: asset)
                 
                 // Configure buffering for smooth playback (like IceCubesApp and Bluesky)

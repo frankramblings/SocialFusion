@@ -266,6 +266,14 @@ class URLService {
         // Match bsky.app and bsky.social URLs
         let isBlueskyDomain = host.contains("bsky.app") || host.contains("bsky.social")
 
+        // Check for AT Protocol URIs (at://did:plc:xxx/app.bsky.feed.post/xxx)
+        if url.scheme == "at" {
+            let uriString = url.absoluteString.lowercased()
+            if uriString.contains("/app.bsky.feed.post/") {
+                return true
+            }
+        }
+
         // Check if it's a post URL pattern: /profile/{username}/post/{postId}
         let path = url.path
         let isPostURL = path.contains("/profile/") && path.contains("/post/")
@@ -273,6 +281,14 @@ class URLService {
         // Don't treat profile-only URLs as post URLs
         if path.contains("/profile/") && !path.contains("/post/") {
             return false
+        }
+
+        // Also check for handle.bsky.social/post/postid format
+        if host.contains("bsky.social") && path.contains("/post/") {
+            let components = path.split(separator: "/")
+            if components.contains("post") {
+                return true
+            }
         }
 
         return isBlueskyDomain && isPostURL
@@ -288,7 +304,8 @@ class URLService {
         let isMastodonInstance =
             host.contains("mastodon.social") || host.contains("mastodon.online")
             || host.contains("mas.to") || host.contains("mastodon.world")
-            || host.contains(".social")
+            || host.contains(".social") || host.contains("hachyderm.io")
+            || host.contains("mstdn.") || host.contains("masto.")
 
         // Check if it matches Mastodon post URL pattern: /@username/postID
         let path = url.path
@@ -317,34 +334,65 @@ class URLService {
     /// - Returns: True if the URL is a Fediverse post URL
     func isFediversePostURL(_ url: URL) -> Bool {
         guard url.host?.lowercased() != nil else { return false }
-        let path = url.path.lowercased()
+        let path = url.path
+        let pathLowercased = path.lowercased()
         let components = path.split(separator: "/").map(String.init)
 
-        // Mastodon-style: /@username/postID
+        // Mastodon-style: /@username/postID (numeric ID)
+        // This is the most common pattern across Mastodon instances
         if path.contains("/@") && components.count >= 2 {
             let lastComponent = components.last!
+            // Check if last component is numeric (status ID)
             let isNumericID = lastComponent.allSatisfy { $0.isNumber }
+            // Check if any component starts with @ (username)
             let hasUsernamePattern = components.contains { $0.hasPrefix("@") }
-            if isNumericID && hasUsernamePattern { return true }
+            // Don't treat profile-only URLs as post URLs
+            if isNumericID && hasUsernamePattern && lastComponent.count > 0 {
+                return true
+            }
+        }
+
+        // Mastodon alternative: /users/username/statuses/postID
+        if pathLowercased.contains("/users/") && pathLowercased.contains("/statuses/") {
+            if let statusesIdx = components.firstIndex(where: { $0.lowercased() == "statuses" }),
+               statusesIdx + 1 < components.count {
+                let postID = components[statusesIdx + 1]
+                if postID.allSatisfy({ $0.isNumber }) && postID.count > 0 {
+                    return true
+                }
+            }
         }
 
         // Misskey/Firefish/Calckey: /notes/noteID
-        if path.contains("/notes/") && components.count >= 2 {
-            if let idx = components.firstIndex(of: "notes"), idx + 1 < components.count {
+        if pathLowercased.contains("/notes/") && components.count >= 2 {
+            if let idx = components.firstIndex(where: { $0.lowercased() == "notes" }),
+               idx + 1 < components.count {
                 let noteID = components[idx + 1]
-                if noteID.count > 10 { return true }  // crude check for UUID-like
+                // Note IDs are typically UUIDs or long alphanumeric strings
+                if noteID.count > 10 { return true }
             }
         }
 
         // Pleroma/Akkoma: /objects/objectID
-        if path.contains("/objects/") && components.count >= 2 {
-            if let idx = components.firstIndex(of: "objects"), idx + 1 < components.count {
+        if pathLowercased.contains("/objects/") && components.count >= 2 {
+            if let idx = components.firstIndex(where: { $0.lowercased() == "objects" }),
+               idx + 1 < components.count {
                 let objectID = components[idx + 1]
                 if objectID.count > 10 { return true }
             }
         }
 
-        // Add more patterns as needed
+        // Friendica: /display/{username}/{postID}
+        if pathLowercased.contains("/display/") && components.count >= 3 {
+            if let displayIdx = components.firstIndex(where: { $0.lowercased() == "display" }),
+               displayIdx + 2 < components.count {
+                let postID = components[displayIdx + 2]
+                if postID.allSatisfy({ $0.isNumber }) && postID.count > 0 {
+                    return true
+                }
+            }
+        }
+
         return false
     }
 

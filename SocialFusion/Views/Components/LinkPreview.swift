@@ -8,7 +8,7 @@ final class MetadataProviderManager {
 
     private var activeProviders = [URL: LPMetadataProvider]()
     private let providerQueue = DispatchQueue(label: "metadataProvider", attributes: .concurrent)
-    private let maxConcurrentRequests = 3  // Limit concurrent requests
+    private let maxConcurrentRequests = 5  // Increased from 3 to reduce queuing delays
     private var requestCount = 0
 
     private init() {}
@@ -27,8 +27,8 @@ final class MetadataProviderManager {
         // Limit concurrent requests to prevent too many web processes
         providerQueue.async(flags: .barrier) {
             guard self.requestCount < self.maxConcurrentRequests else {
-                // Queue is full, delay this request
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                // Queue is full, delay this request with shorter delay to reduce timeout issues
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {  // Reduced from 0.5s
                     self.startFetchingMetadata(for: url, completion: completion)
                 }
                 return

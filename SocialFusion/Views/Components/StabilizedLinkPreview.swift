@@ -57,6 +57,7 @@ struct StabilizedLinkPreview: View {
         if isLoading && retryCount == 0 {
             StabilizedLinkLoadingView(height: idealHeight)
         } else if let metadata = metadata {
+            // Always prefer rich content if we have metadata, even if loadingFailed was set
             if metadata.imageProvider != nil || metadata.iconProvider != nil
                 || metadata.title != nil || thumbnailURL != nil
             {
@@ -69,10 +70,11 @@ struct StabilizedLinkPreview: View {
                     passedThumbnailURL: thumbnailURL
                 )
             } else {
+                // Metadata exists but has no rich content - show fallback
                 StabilizedLinkFallbackView(url: url)
             }
         } else {
-            // Always show fallback - better than nothing!
+            // No metadata available - show generic fallback
             StabilizedLinkFallbackView(url: url)
         }
     }
@@ -86,19 +88,30 @@ struct StabilizedLinkPreview: View {
 
         isLoading = true
 
-        // Add a timeout for metadata loading
+        // Reduced timeout to 5 seconds - LPMetadataProvider typically completes faster
+        // This prevents showing generic fallback too quickly while still being responsive
         let timeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 8_000_000_000)  // 8 seconds
+            try? await Task.sleep(nanoseconds: 5_000_000_000)  // 5 seconds (reduced from 8)
             if self.isLoading {
+                // Only show fallback if we're still loading after timeout
+                // This means the metadata fetch is taking too long
                 self.isLoading = false
                 self.loadingFailed = true
             }
         }
 
+        let startTime = Date()
         MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
             timeoutTask.cancel()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                
+                // Log timing for debugging
+                let elapsed = Date().timeIntervalSince(startTime)
+                if elapsed > 3.0 {
+                    print("[LinkPreview] Metadata fetch took \(String(format: "%.2f", elapsed))s for \(self.url.host ?? "unknown")")
+                }
+                
                 if let error = error {
                     if self.retryCount < self.maxRetries && self.isTransientError(error) {
                         self.retryCount += 1
@@ -113,9 +126,17 @@ struct StabilizedLinkPreview: View {
                     return
                 }
 
-                self.metadata = metadata
-                self.isLoading = false
-                self.loadingFailed = false
+                // Always update metadata if we got it, even if timeout already fired
+                // This ensures we show rich previews when metadata arrives late
+                if let metadata = metadata {
+                    self.metadata = metadata
+                    self.isLoading = false
+                    self.loadingFailed = false
+                } else {
+                    // No metadata and no error - show fallback
+                    self.isLoading = false
+                    self.loadingFailed = true
+                }
             }
         }
     }

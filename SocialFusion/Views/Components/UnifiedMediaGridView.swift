@@ -23,13 +23,30 @@ private enum MediaConstants {
 // MARK: - Frame Tracking for Hero Eligibility
 
 /// PreferenceKey to track thumbnail frames for hero transition eligibility
+/// CRITICAL FIX: Custom reduce function that only updates when frames change significantly
 private struct ThumbnailFramePreference: PreferenceKey {
     static var defaultValue: [String: ThumbnailFrameInfo] = [:]
 
     static func reduce(
         value: inout [String: ThumbnailFrameInfo], nextValue: () -> [String: ThumbnailFrameInfo]
     ) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
+        let newValues = nextValue()
+        // CRITICAL FIX: Only merge if frames changed significantly (more than 5 points)
+        // This prevents "Bound preference tried to update multiple times per frame" warnings
+        for (id, newFrameInfo) in newValues {
+            if let oldFrameInfo = value[id] {
+                let frameChanged = abs(newFrameInfo.frame.origin.x - oldFrameInfo.frame.origin.x) > 5 ||
+                                  abs(newFrameInfo.frame.origin.y - oldFrameInfo.frame.origin.y) > 5 ||
+                                  abs(newFrameInfo.frame.width - oldFrameInfo.frame.width) > 5 ||
+                                  abs(newFrameInfo.frame.height - oldFrameInfo.frame.height) > 5
+                if frameChanged {
+                    value[id] = newFrameInfo
+                }
+            } else {
+                // Always add new entries
+                value[id] = newFrameInfo
+            }
+        }
     }
 }
 
@@ -48,6 +65,33 @@ struct ThumbnailFrameInfo: Equatable {
     }
 }
 
+/// Helper view that tracks frame changes and only updates preference when frame changes significantly
+/// CRITICAL FIX: Prevents "Bound preference ThumbnailFramePreference tried to update multiple times per frame" warnings
+/// The PreferenceKey's reduce function now handles filtering, so we can set preference every frame
+private struct FrameTrackingView: View {
+    let attachmentID: String
+    let threshold: CGFloat  // Not used anymore, but kept for compatibility
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let frame = geometry.frame(in: .global)
+            
+            // CRITICAL FIX: Set preference every frame, but PreferenceKey.reduce will filter
+            // This prevents "Bound preference tried to update multiple times per frame" warnings
+            Color.clear
+                .preference(
+                    key: ThumbnailFramePreference.self,
+                    value: frame.width > 0 && frame.height > 0 ? [
+                        attachmentID: ThumbnailFrameInfo(
+                            frame: frame,
+                            timestamp: Date()
+                        )
+                    ] : [:]
+                )
+        }
+    }
+}
+
 struct UnifiedMediaGridView: View {
     let attachments: [Post.Attachment]
     var maxHeight: CGFloat = 600  // Increased from 300 to allow taller media
@@ -61,6 +105,7 @@ struct UnifiedMediaGridView: View {
     // Frame tracking for hero eligibility
     @State private var thumbnailFrames: [String: ThumbnailFrameInfo] = [:]
     @State private var preferenceUpdateTask: Task<Void, Never>?
+    @State private var isUpdatingFrames = false
 
     var body: some View {
         Group {
@@ -158,30 +203,49 @@ struct UnifiedMediaGridView: View {
             }
         }
         .onPreferenceChange(ThumbnailFramePreference.self) { frames in
+            // Prevent updates if we're already updating to avoid multiple updates per frame
+            guard !isUpdatingFrames else { return }
+            
             // Cancel previous update task to debounce/throttle updates
             preferenceUpdateTask?.cancel()
             
             // Only update if frames actually changed significantly
             let hasSignificantChanges = frames.contains { (id, newFrame) in
                 guard let oldFrame = thumbnailFrames[id] else { return true }
-                // Only update if frame moved significantly (> 5 points)
-                let frameChanged = abs(newFrame.frame.origin.x - oldFrame.frame.origin.x) > 5 ||
-                                   abs(newFrame.frame.origin.y - oldFrame.frame.origin.y) > 5 ||
-                                   abs(newFrame.frame.width - oldFrame.frame.width) > 5 ||
-                                   abs(newFrame.frame.height - oldFrame.frame.height) > 5
-                // Also update if timestamp is significantly different (newer frame)
-                let timestampChanged = abs(newFrame.timestamp.timeIntervalSince(oldFrame.timestamp)) > 0.1
+                // Only update if frame moved significantly (> 10 points) - increased threshold
+                let frameChanged = abs(newFrame.frame.origin.x - oldFrame.frame.origin.x) > 10 ||
+                                   abs(newFrame.frame.origin.y - oldFrame.frame.origin.y) > 10 ||
+                                   abs(newFrame.frame.width - oldFrame.frame.width) > 10 ||
+                                   abs(newFrame.frame.height - oldFrame.frame.height) > 10
+                // Also update if timestamp is significantly different (newer frame) - increased threshold
+                let timestampChanged = abs(newFrame.timestamp.timeIntervalSince(oldFrame.timestamp)) > 0.2
                 return frameChanged || timestampChanged
             }
             
             guard hasSignificantChanges else { return }
             
+            // Mark as updating to prevent concurrent updates
+            isUpdatingFrames = true
+            
             // Defer state update to prevent "Publishing changes from within view updates" warning
+            // Use longer delay to throttle updates and prevent multiple updates per frame
             preferenceUpdateTask = Task { @MainActor in
-                // Small delay to ensure we're not in the middle of a view update
-                try? await Task.sleep(nanoseconds: 16_000_000) // ~1 frame at 60fps
-                guard !Task.isCancelled else { return }
-                thumbnailFrames = frames
+                // Throttle to ~10fps (100ms) to prevent multiple updates per frame - even more aggressive throttling
+                try? await Task.sleep(nanoseconds: 100_000_000) // ~6 frames at 60fps
+                guard !Task.isCancelled else { 
+                    isUpdatingFrames = false
+                    return 
+                }
+                // Final check to ensure we're not updating during view rendering
+                // Use DispatchQueue with an additional delay to ensure we're outside the current view update cycle
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.016) { // One more frame delay
+                    guard !Task.isCancelled else { 
+                        isUpdatingFrames = false
+                        return 
+                    }
+                    thumbnailFrames = frames
+                    isUpdatingFrames = false
+                }
             }
         }
         .onDisappear {
@@ -299,18 +363,10 @@ private struct SingleImageView: View {
                     onTap: onTap
                 )
                 .background(
-                    GeometryReader { geometry in
-                        Color.clear
-                            .preference(
-                                key: ThumbnailFramePreference.self,
-                                value: [
-                                    attachment.id: ThumbnailFrameInfo(
-                                        frame: geometry.frame(in: .global),
-                                        timestamp: Date()
-                                    )
-                                ]
-                            )
-                    }
+                    FrameTrackingView(
+                        attachmentID: attachment.id,
+                        threshold: 5.0  // Only update if frame moved more than 5 points
+                    )
                 )
                 .shadow(
                     color: MediaConstants.Visual.shadowColor,
@@ -445,27 +501,22 @@ private struct GridImageView: View {
                     )
             } else {
                 // Actual thumbnail with matchedGeometryEffect
-                GeometryReader { geometry in
-                    SmartMediaView(
-                        attachment: attachment,
-                        contentMode: SmartMediaView.ContentMode.fill,
-                        maxWidth: gridSize,
-                        maxHeight: gridSize,
-                        cornerRadius: MediaConstants.CornerRadius.feed,
-                        heroID: heroID,
-                        mediaNamespace: mediaNamespace,
-                        onTap: { onTap(attachment) }
+                SmartMediaView(
+                    attachment: attachment,
+                    contentMode: SmartMediaView.ContentMode.fill,
+                    maxWidth: gridSize,
+                    maxHeight: gridSize,
+                    cornerRadius: MediaConstants.CornerRadius.feed,
+                    heroID: heroID,
+                    mediaNamespace: mediaNamespace,
+                    onTap: { onTap(attachment) }
+                )
+                .background(
+                    FrameTrackingView(
+                        attachmentID: attachment.id,
+                        threshold: 5.0  // Only update if frame moved more than 5 points
                     )
-                    .preference(
-                        key: ThumbnailFramePreference.self,
-                        value: [
-                            attachment.id: ThumbnailFrameInfo(
-                                frame: geometry.frame(in: .global),
-                                timestamp: Date()
-                            )
-                        ]
-                    )
-                }
+                )
                 .frame(width: gridSize, height: gridSize)
                 .clipped()
                 .shadow(

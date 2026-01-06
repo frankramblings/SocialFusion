@@ -10,6 +10,7 @@ struct ProfileView: View {
     @Binding var selectedAccountId: String?
     @Binding var previousAccountId: String?
     
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var posts: [Post] = []
     @State private var isLoading = false
     @State private var isLoadingMore = false
@@ -95,7 +96,7 @@ struct ProfileView: View {
                 if isLoading && posts.isEmpty {
                     ProgressView()
                         .padding(.top, 40)
-                } else if let error = error {
+                } else if error != nil {
                     VStack(spacing: 12) {
                         Text("Failed to load posts")
                             .foregroundColor(.secondary)
@@ -121,7 +122,8 @@ struct ProfileView: View {
                                     post: post,
                                     createdAt: post.createdAt
                                 ),
-                                postActionStore: serviceManager.postActionStore
+                                postActionStore: serviceManager.postActionStore,
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
                             )
                             .onAppear {
                                 if post.id == posts.last?.id && canLoadMore && !isLoadingMore {
@@ -143,6 +145,20 @@ struct ProfileView: View {
         }
         .navigationTitle(account.displayName ?? account.username)
         .navigationBarTitleDisplayMode(.inline)
+        .background(
+            NavigationLink(
+                destination: navigationEnvironment.selectedUser.map { user in
+                    UserDetailView(user: user)
+                        .environmentObject(serviceManager)
+                },
+                isActive: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                ),
+                label: { EmptyView() }
+            )
+            .hidden()
+        )
         .sheet(isPresented: $showEditProfile) {
             EditProfileView(account: account)
         }

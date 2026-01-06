@@ -4,6 +4,7 @@ struct AccountTimelineView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     let account: SocialAccount
 
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var posts: [Post] = []
     @State private var isLoading = false
     @State private var error: Error? = nil
@@ -46,7 +47,8 @@ struct AccountTimelineView: View {
                             PostCardView(
                                 entry: entry,
                                 postActionStore: serviceManager.postActionStore,
-                                postActionCoordinator: serviceManager.postActionCoordinator
+                                postActionCoordinator: serviceManager.postActionCoordinator,
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
                             )
                                 .id(entry.id)
                                 .padding(.horizontal)
@@ -79,6 +81,20 @@ struct AccountTimelineView: View {
                 }
             }
         }
+        .background(
+            NavigationLink(
+                destination: navigationEnvironment.selectedUser.map { user in
+                    UserDetailView(user: user)
+                        .environmentObject(serviceManager)
+                },
+                isActive: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                ),
+                label: { EmptyView() }
+            )
+            .hidden()
+        )
         .onAppear {
             Task {
                 await loadPosts()

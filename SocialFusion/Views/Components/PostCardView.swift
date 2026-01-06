@@ -16,7 +16,7 @@ private struct ConditionalClippedModifier: ViewModifier {
 /// A view that displays a post card with all its components
 struct PostCardView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
-    let post: Post
+    @ObservedObject var post: Post
     let replyCount: Int
     let repostCount: Int
     let likeCount: Int
@@ -49,149 +49,265 @@ struct PostCardView: View {
     @State private var bannerWasTapped = false
     @State private var showListSelection = false
 
-    // Platform color helper
+    // Cached values to prevent AttributeGraph cycles from accessing nested @ObservedObject properties
+    @State private var cachedDisplayPost: Post?
+    @State private var cachedBoostHandle: String?
+    @State private var cachedReplyInfo: (username: String, id: String?, platform: SocialPlatform)?
+    @State private var cachedAttachments: [Post.Attachment] = []
+    @State private var cachedPlatform: SocialPlatform?
+    @State private var cachedPoll: Post.Poll?  // Cache poll to avoid accessing displayPost.poll during rendering
+    @State private var isUpdatingCache = false  // Prevent recursive cache updates
+
+    // Platform color helper - CRITICAL FIX: Use cached platform only (never access post.platform synchronously)
     private var platformColor: Color {
-        switch post.platform {
+        // cachedPlatform is always initialized in initializer, so this should never be nil
+        // But if it is, use a safe default to prevent crashes
+        let platform = cachedPlatform ?? .bluesky
+        switch platform {
         case .mastodon:
             return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
         case .bluesky:
             return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
         }
     }
+    
+    // CRITICAL FIX: Cached platform getter - never access post.platform synchronously
+    private var displayPlatform: SocialPlatform {
+        // cachedPlatform is always initialized in initializer, so this should never be nil
+        // But if it is, use a safe default to prevent crashes
+        return cachedPlatform ?? .bluesky
+    }
 
     // Determine which post to display: use original for boosts, otherwise self.post
+    // CRITICAL FIX: Only use cached value to prevent AttributeGraph cycles
+    // Cache is updated in onAppear/onChange which are outside the rendering cycle
+    // CRITICAL: Never access post.originalPost here - always use cached value
     private var displayPost: Post {
-        // CRITICAL FIX: For boosts, always use the original post for display content
-        // The wrapper post is just a container with empty content
-        // Always use originalPost if it exists, even if content appears empty
-        // The contentView() method handles empty content display internally
-        // This ensures boosts show the original post content, not blank placeholders
-
-        // Check if this is a boost (via originalPost or boostedBy)
-        let isBoost = post.originalPost != nil || (boostedBy ?? post.boostedBy) != nil
-
-        if isBoost {
-            // This is a boost/repost - use the original post for display
-            if let original = post.originalPost {
-                // Always return originalPost - don't fall back to wrapper post
-                // The wrapper post has empty content by design
-                return original
-            } else {
-                // CRITICAL: If boost has no originalPost, this is an error state
-                // Log warning but still return post to prevent crash
-                // This shouldn't happen, but handle gracefully
-                print("⚠️ [PostCardView] Boost detected but originalPost is nil for post \(post.id)")
-                // Return post as fallback - contentView will handle empty content
-                return post
-            }
-        }
-
-        // For regular posts
-        return post
+        // Always use cached value - it's updated in onAppear/onChange
+        // Fallback to post only if cache is truly nil (shouldn't happen after onAppear)
+        // This fallback is safe because it doesn't access nested @ObservedObject properties
+        return cachedDisplayPost ?? post
     }
 
     // Get attachments to display - prioritize originalPost attachments for boosts
+    // CRITICAL FIX: Only use cached value to prevent AttributeGraph cycles
     private var displayAttachments: [Post.Attachment] {
-        // For boosts, always use originalPost attachments if available
-        if let original = post.originalPost {
-            // Use originalPost attachments if they exist, otherwise check displayPost as fallback
-            if !original.attachments.isEmpty {
-                return original.attachments
-            }
-            // Fallback: check displayPost attachments (should be same as original, but just in case)
-            if !displayPost.attachments.isEmpty {
-                return displayPost.attachments
-            }
-            // Return empty array if no attachments found
-            return []
-        }
-        // For regular posts, use displayPost attachments (which equals post for non-boosts)
-        return displayPost.attachments
+        // Always use cached value - it's updated in onAppear/onChange
+        return cachedAttachments
     }
 
-    // Check if this is a boost (either from TimelineEntry or Post structure)
-    private var isBoost: Bool {
-        return (boostedBy ?? post.boostedBy) != nil || post.originalPost != nil
-    }
+    // CRITICAL FIX: Removed isBoost computed property that accessed post.originalPost synchronously
+    // Boost status is determined in updateCachedValues() and stored in cachedBoostHandle
 
     // Get the reply info - check displayPost (which is originalPost for boosts)
+    // CRITICAL FIX: Only use cached value to prevent AttributeGraph cycles
     private var replyInfo: (username: String, id: String?, platform: SocialPlatform)? {
-        // CRITICAL FIX: For boosts, prioritize originalPost reply info since that's what's being displayed
-        // For regular posts, check the post itself
-        // This ensures reply banners show correctly for both regular replies and boosted replies
-
-        // Debug logging
-        print("🔍 [PostCardView] replyInfo check for post \(post.id):")
-        print("  - post.inReplyToUsername: \(post.inReplyToUsername ?? "nil")")
-        print("  - post.inReplyToID: \(post.inReplyToID ?? "nil")")
-        print("  - has originalPost: \(post.originalPost != nil)")
-
-        // If this is a boost, check the original post first (since that's what we're displaying)
-        if let original = post.originalPost {
-            print("  - original.inReplyToUsername: \(original.inReplyToUsername ?? "nil")")
-            print("  - original.inReplyToID: \(original.inReplyToID ?? "nil")")
-            if let username = original.inReplyToUsername, !username.isEmpty {
-                print("🔍 [PostCardView] Reply info found in originalPost: \(username)")
-                return (username, original.inReplyToID, original.platform)
-            }
-        }
-
-        // Then check if the wrapper post itself is a reply (for non-boosted replies)
-        if let username = post.inReplyToUsername, !username.isEmpty {
-            print("🔍 [PostCardView] Reply info found in wrapper post: \(username)")
-            return (username, post.inReplyToID, post.platform)
-        }
-
-        // Fallback: check displayPost (should be same as above, but just in case)
-        let displayUsername = displayPost.inReplyToUsername
-        let displayReplyID = displayPost.inReplyToID
-        print("  - displayPost.inReplyToUsername: \(displayUsername ?? "nil")")
-        print("  - displayPost.inReplyToID: \(displayReplyID ?? "nil")")
-        if let username = displayUsername, !username.isEmpty {
-            print("🔍 [PostCardView] Reply info found in displayPost: \(username)")
-            return (username, displayReplyID, displayPost.platform)
-        }
-
-        print("🔍 [PostCardView] No reply info found for post \(post.id)")
-        return nil
+        // Always use cached value - it's updated in onAppear/onChange
+        return cachedReplyInfo
     }
     
-    // Debug helper to log boost/reply state
+    // CRITICAL FIX: Update cached values to prevent AttributeGraph cycles
+    // This function extracts values once and caches them, avoiding repeated access to nested @ObservedObject properties
+    // CRITICAL: This function must be called outside the view rendering cycle (via Task with delay)
+    // CRITICAL: All calculations and state updates are wrapped in Task to ensure they happen outside view update cycle
+    private func updateCachedValues() {
+        // Prevent recursive calls
+        guard !isUpdatingCache else { return }
+        isUpdatingCache = true
+        defer { isUpdatingCache = false }
+        
+        // CRITICAL: Wrap ALL calculations and state updates in Task with delay to ensure they happen outside view update cycle
+        // This prevents "Modifying state during view update" warnings
+        Task { @MainActor in
+            // CRITICAL: Add delay before accessing post properties to ensure we're outside view update cycle
+            try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 second delay
+            
+            // CRITICAL: Capture originalPost and boostedBy references once to avoid multiple accesses
+            // Accessing post.originalPost and post.boostedBy triggers didSet which calls objectWillChange
+            // By capturing them once, we minimize the number of triggers
+            let originalPostRef = post.originalPost
+            let postBoostedByRef = post.boostedBy
+            
+            // Cache platform from displayPost to avoid accessing post.platform synchronously
+            let newDisplayPost: Post
+            let newPlatform: SocialPlatform
+            let isBoost = originalPostRef != nil || (boostedBy ?? postBoostedByRef) != nil
+            if isBoost, let original = originalPostRef {
+                newDisplayPost = original
+                newPlatform = original.platform
+            } else {
+                newDisplayPost = post
+                newPlatform = post.platform
+            }
+            
+            // Only update if value changed to prevent unnecessary view updates
+            if cachedDisplayPost?.id != newDisplayPost.id {
+                cachedDisplayPost = newDisplayPost
+            }
+            // Update platform if it changed
+            if cachedPlatform != newPlatform {
+                cachedPlatform = newPlatform
+            }
+            
+            // Update cached boost handle - only update if value changed
+            let hasOriginalPost = originalPostRef != nil
+            let finalBoostedBy = boostedBy ?? postBoostedByRef
+            let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasBoostHandle = boostHandle != nil && !boostHandle!.isEmpty
+            
+            let newBoostHandle: String?
+            if !hasOriginalPost && !hasBoostHandle {
+                newBoostHandle = nil
+            } else if let handle = boostHandle, !handle.isEmpty {
+                newBoostHandle = handle
+            } else if let handle = postBoostedByRef, !handle.isEmpty {
+                newBoostHandle = handle
+            } else if hasOriginalPost {
+                if !post.authorUsername.isEmpty {
+                    newBoostHandle = post.authorUsername
+                } else if post.id.hasPrefix("repost-") {
+                    let components = post.id.split(separator: "-", maxSplits: 2)
+                    if components.count >= 2 {
+                        newBoostHandle = String(components[1])
+                    } else {
+                        newBoostHandle = "Someone"
+                    }
+                } else if let original = originalPostRef, !original.authorUsername.isEmpty {
+                    newBoostHandle = original.authorUsername
+                } else {
+                    newBoostHandle = "Someone"
+                }
+            } else {
+                newBoostHandle = nil
+            }
+            
+            // Only update if value changed
+            if cachedBoostHandle != newBoostHandle {
+                cachedBoostHandle = newBoostHandle
+            }
+            
+            // Update cached reply info - only update if value changed
+            let newReplyInfo: (username: String, id: String?, platform: SocialPlatform)?
+            if let original = originalPostRef {
+                let originalUsername = original.inReplyToUsername
+                let originalReplyID = original.inReplyToID
+                if let username = originalUsername, !username.isEmpty {
+                    newReplyInfo = (username, originalReplyID, original.platform)
+                } else if let username = post.inReplyToUsername, !username.isEmpty {
+                    newReplyInfo = (username, post.inReplyToID, post.platform)
+                } else {
+                    let dp = cachedDisplayPost ?? post
+                    let displayUsername = dp.inReplyToUsername
+                    let displayReplyID = dp.inReplyToID
+                    if let username = displayUsername, !username.isEmpty {
+                        newReplyInfo = (username, displayReplyID, dp.platform)
+                    } else {
+                        newReplyInfo = nil
+                    }
+                }
+            } else if let username = post.inReplyToUsername, !username.isEmpty {
+                newReplyInfo = (username, post.inReplyToID, post.platform)
+            } else {
+                let dp = cachedDisplayPost ?? post
+                let displayUsername = dp.inReplyToUsername
+                let displayReplyID = dp.inReplyToID
+                if let username = displayUsername, !username.isEmpty {
+                    newReplyInfo = (username, displayReplyID, dp.platform)
+                } else {
+                    newReplyInfo = nil
+                }
+            }
+            
+            // Only update if value changed
+            if cachedReplyInfo?.username != newReplyInfo?.username ||
+               cachedReplyInfo?.id != newReplyInfo?.id ||
+               cachedReplyInfo?.platform != newReplyInfo?.platform {
+                cachedReplyInfo = newReplyInfo
+            }
+            
+            // Update cached attachments - only update if value changed
+            let newAttachments: [Post.Attachment]
+            if let original = originalPostRef {
+                if !original.attachments.isEmpty {
+                    newAttachments = original.attachments
+                } else {
+                    let dp = cachedDisplayPost ?? post
+                    newAttachments = dp.attachments
+                }
+            } else {
+                let dp = cachedDisplayPost ?? post
+                newAttachments = dp.attachments
+            }
+            
+            // Only update if attachments changed (compare by count and first URL)
+            if cachedAttachments.count != newAttachments.count ||
+               (cachedAttachments.first?.url != newAttachments.first?.url) {
+                cachedAttachments = newAttachments
+            }
+            
+            // Update cached poll - only update if value changed
+            let newPoll: Post.Poll?
+            if let original = originalPostRef {
+                newPoll = original.poll
+            } else {
+                let dp = cachedDisplayPost ?? post
+                newPoll = dp.poll
+            }
+            
+            // Only update if poll changed (compare by ID if available, or by reference)
+            if cachedPoll?.id != newPoll?.id {
+                cachedPoll = newPoll
+            }
+        }
+    }
+    
+    // CRITICAL FIX: Defer logging to prevent AttributeGraph cycles from accessing post.originalPost
     private func logBannerState() {
-        let hasOriginalPost = post.originalPost != nil
-        let hasBoostedBy = (boostedBy ?? post.boostedBy) != nil
-        let hasReplyInfo = replyInfo != nil
-        print("🔍 [PostCardView] Banner state for post \(post.id):")
-        print("  - hasOriginalPost: \(hasOriginalPost)")
-        print("  - hasBoostedBy: \(hasBoostedBy) (boostedBy param: \(boostedBy ?? "nil"), post.boostedBy: \(post.boostedBy ?? "nil"))")
-        print("  - hasReplyInfo: \(hasReplyInfo)")
-        if hasOriginalPost {
-            print("  - originalPost.id: \(post.originalPost?.id ?? "nil")")
-            print("  - originalPost.content.isEmpty: \(post.originalPost?.content.isEmpty ?? true)")
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+            // CRITICAL: Capture references once to avoid multiple synchronous accesses
+            let originalPostRef = post.originalPost
+            let postBoostedByRef = post.boostedBy
+            let hasOriginalPost = originalPostRef != nil
+            let hasBoostedBy = (boostedBy ?? postBoostedByRef) != nil
+            let hasReplyInfo = replyInfo != nil
+            print("🔍 [PostCardView] Banner state for post \(post.id):")
+            print("  - hasOriginalPost: \(hasOriginalPost)")
+            print("  - hasBoostedBy: \(hasBoostedBy) (boostedBy param: \(boostedBy ?? "nil"), post.boostedBy: \(postBoostedByRef ?? "nil"))")
+            print("  - hasReplyInfo: \(hasReplyInfo)")
+            if hasOriginalPost {
+                print("  - originalPost.id: \(originalPostRef?.id ?? "nil")")
+                print("  - originalPost.content.isEmpty: \(originalPostRef?.content.isEmpty ?? true)")
+            }
         }
     }
 
-    // Helper to log reply info (called from onAppear to avoid ViewBuilder issues)
+    // CRITICAL FIX: Defer logging to prevent AttributeGraph cycles from accessing post.originalPost
     private func logReplyInfo() {
-        let displayUsername = displayPost.inReplyToUsername
-        let displayReplyID = displayPost.inReplyToID
-        let logData: [String: Any] = [
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "E",
-            "location": "PostCardView.swift:84",
-            "message": "replyInfo check",
-            "data": [
-                "postId": post.id,
-                "displayPostId": displayPost.id,
-                "displayUsername": displayUsername ?? "nil",
-                "displayReplyID": displayReplyID ?? "nil",
-                "postUsername": post.inReplyToUsername ?? "nil",
-                "postReplyID": post.inReplyToID ?? "nil",
-                "hasOriginalPost": post.originalPost != nil,
-            ],
-            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
-        ]
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+            // CRITICAL: Capture references once to avoid multiple synchronous accesses
+            let originalPostRef = post.originalPost
+            let displayPostRef = cachedDisplayPost ?? post
+            let displayUsername = displayPostRef.inReplyToUsername
+            let displayReplyID = displayPostRef.inReplyToID
+            let logData: [String: Any] = [
+                "sessionId": "debug-session",
+                "runId": "run1",
+                "hypothesisId": "E",
+                "location": "PostCardView.swift:84",
+                "message": "replyInfo check",
+                "data": [
+                    "postId": post.id,
+                    "displayPostId": displayPostRef.id,
+                    "displayUsername": displayUsername ?? "nil",
+                    "displayReplyID": displayReplyID ?? "nil",
+                    "postUsername": post.inReplyToUsername ?? "nil",
+                    "postReplyID": post.inReplyToID ?? "nil",
+                    "hasOriginalPost": originalPostRef != nil,
+                ],
+                "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
+            ]
         let logPath = "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
         if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
             let jsonString = String(data: jsonData, encoding: .utf8)
@@ -205,6 +321,7 @@ struct PostCardView: View {
                 if let fileHandle = FileHandle(forWritingAtPath: logPath) {
                     fileHandle.write((jsonString + "\n").data(using: .utf8)!)
                     try? fileHandle.close()
+                    }
                 }
             }
         }
@@ -226,7 +343,7 @@ struct PostCardView: View {
                 "postBoostedBy": postBoostedBy ?? "nil",
                 "finalBoostedBy": finalBoostedBy ?? "nil",
                 "boostHandle": boostHandle ?? "nil",
-                "hasOriginalPost": post.originalPost != nil,
+                "hasOriginalPost": cachedDisplayPost != nil && cachedDisplayPost?.id != post.id,
                 "authorUsername": post.authorUsername,
             ],
             "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
@@ -257,6 +374,7 @@ struct PostCardView: View {
         postActionCoordinator: PostActionCoordinator? = nil,
         onPostTap: @escaping () -> Void = {},
         onParentPostTap: @escaping (Post) -> Void = { _ in },
+        onAuthorTap: @escaping () -> Void = {},
         onReply: @escaping () -> Void = {},
         onRepost: @escaping () -> Void = {},
         onLike: @escaping () -> Void = {},
@@ -270,7 +388,7 @@ struct PostCardView: View {
         self.isReplying = false
         self.isReposted = entry.post.isReposted
         self.isLiked = entry.post.isLiked
-        self.onAuthorTap = {}
+        self.onAuthorTap = onAuthorTap
         self.onReply = onReply
         self.onRepost = onRepost
         self.onLike = onLike
@@ -293,13 +411,60 @@ struct PostCardView: View {
             // Use TimelineEntry boostedBy first, but fall back to post.boostedBy if entry is empty
             self.boostedBy = entryBoostedBy.isEmpty ? entry.post.boostedBy : entryBoostedBy
         } else {
-            // Not a boost in TimelineEntry, but check if post has originalPost (might be a boost)
-            // This handles cases where TimelineEntry kind wasn't set correctly
-            if entry.post.originalPost != nil {
-                self.boostedBy = entry.post.boostedBy ?? entry.post.authorUsername
-            } else {
+            // Not a boost in TimelineEntry, use post.boostedBy
+            // CRITICAL FIX: Don't access entry.post.originalPost here as it triggers objectWillChange
+            // Cache will be initialized in onAppear
                 self.boostedBy = entry.post.boostedBy
             }
+        
+        // CRITICAL FIX: Initialize cache synchronously to prevent accessing post.originalPost during rendering
+        // For boost posts, initialize to originalPost so content appears immediately
+        // Safe to access originalPost in initializer (not in view update cycle)
+        let initialDisplayPost: Post
+        let initialPlatform: SocialPlatform
+        if let originalPost = entry.post.originalPost {
+            // Boost post - use original for display
+            initialDisplayPost = originalPost
+            initialPlatform = originalPost.platform
+        } else {
+            // Regular post - use post itself
+            initialDisplayPost = entry.post
+            initialPlatform = entry.post.platform
+        }
+        _cachedDisplayPost = State(initialValue: initialDisplayPost)
+        _cachedPlatform = State(initialValue: initialPlatform)
+        
+        // Initialize boost handle and reply info if available
+        if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
+            _cachedBoostHandle = State(initialValue: boostedBy)
+        } else if let boostedBy = entry.post.boostedBy, !boostedBy.isEmpty {
+            _cachedBoostHandle = State(initialValue: boostedBy)
+        }
+        
+        // Initialize reply info if this is a reply
+        if let originalPost = entry.post.originalPost {
+            // For boosts, check original post for reply info
+            if let username = originalPost.inReplyToUsername, !username.isEmpty {
+                _cachedReplyInfo = State(initialValue: (username, originalPost.inReplyToID, originalPost.platform))
+            } else if let username = entry.post.inReplyToUsername, !username.isEmpty {
+                _cachedReplyInfo = State(initialValue: (username, entry.post.inReplyToID, entry.post.platform))
+            }
+        } else if let username = entry.post.inReplyToUsername, !username.isEmpty {
+            _cachedReplyInfo = State(initialValue: (username, entry.post.inReplyToID, entry.post.platform))
+        }
+        
+        // Initialize attachments
+        if let originalPost = entry.post.originalPost, !originalPost.attachments.isEmpty {
+            _cachedAttachments = State(initialValue: originalPost.attachments)
+        } else {
+            _cachedAttachments = State(initialValue: entry.post.attachments)
+        }
+        
+        // Initialize poll
+        if let originalPost = entry.post.originalPost {
+            _cachedPoll = State(initialValue: originalPost.poll)
+        } else {
+            _cachedPoll = State(initialValue: entry.post.poll)
         }
     }
 
@@ -352,111 +517,119 @@ struct PostCardView: View {
         self.boostedBy = post.boostedBy
         self.postActionStore = postActionStore
         self.postActionCoordinator = postActionCoordinator
+        
+        // CRITICAL FIX: Initialize cache synchronously to prevent accessing post.originalPost during rendering
+        // For boost posts, initialize to originalPost so content appears immediately
+        // Safe to access originalPost in initializer (not in view update cycle)
+        let initialDisplayPost: Post
+        let initialPlatform: SocialPlatform
+        if let originalPost = post.originalPost {
+            // Boost post - use original for display
+            initialDisplayPost = originalPost
+            initialPlatform = originalPost.platform
+        } else {
+            // Regular post - use post itself
+            initialDisplayPost = post
+            initialPlatform = post.platform
+        }
+        _cachedDisplayPost = State(initialValue: initialDisplayPost)
+        _cachedPlatform = State(initialValue: initialPlatform)
+        
+        // Initialize boost handle if available
+        if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
+            _cachedBoostHandle = State(initialValue: boostedBy)
+        } else if let boostedBy = post.boostedBy, !boostedBy.isEmpty {
+            _cachedBoostHandle = State(initialValue: boostedBy)
+        }
+        
+        // Initialize reply info if this is a reply
+        if let originalPost = post.originalPost {
+            // For boosts, check original post for reply info
+            if let username = originalPost.inReplyToUsername, !username.isEmpty {
+                _cachedReplyInfo = State(initialValue: (username, originalPost.inReplyToID, originalPost.platform))
+            } else if let username = post.inReplyToUsername, !username.isEmpty {
+                _cachedReplyInfo = State(initialValue: (username, post.inReplyToID, post.platform))
+            }
+        } else if let username = post.inReplyToUsername, !username.isEmpty {
+            _cachedReplyInfo = State(initialValue: (username, post.inReplyToID, post.platform))
+        }
+        
+        // Initialize attachments
+        if let originalPost = post.originalPost, !originalPost.attachments.isEmpty {
+            _cachedAttachments = State(initialValue: originalPost.attachments)
+        } else {
+            _cachedAttachments = State(initialValue: post.attachments)
+        }
+        
+        // Initialize poll
+        if let originalPost = post.originalPost {
+            _cachedPoll = State(initialValue: originalPost.poll)
+        } else {
+            _cachedPoll = State(initialValue: post.poll)
+        }
     }
 
     // Helper to get boost handle for banner
+    // CRITICAL FIX: Only use cached value to prevent AttributeGraph cycles
     private var boostHandleToShow: String? {
-        let hasOriginalPost = post.originalPost != nil
-        let postBoostedBy = post.boostedBy
-        let finalBoostedBy = boostedBy ?? postBoostedBy
-        let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasBoostHandle = boostHandle != nil && !boostHandle!.isEmpty
-
-        // Debug logging
-        print("🔍 [PostCardView] boostHandleToShow check for post \(post.id):")
-        print("  - hasOriginalPost: \(hasOriginalPost)")
-        print("  - postBoostedBy: \(postBoostedBy ?? "nil")")
-        print("  - boostedBy param: \(boostedBy ?? "nil")")
-        print("  - finalBoostedBy: \(finalBoostedBy ?? "nil")")
-        print("  - boostHandle: \(boostHandle ?? "nil")")
-        print("  - hasBoostHandle: \(hasBoostHandle)")
-
-        // CRITICAL: If there's an originalPost, this is definitely a boost - always show banner
-        // Also show banner if boostedBy is set (even without originalPost, though that shouldn't happen)
-        if !hasOriginalPost && !hasBoostHandle {
-            print("  - Returning nil: no originalPost and no boostHandle")
-            return nil
-        }
-
-        // If we have originalPost, we MUST return a handle (even if boostedBy is missing)
-        // Priority: use the boostedBy parameter, then post.boostedBy, then authorUsername
-        if let handle = boostHandle, !handle.isEmpty {
-            print("  - Returning boostHandle: \(handle)")
-            return handle
-        } else if let handle = postBoostedBy, !handle.isEmpty {
-            print("  - Returning postBoostedBy: \(handle)")
-            return handle
-        } else if hasOriginalPost {
-            // For boosts with originalPost, always show the booster's username even if boostedBy isn't set
-            // This ensures boost banners always appear for posts with originalPost
-            // Use authorUsername as fallback - it should always be set for valid posts
-            if !post.authorUsername.isEmpty {
-                print("ℹ️ [PostCardView] Using post.authorUsername as boost handle fallback: \(post.authorUsername)")
-                return post.authorUsername
-            }
-            // Last resort: try to extract from post ID if it follows the repost-{handle}-{uri} pattern
-            if post.id.hasPrefix("repost-") {
-                let components = post.id.split(separator: "-", maxSplits: 2)
-                if components.count >= 2 {
-                    let extractedHandle = String(components[1])
-                    print("ℹ️ [PostCardView] Extracted boost handle from post ID: \(extractedHandle)")
-                    return extractedHandle
-                }
-            }
-            // If we have originalPost but no handle, use originalPost author as fallback
-            if let original = post.originalPost, !original.authorUsername.isEmpty {
-                print("ℹ️ [PostCardView] Using originalPost.authorUsername as boost handle fallback: \(original.authorUsername)")
-                return original.authorUsername
-            }
-            // Final fallback: if we have originalPost, show something
-            print("⚠️ [PostCardView] Boost detected (has originalPost) but no handle available for post \(post.id)")
-            return "Someone"  // Last resort fallback
-        }
+        // Always use cached value - it's updated in onAppear/onChange
+        // Return nil if cached value is empty string
+        guard let cached = cachedBoostHandle, !cached.isEmpty else {
         return nil
+        }
+        return cached
     }
 
     // Computed property for boost banner to simplify body
+    // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
     @ViewBuilder
     private var boostBannerView: some View {
         if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
-            BoostBanner(handle: handleToShow, platform: post.platform)
+            BoostBanner(handle: handleToShow, platform: displayPlatform)
                 .padding(.horizontal, 12)  // Apple standard: 12pt for content
                 .padding(.vertical, 6)  // Adequate touch target
                 .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
                 .onAppear {
-                    let postBoostedBy = post.boostedBy
-                    let finalBoostedBy = boostedBy ?? postBoostedBy
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 10_000_000)  // Defer to avoid cycles
+                    // CRITICAL FIX: Use cached boost handle instead of accessing post.boostedBy synchronously
+                    let finalBoostedBy = cachedBoostHandle ?? handleToShow
                     print("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
                     logBoostBanner(
-                        boostHandle: handleToShow, postBoostedBy: postBoostedBy,
+                        boostHandle: handleToShow, postBoostedBy: cachedBoostHandle,
                         finalBoostedBy: finalBoostedBy)
+                    }
                 }
         } else {
             EmptyView()
         }
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {  // Apple standard: 8pt spacing
+    // MARK: - View Components (broken down to help type checker)
+    
+    @ViewBuilder
+    private var bannerSection: some View {
             // Boost banner if this post was boosted/reposted
-            // CRITICAL FIX: Explicitly check and render boost banner to ensure it always shows
+        // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
             if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
-                BoostBanner(handle: handleToShow, platform: post.platform)
-                    .padding(.horizontal, 12)  // Apple standard: 12pt for content
-                    .padding(.vertical, 6)  // Adequate touch target
-                    .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
+            BoostBanner(handle: handleToShow, platform: displayPlatform)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
                     .onAppear {
-                        let postBoostedBy = post.boostedBy
-                        let finalBoostedBy = boostedBy ?? postBoostedBy
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+                        // CRITICAL FIX: Use cached boost handle instead of accessing post.boostedBy synchronously
+                        let finalBoostedBy = cachedBoostHandle ?? handleToShow
                         print("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
                         logBoostBanner(
-                            boostHandle: handleToShow, postBoostedBy: postBoostedBy,
+                            boostHandle: handleToShow, postBoostedBy: cachedBoostHandle,
                             finalBoostedBy: finalBoostedBy)
+                    }
                     }
             }
 
             // Expanding reply banner if this post is a reply
-            // Check both wrapper post and original post for reply info
             if let replyInfo = replyInfo {
                 ExpandingReplyBanner(
                     username: replyInfo.username,
@@ -466,118 +639,94 @@ struct PostCardView: View {
                     isExpanded: $isReplyBannerExpanded,
                     onBannerTap: { bannerWasTapped = true },
                     onParentPostTap: { parentPost in
-                        onParentPostTap(parentPost)  // Navigate to the parent post
-                    }
-                )
-                .padding(.horizontal, 12)  // Match BoostBanner alignment structure
-                .padding(.bottom, 6)  // Apple standard: 6pt related element spacing
-                .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
-                .id(displayPost.id + "_reply_banner")  // Key the banner to the specific post ID
+                    onParentPostTap(parentPost)
+                }
+            )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .id(displayPost.id + "_reply_banner")
                 .onAppear {
-                    print(
-                        "[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)"
-                    )
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+                    print("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
                     logReplyInfo()
                 }
             }
-
-            // Author section
-            PostAuthorView(
-                post: displayPost,
-                onAuthorTap: onAuthorTap
-            )
-            .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-
-            // Content section - show quote posts always, and show link previews for all posts
-            // CRITICAL FIX: Always show contentView - it handles empty content internally
-            // For boosts, displayPost is the originalPost which should have content
+        }
+    }
+    
+    @ViewBuilder
+    private var contentSection: some View {
+        PostAuthorView(post: displayPost, onAuthorTap: onAuthorTap)
+            .padding(.horizontal, 12)
+        
             displayPost.contentView(
                 lineLimit: nil,
-                showLinkPreview: true,  // Always show link previews
+            showLinkPreview: true,
                 font: .body,
                 onQuotePostTap: { quotedPost in
-                    onParentPostTap(quotedPost)  // Navigate to the quoted post
+                onParentPostTap(quotedPost)
                 },
-                allowTruncation: false  // Timeline posts are not truncated
+            allowTruncation: false
             )
-            .padding(.horizontal, 8)  // Reduced from 12 to give more space for text
+        .padding(.horizontal, 8)
             .padding(.top, 4)
-            .onAppear {
-                // Debug logging for boost content
-                let isBoost = post.originalPost != nil || (boostedBy ?? post.boostedBy) != nil
-                if isBoost {
-                    let hasOriginalPost = post.originalPost != nil
-                    let displayContentEmpty = displayPost.content.isEmpty
-                    let displayHasAttachments = !displayPost.attachments.isEmpty
-                    let displayHasQuotedPost = displayPost.quotedPost != nil
-                    
-                    print("🔍 [PostCardView] Boost content state for post \(post.id):")
-                    print("  - hasOriginalPost: \(hasOriginalPost)")
-                    print("  - displayPost.id: \(displayPost.id)")
-                    print("  - displayPost.content.isEmpty: \(displayContentEmpty)")
-                    print("  - displayPost.attachments.count: \(displayPost.attachments.count)")
-                    print("  - displayPost.quotedPost: \(displayHasQuotedPost ? "exists" : "nil")")
-                    print("  - post.boostedBy: \(post.boostedBy ?? "nil")")
-                    print("  - boostedBy param: \(boostedBy ?? "nil")")
-                    
-                    if displayContentEmpty && !displayHasAttachments && !displayHasQuotedPost {
-                        print("⚠️ [PostCardView] Boost post \(post.id) appears blank - no content, attachments, or quoted post")
-                    }
-                }
-            }
-
-            // Poll section
-            if let poll = displayPost.poll {
-                PostPollView(
-                    poll: poll,
-                    onVote: { optionIndex in
-                        Task {
-                            do {
-                                try await serviceManager.voteInPoll(
-                                    post: displayPost, optionIndex: optionIndex)
-                            } catch {
-                                print("❌ Failed to vote: \(error.localizedDescription)")
-                            }
+        // CRITICAL FIX: Removed onAppear callback that was accessing post.originalPost
+        // This was causing AttributeGraph cycles. Debug logging moved to deferred Task.
+        
+        // CRITICAL FIX: Use cached poll instead of accessing displayPost.poll during rendering
+        if let poll = cachedPoll {
+            PostPollView(
+                poll: poll,
+                onVote: { optionIndex in
+                    Task {
+                        do {
+                            try await serviceManager.voteInPoll(post: displayPost, optionIndex: optionIndex)
+                        } catch {
+                            print("❌ Failed to vote: \(error.localizedDescription)")
                         }
                     }
-                )
-                .padding(.horizontal, 12)
-            }
-
-            // Media section - show attachments from the displayed post
-            // Use displayAttachments which properly handles boosts vs regular posts
-            // CRITICAL: Always check displayPost.attachments directly to ensure we show media even for reposts
-            let attachmentsToShow =
-                displayAttachments.isEmpty ? displayPost.attachments : displayAttachments
+                }
+            )
+            .padding(.horizontal, 12)
+        }
+    }
+    
+    @ViewBuilder
+    private var mediaSection: some View {
+        // CRITICAL FIX: Only use cached attachments to prevent accessing displayPost.attachments synchronously
+        // This prevents AttributeGraph cycles when displayPost is originalPost
+        let attachmentsToShow = cachedAttachments
             if !attachmentsToShow.isEmpty {
-                // Check if any attachment is a GIF - if so, use taller maxHeight
-                // Balance: Allow taller GIFs but still maintain reasonable bounds
                 let hasGIF = attachmentsToShow.contains { $0.type == .animatedGIF }
-                // Use 70% of screen height for GIFs (balanced between full display and feed usability)
                 let mediaMaxHeight = hasGIF ? min(UIScreen.main.bounds.height * 0.7, 800) : 600
 
                 UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: mediaMaxHeight)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 4)
                     .padding(.top, 4)
-                    // Apply clipping but UnifiedMediaGridView/SmartMediaView handle aspect ratio properly
-                    // This prevents overflow while allowing GIFs to display at their natural aspect ratio
                     .clipped()
                     .onAppear {
-                        print(
-                            "[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)"
-                        )
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+                        print("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
                         for (index, att) in attachmentsToShow.enumerated() {
-                            print(
-                                "[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)"
-                            )
+                            print("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
                         }
                     }
-            }
-
+                }
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            bannerSection
+            contentSection
+            mediaSection
             actionBarView
-                .padding(.horizontal, 12)  // Apple standard: 12pt content padding
-                .padding(.top, 2)  // Reduced from 6 to close vertical gap
+                .padding(.horizontal, 12)
+                .padding(.top, 2)
         }
         .padding(.horizontal, 12)  // Reduced from 16 to give more space for content
         .padding(.vertical, 12)  // Apple standard: 12pt container padding
@@ -590,6 +739,28 @@ struct PostCardView: View {
             }
             bannerWasTapped = false
         }
+        .onAppear {
+            // CRITICAL FIX: Update cache on appear to ensure correct values
+            // Cache is initialized to post in initializer, but may need to be updated to originalPost
+            // Use Task with longer delay to ensure we're completely outside the rendering cycle
+            // CRITICAL: Only update in onAppear, not onChange, to prevent cycles
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 seconds delay - longer to ensure outside cycle
+                guard !isUpdatingCache else { return }
+                updateCachedValues()
+            }
+        }
+        .onChange(of: post.id) { _ in
+            // CRITICAL FIX: Update cache when post changes (e.g., originalPost is set)
+            // But defer it to prevent AttributeGraph cycles
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 seconds delay
+                guard !isUpdatingCache else { return }
+                updateCachedValues()
+            }
+        }
+        // CRITICAL FIX: Removed onChange modifiers for post.originalPost that were causing AttributeGraph cycles
+        // Instead, we watch post.id and update cache asynchronously when it changes
         // MARK: - Accessibility Support
         .accessibilityElement(children: .contain)
         .accessibilityLabel(postAccessibilityLabel)

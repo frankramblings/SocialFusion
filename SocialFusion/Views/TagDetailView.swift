@@ -3,6 +3,7 @@ import SwiftUI
 struct TagDetailView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     let tag: SearchTag
+    @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var posts: [Post] = []
     @State private var isLoading = false
     @State private var error: Error? = nil
@@ -55,7 +56,8 @@ struct TagDetailView: View {
                                     post: post,
                                     createdAt: post.createdAt
                                 ),
-                                postActionStore: serviceManager.postActionStore
+                                postActionStore: serviceManager.postActionStore,
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
                             )
                             Divider().padding(.horizontal)
                         }
@@ -63,6 +65,20 @@ struct TagDetailView: View {
                 }
             }
         }
+        .background(
+            NavigationLink(
+                destination: navigationEnvironment.selectedUser.map { user in
+                    UserDetailView(user: user)
+                        .environmentObject(serviceManager)
+                },
+                isActive: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                ),
+                label: { EmptyView() }
+            )
+            .hidden()
+        )
         .navigationTitle("#\(tag.name)")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

@@ -7,13 +7,17 @@ extension TimelineState {
     /// Convert enhanced entries back to regular TimelineEntry for existing UI components
     var compatibleTimelineEntries: [TimelineEntry] {
         return entries.map { enhanced in
-            // Determine the kind based on post properties
+            // Determine the kind based on post properties (same logic as SocialServiceManager.makeTimelineEntries)
             let kind: TimelineEntryKind
-            if enhanced.post.parentPost != nil {
-                kind = .reply(parentId: enhanced.post.parentPost?.id ?? "")
-            } else if enhanced.post.repostedBy != nil {
-                kind = .boost(boostedBy: enhanced.post.repostedBy?.displayName ?? "Unknown")
+            if let original = enhanced.post.originalPost {
+                // This is a boost/repost - use boostedBy if available, otherwise fall back to authorUsername
+                let boostedByHandle = enhanced.post.boostedBy ?? enhanced.post.authorUsername
+                kind = .boost(boostedBy: boostedByHandle)
+            } else if let parentId = enhanced.post.inReplyToID {
+                // This is a reply
+                kind = .reply(parentId: parentId)
             } else {
+                // Normal post
                 kind = .normal
             }
             
@@ -110,13 +114,17 @@ extension SocialServiceManager {
     /// Bridge method to get TimelineEntry array in the enhanced format
     func makeTimelineEntriesForTimelineState(from posts: [Post]) -> [TimelineEntry] {
         return posts.map { post in
-            // Determine the kind based on post properties
+            // Determine the kind based on post properties (same logic as SocialServiceManager.makeTimelineEntries)
             let kind: TimelineEntryKind
-            if post.parentPost != nil {
-                kind = .reply(parentId: post.parentPost?.id ?? "")
-            } else if post.repostedBy != nil {
-                kind = .boost(boostedBy: post.repostedBy?.displayName ?? "Unknown")
+            if let original = post.originalPost {
+                // This is a boost/repost - use boostedBy if available, otherwise fall back to authorUsername
+                let boostedByHandle = post.boostedBy ?? post.authorUsername
+                kind = .boost(boostedBy: boostedByHandle)
+            } else if let parentId = post.inReplyToID {
+                // This is a reply
+                kind = .reply(parentId: parentId)
             } else {
+                // Normal post
                 kind = .normal
             }
             
@@ -141,13 +149,17 @@ extension EnhancedTimelineEntry {
     
     /// Convert back to regular TimelineEntry for existing components
     var compatibleTimelineEntry: TimelineEntry {
-        // Determine the kind based on post properties
+        // Determine the kind based on post properties (same logic as SocialServiceManager.makeTimelineEntries)
         let kind: TimelineEntryKind
-        if post.parentPost != nil {
-            kind = .reply(parentId: post.parentPost?.id ?? "")
-        } else if post.repostedBy != nil {
-            kind = .boost(boostedBy: post.repostedBy?.displayName ?? "Unknown")
+        if let original = post.originalPost {
+            // This is a boost/repost - use boostedBy if available, otherwise fall back to authorUsername
+            let boostedByHandle = post.boostedBy ?? post.authorUsername
+            kind = .boost(boostedBy: boostedByHandle)
+        } else if let parentId = post.inReplyToID {
+            // This is a reply
+            kind = .reply(parentId: parentId)
         } else {
+            // Normal post
             kind = .normal
         }
         

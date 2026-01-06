@@ -2258,9 +2258,10 @@ public final class MastodonService: @unchecked Sendable {
                 repostCount: 0,
                 replyCount: 0,
                 platformSpecificId: reblog.id ?? "",
-                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
-                blueskyRepostRecordURI: nil,
-                customEmojiMap: nil  // MastodonReblog doesn't include emojis in its structure
+            blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+            blueskyRepostRecordURI: nil,
+            customEmojiMap: nil,  // MastodonReblog doesn't include emojis in its structure
+            clientName: nil  // MastodonReblog doesn't have application field - client name comes from wrapper status
             )
 
             // Hydrate originalPost if content is empty (defensive, rare)
@@ -2383,7 +2384,8 @@ public final class MastodonService: @unchecked Sendable {
                 }(),
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil,
-                customEmojiMap: nil  // Boost posts don't have their own emoji
+                customEmojiMap: nil,  // Boost posts don't have their own emoji
+                clientName: status.application?.name  // Extract client name from boost wrapper
             )
 
             // Log final state after creating boost wrapper
@@ -2538,7 +2540,8 @@ public final class MastodonService: @unchecked Sendable {
             inReplyToUsername: replyToUsername,
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
             blueskyRepostRecordURI: nil,
-            customEmojiMap: extractEmojiMap(from: status)
+            customEmojiMap: extractEmojiMap(from: status),
+            clientName: status.application?.name  // Extract client/application name
         )
 
         // DEBUG: Print interaction counts for debugging

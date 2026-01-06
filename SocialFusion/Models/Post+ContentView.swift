@@ -152,49 +152,56 @@ extension Post {
 
     @ViewBuilder
     fileprivate var regularLinkPreviewsOnly: some View {
-        let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
-        let allLinks = URLService.shared.extractLinks(from: plainText)
+        // CRITICAL: When media attachments are present, prioritize media and suppress link preview cards
+        // This matches Mastodon/Ivory/Ice Cubes behavior where media takes visual priority
+        // Links remain tappable in the text content, but don't get rich preview cards
+        if attachments.isEmpty {
+            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+            let allLinks = URLService.shared.extractLinks(from: plainText)
 
-        // Prioritize primaryLinkURL if available (from official embeds/cards)
-        let primaryLink = primaryLinkURL
-        let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
-        let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
-        let regularLinks = allLinks.filter {
-            !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
-        }
-        let firstYouTubeLink = youtubeLinks.first
-
-        // Calculate which link to preview
-        let finalPreviewLink: URL? = {
-            // NEVER render a social media post as a regular link preview
-            if let primary = primaryLink, !URLService.shared.isSocialMediaPostURL(primary) {
-                return primary
+            // Prioritize primaryLinkURL if available (from official embeds/cards)
+            let primaryLink = primaryLinkURL
+            // Filter out ALL social media post URLs - they should appear as quote posts, not link previews
+            let socialMediaLinks = allLinks.filter { URLService.shared.isSocialMediaPostURL($0) }
+            let youtubeLinks = allLinks.filter { URLService.shared.isYouTubeURL($0) }
+            let regularLinks = allLinks.filter {
+                !URLService.shared.isSocialMediaPostURL($0) && !URLService.shared.isYouTubeURL($0)
             }
-            let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
-            return regularLinks.first { !excludedLinks.contains($0) }
-        }()
+            let firstYouTubeLink = youtubeLinks.first
 
-        // Show first YouTube video as inline player
-        if let firstYouTubeLink = firstYouTubeLink,
-            let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
-        {
-            YouTubeVideoPreview(
-                url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
-            )
-            .padding(.vertical, 12)
-        }
+            // Calculate which link to preview
+            let finalPreviewLink: URL? = {
+                // NEVER render a social media post (fediverse/Bluesky) as a regular link preview
+                // These should always appear as quote posts via quotePostViews
+                if let primary = primaryLink, !URLService.shared.isSocialMediaPostURL(primary) {
+                    return primary
+                }
+                let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
+                return regularLinks.first { !excludedLinks.contains($0) }
+            }()
 
-        // Limit to ONE preview total (excluding YouTube which is handled as a player)
-        // This mirrors Ivory/Bluesky behavior of showing one primary rich card
-        if let finalPreview = finalPreviewLink {
-            StabilizedLinkPreview(
-                url: finalPreview,
-                title: finalPreview == primaryLinkURL ? primaryLinkTitle : nil,
-                description: finalPreview == primaryLinkURL ? primaryLinkDescription : nil,
-                thumbnailURL: finalPreview == primaryLinkURL ? primaryLinkThumbnailURL : nil,
-                idealHeight: 200
-            )
-            .padding(.vertical, 12)
+            // Show first YouTube video as inline player
+            if let firstYouTubeLink = firstYouTubeLink,
+                let videoID = URLService.shared.extractYouTubeVideoID(from: firstYouTubeLink)
+            {
+                YouTubeVideoPreview(
+                    url: firstYouTubeLink, videoID: videoID, idealHeight: 200, fullScreenHeight: 500
+                )
+                .padding(.vertical, 12)
+            }
+
+            // Limit to ONE preview total (excluding YouTube which is handled as a player)
+            // This mirrors Ivory/Bluesky behavior of showing one primary rich card
+            if let finalPreview = finalPreviewLink {
+                StabilizedLinkPreview(
+                    url: finalPreview,
+                    title: finalPreview == primaryLinkURL ? primaryLinkTitle : nil,
+                    description: finalPreview == primaryLinkURL ? primaryLinkDescription : nil,
+                    thumbnailURL: finalPreview == primaryLinkURL ? primaryLinkThumbnailURL : nil,
+                    idealHeight: 200
+                )
+                .padding(.vertical, 12)
+            }
         }
     }
 
@@ -222,6 +229,7 @@ extension Post {
             let allLinks = URLService.shared.extractLinks(from: plainText)
 
             // Find the first valid social media post link (not self-link)
+            // This ensures ALL fediverse/Bluesky post URLs appear as quote posts, not regular link previews
             let firstSocialLink: URL? = {
                 var candidateLinks = allLinks
                 if let primary = primaryLinkURL {
@@ -1058,7 +1066,6 @@ struct ExpandableTextView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            // Note: VStack requires at least one child, so we use EmptyView() if no content
 
             // Show More button
             if shouldTruncate && !isExpanded {
@@ -1077,8 +1084,9 @@ struct ExpandableTextView: View {
                 .buttonStyle(.plain)
             }
 
-            // Always show quote posts, but respect showLinkPreview for other content
-            // Use environment value to prevent nested quotes
+            // CRITICAL: Always show quote posts regardless of attachments or content
+            // Quote posts must be rendered even when attachments are present
+            // This ensures quote posts appear in feed view, matching detail view behavior
             post.quotePostViews(
                 onQuotePostTap: onQuotePostTap, preventNestedQuotes: preventNestedQuotes)
 

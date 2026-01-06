@@ -5,6 +5,7 @@ public struct QuotedPostView: View {
     public let post: Post
     public var onTap: (() -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
 
     // Maximum characters before content is trimmed
     private let maxCharacters = 300
@@ -44,46 +45,62 @@ public struct QuotedPostView: View {
     private var authorHeader: some View {
         HStack(spacing: 8) {
             // Author avatar with platform indicator
-            ZStack(alignment: .bottomTrailing) {
-                let stableImageURL = URL(string: post.authorProfilePictureURL)
-                CachedAsyncImage(url: stableImageURL, priority: .high) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                } placeholder: {
-                    Circle().fill(Color.gray.opacity(0.3))
-                }
-                .frame(width: 32, height: 32)
-                .clipShape(Circle())
-                .id(stableImageURL?.absoluteString ?? "no-url")
+            Button(action: {
+                navigationEnvironment.navigateToUser(from: post)
+            }) {
+                ZStack(alignment: .bottomTrailing) {
+                    let stableImageURL = URL(string: post.authorProfilePictureURL)
+                    CachedAsyncImage(url: stableImageURL, priority: .high) { image in
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Circle().fill(Color.gray.opacity(0.3))
+                    }
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+                    .id(stableImageURL?.absoluteString ?? "no-url")
 
-                PlatformDot(
-                    platform: post.platform, size: 14, useLogo: true  // Increased from 12 to 14 for better visibility
-                )
-                .background(
-                    Circle()
-                        .fill(Color(.systemBackground))
-                        .frame(width: 18, height: 18)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
-                        )
-                        .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
-                )
-                .offset(x: 2, y: 2)
+                    PlatformDot(
+                        platform: post.platform, size: 14, useLogo: true  // Increased from 12 to 14 for better visibility
+                    )
+                    .background(
+                        Circle()
+                            .fill(Color(.systemBackground))
+                            .frame(width: 18, height: 18)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.black.opacity(0.1), lineWidth: 0.5)
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: 2, x: 0, y: 1)
+                    )
+                    .offset(x: 2, y: 2)
+                }
             }
+            .buttonStyle(PlainButtonStyle())
 
             // Author info
             VStack(alignment: .leading, spacing: 1) {
-                Text(post.authorName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .lineLimit(1)
+                Button(action: {
+                    navigationEnvironment.navigateToUser(from: post)
+                }) {
+                    Text(post.authorName)
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(PlainButtonStyle())
 
-                Text("@\(post.authorUsername)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                Button(action: {
+                    navigationEnvironment.navigateToUser(from: post)
+                }) {
+                    Text("@\(post.authorUsername)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
 
             Spacer()
