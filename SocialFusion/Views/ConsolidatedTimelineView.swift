@@ -212,31 +212,35 @@ struct ConsolidatedTimelineView: View {
                     .environmentObject(serviceManager)
             }
             .task {
+                // TEMPORARY: Disabled position persistence to isolate AttributeGraph cycle
                 // PHASE 3+: Enhanced timeline initialization with position restoration
-                if config.isFeatureEnabled(.positionPersistence) {
-                    // Load cached content immediately for instant display
-                    // TODO: Implement loadCachedContent method
-                    // timelineState.loadCachedContent(from: serviceManager)
-
-                    // Update timeline state when posts are loaded
-                    if !controller.posts.isEmpty {
-                        timelineState.updateFromTimelineEntries(
-                            controller.posts.map { post in
-                                TimelineEntry(
-                                    id: post.id, kind: .normal, post: post,
-                                    createdAt: post.createdAt)
-                            })
-                    }
-                }
+                // if config.isFeatureEnabled(.positionPersistence) {
+                //     // Load cached content immediately for instant display
+                //     // TODO: Implement loadCachedContent method
+                //     // timelineState.loadCachedContent(from: serviceManager)
+                //
+                //     // Update timeline state when posts are loaded
+                //     // CRITICAL FIX: Dispatch to next run loop to avoid publishing during view updates
+                //     if !controller.posts.isEmpty {
+                //         await Task { @MainActor in
+                //             timelineState.updateFromTimelineEntries(
+                //                 controller.posts.map { post in
+                //                     TimelineEntry(
+                //                         id: post.id, kind: .normal, post: post,
+                //                         createdAt: post.createdAt)
+                //                 })
+                //         }.value
+                //     }
+                // }
 
                 // Proper lifecycle management - only refresh if needed
                 await ensureTimelineLoaded()
 
                 // PHASE 3+: Smart position restoration after content loads
-                if config.isFeatureEnabled(.smartRestoration) && !controller.posts.isEmpty {
-                    // TODO: Implement performSmartRestoration function
-                    // await performSmartRestoration()
-                }
+                // if config.isFeatureEnabled(.smartRestoration) && !controller.posts.isEmpty {
+                //     // TODO: Implement performSmartRestoration function
+                //     // await performSmartRestoration()
+                // }
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("Retry") {
