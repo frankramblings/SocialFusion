@@ -106,19 +106,17 @@ public struct EmojiTextApp: View {
     }
 
     public var body: some View {
-        let attributed = Self.buildAttributedString(
+        // CRITICAL FIX: Use @State to cache parsed AttributedString and avoid recomputing during every view update
+        // This prevents AttributeGraph cycles caused by HTML parsing during rendering
+        CachedAttributedText(
             htmlString: htmlString,
             customEmoji: customEmoji,
             font: font,
             foregroundColor: foregroundColor,
             mentions: mentions,
-            tags: tags
+            tags: tags,
+            lineLimit: lineLimit
         )
-        Text(attributed)
-            .lineLimit(lineLimit)
-            .textSelection(.enabled)
-            .allowsTightening(false)
-            .environment(\.layoutDirection, .leftToRight)
     }
 
     // Build AttributedString with robust mention/tag/web link handling and custom emoji support
@@ -413,6 +411,52 @@ public struct EmojiTextApp: View {
         }
         
         return AttributedString(nsMutable)
+    }
+}
+
+/// Helper view that caches the parsed AttributedString to prevent recomputation during view updates
+private struct CachedAttributedText: View {
+    let htmlString: HTMLString
+    let customEmoji: [String: URL]?
+    let font: Font
+    let foregroundColor: Color
+    let mentions: [String]
+    let tags: [String]
+    let lineLimit: Int?
+
+    @State private var attributedString: AttributedString?
+
+    var body: some View {
+        Group {
+            if let attributed = attributedString {
+                Text(attributed)
+                    .lineLimit(lineLimit)
+                    .textSelection(.enabled)
+                    .allowsTightening(false)
+                    .environment(\.layoutDirection, .leftToRight)
+            } else {
+                // Show plain text while parsing
+                Text(htmlString.plainText)
+                    .lineLimit(lineLimit)
+                    .textSelection(.enabled)
+                    .allowsTightening(false)
+                    .environment(\.layoutDirection, .leftToRight)
+            }
+        }
+        .task {
+            // Parse HTML asynchronously to avoid blocking view updates
+            let attributed = await Task.detached(priority: .userInitiated) {
+                EmojiTextApp.buildAttributedString(
+                    htmlString: htmlString,
+                    customEmoji: customEmoji,
+                    font: font,
+                    foregroundColor: foregroundColor,
+                    mentions: mentions,
+                    tags: tags
+                )
+            }.value
+            attributedString = attributed
+        }
     }
 }
 
