@@ -57,35 +57,12 @@ struct NativeYouTubePlayer: View {
     }
 
     private func loadNativeVideo() {
+        // Skip native extraction entirely - YouTube blocks direct URL extraction
+        // Go straight to WebView fallback which works reliably
         Task {
-            do {
-                let extractedURL = try await extractYouTubeVideoURL(videoID: videoID)
-
-                await MainActor.run {
-                    self.streamURL = extractedURL
-                    self.player = AVPlayer(url: extractedURL)
-                    self.isLoading = false
-
-                    // Configure player for better experience
-                    if let player = self.player {
-                        player.automaticallyWaitsToMinimizeStalling = false
-
-                        // Add observer for when player is ready
-                        NotificationCenter.default.addObserver(
-                            forName: .AVPlayerItemDidPlayToEndTime,
-                            object: player.currentItem,
-                            queue: .main
-                        ) { _ in
-                            self.isPlaying = false
-                        }
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    self.hasError = true
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
-                }
+            await MainActor.run {
+                self.hasError = true
+                self.isLoading = false
             }
         }
     }
@@ -155,7 +132,9 @@ struct YouTubeWebViewFallback: UIViewRepresentable {
             </html>
             """
 
-        webView.loadHTMLString(embedHTML, baseURL: nil)
+        // Use YouTube's URL as base to avoid security restrictions
+        let baseURL = URL(string: "https://www.youtube.com")
+        webView.loadHTMLString(embedHTML, baseURL: baseURL)
     }
 
     func makeCoordinator() -> Coordinator {

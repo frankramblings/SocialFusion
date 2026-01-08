@@ -1251,6 +1251,12 @@ public final class MastodonService: @unchecked Sendable {
                 "Search failed with status \((response as? HTTPURLResponse)?.statusCode ?? 0)")
         }
 
+        // Debug: Log the raw response
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🔍 [Search] Raw response: \(responseString.prefix(500))")
+        }
+        print("🔍 [Search] Response data size: \(data.count) bytes")
+
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(MastodonSearchResult.self, from: data)
@@ -1736,10 +1742,66 @@ public final class MastodonService: @unchecked Sendable {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
 
-        var statusId = post.id
-        if let lastPathComponent = URL(string: post.originalURL)?.lastPathComponent {
-            statusId = lastPathComponent
+        // If this is a boosted/reposted post, reply to the original post
+        let targetPost = post.originalPost ?? post
+
+        print("🔍 Reply attempt - isBoost: \(post.originalPost != nil), post.id: \(post.id), post.platformSpecificId: \(post.platformSpecificId)")
+        print("   post.originalURL: \(post.originalURL)")
+        if let originalPost = post.originalPost {
+            print("   originalPost.id: \(originalPost.id), originalPost.platformSpecificId: \(originalPost.platformSpecificId)")
+            print("   originalPost.originalURL: \(originalPost.originalURL)")
         }
+
+        // Check if this is a cross-instance reply (post from different server)
+        let postServerURL = URL(string: targetPost.originalURL)?.host
+        let accountServerURL = account.serverURL?.host
+        let isCrossInstance = postServerURL != nil && accountServerURL != nil && postServerURL != accountServerURL
+
+        print("🌐 Cross-instance check: postServer=\(postServerURL ?? "nil"), accountServer=\(accountServerURL ?? "nil"), isCrossInstance=\(isCrossInstance)")
+
+        var statusId = targetPost.platformSpecificId
+        var searchSucceeded = false
+
+        // For cross-instance replies, search for the post on the local server first
+        if isCrossInstance {
+            print("🔎 Cross-instance reply detected - searching for post on local server...")
+            print("   Searching for URL: \(targetPost.originalURL)")
+            do {
+                let searchResult = try await search(
+                    query: targetPost.originalURL,
+                    account: account,
+                    type: "statuses",
+                    limit: 1
+                )
+
+                print("   Search returned \(searchResult.statuses.count) statuses")
+                if let firstStatus = searchResult.statuses.first {
+                    statusId = firstStatus.id
+                    searchSucceeded = true
+                    print("✅ Found local post ID: \(statusId) (was: \(targetPost.platformSpecificId))")
+                } else {
+                    print("⚠️  No search results - cross-instance reply may not be federated to local server")
+                }
+            } catch {
+                print("⚠️  Search failed: \(error.localizedDescription)")
+                print("   Error details: \(error)")
+            }
+        }
+
+        // Only use fallback if we don't have a valid status ID
+        // Don't override a successful search result!
+        if statusId.isEmpty && !searchSucceeded {
+            print("🔧 Using fallback ID extraction...")
+            if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
+                statusId = lastPathComponent
+                print("   Extracted ID from URL: \(statusId)")
+            } else {
+                statusId = targetPost.id
+                print("   Using post.id as last resort: \(statusId)")
+            }
+        }
+
+        print("📝 Final reply statusId: \(statusId) to server: \(serverUrl)")
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses") else {
             throw NSError(
@@ -1778,12 +1840,21 @@ public final class MastodonService: @unchecked Sendable {
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                print("❌ Mastodon API error (\(statusCode)): \(errorResponse.error)")
+                if let description = errorResponse.errorDescription {
+                    print("   Description: \(description)")
+                }
                 throw errorResponse
             }
+            // If we can't decode the error, log the raw response
+            if let rawError = String(data: data, encoding: .utf8) {
+                print("❌ Mastodon reply failed (\(statusCode)): \(rawError)")
+            }
             throw NSError(
-                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
-                userInfo: [NSLocalizedDescriptionKey: "Failed to post reply"])
+                domain: "MastodonService", code: statusCode,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to post reply (HTTP \(statusCode))"])
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
@@ -2148,11 +2219,18 @@ public final class MastodonService: @unchecked Sendable {
         var replyToUsername: String? = nil
         if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
             // Improved reply username extraction logic
-            if let mention = status.mentions.first(where: { $0.id == replyToAccountId }) {
+            // CRITICAL FIX: Check if this is a self-reply first
+            if replyToAccountId == status.account.id {
+                // Self-reply - use the author's own username
+                replyToUsername = status.account.acct
+            } else if let mention = status.mentions.first(where: { $0.id == replyToAccountId }) {
+                // Found the reply-to user in mentions
                 replyToUsername = mention.username
             } else if let firstMention = status.mentions.first {
+                // Fallback to first mention if reply-to account not found
                 replyToUsername = firstMention.username
             } else if !status.mentions.isEmpty {
+                // Last resort: use first mention's username
                 replyToUsername = status.mentions.first?.username
             }
         }

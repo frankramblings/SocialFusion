@@ -292,8 +292,6 @@ struct YouTubeVideoPreview: View {
     let fullScreenHeight: CGFloat
 
     @State private var thumbnailURL: URL?
-    @State private var isPlaying = false
-    @State private var showWebView = false
     @State private var videoTitle: String?
     @State private var channelName: String?
     @State private var duration: String?
@@ -310,47 +308,24 @@ struct YouTubeVideoPreview: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showWebView {
-                ZStack(alignment: .topTrailing) {
-                    YouTubeWebView(videoID: videoID, isPlaying: $isPlaying)
-                        .aspectRatio(16 / 9, contentMode: .fit)
-                        .frame(height: idealHeight)
-                        .cornerRadius(12)
-                        .clipped()
-
-                    // Enhanced close button
-                    Button(action: {
-                        withAnimation(.easeInOut(duration: 0.3)) {
-                            showWebView = false
-                            isPlaying = false
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .frame(width: 32, height: 32)
-
-                            Image(systemName: "xmark")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    .padding(12)
+        enhancedThumbnailView
+            .frame(height: idealHeight)
+            .cornerRadius(12)
+            .contextMenu {
+                Button(action: shareVideo) {
+                    Label("Share Video", systemImage: "square.and.arrow.up")
                 }
-                .animation(.easeInOut(duration: 0.3), value: showWebView)
-            } else {
-                enhancedThumbnailView
-                    .frame(height: idealHeight)
-                    .cornerRadius(12)
-                    .onTapGesture {
-                        playVideo()
-                    }
+
+                Button(action: copyVideoLink) {
+                    Label("Copy Link", systemImage: "doc.on.doc")
+                }
             }
-        }
-        .onAppear {
-            loadVideoData()
-        }
+            .onTapGesture {
+                openInYouTube()
+            }
+            .onAppear {
+                loadVideoData()
+            }
     }
 
     // MARK: - Enhanced Views
@@ -418,7 +393,7 @@ struct YouTubeVideoPreview: View {
                 // Video info overlay with improved text layout
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        // YouTube logo
+                        // YouTube logo with external link indicator
                         Image(systemName: "play.rectangle.fill")
                             .foregroundColor(.red)
                             .font(.caption)
@@ -427,6 +402,12 @@ struct YouTubeVideoPreview: View {
                             .font(.caption2)
                             .fontWeight(.medium)
                             .foregroundColor(.white)
+                            .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
+
+                        // External link indicator
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.8))
                             .shadow(color: .black.opacity(0.6), radius: 1, x: 0, y: 0.5)
 
                         Spacer()
@@ -506,8 +487,8 @@ struct YouTubeVideoPreview: View {
                 )
             }
 
-            // Play button overlay
-            Button(action: playVideo) {
+            // Play button overlay - opens in YouTube app
+            Button(action: openInYouTube) {
                 ZStack {
                     Circle()
                         .fill(.ultraThinMaterial)
@@ -518,39 +499,6 @@ struct YouTubeVideoPreview: View {
                         .foregroundColor(.primary)
                         .offset(x: 2)  // Slight offset to center the play icon visually
                 }
-            }
-            .scaleEffect(isPlaying ? 0.8 : 1.0)
-            .opacity(isPlaying ? 0.7 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isPlaying)
-
-            // Action buttons overlay (top-right)
-            VStack {
-                HStack {
-                    Spacer()
-
-                    Menu {
-                        Button(action: openInYouTube) {
-                            Label("Open in YouTube", systemImage: "arrow.up.right.square")
-                        }
-
-                        Button(action: shareVideo) {
-                            Label("Share Video", systemImage: "square.and.arrow.up")
-                        }
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                                .frame(width: 32, height: 32)
-
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.primary)
-                        }
-                    }
-                }
-                .padding(12)
-
-                Spacer()
             }
         }
         .background(Color.gray.opacity(0.2))
@@ -725,13 +673,6 @@ struct YouTubeVideoPreview: View {
         return nil  // Placeholder - would need YouTube Data API key for accurate duration
     }
 
-    private func playVideo() {
-        withAnimation(.easeInOut(duration: 0.3)) {
-            showWebView = true
-            isPlaying = true
-        }
-    }
-
     private func openInYouTube() {
         // Try to open in YouTube app first, then fallback to web
         let youtubeAppURL = URL(string: "youtube://watch?v=\(videoID)")
@@ -762,6 +703,11 @@ struct YouTubeVideoPreview: View {
             rootVC.present(activityVC, animated: true)
         }
     }
+
+    private func copyVideoLink() {
+        UIPasteboard.general.string = url.absoluteString
+        print("📋 [YouTubeVideoPreview] Copied video link to clipboard: \(url.absoluteString)")
+    }
 }
 
 /// Enhanced WebView for playing YouTube videos inline
@@ -775,8 +721,18 @@ struct YouTubeWebView: UIViewRepresentable {
         configuration.mediaTypesRequiringUserActionForPlayback = []
 
         // Enhanced configuration for better performance
-        configuration.preferences.javaScriptEnabled = true
         configuration.allowsAirPlayForMediaPlayback = true
+
+        // JavaScript is enabled by default in iOS 14+
+        if #available(iOS 14.0, *) {
+            // WKWebpagePreferences.allowsContentJavaScript is set per-navigation in modern iOS
+        } else {
+            configuration.preferences.javaScriptEnabled = true
+        }
+
+        // Add message handlers for YouTube player errors
+        configuration.userContentController.add(context.coordinator, name: "youtubeError")
+        configuration.userContentController.add(context.coordinator, name: "openInYouTube")
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -797,49 +753,149 @@ struct YouTubeWebView: UIViewRepresentable {
             <head>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
                 <style>
-                    body { 
-                        margin: 0; 
-                        padding: 0; 
-                        background: #000; 
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        background: #000;
                         overflow: hidden;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     }
-                    .video-container { 
-                        position: relative; 
-                        width: 100%; 
-                        height: 100vh; 
+                    .video-container {
+                        position: relative;
+                        width: 100%;
+                        height: 100vh;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                     }
-                    iframe { 
-                        width: 100%; 
-                        height: 100%; 
-                        border: none; 
+                    iframe {
+                        width: 100%;
+                        height: 100%;
+                        border: none;
                         border-radius: 12px;
+                    }
+                    #error-overlay {
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        right: 0;
+                        bottom: 0;
+                        background: rgba(0, 0, 0, 0.9);
+                        display: none;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        padding: 20px;
+                        text-align: center;
+                        border-radius: 12px;
+                    }
+                    .error-icon {
+                        font-size: 48px;
+                        margin-bottom: 16px;
+                    }
+                    .error-title {
+                        color: #fff;
+                        font-size: 18px;
+                        font-weight: 600;
+                        margin-bottom: 8px;
+                    }
+                    .error-message {
+                        color: #aaa;
+                        font-size: 14px;
+                        margin-bottom: 20px;
+                        line-height: 1.4;
+                    }
+                    .open-youtube-btn {
+                        background: #FF0000;
+                        color: white;
+                        border: none;
+                        padding: 12px 24px;
+                        border-radius: 8px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        cursor: pointer;
                     }
                 </style>
             </head>
             <body>
                 <div class="video-container">
-                    <iframe 
-                        src="https://www.youtube.com/embed/\(videoID)?autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1&showinfo=0&fs=1"
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    <iframe
+                        id="youtube-player"
+                        src="https://www.youtube.com/embed/\(videoID)?autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1&showinfo=0&fs=1&enablejsapi=1"
+                        frameborder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowfullscreen>
                     </iframe>
+                    <div id="error-overlay">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Can't Play This Video</div>
+                        <div class="error-message" id="error-text">This video can't be played in the embedded player.</div>
+                        <button class="open-youtube-btn" onclick="openInYouTube()">Open in YouTube</button>
+                    </div>
                 </div>
+                <script src="https://www.youtube.com/iframe_api"></script>
+                <script>
+                    var player;
+                    function onYouTubeIframeAPIReady() {
+                        player = new YT.Player('youtube-player', {
+                            events: {
+                                'onError': onPlayerError
+                            }
+                        });
+                    }
+
+                    function onPlayerError(event) {
+                        console.log('YouTube Player Error:', event.data);
+                        var errorOverlay = document.getElementById('error-overlay');
+                        var errorText = document.getElementById('error-text');
+
+                        switch(event.data) {
+                            case 2:
+                                errorText.textContent = 'Invalid video ID or parameter.';
+                                break;
+                            case 5:
+                                errorText.textContent = 'HTML5 player error occurred.';
+                                break;
+                            case 100:
+                                errorText.textContent = 'This video was not found or is private.';
+                                break;
+                            case 101:
+                            case 150:
+                            case 151:
+                            case 152:
+                                errorText.textContent = 'The video owner has restricted playback on mobile devices or embedded players.';
+                                break;
+                            default:
+                                errorText.textContent = 'An unknown error occurred while loading the video.';
+                        }
+
+                        errorOverlay.style.display = 'flex';
+
+                        // Notify Swift that an error occurred
+                        window.webkit.messageHandlers.youtubeError.postMessage({
+                            code: event.data,
+                            message: errorText.textContent
+                        });
+                    }
+
+                    function openInYouTube() {
+                        window.webkit.messageHandlers.openInYouTube.postMessage('\(videoID)');
+                    }
+                </script>
             </body>
             </html>
             """
 
-        webView.loadHTMLString(embedHTML, baseURL: nil)
+        // Use YouTube's URL as base to avoid security restrictions
+        let baseURL = URL(string: "https://www.youtube.com")
+        webView.loadHTMLString(embedHTML, baseURL: baseURL)
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let parent: YouTubeWebView
 
         init(_ parent: YouTubeWebView) {
@@ -847,14 +903,57 @@ struct YouTubeWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            print("✅ [YouTubeWebView] Navigation finished successfully for video: \(parent.videoID)")
             parent.isPlaying = true
         }
 
         func webView(
             _ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error
         ) {
-            print("YouTube WebView failed to load: \(error.localizedDescription)")
+            print("❌ [YouTubeWebView] Navigation failed: \(error.localizedDescription)")
+            print("❌ [YouTubeWebView] Error code: \((error as NSError).code)")
+            print("❌ [YouTubeWebView] Error domain: \((error as NSError).domain)")
             parent.isPlaying = false
+        }
+
+        func webView(
+            _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error
+        ) {
+            print("❌ [YouTubeWebView] Provisional navigation failed: \(error.localizedDescription)")
+            print("❌ [YouTubeWebView] Error code: \((error as NSError).code)")
+            print("❌ [YouTubeWebView] Error domain: \((error as NSError).domain)")
+            parent.isPlaying = false
+        }
+
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            print("🔄 [YouTubeWebView] Started loading video: \(parent.videoID)")
+        }
+
+        // MARK: - WKScriptMessageHandler
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            switch message.name {
+            case "youtubeError":
+                if let errorData = message.body as? [String: Any],
+                   let code = errorData["code"] as? Int,
+                   let errorMessage = errorData["message"] as? String {
+                    print("⚠️ [YouTubeWebView] YouTube Player Error \(code): \(errorMessage)")
+                }
+
+            case "openInYouTube":
+                print("📱 [YouTubeWebView] Opening video in YouTube app: \(parent.videoID)")
+                let youtubeAppURL = URL(string: "youtube://watch?v=\(parent.videoID)")
+                let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(parent.videoID)")!
+
+                if let youtubeAppURL = youtubeAppURL, UIApplication.shared.canOpenURL(youtubeAppURL) {
+                    UIApplication.shared.open(youtubeAppURL)
+                } else {
+                    UIApplication.shared.open(youtubeWebURL)
+                }
+
+            default:
+                break
+            }
         }
     }
 }

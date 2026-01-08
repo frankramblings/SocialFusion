@@ -434,11 +434,35 @@ struct PostCardView: View {
         _cachedDisplayPost = State(initialValue: initialDisplayPost)
         _cachedPlatform = State(initialValue: initialPlatform)
         
-        // Initialize boost handle and reply info if available
-        if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
-            _cachedBoostHandle = State(initialValue: boostedBy)
+        // Initialize boost handle with proper fallback logic
+        let initialBoostHandle: String?
+        if entry.post.originalPost != nil {
+            // This is a boost - determine who boosted it
+            if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
+                initialBoostHandle = boostedBy
+            } else if let boostedBy = entry.post.boostedBy, !boostedBy.isEmpty {
+                initialBoostHandle = boostedBy
+            } else if !entry.post.authorUsername.isEmpty {
+                // Fallback: use the post author (the person who boosted)
+                initialBoostHandle = entry.post.authorUsername
+            } else if entry.post.id.hasPrefix("repost-") {
+                // Extract from repost ID format
+                let components = entry.post.id.split(separator: "-", maxSplits: 2)
+                initialBoostHandle = components.count >= 2 ? String(components[1]) : "Someone"
+            } else {
+                initialBoostHandle = "Someone"
+            }
+        } else if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
+            // Not a boost structurally, but has boostedBy metadata
+            initialBoostHandle = boostedBy
         } else if let boostedBy = entry.post.boostedBy, !boostedBy.isEmpty {
-            _cachedBoostHandle = State(initialValue: boostedBy)
+            initialBoostHandle = boostedBy
+        } else {
+            initialBoostHandle = nil
+        }
+
+        if let handle = initialBoostHandle {
+            _cachedBoostHandle = State(initialValue: handle)
         }
         
         // Initialize reply info if this is a reply
@@ -535,11 +559,35 @@ struct PostCardView: View {
         _cachedDisplayPost = State(initialValue: initialDisplayPost)
         _cachedPlatform = State(initialValue: initialPlatform)
         
-        // Initialize boost handle if available
-        if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
-            _cachedBoostHandle = State(initialValue: boostedBy)
+        // Initialize boost handle with proper fallback logic
+        let initialBoostHandle: String?
+        if post.originalPost != nil {
+            // This is a boost - determine who boosted it
+            if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
+                initialBoostHandle = boostedBy
+            } else if let boostedBy = post.boostedBy, !boostedBy.isEmpty {
+                initialBoostHandle = boostedBy
+            } else if !post.authorUsername.isEmpty {
+                // Fallback: use the post author (the person who boosted)
+                initialBoostHandle = post.authorUsername
+            } else if post.id.hasPrefix("repost-") {
+                // Extract from repost ID format
+                let components = post.id.split(separator: "-", maxSplits: 2)
+                initialBoostHandle = components.count >= 2 ? String(components[1]) : "Someone"
+            } else {
+                initialBoostHandle = "Someone"
+            }
+        } else if let boostedBy = self.boostedBy, !boostedBy.isEmpty {
+            // Not a boost structurally, but has boostedBy metadata
+            initialBoostHandle = boostedBy
         } else if let boostedBy = post.boostedBy, !boostedBy.isEmpty {
-            _cachedBoostHandle = State(initialValue: boostedBy)
+            initialBoostHandle = boostedBy
+        } else {
+            initialBoostHandle = nil
+        }
+
+        if let handle = initialBoostHandle {
+            _cachedBoostHandle = State(initialValue: handle)
         }
         
         // Initialize reply info if this is a reply
