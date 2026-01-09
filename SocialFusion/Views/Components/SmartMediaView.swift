@@ -474,9 +474,19 @@ private struct VideoPlayerView: View {
 
     private let logger = Logger(subsystem: "com.socialfusion.app", category: "VideoPlayerView")
 
+    private var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     var body: some View {
         Group {
-            if let player = playerModel.player, !hasError {
+            if isSimulator {
+                simulatorPlaceholder
+            } else if let player = playerModel.player, !hasError {
                 ZStack(alignment: .center) {
                     VideoPlayer(player: player)
                         .aspectRatio(aspectRatio, contentMode: .fill)
@@ -640,6 +650,7 @@ private struct VideoPlayerView: View {
             }
         }
         .onAppear {
+            guard !isSimulator else { return }
             Task {
                 await setupPlayer()
             }
@@ -657,6 +668,9 @@ private struct VideoPlayerView: View {
     }
 
     private var accessibilityDescription: String {
+        if isSimulator {
+            return "Video unavailable in Simulator"
+        }
         if hasError {
             return "Video failed to load. Double tap to retry."
         } else if isLoading {
@@ -672,6 +686,9 @@ private struct VideoPlayerView: View {
     }
 
     private var accessibilityHint: String {
+        if isSimulator {
+            return "Video playback is disabled in Simulator"
+        }
         if hasError {
             return "Double tap to retry loading the video"
         } else if isLoading || playerModel.isBuffering {
@@ -692,6 +709,11 @@ private struct VideoPlayerView: View {
     }
 
     private func setupPlayer() async {
+        if isSimulator {
+            hasError = false
+            isLoading = false
+            return
+        }
         guard let url = url else {
             hasError = true
             isLoading = false
@@ -771,6 +793,24 @@ private struct VideoPlayerView: View {
             isLoading = false
             performanceMonitor.trackMediaLoadComplete(url: url.absoluteString, success: false)
         }
+    }
+
+    private var simulatorPlaceholder: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.gray.opacity(0.15))
+            VStack(spacing: 8) {
+                Image(systemName: "video.slash")
+                    .font(.title2)
+                    .foregroundColor(.secondary)
+                Text("Video unavailable in Simulator")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(12)
+        }
+        .aspectRatio(aspectRatio, contentMode: .fill)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func createPlayer(for url: URL) async throws -> AVPlayer {

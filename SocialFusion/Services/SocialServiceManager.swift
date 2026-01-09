@@ -1622,23 +1622,39 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
+        let filteredNewPosts = await filterRepliesInTimeline(sortedNewPosts)
 
-        Task { @MainActor in
-            // Deduplicate new posts against existing timeline before appending
-            let existingIds = Set(self.unifiedTimeline.map { $0.stableId })
-            let deduplicatedNewPosts = sortedNewPosts.filter {
-                !existingIds.contains($0.stableId)
-            }
+        let existingIds = await MainActor.run { Set(self.unifiedTimeline.map { $0.stableId }) }
+        let deduplicatedNewPosts = filteredNewPosts.filter {
+            !existingIds.contains($0.stableId)
+        }
 
-            print(
-                "📊 SocialServiceManager: Deduplicating \(sortedNewPosts.count) new posts -> \(deduplicatedNewPosts.count) unique posts"
-            )
+        print(
+            "📊 SocialServiceManager: Deduplicating \(filteredNewPosts.count) new posts -> \(deduplicatedNewPosts.count) unique posts"
+        )
 
+        await MainActor.run {
             // Append new posts to existing timeline
             self.unifiedTimeline.append(contentsOf: deduplicatedNewPosts)
             self.hasNextPage = hasMorePages
             self.isLoadingNextPage = false
         }
+
+#if DEBUG
+        if FeatureFlagManager.isEnabled(.replyFiltering)
+            && UserDefaults.standard.bool(forKey: "debugReplyFilteringInvariant")
+        {
+            let recentWindow = Array(deduplicatedNewPosts.suffix(200))
+            if !recentWindow.isEmpty {
+                let filteredWindow = await filterRepliesInTimeline(recentWindow)
+                if filteredWindow.count != recentWindow.count {
+                    print(
+                        "⚠️ SocialServiceManager: Reply filtering invariant failed for pagination window (\(recentWindow.count - filteredWindow.count) replies reintroduced)"
+                    )
+                }
+            }
+        }
+#endif
     }
 
     /// Fetch next page for a specific account

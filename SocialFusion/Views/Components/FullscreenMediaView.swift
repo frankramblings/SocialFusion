@@ -752,10 +752,20 @@ private struct FullscreenVideoPlayerView: View {
     @Binding var currentPlayer: AVPlayer?
     
     @State private var player: AVPlayer?
+
+    private var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
     
     var body: some View {
         Group {
-            if let player = player {
+            if isSimulator {
+                simulatorPlaceholder
+            } else if let player = player {
                 VideoPlayer(player: player)
                     .edgesIgnoringSafeArea(.all)
                     .onAppear {
@@ -785,12 +795,27 @@ private struct FullscreenVideoPlayerView: View {
             }
         }
         .onAppear {
+            guard !isSimulator else { return }
             if let existingPlayer = videoPlayers[url] {
                 player = existingPlayer
             } else {
                 let newPlayer = AVPlayer(url: url)
                 videoPlayers[url] = newPlayer
                 player = newPlayer
+            }
+        }
+    }
+
+    private var simulatorPlaceholder: some View {
+        ZStack {
+            Color.black.edgesIgnoringSafeArea(.all)
+            VStack(spacing: 12) {
+                Image(systemName: "video.slash")
+                    .font(.title2)
+                    .foregroundColor(.white.opacity(0.8))
+                Text("Video unavailable in Simulator")
+                    .foregroundColor(.white.opacity(0.8))
+                    .font(.subheadline)
             }
         }
     }

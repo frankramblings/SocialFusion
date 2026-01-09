@@ -31,6 +31,14 @@ struct LegacyFullscreenMediaView: View {
     // Replace the task queues with a single serial queue
     private let serialQueue = DispatchQueue(label: "com.socialfusion.media", qos: .userInitiated)
 
+    private var isSimulator: Bool {
+        #if targetEnvironment(simulator)
+        return true
+        #else
+        return false
+        #endif
+    }
+
     // Note: updateState method removed as it's not compatible with SwiftUI's immutable view pattern
     // Use @State variables instead for mutable state
     // private func updateState<T>(_ keyPath: WritableKeyPath<FullscreenMediaView, T>, value: T) {
@@ -468,7 +476,9 @@ struct LegacyFullscreenMediaView: View {
                 }
             }
         case .video:
-            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
+            if isSimulator {
+                simulatorPlaceholder
+            } else if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 // Use our managed player
                 let player = videoPlayers[url] ?? createPlayer(for: url)
                 VideoPlayer(player: player)
@@ -482,7 +492,9 @@ struct LegacyFullscreenMediaView: View {
                     .foregroundColor(.white)
             }
         case .gifv:
-            if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
+            if isSimulator {
+                simulatorPlaceholder
+            } else if !attachment.url.isEmpty, let url = URL(string: attachment.url) {
                 // Use our managed player
                 let player = videoPlayers[url] ?? createPlayer(for: url)
                 VideoPlayer(player: player)
@@ -549,6 +561,7 @@ struct LegacyFullscreenMediaView: View {
     }
 
     private func setupVideoPlayer(for url: URL) {
+        guard !isSimulator else { return }
         if videoPlayers[url] == nil {
             isVideoBuffering = true
             let player = createPlayer(for: url)
@@ -612,6 +625,7 @@ struct LegacyFullscreenMediaView: View {
     }
 
     private func resumeVideoPlayback() {
+        guard !isSimulator else { return }
         guard let currentAttachment = currentAttachment,
             !currentAttachment.url.isEmpty,
             let url = URL(string: currentAttachment.url),
@@ -632,6 +646,7 @@ struct LegacyFullscreenMediaView: View {
     }
 
     private func retryLoading() {
+        guard !isSimulator else { return }
         guard let currentAttachment = currentAttachment,
             !currentAttachment.url.isEmpty,
             let url = URL(string: currentAttachment.url)
@@ -794,6 +809,21 @@ struct LegacyFullscreenMediaView: View {
         player.replaceCurrentItem(with: playerItem)
 
         return player
+    }
+
+    private var simulatorPlaceholder: some View {
+        ZStack {
+            Color.black
+            VStack(spacing: 12) {
+                Image(systemName: "video.slash")
+                    .font(.title2)
+                    .foregroundColor(.white.opacity(0.8))
+                Text("Video unavailable in Simulator")
+                    .foregroundColor(.white.opacity(0.8))
+                    .font(.subheadline)
+            }
+        }
+        .edgesIgnoringSafeArea(.all)
     }
 
     // Pause all video players except for the specified one
