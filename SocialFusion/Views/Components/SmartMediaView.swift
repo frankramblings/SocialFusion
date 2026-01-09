@@ -821,29 +821,17 @@ private struct VideoPlayerView: View {
                         "✅ Using authenticated video loading for \(platform.rawValue, privacy: .public)"
                     )
 
-                    // For HLS playlists (.m3u8), use custom scheme to ensure resource loader is called immediately
-                    // CRITICAL: AVFoundation doesn't reliably call resource loader for standard HTTPS URLs
-                    // until AFTER a request fails, which causes crashes and timebase errors for HLS
-                    // Custom scheme ensures our resource loader handles ALL requests from the start
-                    // CRITICAL: .m3u8 files are playlists, not videos - they MUST be streamed, not downloaded
+                    // For HLS playlists (.m3u8), try using standard HTTPS scheme first
+                    // CRITICAL: Custom schemes can cause issues with AVFoundation's HLS parser
+                    // AVFoundation can call resource loader with standard HTTPS URLs if we set up the delegate properly
                     if isHLSPlaylist {
                         logger.info(
-                            "📺 Detected HLS playlist (.m3u8) - using custom scheme to ensure resource loader is called immediately"
+                            "📺 Detected HLS playlist (.m3u8) - using standard HTTPS scheme with resource loader delegate"
                         )
-                        
-                        // Use custom scheme to ensure resource loader handles all requests from the start
-                        // This prevents crashes and timebase errors by ensuring authentication happens before AVFoundation tries to parse
-                        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                        components?.scheme = "authenticated-video"
-                        guard let customSchemeURL = components?.url else {
-                            throw NSError(
-                                domain: "VideoPlayerView", code: -1,
-                                userInfo: [
-                                    NSLocalizedDescriptionKey: "Failed to create custom scheme URL"
-                                ])
-                        }
-                        
-                        let asset = AVURLAsset(url: customSchemeURL)
+
+                        // Use standard HTTPS URL but set up resource loader to intercept requests
+                        // This allows AVFoundation's HLS parser to work normally while we handle authentication
+                        let asset = AVURLAsset(url: url)
                         let loader = AuthenticatedVideoAssetLoader(
                             authToken: token, originalURL: url, platform: platform)
                         asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
@@ -1052,16 +1040,10 @@ private struct VideoPlayerView: View {
                         domain: "VideoPlayerView", code: -1,
                         userInfo: [NSLocalizedDescriptionKey: "HLS asset is not playable"])
                 }
-                
-                // CRITICAL: Wait for AVFoundation to request and parse the initial playlist
-                // before creating the player item. AVFoundation creates the timebase synchronously
-                // when the player item is created, so we need the playlist parsed first.
-                // The resource loader will be called asynchronously, so we wait a moment
-                // to allow AVFoundation to request the playlist and start parsing it.
-                // This prevents -12753 timebase errors.
-                logger.info("⏳ Waiting for HLS playlist to be fetched and parsed before creating player item...")
-                try await Task.sleep(nanoseconds: 300_000_000)  // 300ms - enough for initial playlist request/parse
-                logger.info("✅ Wait complete - creating player item")
+
+                // With standard HTTPS URLs, AVFoundation handles playlist parsing naturally
+                // The isPlayable check above ensures the asset is ready
+                logger.info("✅ HLS asset ready for player item creation")
             } else {
                 // For non-HLS videos, load both playable and tracks
                 async let playableTask = asset.load(.isPlayable)

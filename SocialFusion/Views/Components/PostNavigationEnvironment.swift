@@ -148,10 +148,13 @@ class PostNavigationEnvironment: ObservableObject {
         if host == "bsky.app" {
             // Bluesky: /profile/{handle}/post/{id}
             if pathComponents.count >= 4 && pathComponents[0] == "profile" && pathComponents[2] == "post" {
+                let handle = pathComponents[1]
                 let postId = pathComponents[3]
+                // Construct full AT Protocol URI - the API requires this format
+                let atUri = "at://\(handle)/app.bsky.feed.post/\(postId)"
                 Task { @MainActor in
                     do {
-                        if let post = try await serviceManager.fetchBlueskyPostByID(postId) {
+                        if let post = try await serviceManager.fetchBlueskyPostByID(atUri) {
                             navigateToPost(post)
                         }
                     } catch {

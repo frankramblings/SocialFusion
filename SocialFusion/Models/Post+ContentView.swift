@@ -157,7 +157,18 @@ extension Post {
         // Links remain tappable in the text content, but don't get rich preview cards
         if attachments.isEmpty {
             let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
-            let allLinks = URLService.shared.extractLinks(from: plainText)
+            // For Mastodon, also extract URLs from HTML href attributes
+            let rawHTML: String? = platform == .mastodon ? content : nil
+            let allLinks: [URL] = {
+                var links = URLService.shared.extractLinks(from: plainText)
+                if let html = rawHTML {
+                    let htmlLinks = URLService.shared.extractURLsFromHTML(html)
+                    for link in htmlLinks where !links.contains(link) {
+                        links.append(link)
+                    }
+                }
+                return links
+            }()
 
             // Prioritize primaryLinkURL if available (from official embeds/cards)
             let primaryLink = primaryLinkURL
@@ -225,20 +236,30 @@ extension Post {
             )
             .padding(.top, 8)
         } else {
-            let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
-            let allLinks = URLService.shared.extractLinks(from: plainText)
-
-            // Find the first valid social media post link (not self-link)
-            // This ensures ALL fediverse/Bluesky post URLs appear as quote posts, not regular link previews
+            // Use the enhanced quote extraction that prioritizes RE: prefix convention
+            // This handles Mastodon's "RE: [url]" quote format as well as inline post URLs
+            // Wrap in a computed closure to ensure safe evaluation
             let firstSocialLink: URL? = {
-                var candidateLinks = allLinks
-                if let primary = primaryLinkURL {
-                    candidateLinks.insert(primary, at: 0)
+                let plainText = platform == .mastodon ? HTMLString(raw: content).plainText : content
+                // For Mastodon, also pass the raw HTML to extract URLs from href attributes
+                let rawHTML: String? = platform == .mastodon ? content : nil
+
+                // Skip empty content
+                guard !plainText.isEmpty else { return nil }
+
+                // Extract quote URLs (includes RE: prefix detection and HTML href extraction)
+                let quoteURLs = URLService.shared.extractQuotePostURLs(from: plainText, rawHTML: rawHTML)
+
+                // Build candidate list
+                var candidateLinks = quoteURLs
+                if let primary = primaryLinkURL, URLService.shared.isSocialMediaPostURL(primary) {
+                    if !candidateLinks.contains(primary) {
+                        candidateLinks.insert(primary, at: 0)
+                    }
                 }
-                return candidateLinks.first(where: {
-                    URLService.shared.isSocialMediaPostURL($0)
-                        && $0.absoluteString != self.originalURL
-                })
+
+                // Find first non-self link
+                return candidateLinks.first(where: { $0.absoluteString != self.originalURL })
             }()
 
             if let firstSocialLink = firstSocialLink {

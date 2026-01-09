@@ -113,7 +113,7 @@ public struct QuotedPostView: View {
     private var postContent: some View {
         let lineLimit = post.content.count > maxCharacters ? 4 : nil
         return post.contentView(
-            lineLimit: lineLimit, showLinkPreview: false, allowTruncation: false
+            lineLimit: lineLimit, showLinkPreview: true, allowTruncation: false
         )
         .font(.callout)
         .padding(.horizontal, 4)
@@ -281,10 +281,9 @@ struct FetchQuotePostView: View {
             
             if isBluesky {
                 post = try await fetchBlueskyPost()
-            } else if url.host?.contains("mastodon") == true || 
-                      url.host?.contains("social") == true ||
-                      urlString.contains("/statuses/") ||
-                      urlString.contains("/@") {
+            } else if URLService.shared.isFediversePostURL(url) {
+                // Use URLService pattern-based detection for all fediverse platforms
+                // This covers Mastodon, Pleroma, Akkoma, Misskey, Pixelfed, GoToSocial, etc.
                 post = try await fetchMastodonPost()
             } else {
                 print("🔗 [FetchQuotePostView] Unsupported platform for URL: \(url)")
@@ -352,33 +351,55 @@ struct FetchQuotePostView: View {
     }
 
     private func fetchBlueskyPost() async throws -> Post? {
-        let components = url.path.split(separator: "/")
-        
-        // Bluesky URLs can be in different formats:
-        // - https://bsky.app/profile/handle/post/postid (4+ components)
-        // - https://handle.bsky.social/post/postid (2 components)
-        // - at://did:plc:xxx/... (AT Protocol URI)
-        
-        var postID: String?
-        
-        // Try to find "post" in the path and get the ID after it
-        if let postIndex = components.firstIndex(where: { $0 == "post" }),
-           postIndex + 1 < components.count {
-            postID = String(components[postIndex + 1])
-        } else if components.count >= 2 {
-            // Fallback: try last component as post ID
-            postID = String(components[components.count - 1])
-        }
-        
-        // Handle AT Protocol URIs (at://did:plc:xxx/app.bsky.feed.post/xxx)
+        // The Bluesky API requires a full AT Protocol URI for getPostThread
+        // We need to construct it from the URL
+
+        // Handle AT Protocol URIs directly (at://did:plc:xxx/app.bsky.feed.post/xxx)
         if url.scheme == "at" {
-            let uriString = url.absoluteString
-            if let postIdRange = uriString.range(of: "/app.bsky.feed.post/") {
-                let postIdStart = uriString.index(postIdRange.upperBound, offsetBy: 0)
-                postID = String(uriString[postIdStart...])
+            let atUri = url.absoluteString
+            print("🔗 [FetchQuotePostView] Using AT URI directly: \(atUri)")
+            return try await serviceManager.fetchBlueskyPostByID(atUri)
+        }
+
+        let components = url.path.split(separator: "/").map(String.init)
+
+        // Bluesky URLs can be in different formats:
+        // - https://bsky.app/profile/handle/post/postid (4+ components: profile, handle, post, postid)
+        // - https://handle.bsky.social/post/postid (2 components: post, postid)
+
+        var handle: String?
+        var postID: String?
+
+        // Format: /profile/handle/post/postid
+        if let profileIndex = components.firstIndex(where: { $0 == "profile" }),
+           profileIndex + 1 < components.count,
+           let postIndex = components.firstIndex(where: { $0 == "post" }),
+           postIndex + 1 < components.count {
+            handle = components[profileIndex + 1]
+            postID = components[postIndex + 1]
+        }
+        // Format: handle.bsky.social/post/postid (handle is in the host)
+        else if let host = url.host?.lowercased(), host.contains("bsky.social") {
+            // Extract handle from host (e.g., "handle.bsky.social" -> "handle")
+            let hostParts = host.split(separator: ".")
+            if hostParts.count >= 3 && hostParts[1] == "bsky" {
+                handle = String(hostParts[0])
+            }
+            if let postIndex = components.firstIndex(where: { $0 == "post" }),
+               postIndex + 1 < components.count {
+                postID = components[postIndex + 1]
             }
         }
-        
+        // Fallback: try to get post ID from path
+        else if let postIndex = components.firstIndex(where: { $0 == "post" }),
+                postIndex + 1 < components.count {
+            postID = components[postIndex + 1]
+            // Try to get handle from URL components
+            if postIndex > 0 {
+                handle = components[postIndex - 1]
+            }
+        }
+
         guard let postID = postID, !postID.isEmpty else {
             print("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
             throw NSError(
@@ -387,28 +408,29 @@ struct FetchQuotePostView: View {
                 userInfo: [NSLocalizedDescriptionKey: "Invalid Bluesky post URL format: \(url.absoluteString)"]
             )
         }
-        
-        print("🔗 [FetchQuotePostView] Extracted Bluesky post ID: \(postID) from URL: \(url)")
-        return try await serviceManager.fetchBlueskyPostByID(postID)
-    }
 
-    private func fetchMastodonPost() async throws -> Post? {
-        let components = url.path.split(separator: "/")
-        guard components.count >= 2 else {
-            print("🔗 [FetchQuotePostView] Invalid Mastodon URL format: \(url)")
+        // If we have a handle, we can construct a proper AT URI by first resolving the handle to a DID
+        // For now, we'll use the handle-based URI which the API should accept
+        // The API needs a full at:// URI, so we need to resolve the handle to a DID first
+        if let handle = handle {
+            print("🔗 [FetchQuotePostView] Resolving handle '\(handle)' to construct AT URI for post: \(postID)")
+            // Construct a handle-based URI - the API will resolve it
+            // Format: at://handle/app.bsky.feed.post/postid
+            let atUri = "at://\(handle)/app.bsky.feed.post/\(postID)"
+            print("🔗 [FetchQuotePostView] Constructed AT URI: \(atUri)")
+            return try await serviceManager.fetchBlueskyPostByID(atUri)
+        } else {
+            // No handle available, cannot construct proper AT URI
+            print("🔗 [FetchQuotePostView] No handle found in URL, cannot construct AT URI: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "Invalid Mastodon post URL format: \(url.absoluteString)"]
+                userInfo: [NSLocalizedDescriptionKey: "Cannot construct AT URI without handle: \(url.absoluteString)"]
             )
         }
+    }
 
-        // Mastodon URLs are typically: /@handle/statuses/postid or /web/statuses/postid
-        // The post ID is usually the last component
-        let postID = String(components[components.count - 1])
-        
-        print("🔗 [FetchQuotePostView] Extracted Mastodon post ID: \(postID) from URL: \(url)")
-
+    private func fetchMastodonPost() async throws -> Post? {
         guard let account = serviceManager.accounts.first(where: { $0.platform == .mastodon })
         else {
             throw NSError(
@@ -418,6 +440,125 @@ struct FetchQuotePostView: View {
             )
         }
 
+        // CRITICAL: Use the Mastodon search API to resolve remote posts
+        // The search API with resolve=true will federate the post to the user's instance
+        // This is the correct way to fetch posts from other instances
+        print("🔗 [FetchQuotePostView] Using search API to resolve remote post URL: \(url)")
+        
+        do {
+            let searchResult = try await serviceManager.searchMastodonWithPosts(
+                query: url.absoluteString,
+                account: account,
+                type: "statuses",
+                limit: 1
+            )
+            
+            if let firstPost = searchResult.first {
+                print("🔗 [FetchQuotePostView] Successfully resolved remote post: \(firstPost.id)")
+                return firstPost
+            } else {
+                print("🔗 [FetchQuotePostView] Search returned no results for URL: \(url)")
+                return nil
+            }
+        } catch {
+            print("🔗 [FetchQuotePostView] Search API failed: \(error), falling back to direct fetch")
+            
+            // Fallback: try direct fetch if search fails (for local posts)
+            return try await fetchMastodonPostDirect(account: account)
+        }
+    }
+    
+    /// Direct fetch fallback for local posts (when search API fails)
+    private func fetchMastodonPostDirect(account: SocialAccount) async throws -> Post? {
+        let path = url.path
+        let pathLowercased = path.lowercased()
+        let components = path.split(separator: "/").map(String.init)
+
+        guard components.count >= 1 else {
+            print("🔗 [FetchQuotePostView] Invalid fediverse URL format: \(url)")
+            throw NSError(
+                domain: "FetchQuotePostView",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid fediverse post URL format: \(url.absoluteString)"]
+            )
+        }
+
+        // Extract post ID based on various fediverse URL patterns
+        var postID: String?
+
+        // Pattern 1: /@username/postID (Mastodon standard)
+        if path.contains("/@") && components.count >= 2 {
+            let lastComponent = components.last!
+            if lastComponent.allSatisfy({ $0.isNumber }) {
+                postID = lastComponent
+            }
+        }
+
+        // Pattern 2: /users/username/statuses/postID (ActivityPub canonical)
+        if postID == nil && pathLowercased.contains("/statuses/") {
+            if let statusesIdx = components.firstIndex(where: { $0.lowercased() == "statuses" }),
+               statusesIdx + 1 < components.count {
+                postID = components[statusesIdx + 1]
+            }
+        }
+
+        // Pattern 3: /notes/noteID (Misskey/Firefish/Calckey)
+        if postID == nil && pathLowercased.contains("/notes/") {
+            if let idx = components.firstIndex(where: { $0.lowercased() == "notes" }),
+               idx + 1 < components.count {
+                postID = components[idx + 1]
+            }
+        }
+
+        // Pattern 4: /notice/noticeID (Pleroma/Akkoma)
+        if postID == nil && pathLowercased.contains("/notice/") {
+            if let idx = components.firstIndex(where: { $0.lowercased() == "notice" }),
+               idx + 1 < components.count {
+                postID = components[idx + 1]
+            }
+        }
+
+        // Pattern 5: /objects/objectID (Pleroma/Akkoma ActivityPub)
+        if postID == nil && pathLowercased.contains("/objects/") {
+            if let idx = components.firstIndex(where: { $0.lowercased() == "objects" }),
+               idx + 1 < components.count {
+                postID = components[idx + 1]
+            }
+        }
+
+        // Pattern 6: /p/username/postID (Pixelfed)
+        if postID == nil && pathLowercased.contains("/p/") && components.count >= 3 {
+            if let pIdx = components.firstIndex(where: { $0.lowercased() == "p" }),
+               pIdx + 2 < components.count {
+                postID = components[pIdx + 2]
+            }
+        }
+
+        // Pattern 7: /post/postID (Lemmy)
+        if postID == nil && pathLowercased.hasPrefix("/post/") && components.count >= 2 {
+            postID = components[1]
+        }
+
+        // Pattern 8: /display/GUID (Friendica)
+        if postID == nil && pathLowercased.hasPrefix("/display/") && components.count >= 2 {
+            postID = components[1]
+        }
+
+        // Fallback: use the last component
+        if postID == nil && !components.isEmpty {
+            postID = components.last
+        }
+
+        guard let postID = postID, !postID.isEmpty else {
+            print("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
+            throw NSError(
+                domain: "FetchQuotePostView",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Could not extract post ID from URL: \(url.absoluteString)"]
+            )
+        }
+
+        print("🔗 [FetchQuotePostView] Extracted fediverse post ID: \(postID) from URL: \(url)")
         return try await serviceManager.fetchMastodonStatus(id: postID, account: account)
     }
 }

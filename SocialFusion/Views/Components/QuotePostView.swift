@@ -139,7 +139,7 @@ public struct QuotePostView: View {
     private var postContent: some View {
         let lineLimit = post.content.count > maxCharacters ? 4 : nil
         return post.contentView(
-            lineLimit: lineLimit, showLinkPreview: false, allowTruncation: false
+            lineLimit: lineLimit, showLinkPreview: true, allowTruncation: false
         )
         .font(.callout)
         .padding(.horizontal, 4)

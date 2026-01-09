@@ -1257,8 +1257,10 @@ public final class MastodonService: @unchecked Sendable {
         }
         print("🔍 [Search] Response data size: \(data.count) bytes")
 
+        // Note: Do NOT use .convertFromSnakeCase here as MastodonStatus/MastodonSearchResult
+        // already have explicit CodingKeys that handle snake_case conversion.
+        // Using both would cause double-conversion and decoding failures.
         let decoder = JSONDecoder()
-        decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(MastodonSearchResult.self, from: data)
     }
 
@@ -2595,6 +2597,16 @@ public final class MastodonService: @unchecked Sendable {
                 "Created parent post placeholder with username: \(replyToUsername ?? "nil")")
         }
 
+        // Extract link preview card data if present
+        let cardURL: URL? = status.card.flatMap { URL(string: $0.url) }
+        let cardTitle: String? = status.card?.title
+        let cardDescription: String? = status.card?.description
+        let cardThumbnailURL: URL? = status.card?.image.flatMap { URL(string: $0) }
+        
+        if let card = status.card {
+            logger.debug("[Mastodon] Found card for post \(status.id): url=\(card.url), title=\(card.title)")
+        }
+        
         let post = Post(
             id: status.id,
             content: status.content,
@@ -2616,6 +2628,10 @@ public final class MastodonService: @unchecked Sendable {
             parent: parentPost,
             inReplyToID: status.inReplyToId,
             inReplyToUsername: replyToUsername,
+            primaryLinkURL: cardURL,
+            primaryLinkTitle: cardTitle,
+            primaryLinkDescription: cardDescription,
+            primaryLinkThumbnailURL: cardThumbnailURL,
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
             blueskyRepostRecordURI: nil,
             customEmojiMap: extractEmojiMap(from: status),

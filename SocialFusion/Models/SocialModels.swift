@@ -206,10 +206,29 @@ public class PostFeedFilter {
         // Rule: Always show top-level posts
         guard post.inReplyToID != nil else { return true }
 
-        // Rule: Always show self-replies from followed users (thread continuation)
+        // Debug logging for reply filtering
         let authorID = UserID(value: post.authorUsername, platform: post.platform)
-        if followedAccounts.contains(authorID) {
+        let isAuthorFollowed = followedAccounts.contains(authorID)
+        print("🔍 Filtering reply: @\(post.authorUsername) -> @\(post.inReplyToUsername ?? "unknown")")
+        print("   Author followed: \(isAuthorFollowed)")
+
+        // Rule: Show self-replies (author replying to themselves) from followed users
+        if let inReplyToUsername = post.inReplyToUsername,
+           inReplyToUsername == post.authorUsername,
+           followedAccounts.contains(authorID) {
+            print("   ✅ Showing self-reply from followed user")
             return true
+        }
+
+        // Rule: Show replies to followed users
+        if let inReplyToUsername = post.inReplyToUsername {
+            let repliedToID = UserID(value: inReplyToUsername, platform: post.platform)
+            let isRepliedToFollowed = followedAccounts.contains(repliedToID)
+            print("   Replied-to followed: \(isRepliedToFollowed)")
+            if isRepliedToFollowed {
+                print("   ✅ Showing reply to followed user")
+                return true
+            }
         }
 
         // Rule: For other replies, check thread participants

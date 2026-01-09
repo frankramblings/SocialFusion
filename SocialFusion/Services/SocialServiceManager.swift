@@ -1149,7 +1149,7 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Fetch the unified timeline for all accounts
-    private func fetchTimeline(force: Bool = false) async throws {
+    public func fetchTimeline(force: Bool = false) async throws {
         print("🔄 SocialServiceManager: fetchTimeline(force: \(force)) called")
 
         // Check if we're already loading or if too many rapid requests
@@ -1528,11 +1528,11 @@ public final class SocialServiceManager: ObservableObject {
                 username: mAccount.acct,
                 displayName: mAccount.displayName,
                 avatarURL: mAccount.avatar,
-                headerURL: mAccount.header,
-                bio: mAccount.note,
-                followersCount: mAccount.followersCount,
-                followingCount: mAccount.followingCount,
-                statusesCount: mAccount.statusesCount,
+                headerURL: mAccount.header ?? "",
+                bio: mAccount.note ?? "",
+                followersCount: mAccount.followersCount ?? 0,
+                followingCount: mAccount.followingCount ?? 0,
+                statusesCount: mAccount.statusesCount ?? 0,
                 platform: .mastodon,
                 following: relationship?.following,
                 followedBy: relationship?.followedBy,
@@ -1714,6 +1714,60 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Search Mastodon for content (statuses, accounts, hashtags)
+    /// Uses resolve=true to federate remote content
+    func searchMastodon(
+        query: String,
+        account: SocialAccount,
+        type: String? = nil,
+        limit: Int = 20
+    ) async throws -> MastodonSearchResult {
+        print("📊 SocialServiceManager: Searching Mastodon for: \(query)")
+        
+        guard account.platform == .mastodon else {
+            throw ServiceError.invalidAccount(
+                reason: "The provided account is not a Mastodon account")
+        }
+        
+        return try await mastodonService.search(
+            query: query,
+            account: account,
+            type: type,
+            limit: limit
+        )
+    }
+    
+    /// Search Mastodon and return posts (converts MastodonStatus to Post)
+    /// This is the preferred method for fetching remote posts by URL
+    func searchMastodonWithPosts(
+        query: String,
+        account: SocialAccount,
+        type: String? = nil,
+        limit: Int = 20
+    ) async throws -> [Post] {
+        print("📊 SocialServiceManager: Searching Mastodon (with Post conversion) for: \(query)")
+        
+        guard account.platform == .mastodon else {
+            throw ServiceError.invalidAccount(
+                reason: "The provided account is not a Mastodon account")
+        }
+        
+        let searchResult = try await mastodonService.search(
+            query: query,
+            account: account,
+            type: type,
+            limit: limit
+        )
+        
+        // Convert MastodonStatus to Post using the service's converter
+        let posts = searchResult.statuses.map { status in
+            mastodonService.convertMastodonStatusToPost(status, account: account)
+        }
+        
+        print("📊 SocialServiceManager: Search returned \(posts.count) posts")
+        return posts
+    }
+
     /// Fetch posts for the specified account
     func fetchPosts(for account: SocialAccount? = nil) async throws -> [Post] {
         Task { @MainActor in
@@ -1832,19 +1886,36 @@ public final class SocialServiceManager: ObservableObject {
                     account: account
                 )
             } catch {
-                // ... (rest of error handling)
-                // If it's an authentication error, show a helpful message
-                if error.localizedDescription.contains("noRefreshToken")
-                    || error.localizedDescription.contains("Token expired")
-                    || error.localizedDescription.contains("No refresh token available")
+                // Enhanced error messages for common Mastodon failures
+                let errorDesc = error.localizedDescription
+
+                if errorDesc.contains("401") || errorDesc.contains("Unauthorized") {
+                    throw ServiceError.authenticationExpired(
+                        "Your Mastodon authentication has expired. Please re-add your account in Settings."
+                    )
+                } else if errorDesc.contains("429") || errorDesc.contains("Rate") {
+                    throw ServiceError.rateLimitError(
+                        reason:
+                            "Mastodon rate limit exceeded. Please wait a moment and try again.",
+                        retryAfter: 60
+                    )
+                } else if errorDesc.contains("does not appear to exist")
+                    || errorDesc.contains("Not Found") || errorDesc.contains("not found")
+                {
+                    throw ServiceError.invalidInput(
+                        reason: "The post you're replying to no longer exists or was deleted.")
+                } else if errorDesc.contains("noRefreshToken")
+                    || errorDesc.contains("Token expired")
+                    || errorDesc.contains("No refresh token available")
                 {
                     print(
                         "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
                     )
                     throw ServiceError.authenticationExpired(
-                        "Your Mastodon account needs to be re-added with proper authentication. Please go to Settings → Accounts and add your Mastodon account again using OAuth."
+                        "Please re-add your Mastodon account in Settings → Accounts using OAuth."
                     )
                 } else {
+                    // Just pass through the Mastodon error with its localized description
                     throw error
                 }
             }

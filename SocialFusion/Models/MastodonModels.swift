@@ -47,17 +47,17 @@ public struct MastodonAccount: Codable {
     public let username: String
     public let acct: String
     public let displayName: String?
-    public let note: String
+    public let note: String?
     public let url: String
     public let avatar: String
-    public let avatarStatic: String
-    public let header: String
-    public let headerStatic: String
-    public let followersCount: Int
-    public let followingCount: Int
-    public let statusesCount: Int
+    public let avatarStatic: String?  // Optional - not always present in search results
+    public let header: String?  // Optional - not always present in search results
+    public let headerStatic: String?  // Optional - not always present in search results
+    public let followersCount: Int?  // Optional - not always present in search results
+    public let followingCount: Int?  // Optional - not always present in search results
+    public let statusesCount: Int?  // Optional - not always present in search results
     public let lastStatusAt: String?
-    public let emojis: [MastodonEmoji]
+    public let emojis: [MastodonEmoji]?  // Optional - not always present in search results
     public let fields: [MastodonField]?
 
     public enum CodingKeys: String, CodingKey {
@@ -69,6 +69,30 @@ public struct MastodonAccount: Codable {
         case followingCount = "following_count"
         case statusesCount = "statuses_count"
         case lastStatusAt = "last_status_at"
+    }
+}
+
+// Preview Card (link preview)
+public struct MastodonCard: Codable {
+    public let url: String
+    public let title: String
+    public let description: String
+    public let image: String?
+    public let type: String  // "link", "photo", "video", "rich"
+    public let authorName: String?
+    public let authorUrl: String?
+    public let providerName: String?
+    public let providerUrl: String?
+    public let html: String?
+    public let width: Int?
+    public let height: Int?
+    
+    public enum CodingKeys: String, CodingKey {
+        case url, title, description, image, type, html, width, height
+        case authorName = "author_name"
+        case authorUrl = "author_url"
+        case providerName = "provider_name"
+        case providerUrl = "provider_url"
     }
 }
 
@@ -96,6 +120,7 @@ public class MastodonStatus: Codable {
     public let favourited: Bool?
     public let reblogged: Bool?
     public let bookmarked: Bool?
+    public let card: MastodonCard?  // Link preview card
 
     public init(
         id: String,
@@ -119,7 +144,8 @@ public class MastodonStatus: Codable {
         account: MastodonAccount,
         favourited: Bool?,
         reblogged: Bool?,
-        bookmarked: Bool?
+        bookmarked: Bool?,
+        card: MastodonCard? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -143,11 +169,12 @@ public class MastodonStatus: Codable {
         self.favourited = favourited
         self.reblogged = reblogged
         self.bookmarked = bookmarked
+        self.card = card
     }
 
     public enum CodingKeys: String, CodingKey {
         case id, content, visibility, sensitive, mentions, tags, emojis, application, account, url,
-            reblog
+            reblog, card
         case createdAt = "created_at"
         case spoilerText = "spoiler_text"
         case mediaAttachments = "media_attachments"
@@ -277,13 +304,20 @@ public struct MastodonRelationship: Codable {
 }
 
 // Error Response DTO (renamed to avoid clash with public MastodonError)
-public struct MastodonAPIError: Codable, Error {
+public struct MastodonAPIError: Codable, Error, LocalizedError {
     public let error: String
     public let errorDescription: String?
 
     public enum CodingKeys: String, CodingKey {
         case error
         case errorDescription = "error_description"
+    }
+
+    public var localizedDescription: String {
+        if let description = errorDescription {
+            return "\(error): \(description)"
+        }
+        return error
     }
 }
 

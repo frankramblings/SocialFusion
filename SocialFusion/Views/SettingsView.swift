@@ -54,11 +54,15 @@ struct SettingsView: View {
                                 } else {
                                     featureFlagManager.disableFeature(.replyFiltering)
                                 }
+                                // Trigger timeline refresh to apply the new filter setting
+                                Task {
+                                    try? await serviceManager.fetchTimeline(force: true)
+                                }
                             }
                         ))
 
                     Text(
-                        "Only show replies if at least 2 participants in the thread are followed accounts (Bluesky style)."
+                        "Hide replies to people you don't follow. Shows replies from your timeline only when you follow the person being replied to."
                     )
                     .font(.caption)
                     .foregroundColor(.secondary)

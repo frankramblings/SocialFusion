@@ -3296,6 +3296,37 @@ public final class BlueskyService: Sendable {
         return updatedPost
     }
 
+    /// Construct a minimal Post from Bluesky creation response
+    /// Used as fallback when secondary getPost fetch fails
+    private func constructMinimalPost(
+        uri: String,
+        cid: String,
+        content: String,
+        account: SocialAccount
+    ) -> Post {
+        // Extract the post reference (rkey) from the URI
+        // URI format: at://did:plc:xyz/app.bsky.feed.post/abc123
+        let postRef = uri.split(separator: "/").last.map(String.init) ?? ""
+        let originalURL = "https://bsky.app/profile/\(account.username)/post/\(postRef)"
+
+        return Post(
+            id: uri,
+            content: content,
+            authorName: account.displayName ?? account.username,
+            authorUsername: account.username,
+            authorId: account.platformSpecificId,
+            authorProfilePictureURL: account.profileImageURL?.absoluteString ?? "",
+            createdAt: Date(),
+            platform: .bluesky,
+            originalURL: originalURL,
+            attachments: [],
+            mentions: [],
+            tags: [],
+            platformSpecificId: uri,
+            cid: cid
+        )
+    }
+
     /// Reply to a post on Bluesky
     func replyToPost(
         _ post: Post,
@@ -3385,7 +3416,20 @@ public final class BlueskyService: Sendable {
                 domain: "BlueskyService", code: 0,
                 userInfo: [NSLocalizedDescriptionKey: "Failed to parse post URI"])
         }
-        return try await getPost(uri: uri, account: account)
+
+        let cid = json["cid"] as? String ?? ""
+
+        // Try to fetch full post details, but fall back to minimal post if fetch fails
+        // This prevents false positive errors when the post was successfully created
+        // but the secondary fetch fails due to network issues, rate limiting, etc.
+        do {
+            return try await getPost(uri: uri, account: account)
+        } catch {
+            print(
+                "⚠️  Secondary fetch failed for Bluesky reply \(uri), returning minimal post: \(error.localizedDescription)"
+            )
+            return constructMinimalPost(uri: uri, cid: cid, content: content, account: account)
+        }
     }
 
     /// Follow a user on Bluesky

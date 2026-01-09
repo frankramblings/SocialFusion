@@ -266,8 +266,8 @@ struct ConsolidatedTimelineView: View {
                     Text("Unknown error")
                 }
             }
-            .onChange(of: controller.error != nil) { hasError in
-                if hasError, let error = controller.error {
+            .onChange(of: controller.error?.localizedDescription) { errorDescription in
+                if let errorDescription = errorDescription, let error = controller.error {
                     ErrorHandler.shared.handleError(error) {
                         controller.refreshTimeline()
                     }
@@ -468,7 +468,10 @@ struct ConsolidatedTimelineView: View {
             onPostTap: { navigationEnvironment.navigateToPost(post) },
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
-            onReply: { replyingToPost = post },
+            onReply: {
+                // When replying to a boost/repost, reply to the original post instead
+                replyingToPost = post.isReposted ? (post.originalPost ?? post) : post
+            },
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },
             onShare: {

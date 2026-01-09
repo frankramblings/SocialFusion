@@ -294,6 +294,16 @@ extension View {
     }
 }
 
+/// Represents partial success when posting to multiple platforms
+struct PartialSuccessInfo {
+    let successful: [SocialPlatform: Post]
+    let failed: [SocialPlatform: String]
+
+    var successMessage: String {
+        "Posted to \(successful.keys.map { $0.rawValue }.joined(separator: " and "))"
+    }
+}
+
 struct ComposeView: View {
     @State private var threadPosts: [ThreadPost] = [ThreadPost()]
     @State private var activePostIndex: Int = 0
@@ -311,6 +321,11 @@ struct ComposeView: View {
     @State private var selectedImageIndexForAltText: Int = 0
     @State private var currentAltText: String = ""
     @State private var selectedAccounts: [SocialPlatform: String] = [:]
+
+    // Error recovery and retry state
+    @State private var lastError: Error? = nil
+    @State private var isRetrying = false
+    @State private var partialSuccessInfo: PartialSuccessInfo? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -882,7 +897,6 @@ struct ComposeView: View {
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .keyboardAdaptive()
             .sheet(isPresented: $showImagePicker) {
                 PhotoPicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
@@ -941,11 +955,33 @@ struct ComposeView: View {
                 .presentationDetents([.medium, .large])
             }
             .alert(isPresented: $showAlert) {
-                Alert(
-                    title: Text(alertTitle),
-                    message: Text(alertMessage),
-                    dismissButton: .default(Text("OK"))
-                )
+                if let partial = partialSuccessInfo {
+                    // Partial success - allow retry of failed platforms
+                    return Alert(
+                        title: Text("Partial Success"),
+                        message: Text(
+                            "\(partial.successMessage)\n\nFailed: \(partial.failed.keys.map { $0.rawValue }.joined(separator: ", "))"
+                        ),
+                        primaryButton: .default(Text("Retry Failed")) {
+                            retryFailedPlatforms()
+                        },
+                        secondaryButton: .cancel(Text("Dismiss")) {
+                            dismiss()
+                        }
+                    )
+                } else {
+                    // Complete failure - allow retry
+                    return Alert(
+                        title: Text(alertTitle),
+                        message: Text(alertMessage),
+                        primaryButton: .default(Text("Try Again")) {
+                            retryPosting()
+                        },
+                        secondaryButton: .cancel(Text("Dismiss")) {
+                            showAlert = false  // Keep compose open
+                        }
+                    )
+                }
             }
             .overlay(
                 Group {
@@ -1143,6 +1179,7 @@ struct ComposeView: View {
         }
 
         isPosting = true
+        partialSuccessInfo = nil  // Clear any previous partial success info
         if quotingTo != nil {
             postingStatus = "Creating quote..."
         } else {
@@ -1229,25 +1266,58 @@ struct ComposeView: View {
                         }
                     } else {
                         var updatedPrevious: [SocialPlatform: Post] = [:]
+                        var failedReplies: [SocialPlatform: String] = [:]
+
                         for (platform, parentPost) in previousPostsByPlatform {
                             guard selectedPlatforms.contains(platform) else { continue }
-                            let reply = try await socialServiceManager.replyToPost(
-                                parentPost,
-                                content: threadPost.text,
-                                mediaAttachments: mediaData,
-                                mediaAltTexts: mediaAltTexts,
-                                pollOptions: pollOptions,
-                                pollExpiresIn: 86400,
-                                visibility: visibilityString,
-                                accountOverride: selectedAccount(for: platform)
-                            )
-                            updatedPrevious[platform] = reply
-                            
-                            // Register reply success with PostActionCoordinator
-                            if FeatureFlagManager.isEnabled(.postActionsV2) {
-                                await MainActor.run {
-                                    socialServiceManager.postActionCoordinator.registerReplySuccess(for: parentPost)
+
+                            do {
+                                let reply = try await socialServiceManager.replyToPost(
+                                    parentPost,
+                                    content: threadPost.text,
+                                    mediaAttachments: mediaData,
+                                    mediaAltTexts: mediaAltTexts,
+                                    pollOptions: pollOptions,
+                                    pollExpiresIn: 86400,
+                                    visibility: visibilityString,
+                                    accountOverride: selectedAccount(for: platform)
+                                )
+                                updatedPrevious[platform] = reply
+
+                                // Register reply success with PostActionCoordinator
+                                if FeatureFlagManager.isEnabled(.postActionsV2) {
+                                    await MainActor.run {
+                                        socialServiceManager.postActionCoordinator.registerReplySuccess(
+                                            for: parentPost)
+                                    }
                                 }
+                            } catch {
+                                // Collect failure but don't throw - allow other platforms to succeed
+                                failedReplies[platform] = error.localizedDescription
+                                print("❌ Failed to reply on \(platform.rawValue): \(error.localizedDescription)")
+                            }
+                        }
+
+                        // If all platforms failed, throw error
+                        if updatedPrevious.isEmpty && !failedReplies.isEmpty {
+                            throw ServiceError.postFailed(
+                                reason: "Failed to reply on all platforms: \(failedReplies.values.joined(separator: ", "))"
+                            )
+                        }
+
+                        // If partial success, note it for later handling
+                        if !failedReplies.isEmpty && !updatedPrevious.isEmpty {
+                            // Store partial success info for alert
+                            await MainActor.run {
+                                partialSuccessInfo = PartialSuccessInfo(
+                                    successful: updatedPrevious,
+                                    failed: failedReplies
+                                )
+                            }
+                        } else {
+                            // Complete success - clear any previous partial success info
+                            await MainActor.run {
+                                partialSuccessInfo = nil
                             }
                         }
                         previousPostsByPlatform = updatedPrevious
@@ -1256,20 +1326,31 @@ struct ComposeView: View {
 
                 await MainActor.run {
                     isPosting = false
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    
-                    // Reset the compose view
-                    threadPosts = [ThreadPost()]
-                    activePostIndex = 0
 
-                    // Reset platform selection to default and rehydrate account picks
-                    selectedPlatforms = [.mastodon, .bluesky]
-                    selectedAccounts.removeAll()
-                    hydrateAccountSelection()
+                    // Check if there was partial success
+                    if let partial = partialSuccessInfo {
+                        // Partial success - show alert with retry option
+                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        alertTitle = "Partial Success"
+                        alertMessage = partial.successMessage
+                        showAlert = true
+                    } else {
+                        // Complete success - dismiss immediately
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
 
-                    // Dismiss the view immediately - no need for success alert
-                    // User will see their post appear in the timeline
-                    dismiss()
+                        // Reset the compose view
+                        threadPosts = [ThreadPost()]
+                        activePostIndex = 0
+
+                        // Reset platform selection to default and rehydrate account picks
+                        selectedPlatforms = [.mastodon, .bluesky]
+                        selectedAccounts.removeAll()
+                        hydrateAccountSelection()
+
+                        // Dismiss the view immediately - no need for success alert
+                        // User will see their post appear in the timeline
+                        dismiss()
+                    }
                 }
 
             } catch {
@@ -1285,6 +1366,29 @@ struct ComposeView: View {
                 print("Posting error: \(error)")
             }
         }
+    }
+
+    /// Retry posting with the same content and platforms
+    private func retryPosting() {
+        isRetrying = true
+        partialSuccessInfo = nil
+        lastError = nil
+        postContent()
+    }
+
+    /// Retry only the failed platforms from a partial success
+    private func retryFailedPlatforms() {
+        guard let partial = partialSuccessInfo else { return }
+
+        // Filter selected platforms to only failed ones
+        selectedPlatforms = Set(partial.failed.keys)
+
+        // Reset state
+        isRetrying = true
+        partialSuccessInfo = nil
+        lastError = nil
+
+        postContent()
     }
 
     private var selectedPlatformsString: String {

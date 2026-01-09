@@ -18,6 +18,7 @@ struct ProfileView: View {
     @State private var cursor: String? = nil
     @State private var canLoadMore = true
     @State private var showEditProfile = false
+    @State private var replyingToPost: Post? = nil
 
     var body: some View {
         ScrollView {
@@ -123,7 +124,12 @@ struct ProfileView: View {
                                     createdAt: post.createdAt
                                 ),
                                 postActionStore: serviceManager.postActionStore,
-                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
+                                onPostTap: { navigationEnvironment.navigateToPost(post) },
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
+                                onReply: {
+                                    // When replying to a boost/repost, reply to the original post instead
+                                    replyingToPost = post.isReposted ? (post.originalPost ?? post) : post
+                                }
                             )
                             .onAppear {
                                 if post.id == posts.last?.id && canLoadMore && !isLoadingMore {
@@ -161,6 +167,10 @@ struct ProfileView: View {
         )
         .sheet(isPresented: $showEditProfile) {
             EditProfileView(account: account)
+        }
+        .sheet(item: $replyingToPost) { post in
+            ComposeView(replyingTo: post)
+                .environmentObject(serviceManager)
         }
         .onAppear {
             if posts.isEmpty {

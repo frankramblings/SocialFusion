@@ -754,10 +754,12 @@ struct PostDetailView: View {
     }
 
     private func activateQuickReply(for post: Post, prefill: Bool = false) {
-        activeReplyPost = post
-        hydrateReplyAccountSelection(for: post.platform)
+        // When replying to a boost/repost, reply to the original post instead
+        let targetPost = post.isReposted ? (post.originalPost ?? post) : post
+        activeReplyPost = targetPost
+        hydrateReplyAccountSelection(for: targetPost.platform)
         if prefill && inlineReplyText.isEmpty {
-            inlineReplyText = "@\(post.authorUsername) "
+            inlineReplyText = "@\(targetPost.authorUsername) "
         }
         withAnimation(.easeInOut(duration: 0.2)) {
             isQuickReplyActive = true
@@ -768,7 +770,9 @@ struct PostDetailView: View {
     }
 
     private func openFullComposer(for post: Post) {
-        activeReplyPost = post
+        // When replying to a boost/repost, reply to the original post instead
+        let targetPost = post.isReposted ? (post.originalPost ?? post) : post
+        activeReplyPost = targetPost
         isQuickReplyActive = false
         isReplying = true
     }
