@@ -1,22 +1,37 @@
+import Foundation
 import Logging
 import SocialFusion
 import Testing
 
+@MainActor
 @Suite("StructuredLogger Tests")
 final class StructuredLoggerTests {
     private var logger: StructuredLogger!
-    private var memoryHandler: InMemoryLogHandler!
+    private static var didBootstrap = false
+    private static var sharedMemoryHandler = InMemoryLogHandler()
+    private var memoryHandler: InMemoryLogHandler! {
+        get { Self.sharedMemoryHandler }
+        set { Self.sharedMemoryHandler = newValue }
+    }
 
     @Test("Logger initialization")
     func loggerInitialization() {
-        memoryHandler = InMemoryLogHandler()
+        if !Self.didBootstrap {
+            LoggingSystem.bootstrap { _ in Self.sharedMemoryHandler }
+            Self.didBootstrap = true
+        }
+        memoryHandler.clear()
         logger = StructuredLogger(label: "com.socialfusion.test")
         #expect(logger != nil)
     }
 
     @Test("Debug logging with context")
     func debugLoggingWithContext() {
-        memoryHandler = InMemoryLogHandler()
+        if !Self.didBootstrap {
+            LoggingSystem.bootstrap { _ in Self.sharedMemoryHandler }
+            Self.didBootstrap = true
+        }
+        memoryHandler.clear()
         logger = StructuredLogger(label: "com.socialfusion.test")
 
         let context = LogContext(
@@ -34,7 +49,11 @@ final class StructuredLoggerTests {
 
     @Test("Error logging with error context")
     func errorLoggingWithErrorContext() {
-        memoryHandler = InMemoryLogHandler()
+        if !Self.didBootstrap {
+            LoggingSystem.bootstrap { _ in Self.sharedMemoryHandler }
+            Self.didBootstrap = true
+        }
+        memoryHandler.clear()
         logger = StructuredLogger(label: "com.socialfusion.test")
 
         let error = NSError(domain: "Test", code: 1)
@@ -78,7 +97,11 @@ final class StructuredLoggerTests {
 
     @Test("Log metadata structure")
     func logMetadataStructure() {
-        memoryHandler = InMemoryLogHandler()
+        if !Self.didBootstrap {
+            LoggingSystem.bootstrap { _ in Self.sharedMemoryHandler }
+            Self.didBootstrap = true
+        }
+        memoryHandler.clear()
         logger = StructuredLogger(label: "com.socialfusion.test")
 
         let context = LogContext(

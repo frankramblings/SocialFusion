@@ -1,38 +1,50 @@
 import XCTest
+import Combine
 @testable import SocialFusion
 
 @MainActor
 final class SocialServiceManagerPostActionTests: XCTestCase {
+    var cancellables: Set<AnyCancellable> = []
 
-    final class MockMastodonService: MastodonService {
-        var likeResponses: [Result<Post, Error>] = []
-        var unlikeResponses: [Result<Post, Error>] = []
+    override func setUp() {
+        super.setUp()
+        FeatureFlagManager.shared.enableFeature(.postActionsV2)
+        SimpleEdgeCaseMonitor.shared.isNetworkAvailable = true
+        cancellables = []
+    }
 
-        override func likePost(_ post: Post, account: SocialAccount) async throws -> Post {
-            if likeResponses.isEmpty {
-                return post
-            }
-            let result = likeResponses.removeFirst()
-            switch result {
-            case .success(let post):
-                return post
-            case .failure(let error):
-                throw error
+    // Adapted: use the PostActionCoordinator + PostActionNetworking mock to validate
+    // like/unlike state reconciliation without subclassing final services.
+    final class MockActionService: PostActionNetworking {
+        var likeQueue: [Result<PostActionState, Error>] = []
+        var unlikeQueue: [Result<PostActionState, Error>] = []
+
+        func like(post: Post) async throws -> PostActionState {
+            if likeQueue.isEmpty { return PostActionState(post: post) }
+            switch likeQueue.removeFirst() {
+            case .success(let state): return state
+            case .failure(let error): throw error
             }
         }
-
-        override func unlikePost(_ post: Post, account: SocialAccount) async throws -> Post {
-            if unlikeResponses.isEmpty {
-                return post
-            }
-            let result = unlikeResponses.removeFirst()
-            switch result {
-            case .success(let post):
-                return post
-            case .failure(let error):
-                throw error
+        func unlike(post: Post) async throws -> PostActionState {
+            if unlikeQueue.isEmpty { return PostActionState(post: post) }
+            switch unlikeQueue.removeFirst() {
+            case .success(let state): return state
+            case .failure(let error): throw error
             }
         }
+        func repost(post: Post) async throws -> PostActionState { PostActionState(post: post) }
+        func unrepost(post: Post) async throws -> PostActionState { PostActionState(post: post) }
+        func follow(post: Post, shouldFollow: Bool) async throws -> PostActionState {
+            var s = PostActionState(post: post); s.isFollowingAuthor = shouldFollow; return s
+        }
+        func mute(post: Post, shouldMute: Bool) async throws -> PostActionState {
+            var s = PostActionState(post: post); s.isMutedAuthor = shouldMute; return s
+        }
+        func block(post: Post, shouldBlock: Bool) async throws -> PostActionState {
+            var s = PostActionState(post: post); s.isBlockedAuthor = shouldBlock; return s
+        }
+        func fetchActions(for post: Post) async throws -> PostActionState { PostActionState(post: post) }
     }
 
     private func makeAccount(platform: SocialPlatform = .mastodon) -> SocialAccount {
@@ -60,62 +72,116 @@ final class SocialServiceManagerPostActionTests: XCTestCase {
         )
     }
 
-    func testLikeUsesBackoffAndUpdatesPost() async throws {
-        let mockService = MockMastodonService()
-        let updatedPost = makePost()
-        updatedPost.isLiked = true
-        updatedPost.likeCount = 5
-
-        mockService.likeResponses = [
-            .failure(NetworkError.networkUnavailable),
-            .success(updatedPost)
-        ]
-
-        let serviceManager = SocialServiceManager(
-            mastodonService: mockService,
-            blueskyService: BlueskyService()
+    func testLikeUpdatesStateViaCoordinator() async throws {
+        let store = PostActionStore()
+        let mock = MockActionService()
+        struct TestDispatcher: PostActionCoordinator.ActionDispatcher {
+            func now() -> Date { Date() }
+            func schedule(_ operation: @escaping @Sendable () async -> Void) { Task { await operation() } }
+        }
+        let coordinator = PostActionCoordinator(
+            store: store,
+            service: mock,
+            networkMonitor: SimpleEdgeCaseMonitor.shared,
+            staleInterval: 60,
+            debounceInterval: 0,
+            dispatcher: TestDispatcher()
         )
-
-        let account = makeAccount()
-        serviceManager.mastodonAccounts = [account]
-
         let post = makePost()
-        let state = try await serviceManager.like(post: post)
+        // Seed store to establish baseline timestamp
+        let initial = store.ensureState(for: post)
+        var serverState = PostActionState(post: post)
+        serverState.isLiked = true
+        serverState.likeCount = initial.likeCount + 1
+        // Prime mock immediately before action
+        mock.likeQueue = [.success(serverState)]
 
-        XCTAssertTrue(state.isLiked)
-        XCTAssertEqual(state.likeCount, 5)
+        // Wait for inflight to start, then to clear
+        let started = expectation(description: "inflight started (like)")
+        store.$inflightKeys
+            .filter { $0.contains(post.stableId) }
+            .first()
+            .sink { _ in started.fulfill() }
+            .store(in: &cancellables)
+
+        coordinator.toggleLike(for: post)
+
+        // Optimistic flip should be immediate
+        XCTAssertEqual(store.actions[post.stableId]?.isLiked, true)
+
+        await fulfillment(of: [started], timeout: 4.0)
+
+        let cleared = expectation(description: "inflight cleared (like)")
+        store.$inflightKeys
+            .filter { !$0.contains(post.stableId) }
+            .first()
+            .sink { _ in cleared.fulfill() }
+            .store(in: &cancellables)
+
+        await fulfillment(of: [cleared], timeout: 4.0)
+
+        // Assert reconciled equals queued
+        XCTAssertTrue(store.actions[post.stableId]?.isLiked == true)
+        XCTAssertEqual(store.actions[post.stableId]?.likeCount, serverState.likeCount)
         XCTAssertTrue(post.isLiked)
-        XCTAssertEqual(post.likeCount, 5)
+        XCTAssertEqual(post.likeCount, serverState.likeCount)
     }
 
-    func testUnlikeReturnsServerState() async throws {
-        let mockService = MockMastodonService()
-        let updatedPost = makePost()
-        updatedPost.isLiked = false
-        updatedPost.likeCount = 1
-
-        mockService.unlikeResponses = [
-            .success(updatedPost)
-        ]
-
-        let serviceManager = SocialServiceManager(
-            mastodonService: mockService,
-            blueskyService: BlueskyService()
+    func testUnlikeUpdatesStateViaCoordinator() async throws {
+        let store = PostActionStore()
+        let mock = MockActionService()
+        struct TestDispatcher: PostActionCoordinator.ActionDispatcher {
+            func now() -> Date { Date() }
+            func schedule(_ operation: @escaping @Sendable () async -> Void) { Task { await operation() } }
+        }
+        let coordinator = PostActionCoordinator(
+            store: store,
+            service: mock,
+            networkMonitor: SimpleEdgeCaseMonitor.shared,
+            staleInterval: 60,
+            debounceInterval: 0,
+            dispatcher: TestDispatcher()
         )
-
-        let account = makeAccount()
-        serviceManager.mastodonAccounts = [account]
-
         let post = makePost()
         post.isLiked = true
         post.likeCount = 3
+        // Seed store to establish baseline timestamp
+        let initial = store.ensureState(for: post)
+        var serverState = PostActionState(post: post)
+        serverState.isLiked = false
+        serverState.likeCount = max(initial.likeCount - 1, 0)
+        // Prime mock immediately before action
+        mock.unlikeQueue = [.success(serverState)]
 
-        let state = try await serviceManager.unlike(post: post)
+        // Wait for inflight to start, then to clear
+        let started = expectation(description: "inflight started (unlike)")
+        store.$inflightKeys
+            .filter { $0.contains(post.stableId) }
+            .first()
+            .sink { _ in started.fulfill() }
+            .store(in: &cancellables)
 
-        XCTAssertFalse(state.isLiked)
-        XCTAssertEqual(state.likeCount, 1)
+        coordinator.toggleLike(for: post)
+
+        // Optimistic unlike should be immediate
+        XCTAssertEqual(store.actions[post.stableId]?.isLiked, false)
+
+        await fulfillment(of: [started], timeout: 4.0)
+
+        let cleared = expectation(description: "inflight cleared (unlike)")
+        store.$inflightKeys
+            .filter { !$0.contains(post.stableId) }
+            .first()
+            .sink { _ in cleared.fulfill() }
+            .store(in: &cancellables)
+
+        await fulfillment(of: [cleared], timeout: 4.0)
+
+        // Assert reconciled equals queued
+        XCTAssertFalse(store.actions[post.stableId]?.isLiked ?? true)
+        XCTAssertEqual(store.actions[post.stableId]?.likeCount, serverState.likeCount)
         XCTAssertFalse(post.isLiked)
-        XCTAssertEqual(post.likeCount, 1)
+        XCTAssertEqual(post.likeCount, serverState.likeCount)
     }
 }
 

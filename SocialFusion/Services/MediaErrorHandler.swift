@@ -268,6 +268,14 @@ class MediaErrorHandler: ObservableObject {
         // Generic errors
         return .unknown(error.localizedDescription)
     }
+
+    #if DEBUG
+    // Testing shim to expose private mapping for unit tests
+    @usableFromInline
+    internal func _test_mapError(_ error: Error, for url: URL) -> MediaError {
+        return mapError(error, for: url)
+    }
+    #endif
 }
 
 // MARK: - HTTP Error Helper

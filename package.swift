@@ -33,6 +33,13 @@ let package = Package(
             dependencies: [
                 "SocialFusion",
                 .product(name: "Testing", package: "swift-testing"),
+            ],
+            exclude: [
+                // Exclude app-only tests that depend on iOS app modules/types not present in SPM target
+                "PostFeedFilterTests.swift",
+                "Utilities/ErrorHandlerTests.swift",
+                "Utilities/MonitoringServiceTests.swift",
+                "Utilities/SocialFusionTimelineDebugTests.swift"
             ]
         ),
     ]

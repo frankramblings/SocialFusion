@@ -157,6 +157,27 @@ public class PostFeedFilter {
     private let cacheLock = NSLock()
     private let cacheTTL: TimeInterval = 300  // 5 minutes
 
+    // Normalize a user identifier string for comparison across sources
+    // - Lowercase
+    // - Strip leading '@'
+    // - Strip optional 'at://' prefix (seen in some Bluesky URIs)
+    // - Preserve DID strings (did:plc:...)
+    private func normalizeIdentifier(_ raw: String, platform: SocialPlatform) -> String {
+        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Drop common URI prefix if present
+        if s.hasPrefix("at://") {
+            s = String(s.dropFirst(5))
+        }
+        // Lowercase for case-insensitive compare
+        s = s.lowercased()
+        // Remove leading '@' (Mastodon handles may show '@user@host')
+        if s.hasPrefix("@") {
+            s.removeFirst()
+        }
+        // Leave DIDs intact; they already compare in lowercase
+        return s
+    }
+
     public init(
         mastodonResolver: ThreadParticipantResolver?, blueskyResolver: ThreadParticipantResolver?
     ) {
@@ -206,23 +227,33 @@ public class PostFeedFilter {
         // Rule: Always show top-level posts
         guard post.inReplyToID != nil else { return true }
 
+        // Build normalized keys
+        let normalizedAuthor = normalizeIdentifier(post.authorUsername, platform: post.platform)
+        let authorKey = UserID(value: normalizedAuthor, platform: post.platform)
+        let isAuthorFollowed = followedAccounts.contains(authorKey)
+
+        // For self-reply match, consider both authorUsername and authorId (DID on Bluesky)
+        let normalizedAuthorId = post.authorId.isEmpty ? nil : normalizeIdentifier(post.authorId, platform: post.platform)
+
         // Debug logging for reply filtering
-        let authorID = UserID(value: post.authorUsername, platform: post.platform)
-        let isAuthorFollowed = followedAccounts.contains(authorID)
-        print("🔍 Filtering reply: @\(post.authorUsername) -> @\(post.inReplyToUsername ?? "unknown")")
+        let inReplyRaw = post.inReplyToUsername ?? "unknown"
+        let normalizedInReply = normalizeIdentifier(inReplyRaw, platform: post.platform)
+        print("🔍 Filtering reply: @\(post.authorUsername) -> @\(inReplyRaw) [normalized: @\(normalizedAuthor) -> @\(normalizedInReply)]")
         print("   Author followed: \(isAuthorFollowed)")
 
         // Rule: Show self-replies (author replying to themselves) from followed users
-        if let inReplyToUsername = post.inReplyToUsername,
-           inReplyToUsername == post.authorUsername,
-           followedAccounts.contains(authorID) {
-            print("   ✅ Showing self-reply from followed user")
-            return true
+        if post.inReplyToUsername != nil {
+            let selfReplyMatchesAuthor = (normalizedInReply == normalizedAuthor)
+            let selfReplyMatchesAuthorId = (normalizedAuthorId != nil && normalizedInReply == normalizedAuthorId)
+            if (selfReplyMatchesAuthor || selfReplyMatchesAuthorId) && isAuthorFollowed {
+                print("   ✅ Showing self-reply from followed user (matched self: \(selfReplyMatchesAuthor ? "handle" : "id"))")
+                return true
+            }
         }
 
-        // Rule: Show replies to followed users
-        if let inReplyToUsername = post.inReplyToUsername {
-            let repliedToID = UserID(value: inReplyToUsername, platform: post.platform)
+        // Rule: Show replies to followed users (normalize replied-to username)
+        if post.inReplyToUsername != nil {
+            let repliedToID = UserID(value: normalizedInReply, platform: post.platform)
             let isRepliedToFollowed = followedAccounts.contains(repliedToID)
             print("   Replied-to followed: \(isRepliedToFollowed)")
             if isRepliedToFollowed {

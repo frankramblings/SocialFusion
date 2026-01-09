@@ -60,7 +60,7 @@ class MediaRobustnessTests: XCTestCase {
 
     func testErrorMapping() {
         let urlError = URLError(.notConnectedToInternet)
-        let mappedError = MediaErrorHandler.shared.mapError(
+        let mappedError = MediaErrorHandler.shared._test_mapError(
             urlError, for: URL(string: "test://url")!)
 
         XCTAssertEqual(mappedError, MediaErrorHandler.MediaError.networkUnavailable)
@@ -78,7 +78,7 @@ class MediaRobustnessTests: XCTestCase {
         UIGraphicsEndImageContext()
 
         // Test image optimization
-        let optimizedImage = mediaMemoryManager.optimizeImage(largeImage)
+        let optimizedImage = mediaMemoryManager._test_optimizeImage(largeImage)
 
         // Verify the image was resized
         XCTAssertLessThanOrEqual(optimizedImage.size.width, 2048)
@@ -95,7 +95,7 @@ class MediaRobustnessTests: XCTestCase {
         let testURL = URL(string: "https://example.com/test.jpg")!
         let testImage = UIImage(systemName: "photo")!
 
-        mediaMemoryManager.imageCache.setObject(
+        mediaMemoryManager._test_imageCache.setObject(
             testImage, forKey: testURL.absoluteString as NSString)
 
         // Simulate memory warning
@@ -111,7 +111,7 @@ class MediaRobustnessTests: XCTestCase {
 
         // Verify caches were cleared
         XCTAssertNil(
-            mediaMemoryManager.imageCache.object(forKey: testURL.absoluteString as NSString))
+            mediaMemoryManager._test_imageCache.object(forKey: testURL.absoluteString as NSString))
     }
 
     func testCacheStatistics() {
@@ -178,9 +178,8 @@ class MediaRobustnessTests: XCTestCase {
 
         // Test the complete flow: error handling + memory management + retry logic
         do {
-            let data = try await mediaErrorHandler.loadMediaWithRetry(url: testURL) { url in
-                let (data, _) = try await URLSession.shared.data(from: url)
-                return data
+            let data = try await mediaErrorHandler.loadMediaWithRetry(url: testURL) { _ in
+                return Data("ok".utf8)
             }
 
             XCTAssertNotNil(data)
@@ -222,7 +221,7 @@ class MediaRobustnessTests: XCTestCase {
             for i in 0..<100 {
                 let url = URL(string: "https://example.com/image\(i).jpg")!
                 let image = UIImage(systemName: "photo")!
-                mediaMemoryManager.imageCache.setObject(
+                mediaMemoryManager._test_imageCache.setObject(
                     image, forKey: url.absoluteString as NSString)
             }
 
@@ -255,21 +254,3 @@ class MockAVPlayer: AVPlayer {
 
 // MARK: - Test Extensions
 
-extension MediaErrorHandler {
-    /// Expose internal method for testing
-    func mapError(_ error: Error, for url: URL) -> MediaError {
-        return mapError(error, for: url)
-    }
-}
-
-extension MediaMemoryManager {
-    /// Expose internal method for testing
-    func optimizeImage(_ image: UIImage) -> UIImage {
-        return optimizeImage(image)
-    }
-
-    /// Expose internal caches for testing
-    var imageCache: NSCache<NSString, UIImage> {
-        return imageCache
-    }
-}

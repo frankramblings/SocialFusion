@@ -1,6 +1,8 @@
+import Foundation
 import SocialFusion
 import Testing
 
+@MainActor
 @Suite("AppError Tests")
 final class AppErrorTests {
     @Test("Network error conversion")
@@ -8,9 +10,9 @@ final class AppErrorTests {
         let underlyingError = NSError(domain: "Test", code: 1)
         let error = AppError.networkError(underlyingError: underlyingError)
 
+        let normalized = error.errorDescription?.replacingOccurrences(of: "’", with: "'")
         #expect(
-            error.errorDescription
-                == "Network error: The operation couldn't be completed. (Test error 1.)")
+            normalized == "Network error: The operation couldn't be completed. (Test error 1.)")
         #expect(error.recoverySuggestion == "Please check your internet connection and try again.")
     }
 
@@ -28,8 +30,9 @@ final class AppErrorTests {
         let underlyingError = NSError(domain: "Test", code: 1)
         let error = AppError.databaseError(.connectionError(underlyingError))
 
+        let normalized = error.errorDescription?.replacingOccurrences(of: "’", with: "'")
         #expect(
-            error.errorDescription
+            normalized
                 == "Database error: Connection error: The operation couldn't be completed. (Test error 1.)"
         )
         #expect(error.recoverySuggestion == "Please check your database connection and try again.")
@@ -64,8 +67,9 @@ final class AppErrorTests {
         let underlyingError = NSError(domain: "Test", code: 1)
         let convertedError = underlyingError.asAppError()
 
+        let normalized = convertedError.errorDescription?.replacingOccurrences(of: "’", with: "'")
         #expect(
-            convertedError.errorDescription
+            normalized
                 == "Unknown error: The operation couldn't be completed. (Test error 1.)")
         #expect(
             convertedError.recoverySuggestion

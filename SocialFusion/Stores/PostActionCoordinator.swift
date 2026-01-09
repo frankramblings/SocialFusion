@@ -17,17 +17,31 @@ protocol PostActionNetworking: AnyObject {
 /// Coordinates optimistic UI updates and server reconciliation for post interactions
 @MainActor
 final class PostActionCoordinator: ObservableObject {
+    // Dispatcher/Clock for deterministic scheduling and time
+    protocol ActionDispatcher {
+        func now() -> Date
+        func schedule(_ operation: @escaping @Sendable () async -> Void)
+    }
+
+    struct DefaultActionDispatcher: ActionDispatcher {
+        func now() -> Date { Date() }
+        func schedule(_ operation: @escaping @Sendable () async -> Void) {
+            Task { await operation() }
+        }
+    }
+
     private let store: PostActionStore
     private let service: PostActionNetworking
     private let networkMonitor: SimpleEdgeCaseMonitor
     private let logger = Logger(subsystem: "com.socialfusion", category: "PostActionCoordinator")
+    private let dispatcher: ActionDispatcher
 
     private var cancellables = Set<AnyCancellable>()
     private var offlineQueue: [PostActionStore.ActionKey: PendingAction] = [:]
     private var deferredActions: [PostActionStore.ActionKey: PendingAction] = [:]
     private var inflightTasks: [PostActionStore.ActionKey: Task<Void, Never>] = [:]
     private var lastActionTimestamps: [PostActionStore.ActionKey: Date] = [:]
-    private let debounceInterval: TimeInterval = 0.3  // 300ms debounce window
+    private let debounceInterval: TimeInterval  // 300ms debounce window (overrideable)
 
     private let staleInterval: TimeInterval
 
@@ -35,13 +49,17 @@ final class PostActionCoordinator: ObservableObject {
         store: PostActionStore,
         service: PostActionNetworking,
         networkMonitor: SimpleEdgeCaseMonitor? = nil,
-        staleInterval: TimeInterval = 60
+        staleInterval: TimeInterval = 60,
+        debounceInterval: TimeInterval = 0.3,
+        dispatcher: ActionDispatcher = DefaultActionDispatcher()
     ) {
         let monitor = networkMonitor ?? SimpleEdgeCaseMonitor.shared
         self.store = store
         self.service = service
         self.networkMonitor = monitor
         self.staleInterval = staleInterval
+        self.debounceInterval = debounceInterval
+        self.dispatcher = dispatcher
 
         observeNetworkAvailability()
     }
@@ -58,13 +76,13 @@ final class PostActionCoordinator: ObservableObject {
 
         // Debounce: ignore if action happened too recently
         if let lastTimestamp = lastActionTimestamps[key],
-            Date().timeIntervalSince(lastTimestamp) < debounceInterval
+            dispatcher.now().timeIntervalSince(lastTimestamp) < debounceInterval
         {
             logger.debug("Debouncing toggleLike for key \(key, privacy: .public)")
             return
         }
 
-        lastActionTimestamps[key] = Date()
+        lastActionTimestamps[key] = dispatcher.now()
 
         let currentState = store.ensureState(for: post)
         let shouldLike = !currentState.isLiked
@@ -93,13 +111,13 @@ final class PostActionCoordinator: ObservableObject {
 
         // Debounce: ignore if action happened too recently
         if let lastTimestamp = lastActionTimestamps[key],
-            Date().timeIntervalSince(lastTimestamp) < debounceInterval
+            dispatcher.now().timeIntervalSince(lastTimestamp) < debounceInterval
         {
             logger.debug("Debouncing toggleRepost for key \(key, privacy: .public)")
             return
         }
 
-        lastActionTimestamps[key] = Date()
+        lastActionTimestamps[key] = dispatcher.now()
 
         let currentState = store.ensureState(for: post)
         let shouldRepost = !currentState.isReposted
@@ -233,11 +251,10 @@ final class PostActionCoordinator: ObservableObject {
         store.setPending(false, for: key)
         store.setInflight(true, for: key)
 
-        let task = Task { [weak self] in
+        let scheduleOp: @Sendable () async -> Void = { [weak self] in
             guard let self else { return }
-
             do {
-                let state = try await perform(action)
+                let state = try await self.perform(action)
                 await MainActor.run {
                     self.completeSuccess(for: key, with: state, post: action.post)
                 }
@@ -247,8 +264,9 @@ final class PostActionCoordinator: ObservableObject {
                 }
             }
         }
-
+        // Schedule once via Task (dispatcher injection still used for time/debounce)
         inflightTasks[key]?.cancel()
+        let task = Task { await scheduleOp() }
         inflightTasks[key] = task
     }
 
@@ -369,7 +387,8 @@ final class PostActionCoordinator: ObservableObject {
         execute(next)
     }
 
-    private func flushQueuedOfflineActions() {
+    // Exposed as internal for @testable unit tests to drive deterministic flushing
+    func flushQueuedOfflineActions() {
         guard !offlineQueue.isEmpty else { return }
 
         let queued = offlineQueue

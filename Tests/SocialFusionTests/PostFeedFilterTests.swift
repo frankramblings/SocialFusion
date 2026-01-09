@@ -142,6 +142,84 @@ final class PostFeedFilterTests: XCTestCase {
             shouldInclude, "Reply should be excluded when thread has <2 followed participants")
     }
 
+    // MARK: - Self-reply edge cases
+
+    func testSelfReply_Mastodon_CaseInsensitiveAndAtSign() async {
+        // Given
+        let followed = UserID(value: "user1@mastodon.social", platform: .mastodon)
+        let followedAccounts = Set([followed])
+
+        // Author mixed-case; in-reply-to includes leading '@'
+        let post = createMastodonPost(
+            id: "self1",
+            authorUsername: "User1@Mastodon.Social",
+            inReplyToID: "orig"
+        )
+        post.inReplyToUsername = "@user1@mastodon.social"
+
+        // When
+        let shouldInclude = await filter.shouldIncludeReply(post, followedAccounts: followedAccounts)
+
+        // Then
+        XCTAssertTrue(shouldInclude, "Self-reply should be included regardless of case or '@' prefix when author is followed")
+    }
+
+    func testSelfReply_Bluesky_UsingDID() async {
+        // Given
+        let followed = UserID(value: "user1.bsky.social", platform: .bluesky)
+        let followedAccounts = Set([followed])
+
+        // Construct a Bluesky Post where authorId is a DID and inReplyToUsername is that DID
+        let post = Post(
+            id: "bself1",
+            content: "Test",
+            authorName: "User One",
+            authorUsername: "user1.bsky.social",
+            authorId: "did:plc:abc123xyz",
+            authorProfilePictureURL: "https://example.com/avatar.jpg",
+            createdAt: Date(),
+            platform: .bluesky,
+            originalURL: "https://bsky.app/profile/user1.bsky.social/post/bself1",
+            attachments: [],
+            mentions: [],
+            tags: [],
+            originalPost: nil,
+            isReposted: false,
+            isLiked: false,
+            isReplied: false,
+            likeCount: 0,
+            repostCount: 0,
+            replyCount: 0,
+            isFollowingAuthor: false,
+            isMutedAuthor: false,
+            isBlockedAuthor: false,
+            platformSpecificId: "at://did:plc:abc123xyz/app.bsky.feed.post/bself1",
+            boostedBy: nil,
+            parent: nil,
+            inReplyToID: "b1",
+            inReplyToUsername: "did:plc:abc123xyz",
+            quotedPostUri: nil,
+            quotedPostAuthorHandle: nil,
+            quotedPost: nil,
+            poll: nil,
+            cid: nil,
+            primaryLinkURL: nil,
+            primaryLinkTitle: nil,
+            primaryLinkDescription: nil,
+            primaryLinkThumbnailURL: nil,
+            blueskyLikeRecordURI: nil,
+            blueskyRepostRecordURI: nil,
+            customEmojiMap: nil,
+            clientName: nil
+        )
+
+        // When
+        let shouldInclude = await filter.shouldIncludeReply(post, followedAccounts: followedAccounts)
+
+        // Then
+        XCTAssertTrue(shouldInclude, "Self-reply should be included when inReplyTo is DID and author is followed by handle")
+    }
+
     // MARK: - Cross-platform tests
 
     func testBlueskyReplyFiltering() async {

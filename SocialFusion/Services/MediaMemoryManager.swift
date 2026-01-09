@@ -472,6 +472,19 @@ class MediaMemoryManager: ObservableObject {
             totalMemory: totalMemory
         )
     }
+
+    #if DEBUG
+    // Testing shims to expose private members for unit tests
+    @usableFromInline
+    internal func _test_optimizeImage(_ image: UIImage) -> UIImage {
+        return optimizeImage(image)
+    }
+
+    @usableFromInline
+    internal var _test_imageCache: NSCache<NSString, UIImage> {
+        return imageCache
+    }
+    #endif
 }
 
 // MARK: - Error Types

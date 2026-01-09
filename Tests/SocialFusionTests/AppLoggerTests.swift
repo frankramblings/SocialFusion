@@ -1,7 +1,9 @@
+import Foundation
 import Logging
 import SocialFusion
 import Testing
 
+@MainActor
 @Suite("AppLogger Tests")
 final class AppLoggerTests {
     private var logger: AppLogger!

@@ -49,6 +49,11 @@ public enum AppError: LocalizedError {
         public let field: String
         public let message: String
 
+        public init(field: String, message: String) {
+            self.field = field
+            self.message = message
+        }
+
         public var errorDescription: String? {
             "\(field): \(message)"
         }
