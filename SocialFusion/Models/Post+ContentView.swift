@@ -184,7 +184,10 @@ extension Post {
             let finalPreviewLink: URL? = {
                 // NEVER render a social media post (fediverse/Bluesky) as a regular link preview
                 // These should always appear as quote posts via quotePostViews
-                if let primary = primaryLink, !URLService.shared.isSocialMediaPostURL(primary) {
+                if let primary = primaryLink,
+                    !URLService.shared.isSocialMediaPostURL(primary),
+                    !URLService.shared.isYouTubeURL(primary)
+                {
                     return primary
                 }
                 let excludedLinks = [socialMediaLinks.first, firstYouTubeLink].compactMap { $0 }
