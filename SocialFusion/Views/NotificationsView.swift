@@ -13,6 +13,7 @@ struct NotificationsView: View {
     @State private var selectedFilter: AppNotification.NotificationType? = nil
     @State private var showFilterDropdown = false
     @State private var scrollOffset: CGFloat = 0
+    @State private var showAddAccountView = false
     
     var filteredNotifications: [AppNotification] {
         if let filter = selectedFilter {
@@ -233,6 +234,10 @@ struct NotificationsView: View {
         .sheet(isPresented: $showValidationView) {
             TimelineValidationDebugView(serviceManager: serviceManager)
         }
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
+        }
     }
     
     private var accountButton: some View {
@@ -273,7 +278,8 @@ struct NotificationsView: View {
                     SimpleAccountDropdown(
                         selectedAccountId: $selectedAccountId,
                         previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown
+                        isVisible: $showAccountDropdown,
+                        showAddAccountView: $showAddAccountView
                     )
                     .environmentObject(serviceManager)
                     Spacer()
@@ -493,6 +499,7 @@ struct DirectMessagesView: View {
     @State private var conversations: [DMConversation] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showAddAccountView = false
     
     var body: some View {
         ScrollView {
@@ -573,6 +580,10 @@ struct DirectMessagesView: View {
         .sheet(isPresented: $showValidationView) {
             TimelineValidationDebugView(serviceManager: serviceManager)
         }
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
+        }
         .onAppear {
             Task {
                 await fetchConversations()
@@ -618,7 +629,8 @@ struct DirectMessagesView: View {
                     SimpleAccountDropdown(
                         selectedAccountId: $selectedAccountId,
                         previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown
+                        isVisible: $showAccountDropdown,
+                        showAddAccountView: $showAddAccountView
                     )
                     .environmentObject(serviceManager)
                     Spacer()
@@ -716,4 +728,3 @@ struct DMConversationRow: View {
         .padding(.vertical, 4)
     }
 }
-

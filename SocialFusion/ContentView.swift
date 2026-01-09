@@ -96,6 +96,10 @@ struct ContentView: View {
             }
         }
         .environmentObject(mediaCoordinator)
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
+        }
     }
 
     private var sidebar: some View {
@@ -375,7 +379,8 @@ struct ContentView: View {
                     SimpleAccountDropdown(
                         selectedAccountId: $selectedAccountId,
                         previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown
+                        isVisible: $showAccountDropdown,
+                        showAddAccountView: $showAddAccountView
                     )
                     .environmentObject(serviceManager)
                     Spacer()
@@ -435,9 +440,6 @@ struct ContentView: View {
                 Text("No Accounts Added").font(.title3).fontWeight(.medium)
                 Button("Add Account") { showAddAccountView = true }
                     .buttonStyle(.borderedProminent)
-                    .sheet(isPresented: $showAddAccountView) {
-                        AddAccountView().environmentObject(serviceManager)
-                    }
             } else {
                 Text("No Account Selected").font(.title3).fontWeight(.medium)
                 Button("Select Account") { showAccountPicker = true }
@@ -626,9 +628,9 @@ struct SimpleAccountDropdown: View {
     @Binding var selectedAccountId: String?
     @Binding var previousAccountId: String?
     @Binding var isVisible: Bool
+    @Binding var showAddAccountView: Bool
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) var colorScheme
-    @State private var showAddAccountView = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -755,10 +757,6 @@ struct SimpleAccountDropdown: View {
         .scaleEffect(isVisible ? 1.0 : 0.8)
         .opacity(isVisible ? 1.0 : 0.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVisible)
-        .sheet(isPresented: $showAddAccountView) {
-            AddAccountView()
-                .environmentObject(serviceManager)
-        }
     }
 }
 

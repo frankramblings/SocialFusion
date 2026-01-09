@@ -19,6 +19,7 @@ struct ProfileView: View {
     @State private var canLoadMore = true
     @State private var showEditProfile = false
     @State private var replyingToPost: Post? = nil
+    @State private var showAddAccountView = false
 
     var body: some View {
         ScrollView {
@@ -179,6 +180,10 @@ struct ProfileView: View {
                 }
             }
         }
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
+        }
     }
 
     private func fetchPosts() async {
@@ -282,7 +287,8 @@ struct ProfileView: View {
                     SimpleAccountDropdown(
                         selectedAccountId: $selectedAccountId,
                         previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown
+                        isVisible: $showAccountDropdown,
+                        showAddAccountView: $showAddAccountView
                     )
                     .environmentObject(serviceManager)
                     Spacer()

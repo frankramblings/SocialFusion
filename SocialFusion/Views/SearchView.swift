@@ -13,6 +13,7 @@ struct SearchView: View {
     @State private var searchResult: SearchResult? = nil
     @State private var isSearching = false
     @State private var selectedTab = 0  // 0: Posts, 1: Users, 2: Tags
+    @State private var showAddAccountView = false
 
     @State private var selectedFilterPlatforms: Set<SocialPlatform> = [.mastodon, .bluesky]
     @State private var onlyMedia = false
@@ -311,6 +312,10 @@ struct SearchView: View {
                 isLoadingTrending = false
             }
         }
+        .sheet(isPresented: $showAddAccountView) {
+            AddAccountView()
+                .environmentObject(serviceManager)
+        }
     }
 
     private func performSearch() {
@@ -395,7 +400,8 @@ struct SearchView: View {
                     SimpleAccountDropdown(
                         selectedAccountId: $selectedAccountId,
                         previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown
+                        isVisible: $showAccountDropdown,
+                        showAddAccountView: $showAddAccountView
                     )
                     .environmentObject(serviceManager)
                     Spacer()
