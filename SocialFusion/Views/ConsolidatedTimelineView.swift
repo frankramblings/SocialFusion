@@ -119,6 +119,11 @@ struct ConsolidatedTimelineView: View {
     @State private var reportingPost: Post? = nil
     @State private var showReportDialog = false
 
+    // Position persistence (iOS 17+ primary path)
+    @SceneStorage("unifiedTimeline.anchorId") private var persistedAnchorId: String?
+    @State private var scrollAnchorId: String?
+    @Environment(\.scenePhase) private var scenePhase
+
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
     @StateObject private var timelineState = TimelineState()
     private let config = TimelineConfiguration.shared
@@ -212,35 +217,27 @@ struct ConsolidatedTimelineView: View {
                     .environmentObject(serviceManager)
             }
             .task {
-                // TEMPORARY: Disabled position persistence to isolate AttributeGraph cycle
-                // PHASE 3+: Enhanced timeline initialization with position restoration
-                // if config.isFeatureEnabled(.positionPersistence) {
-                //     // Load cached content immediately for instant display
-                //     // TODO: Implement loadCachedContent method
-                //     // timelineState.loadCachedContent(from: serviceManager)
-                //
-                //     // Update timeline state when posts are loaded
-                //     // CRITICAL FIX: Dispatch to next run loop to avoid publishing during view updates
-                //     if !controller.posts.isEmpty {
-                //         await Task { @MainActor in
-                //             timelineState.updateFromTimelineEntries(
-                //                 controller.posts.map { post in
-                //                     TimelineEntry(
-                //                         id: post.id, kind: .normal, post: post,
-                //                         createdAt: post.createdAt)
-                //                 })
-                //         }.value
-                //     }
-                // }
-
-                // Proper lifecycle management - only refresh if needed
+                // Load data if needed
                 await ensureTimelineLoaded()
 
-                // PHASE 3+: Smart position restoration after content loads
-                // if config.isFeatureEnabled(.smartRestoration) && !controller.posts.isEmpty {
-                //     // TODO: Implement performSmartRestoration function
-                //     // await performSmartRestoration()
-                // }
+                // Attempt to restore position once posts are present (iOS 17+)
+                if #available(iOS 17.0, *),
+                   let id = persistedAnchorId,
+                   controller.posts.contains(where: { $0.id == id }) {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) {
+                        scrollAnchorId = id
+                    }
+                }
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .background {
+                    // Persist latest known anchor on background as a safety net
+                    if #available(iOS 17.0, *) {
+                        persistedAnchorId = scrollAnchorId
+                    }
+                }
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("Retry") {
@@ -314,80 +311,118 @@ struct ConsolidatedTimelineView: View {
         }
     }
 
+    @ViewBuilder
     private var timelineView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(controller.posts.enumerated()), id: \.element.id) {
-                        index, post in
-                        postCard(for: post)
-                            .id({
-                                // Create a stable ID that changes when originalPost or reply data becomes available
-                                // This ensures the view updates when boost/reply data loads
-                                var id = post.id
-                                if let originalId = post.originalPost?.id {
-                                    id += "-boost-\(originalId)"
-                                }
-                                if let replyId = post.inReplyToID {
-                                    id += "-reply-\(replyId)"
-                                }
-                                return id
-                            }())
-                            .task {
-                                // Proper async pattern for infinite scroll
-                                await handleInfiniteScroll(currentIndex: index)
-                            }
+        if #available(iOS 17.0, *) {
+            ScrollViewReader { _ in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
+                            postCard(for: post)
+                                .id(post.id) // stable row identity for restoration
+                                .task { await handleInfiniteScroll(currentIndex: index) }
 
-                        // Divider between posts
-                        if post.id != controller.posts.last?.id {
-                            Divider()
-                                .padding(.horizontal, 16)
-                                .accessibilityHidden(true)  // Hide decorative dividers from VoiceOver
+                            if post.id != controller.posts.last?.id {
+                                Divider()
+                                    .padding(.horizontal, 16)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+
+                        if controller.isLoadingNextPage {
+                            infiniteScrollLoadingView
+                                .padding(.vertical, 20)
+                                .accessibilityLabel("Loading more posts")
+                        }
+
+                        if !controller.hasNextPage && !controller.posts.isEmpty {
+                            endOfTimelineView
+                                .padding(.vertical, 20)
+                                .accessibilityLabel("End of timeline")
+                                .accessibilityHint("No more posts to load")
                         }
                     }
-
-                    // Loading indicator at the bottom when fetching more posts
-                    if controller.isLoadingNextPage {
-                        infiniteScrollLoadingView
-                            .padding(.vertical, 20)
-                            .accessibilityLabel("Loading more posts")
-                    }
-
-                    // End of timeline indicator
-                    if !controller.hasNextPage && !controller.posts.isEmpty {
-                        endOfTimelineView
-                            .padding(.vertical, 20)
-                            .accessibilityLabel("End of timeline")
-                            .accessibilityHint("No more posts to load")
-                    }
+                    .scrollTargetLayout()
                 }
-                // CRITICAL FIX: Removed GeometryReader-based scroll tracking
-                // It was causing AttributeGraph cycles: GeometryReader updates every frame -> PreferenceChange -> StateUpdate -> ViewUpdate -> GeometryReader
-                // scrollVelocity was never actually used, so removing this tracking is safe and eliminates the crash
-            }
-            .refreshable {
-                await refreshTimeline()
-            }
-            // MARK: - Timeline Accessibility
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel("Timeline")
-            .accessibilityHint("Swipe up and down to navigate posts, pull down to refresh")
-            .accessibilityAction(named: "Refresh Timeline") {
-                Task {
+                .scrollPosition(id: $scrollAnchorId)
+                .onChange(of: scrollAnchorId) { persistedAnchorId = $0 }
+                .refreshable {
+                    // Preserve current anchor during refresh and restore it
+                    let anchorBefore = scrollAnchorId ?? persistedAnchorId
                     await refreshTimeline()
+                    if let id = anchorBefore,
+                       controller.posts.contains(where: { $0.id == id }) {
+                        var t = Transaction(); t.disablesAnimations = true
+                        withTransaction(t) { scrollAnchorId = id }
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Timeline")
+                .accessibilityHint("Swipe up and down to navigate posts, pull down to refresh")
+                .accessibilityAction(named: "Refresh Timeline") { Task { await refreshTimeline() } }
+                .confirmationDialog(
+                    "Report Post", isPresented: $showReportDialog, titleVisibility: .visible
+                ) {
+                    Button("Spam", role: .destructive) { report(reason: "Spam") }
+                    Button("Harassment", role: .destructive) { report(reason: "Harassment") }
+                    Button("Inappropriate Content", role: .destructive) { report(reason: "Inappropriate Content") }
+                    Button("Cancel", role: .cancel) { reportingPost = nil }
+                } message: {
+                    Text("Why are you reporting this post? The platform moderators will review it.")
                 }
             }
-            .confirmationDialog(
-                "Report Post", isPresented: $showReportDialog, titleVisibility: .visible
-            ) {
-                Button("Spam", role: .destructive) { report(reason: "Spam") }
-                Button("Harassment", role: .destructive) { report(reason: "Harassment") }
-                Button("Inappropriate Content", role: .destructive) {
-                    report(reason: "Inappropriate Content")
+        } else {
+            // Legacy path (iOS 16): no automatic scrollPosition binding; keep existing layout
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
+                            postCard(for: post)
+                                .id(post.id)
+                                .task { await handleInfiniteScroll(currentIndex: index) }
+
+                            if post.id != controller.posts.last?.id {
+                                Divider()
+                                    .padding(.horizontal, 16)
+                                    .accessibilityHidden(true)
+                            }
+                        }
+
+                        if controller.isLoadingNextPage {
+                            infiniteScrollLoadingView
+                                .padding(.vertical, 20)
+                                .accessibilityLabel("Loading more posts")
+                        }
+
+                        if !controller.hasNextPage && !controller.posts.isEmpty {
+                            endOfTimelineView
+                                .padding(.vertical, 20)
+                                .accessibilityLabel("End of timeline")
+                                .accessibilityHint("No more posts to load")
+                        }
+                    }
                 }
-                Button("Cancel", role: .cancel) { reportingPost = nil }
-            } message: {
-                Text("Why are you reporting this post? The platform moderators will review it.")
+                .refreshable { await refreshTimeline() }
+                .onAppear {
+                    // Best-effort restoration if we have a persisted ID (may be nil on first run)
+                    if let id = persistedAnchorId {
+                        withAnimation(.none) { proxy.scrollTo(id, anchor: .top) }
+                    }
+                }
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Timeline")
+                .accessibilityHint("Swipe up and down to navigate posts, pull down to refresh")
+                .accessibilityAction(named: "Refresh Timeline") { Task { await refreshTimeline() } }
+                .confirmationDialog(
+                    "Report Post", isPresented: $showReportDialog, titleVisibility: .visible
+                ) {
+                    Button("Spam", role: .destructive) { report(reason: "Spam") }
+                    Button("Harassment", role: .destructive) { report(reason: "Harassment") }
+                    Button("Inappropriate Content", role: .destructive) { report(reason: "Inappropriate Content") }
+                    Button("Cancel", role: .cancel) { reportingPost = nil }
+                } message: {
+                    Text("Why are you reporting this post? The platform moderators will review it.")
+                }
             }
         }
     }
@@ -516,7 +551,6 @@ struct ConsolidatedTimelineView: View {
             },
             onQuote: { quotingToPost = post }
         )
-        .id(post.id)
     }
 
     // MARK: - Private Helpers

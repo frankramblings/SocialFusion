@@ -2194,6 +2194,7 @@ public final class MastodonService: @unchecked Sendable {
     /// Converts a Mastodon status to a generic Post
     /// Extracts custom emoji from a MastodonStatus into a dictionary mapping shortcode to URL
     private func extractEmojiMap(from status: MastodonStatus) -> [String: String]? {
+        print("🔍 [Emoji] extractEmojiMap called for status \(status.id.prefix(10)), emojis array count: \(status.emojis.count)")
         guard !status.emojis.isEmpty else {
             print("📝 [Emoji] No emojis found in status \(status.id.prefix(10))")
             return nil
@@ -2202,13 +2203,60 @@ public final class MastodonService: @unchecked Sendable {
         for emoji in status.emojis {
             // Use staticUrl if available (smaller, faster), otherwise fall back to url
             let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+            print("   📎 [Emoji] Processing :\(emoji.shortcode): -> staticUrl='\(emoji.staticUrl.prefix(50))...', url='\(emoji.url.prefix(50))...', using='\(emojiURL.prefix(50))...'")
+            if !emojiURL.isEmpty {
+                emojiMap[emoji.shortcode] = emojiURL
+            } else {
+                print("   ⚠️ [Emoji] SKIPPED :\(emoji.shortcode): - both URLs empty!")
+            }
+        }
+        if !emojiMap.isEmpty {
+            print(
+                "✅ [Emoji] Extracted \(emojiMap.count) emoji from status \(status.id.prefix(10)): \(Array(emojiMap.keys).prefix(5))"
+            )
+        } else {
+            print("⚠️ [Emoji] Status \(status.id.prefix(10)) had \(status.emojis.count) emojis but none had valid URLs")
+        }
+        return emojiMap.isEmpty ? nil : emojiMap
+    }
+
+    /// Extracts custom emoji from a MastodonAccount (for display name emoji)
+    private func extractAccountEmojiMap(from account: MastodonAccount) -> [String: String]? {
+        guard let emojis = account.emojis, !emojis.isEmpty else {
+            return nil
+        }
+        var emojiMap: [String: String] = [:]
+        for emoji in emojis {
+            // Use staticUrl if available (smaller, faster), otherwise fall back to url
+            let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
             if !emojiURL.isEmpty {
                 emojiMap[emoji.shortcode] = emojiURL
             }
         }
         if !emojiMap.isEmpty {
             print(
-                "✅ [Emoji] Extracted \(emojiMap.count) emoji from status: \(Array(emojiMap.keys).prefix(5))"
+                "✅ [Emoji] Extracted \(emojiMap.count) account emoji from @\(account.acct): \(Array(emojiMap.keys).prefix(5))"
+            )
+        }
+        return emojiMap.isEmpty ? nil : emojiMap
+    }
+    
+    /// Extracts custom emoji from a MastodonReblog into a dictionary mapping shortcode to URL
+    private func extractEmojiMap(from reblog: MastodonReblog) -> [String: String]? {
+        guard let emojis = reblog.emojis, !emojis.isEmpty else {
+            return nil
+        }
+        var emojiMap: [String: String] = [:]
+        for emoji in emojis {
+            // Use staticUrl if available (smaller, faster), otherwise fall back to url
+            let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+            if !emojiURL.isEmpty {
+                emojiMap[emoji.shortcode] = emojiURL
+            }
+        }
+        if !emojiMap.isEmpty {
+            print(
+                "✅ [Emoji] Extracted \(emojiMap.count) emoji from reblog: \(Array(emojiMap.keys).prefix(5))"
             )
         }
         return emojiMap.isEmpty ? nil : emojiMap
@@ -2340,7 +2388,9 @@ public final class MastodonService: @unchecked Sendable {
                 platformSpecificId: reblog.id ?? "",
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
             blueskyRepostRecordURI: nil,
-            customEmojiMap: nil,  // MastodonReblog doesn't include emojis in its structure
+            customEmojiMap: extractEmojiMap(from: reblog),
+            // Note: MastodonReblog uses MastodonPost.MastodonAccount which doesn't include emoji data
+            // authorEmojiMap will be nil here, but when the post is hydrated, it will get proper emoji
             clientName: nil  // MastodonReblog doesn't have application field - client name comes from wrapper status
             )
 
@@ -2464,7 +2514,9 @@ public final class MastodonService: @unchecked Sendable {
                 }(),
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil,
-                customEmojiMap: nil,  // Boost posts don't have their own emoji
+                customEmojiMap: nil,  // Boost posts don't have their own content emoji
+                authorEmojiMap: nil,  // Boost wrapper doesn't show its own author
+                boosterEmojiMap: extractAccountEmojiMap(from: status.account),  // Emoji for the person who boosted
                 clientName: status.application?.name  // Extract client name from boost wrapper
             )
 
@@ -2635,6 +2687,7 @@ public final class MastodonService: @unchecked Sendable {
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
             blueskyRepostRecordURI: nil,
             customEmojiMap: extractEmojiMap(from: status),
+            authorEmojiMap: extractAccountEmojiMap(from: status.account),  // Emoji in author's display name
             clientName: status.application?.name  // Extract client/application name
         )
 

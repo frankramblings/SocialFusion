@@ -236,6 +236,12 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     // Custom emoji support (Mastodon/Fediverse)
     // Maps emoji shortcode (e.g., "neofox_floof") to its image URL
     public var customEmojiMap: [String: String]?
+    
+    // Author display name emoji - for emoji in the author's name
+    public var authorEmojiMap: [String: String]?
+    
+    // Booster display name emoji - for emoji in the booster's name (reblog/boost scenarios)
+    public var boosterEmojiMap: [String: String]?
 
     // Client/application name (e.g., "Ivory for Mac", "IceCubes for iOS", "Bluesky Web")
     public var clientName: String?
@@ -329,6 +335,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case blueskyLikeRecordURI
         case blueskyRepostRecordURI
         case customEmojiMap
+        case authorEmojiMap
+        case boosterEmojiMap
         case clientName
     }
 
@@ -431,6 +439,10 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             String.self, forKey: .blueskyRepostRecordURI)
         let customEmojiMap = try container.decodeIfPresent(
             [String: String].self, forKey: .customEmojiMap)
+        let authorEmojiMap = try container.decodeIfPresent(
+            [String: String].self, forKey: .authorEmojiMap)
+        let boosterEmojiMap = try container.decodeIfPresent(
+            [String: String].self, forKey: .boosterEmojiMap)
         let clientName = try container.decodeIfPresent(String.self, forKey: .clientName)
         self.init(
             id: id,
@@ -471,6 +483,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             blueskyLikeRecordURI: blueskyLikeRecordURI,
             blueskyRepostRecordURI: blueskyRepostRecordURI,
             customEmojiMap: customEmojiMap,
+            authorEmojiMap: authorEmojiMap,
+            boosterEmojiMap: boosterEmojiMap,
             clientName: clientName
         )
         self.cid = cid
@@ -521,6 +535,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encodeIfPresent(blueskyLikeRecordURI, forKey: .blueskyLikeRecordURI)
         try container.encodeIfPresent(blueskyRepostRecordURI, forKey: .blueskyRepostRecordURI)
         try container.encodeIfPresent(customEmojiMap, forKey: .customEmojiMap)
+        try container.encodeIfPresent(authorEmojiMap, forKey: .authorEmojiMap)
+        try container.encodeIfPresent(boosterEmojiMap, forKey: .boosterEmojiMap)
         try container.encodeIfPresent(clientName, forKey: .clientName)
     }
 
@@ -564,6 +580,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         blueskyLikeRecordURI: String? = nil,
         blueskyRepostRecordURI: String? = nil,
         customEmojiMap: [String: String]? = nil,
+        authorEmojiMap: [String: String]? = nil,
+        boosterEmojiMap: [String: String]? = nil,
         clientName: String? = nil
     ) {
         self.id = id
@@ -603,6 +621,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.blueskyLikeRecordURI = blueskyLikeRecordURI
         self.blueskyRepostRecordURI = blueskyRepostRecordURI
         self.customEmojiMap = customEmojiMap
+        self.authorEmojiMap = authorEmojiMap
+        self.boosterEmojiMap = boosterEmojiMap
         self.clientName = clientName
         // Defensive: prevent self-reference on construction
         if let parent = parent, parent.id == id {

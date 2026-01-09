@@ -12,6 +12,20 @@ struct AccountTimelineView: View {
     @State private var isLoadingNextPage = false
     @State private var paginationToken: String?
 
+    // Scroll position persistence (per account)
+    @State private var scrollAnchorId: String?
+    @Environment(\.scenePhase) private var scenePhase
+
+    private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
+    private func persistedAnchor() -> String? { UserDefaults.standard.string(forKey: anchorDefaultsKey) }
+    private func setPersistedAnchor(_ id: String?) {
+        if let id = id {
+            UserDefaults.standard.set(id, forKey: anchorDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: anchorDefaultsKey)
+        }
+    }
+
     private var timelineEntries: [TimelineEntry] {
         serviceManager.makeTimelineEntries(from: posts)
     }
@@ -40,44 +54,95 @@ struct AccountTimelineView: View {
                         .foregroundColor(.secondary)
                 }
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(Array(timelineEntries.enumerated()), id: \.element.id) {
-                            index, entry in
-                            PostCardView(
-                                entry: entry,
-                                postActionStore: serviceManager.postActionStore,
-                                postActionCoordinator: serviceManager.postActionCoordinator,
-                                onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
-                            )
-                                .id(entry.id)
-                                .padding(.horizontal)
-                                .onAppear {
-                                    // Trigger infinite scroll when approaching the end
-                                    if shouldLoadMorePosts(currentIndex: index) {
-                                        Task {
-                                            await loadMorePosts()
+                if #available(iOS 17.0, *) {
+                    ScrollViewReader { _ in
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(Array(timelineEntries.enumerated()), id: \.element.id) { index, entry in
+                                    PostCardView(
+                                        entry: entry,
+                                        postActionStore: serviceManager.postActionStore,
+                                        postActionCoordinator: serviceManager.postActionCoordinator,
+                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
+                                    )
+                                    .id(entry.id)
+                                    .padding(.horizontal)
+                                    .onAppear {
+                                        if shouldLoadMorePosts(currentIndex: index) {
+                                            Task { await loadMorePosts() }
                                         }
                                     }
                                 }
-                        }
 
-                        // Loading indicator at the bottom when fetching more posts
-                        if isLoadingNextPage {
-                            infiniteScrollLoadingView
-                                .padding(.vertical, 20)
-                        }
+                                if isLoadingNextPage {
+                                    infiniteScrollLoadingView
+                                        .padding(.vertical, 20)
+                                }
 
-                        // End of timeline indicator
-                        if !hasNextPage && !posts.isEmpty {
-                            endOfTimelineView
-                                .padding(.vertical, 20)
+                                if !hasNextPage && !posts.isEmpty {
+                                    endOfTimelineView
+                                        .padding(.vertical, 20)
+                                }
+                            }
+                            .padding(.vertical)
+                            .scrollTargetLayout()
+                        }
+                        .scrollPosition(id: $scrollAnchorId)
+                        .onChange(of: scrollAnchorId) { setPersistedAnchor($0) }
+                        .refreshable {
+                            let anchorBefore = scrollAnchorId ?? persistedAnchor()
+                            await loadPosts()
+                            if let id = anchorBefore, timelineEntries.contains(where: { $0.id == id }) {
+                                var t = Transaction(); t.disablesAnimations = true
+                                withTransaction(t) { scrollAnchorId = id }
+                            }
+                        }
+                        .onAppear {
+                            if let id = persistedAnchor(), timelineEntries.contains(where: { $0.id == id }) {
+                                var t = Transaction(); t.disablesAnimations = true
+                                withTransaction(t) { scrollAnchorId = id }
+                            }
                         }
                     }
-                    .padding(.vertical)
-                }
-                .refreshable {
-                    await loadPosts()
+                } else {
+                    ScrollViewReader { proxy in
+                        ScrollView {
+                            LazyVStack(spacing: 12) {
+                                ForEach(Array(timelineEntries.enumerated()), id: \.element.id) { index, entry in
+                                    PostCardView(
+                                        entry: entry,
+                                        postActionStore: serviceManager.postActionStore,
+                                        postActionCoordinator: serviceManager.postActionCoordinator,
+                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
+                                    )
+                                    .id(entry.id)
+                                    .padding(.horizontal)
+                                    .onAppear {
+                                        if shouldLoadMorePosts(currentIndex: index) {
+                                            Task { await loadMorePosts() }
+                                        }
+                                    }
+                                }
+
+                                if isLoadingNextPage {
+                                    infiniteScrollLoadingView
+                                        .padding(.vertical, 20)
+                                }
+
+                                if !hasNextPage && !posts.isEmpty {
+                                    endOfTimelineView
+                                        .padding(.vertical, 20)
+                                }
+                            }
+                            .padding(.vertical)
+                        }
+                        .refreshable { await loadPosts() }
+                        .onAppear {
+                            if let id = persistedAnchor() {
+                                withAnimation(.none) { proxy.scrollTo(id, anchor: .top) }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -96,8 +161,11 @@ struct AccountTimelineView: View {
             .hidden()
         )
         .onAppear {
-            Task {
-                await loadPosts()
+            Task { await loadPosts() }
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .background {
+                setPersistedAnchor(scrollAnchorId)
             }
         }
     }

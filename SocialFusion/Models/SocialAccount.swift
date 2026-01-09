@@ -155,6 +155,11 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     public var followersCount: Int = 0
     public var followingCount: Int = 0
     public var postsCount: Int = 0
+    
+    // Custom emoji support for Mastodon accounts
+    // Maps emoji shortcode to URL string
+    public var displayNameEmojiMap: [String: String]?
+    public var bioEmojiMap: [String: String]?
 
     // TODO: Switch to KeychainService
     // private let keychainService = KeychainService.shared

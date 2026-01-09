@@ -4,9 +4,16 @@ import SwiftUI
 struct BoostBanner: View {
     let handle: String
     let platform: SocialPlatform
+    let emojiMap: [String: String]?  // Emoji for the booster's display name
 
     // Animation state for subtle interactions
     @State private var isPressed = false
+    
+    init(handle: String, platform: SocialPlatform, emojiMap: [String: String]? = nil) {
+        self.handle = handle
+        self.platform = platform
+        self.emojiMap = emojiMap
+    }
 
     private var platformColor: Color {
         switch platform {
@@ -23,9 +30,19 @@ struct BoostBanner: View {
                 .font(.caption)
                 .foregroundColor(platformColor)
                 .scaleEffect(isPressed ? 0.95 : 1.0)
-            Text("\(handle) boosted")
-                .font(.caption)
-                .foregroundColor(.secondary)
+            HStack(spacing: 0) {
+                EmojiDisplayNameText(
+                    handle,
+                    emojiMap: emojiMap,
+                    font: .caption,
+                    fontWeight: .regular,
+                    foregroundColor: .secondary,
+                    lineLimit: 1
+                )
+                Text(" boosted")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

@@ -96,9 +96,10 @@ public struct MastodonReblog: Codable {
     public let mediaAttachments: [MastodonPost.MastodonMediaAttachment]?
     public let mentions: [MastodonPost.MastodonMention]?
     public let tags: [MastodonPost.MastodonTag]?
+    public let emojis: [MastodonEmoji]?  // Custom emoji used in reblogged post content
 
     enum CodingKeys: String, CodingKey {
-        case id, uri, url, content, account, mentions, tags
+        case id, uri, url, content, account, mentions, tags, emojis
         case createdAt = "created_at"
         case mediaAttachments = "media_attachments"
     }

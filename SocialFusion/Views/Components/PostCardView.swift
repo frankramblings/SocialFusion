@@ -56,6 +56,7 @@ struct PostCardView: View {
     @State private var cachedAttachments: [Post.Attachment] = []
     @State private var cachedPlatform: SocialPlatform?
     @State private var cachedPoll: Post.Poll?  // Cache poll to avoid accessing displayPost.poll during rendering
+    @State private var cachedBoosterEmojiMap: [String: String]?  // Cache booster emoji for boost banner
     @State private var isUpdatingCache = false  // Prevent recursive cache updates
 
     // Platform color helper - CRITICAL FIX: Use cached platform only (never access post.platform synchronously)
@@ -465,6 +466,9 @@ struct PostCardView: View {
             _cachedBoostHandle = State(initialValue: handle)
         }
         
+        // Initialize booster emoji map for boost banner
+        _cachedBoosterEmojiMap = State(initialValue: entry.post.boosterEmojiMap)
+        
         // Initialize reply info if this is a reply
         if let originalPost = entry.post.originalPost {
             // For boosts, check original post for reply info
@@ -590,6 +594,9 @@ struct PostCardView: View {
             _cachedBoostHandle = State(initialValue: handle)
         }
         
+        // Initialize booster emoji map for boost banner
+        _cachedBoosterEmojiMap = State(initialValue: post.boosterEmojiMap)
+        
         // Initialize reply info if this is a reply
         if let originalPost = post.originalPost {
             // For boosts, check original post for reply info
@@ -633,7 +640,7 @@ struct PostCardView: View {
     @ViewBuilder
     private var boostBannerView: some View {
         if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
-            BoostBanner(handle: handleToShow, platform: displayPlatform)
+            BoostBanner(handle: handleToShow, platform: displayPlatform, emojiMap: cachedBoosterEmojiMap)
                 .padding(.horizontal, 12)  // Apple standard: 12pt for content
                 .padding(.vertical, 6)  // Adequate touch target
                 .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
@@ -660,7 +667,7 @@ struct PostCardView: View {
             // Boost banner if this post was boosted/reposted
         // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
             if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
-            BoostBanner(handle: handleToShow, platform: displayPlatform)
+            BoostBanner(handle: handleToShow, platform: displayPlatform, emojiMap: cachedBoosterEmojiMap)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, alignment: .leading)

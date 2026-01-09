@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		EMOJITEXT00000003 /* EmojiText in Frameworks */ = {isa = PBXBuildFile; productRef = EMOJITEXT00000002 /* EmojiText */; };
 		00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C438E212556823CBF6F53A /* ConnectionManager.swift */; };
 		00E1D91752CF9E7CC13EE9FD /* PostTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673869366E4615124FBBD3E3 /* PostTimestamp.swift */; };
 		078A6A8DCA608DAF262E62C8 /* YouTubeExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE37AAC1F0E00EA31F0F1E0 /* YouTubeExtractor.swift */; };
@@ -103,6 +104,10 @@
 		9560ECBE2EC579123A30AF08 /* NetworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F8BEE46CD8A36947B8D79D8 /* NetworkService.swift */; };
 		995DA6752CA59999A34AD54B /* AccountTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9A4904D8102015C9E925FD4 /* AccountTimelineView.swift */; };
 		9A13A9462124ED80A56E0A6A /* BlueskyAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0380FF70F8415BBC8F2B7D53 /* BlueskyAPIClient.swift */; };
+		9AAB00020000000000000001 /* MediaRobustnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00020000000000000001 /* MediaRobustnessTests.swift */; };
+		9AAB00030000000000000001 /* PostActionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00030000000000000001 /* PostActionCoordinatorTests.swift */; };
+		9AAB00040000000000000001 /* PostActionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00040000000000000001 /* PostActionStoreTests.swift */; };
+		9AAB00050000000000000001 /* SocialServiceManagerPostActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00050000000000000001 /* SocialServiceManagerPostActionTests.swift */; };
 		9B0ADB464AC7C261CDAAE66D /* MutedKeywordsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81CC3C1029CDB0CF7A31D30D /* MutedKeywordsView.swift */; };
 		9CF0A3B59CD01ADABEFEB9CF /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D374E2D93B0E1F3ABF249F /* NotificationManager.swift */; };
 		9DC0E9C85139ACAD081B4C06 /* ErrorHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B5D154F6A71571D8E20E749 /* ErrorHandler.swift */; };
@@ -126,6 +131,7 @@
 		AB1A08E3EA9A3D207C262C09 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7971F092BFD3A1DA68989B1A /* AppVersionManager.swift */; };
 		ADBB6E38E036719FF92B2763 /* PostPollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E7DB0D4A4C268E9FD11655 /* PostPollView.swift */; };
 		AE6491049D7BAE45DC20D148 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B430DD931CA18326730A91 /* ChatView.swift */; };
+		AF14EACCCCCDACC6814028DA /* CustomEmojiCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06CC58631BB371D0C44A5BB1 /* CustomEmojiCache.swift */; };
 		B19DC4A198FD6DFF0BB90953 /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AC5082405C3F276EADD6AC /* DateParser.swift */; };
 		B3051EF0EA0F51BD2684D8BF /* EnhancedEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */; };
 		B395D459AAFE04B469589D52 /* TagDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */; };
@@ -178,12 +184,15 @@
 		FDB4435670702C877875D7E9 /* SimpleEdgeCaseHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXBuildFile (Tests) additions */
-		9AAB00020000000000000001 /* MediaRobustnessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00020000000000000001 /* MediaRobustnessTests.swift */; };
-		9AAB00030000000000000001 /* PostActionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00030000000000000001 /* PostActionCoordinatorTests.swift */; };
-		9AAB00040000000000000001 /* PostActionStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00040000000000000001 /* PostActionStoreTests.swift */; };
-		9AAB00050000000000000001 /* SocialServiceManagerPostActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAA00050000000000000001 /* SocialServiceManagerPostActionTests.swift */; };
-/* End PBXBuildFile (Tests) additions */
+/* Begin PBXContainerItemProxy section */
+		9AB200010000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19B8E72CFBCD5EE4BD467684 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ADE2AF9D7E04A5DE3C122C20;
+			remoteInfo = SocialFusion;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedEmptyStateView.swift; sourceTree = "<group>"; };
@@ -194,6 +203,7 @@
 		04B2419982A092CA7DD0E500 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		05486FEC9A6D971EC35A08BA /* NetworkConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkConfig.swift; sourceTree = "<group>"; };
 		0627DF87981D189A2823C3DE /* PersistentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersistentModels.swift; sourceTree = "<group>"; };
+		06CC58631BB371D0C44A5BB1 /* CustomEmojiCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CustomEmojiCache.swift; sourceTree = "<group>"; };
 		0882B2596E6F96CFE8A6D8CA /* MediaPerformanceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaPerformanceMonitor.swift; sourceTree = "<group>"; };
 		09865BAC6E267F39F883A07D /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
 		0A0031088E442B86B93B5225 /* MastodonPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonPost.swift; sourceTree = "<group>"; };
@@ -293,6 +303,12 @@
 		97AE52DE5A106B9C9D94FFAC /* PostMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenu.swift; sourceTree = "<group>"; };
 		983C505FB8404E42B71B3032 /* TokenManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenManager.swift; sourceTree = "<group>"; };
 		99C1C4E32A3FA8F9376B6552 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		9AAA00010000000000000001 /* SocialFusionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialFusionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		9AAA00020000000000000001 /* MediaRobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRobustnessTests.swift; sourceTree = "<group>"; };
+		9AAA00030000000000000001 /* PostActionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionCoordinatorTests.swift; sourceTree = "<group>"; };
+		9AAA00040000000000000001 /* PostActionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionStoreTests.swift; sourceTree = "<group>"; };
+		9AAA00050000000000000001 /* SocialServiceManagerPostActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialServiceManagerPostActionTests.swift; sourceTree = "<group>"; };
+		9AAA00060000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		9CC68033DFF03E617388048E /* PostNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostNormalizer.swift; sourceTree = "<group>"; };
 		A0E7DB0D4A4C268E9FD11655 /* PostPollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostPollView.swift; sourceTree = "<group>"; };
 		A29DA46C5C98F067150BDD75 /* LinkPreviewSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewSelector.swift; sourceTree = "<group>"; };
@@ -361,30 +377,25 @@
 		FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatters.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileReference (Tests) additions */
-		9AAA00010000000000000001 /* SocialFusionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialFusionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		9AAA00020000000000000001 /* MediaRobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRobustnessTests.swift; sourceTree = "<group>"; };
-		9AAA00030000000000000001 /* PostActionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionCoordinatorTests.swift; sourceTree = "<group>"; };
-		9AAA00040000000000000001 /* PostActionStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionStoreTests.swift; sourceTree = "<group>"; };
-		9AAA00050000000000000001 /* SocialServiceManagerPostActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialServiceManagerPostActionTests.swift; sourceTree = "<group>"; };
-		9AAA00060000000000000001 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-/* End PBXFileReference (Tests) additions */
+/* Begin PBXFrameworksBuildPhase section */
+		EMOJITEXT00000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EMOJITEXT00000003 /* EmojiText in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		9AAD00010000000000000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		9AAC00010000000000000001 /* SocialFusionTests */ = {
-			isa = PBXGroup;
-			children = (
-				9AAA00020000000000000001 /* MediaRobustnessTests.swift */,
-				9AAA00030000000000000001 /* PostActionCoordinatorTests.swift */,
-				9AAA00040000000000000001 /* PostActionStoreTests.swift */,
-				9AAA00050000000000000001 /* SocialServiceManagerPostActionTests.swift */,
-				9AAA00060000000000000001 /* Info.plist */,
-			);
-			path = SocialFusionTests;
-			sourceTree = "<group>";
-		};
-
-/* Begin PBXGroup section (existing) */
 		0918293BBC3D3BDF1C0187F4 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
@@ -407,7 +418,7 @@
 		};
 		4383FFA39CCDB6E82979FB67 = {
 			isa = PBXGroup;
-children = (
+			children = (
 				54837CBDE79934170735E9E2 /* SocialFusion */,
 				9AAC00010000000000000001 /* SocialFusionTests */,
 				A2991A82CF7626115148BD35 /* Products */,
@@ -478,6 +489,7 @@ children = (
 				57F69E489231CD3C5D1D65CE /* URLService.swift */,
 				7D1679C676D4AD9498F658AC /* Utilities.swift */,
 				2BE37AAC1F0E00EA31F0F1E0 /* YouTubeExtractor.swift */,
+				06CC58631BB371D0C44A5BB1 /* CustomEmojiCache.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -547,9 +559,21 @@ children = (
 			path = Stores;
 			sourceTree = "<group>";
 		};
+		9AAC00010000000000000001 /* SocialFusionTests */ = {
+			isa = PBXGroup;
+			children = (
+				9AAA00020000000000000001 /* MediaRobustnessTests.swift */,
+				9AAA00030000000000000001 /* PostActionCoordinatorTests.swift */,
+				9AAA00040000000000000001 /* PostActionStoreTests.swift */,
+				9AAA00050000000000000001 /* SocialServiceManagerPostActionTests.swift */,
+				9AAA00060000000000000001 /* Info.plist */,
+			);
+			path = SocialFusionTests;
+			sourceTree = "<group>";
+		};
 		A2991A82CF7626115148BD35 /* Products */ = {
 			isa = PBXGroup;
-children = (
+			children = (
 				2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */,
 				9AAA00010000000000000001 /* SocialFusionTests.xctest */,
 			);
@@ -696,26 +720,26 @@ children = (
 		};
 /* End PBXGroup section */
 
-/* Begin PBXNativeTarget section */
-		ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 9DBDDEBEFEE0F4BBB7417EB6 /* Build configuration list for PBXNativeTarget "SocialFusion" */;
-			buildPhases = (
-				30D6348EFBD3AC8B77C5B200 /* Sources */,
-				A0FC626B1A7536153165DC4C /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = SocialFusion;
-			productName = SocialFusion;
-			productReference = 2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */;
-			productType = "com.apple.product-type.application";
+/* Begin XCRemoteSwiftPackageReference section */
+		EMOJITEXT00000001 /* XCRemoteSwiftPackageReference "EmojiText" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/divadretlaw/EmojiText.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.0;
+			};
 		};
-/* End PBXNativeTarget section */
+/* End XCRemoteSwiftPackageReference section */
 
-/* Begin PBXNativeTarget section (Tests) */
+/* Begin XCSwiftPackageProductDependency section */
+		EMOJITEXT00000002 /* EmojiText */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EMOJITEXT00000001 /* XCRemoteSwiftPackageReference "EmojiText" */;
+			productName = EmojiText;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin PBXNativeTarget section */
 		9AAF00010000000000000001 /* SocialFusionTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9AB100010000000000000001 /* Build configuration list for PBXNativeTarget "SocialFusionTests" */;
@@ -725,7 +749,7 @@ children = (
 			);
 			buildRules = (
 			);
-dependencies = (
+			dependencies = (
 				9AB300010000000000000001 /* PBXTargetDependency */,
 			);
 			name = SocialFusionTests;
@@ -733,7 +757,27 @@ dependencies = (
 			productReference = 9AAA00010000000000000001 /* SocialFusionTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-/* End PBXNativeTarget section (Tests) */
+		ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9DBDDEBEFEE0F4BBB7417EB6 /* Build configuration list for PBXNativeTarget "SocialFusion" */;
+			buildPhases = (
+				30D6348EFBD3AC8B77C5B200 /* Sources */,
+				EMOJITEXT00000004 /* Frameworks */,
+				A0FC626B1A7536153165DC4C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SocialFusion;
+			packageProductDependencies = (
+				EMOJITEXT00000002 /* EmojiText */,
+			);
+			productName = SocialFusion;
+			productReference = 2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
 		19B8E72CFBCD5EE4BD467684 /* Project object */ = {
@@ -752,10 +796,13 @@ dependencies = (
 			);
 			mainGroup = 4383FFA39CCDB6E82979FB67;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EMOJITEXT00000001 /* XCRemoteSwiftPackageReference "EmojiText" */,
+			);
 			productRefGroup = A2991A82CF7626115148BD35 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-targets = (
+			targets = (
 				ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */,
 				9AAF00010000000000000001 /* SocialFusionTests */,
 			);
@@ -779,34 +826,6 @@ targets = (
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXFrameworksBuildPhase section (Tests) */
-		9AAD00010000000000000001 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXFrameworksBuildPhase section (Tests) */
-
-/* Begin PBXContainerItemProxy section (Tests) */
-		9AB200010000000000000001 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 19B8E72CFBCD5EE4BD467684 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = ADE2AF9D7E04A5DE3C122C20;
-			remoteInfo = SocialFusion;
-		};
-/* End PBXContainerItemProxy section (Tests) */
-
-/* Begin PBXTargetDependency section (Tests) */
-		9AB300010000000000000001 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */;
-			targetProxy = 9AB200010000000000000001 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section (Tests) */
 
 /* Begin PBXSourcesBuildPhase section */
 		30D6348EFBD3AC8B77C5B200 /* Sources */ = {
@@ -974,12 +993,10 @@ targets = (
 				7D06D75D838968889979F837 /* FullscreenMediaCoordinator.swift in Sources */,
 				BDD57945C280229F6893835C /* AuthenticatedVideoAssetLoader.swift in Sources */,
 				F3393DBB06D2247962193CD7 /* AccountAccessor.swift in Sources */,
+				AF14EACCCCCDACC6814028DA /* CustomEmojiCache.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section */
-
-/* Begin PBXSourcesBuildPhase section (Tests) */
 		9AAE00010000000000000001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -991,7 +1008,15 @@ targets = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-/* End PBXSourcesBuildPhase section (Tests) */
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		9AB300010000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */;
+			targetProxy = 9AB200010000000000000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXVariantGroup section */
 		6C1EDDB948E316C5193EEDDD /* LaunchScreen.storyboard */ = {
@@ -1087,6 +1112,50 @@ targets = (
 			};
 			name = Release;
 		};
+		9AB000010000000000000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
+				INFOPLIST_FILE = SocialFusionTests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialFusion.app/SocialFusion";
+			};
+			name = Debug;
+		};
+		9AB000020000000000000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
+				INFOPLIST_FILE = SocialFusionTests/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialFusion.app/SocialFusion";
+			};
+			name = Release;
+		};
 		F2FFAB5AEE96D442BF543427 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1178,7 +1247,7 @@ targets = (
 		};
 /* End XCBuildConfiguration section */
 
-/* Begin XCConfigurationList section (Tests) */
+/* Begin XCConfigurationList section */
 		9AB100010000000000000001 /* Build configuration list for PBXNativeTarget "SocialFusionTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1188,56 +1257,6 @@ targets = (
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-/* End XCConfigurationList section (Tests) */
-
-/* Begin XCBuildConfiguration section (Tests) */
-9AB000010000000000000001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialFusion.app/SocialFusion";
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				INFOPLIST_FILE = SocialFusionTests/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 9XH4G9XR8X;
-			};
-			name = Debug;
-		};
-9AB000020000000000000001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialFusion.app/SocialFusion";
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				INFOPLIST_FILE = SocialFusionTests/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.tests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 9XH4G9XR8X;
-			};
-			name = Release;
-		};
-/* End XCBuildConfiguration section (Tests) */
-
-/* Begin XCConfigurationList section */
 		9DBDDEBEFEE0F4BBB7417EB6 /* Build configuration list for PBXNativeTarget "SocialFusion" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

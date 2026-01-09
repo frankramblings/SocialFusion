@@ -174,6 +174,24 @@ struct ExpandingReplyBanner: View {
         let cleanUsername = username.hasPrefix("@") ? String(username.dropFirst()) : username
         return cleanUsername
     }
+    
+    /// Get the emoji map for the display username (from parent post author)
+    private var displayUsernameEmojiMap: [String: String]? {
+        // Priority 1: Use emoji from the fetched parent post if available
+        if let parent = parent, !parent.isPlaceholder {
+            return parent.authorEmojiMap
+        }
+
+        // Priority 2: Check cache for parent post emoji
+        if let parentId = parentId {
+            let cacheKey = "\(network.rawValue):\(parentId)"
+            if let cachedParent = parentCache.getCachedPost(id: cacheKey), !cachedParent.isPlaceholder {
+                return cachedParent.authorEmojiMap
+            }
+        }
+
+        return nil
+    }
 
     private var platformColor: Color {
         switch network {
@@ -209,9 +227,19 @@ struct ExpandingReplyBanner: View {
                         .font(.caption)
                         .foregroundColor(platformColor)
 
-                    Text("Replying to \(displayUsername)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 0) {
+                        Text("Replying to ")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        EmojiDisplayNameText(
+                            displayUsername,
+                            emojiMap: displayUsernameEmojiMap,
+                            font: .caption,
+                            fontWeight: .regular,
+                            foregroundColor: .secondary,
+                            lineLimit: 1
+                        )
+                    }
 
                     if isLoading {
                         ProgressView()

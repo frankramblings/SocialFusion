@@ -11,6 +11,7 @@ struct PostAuthorView: View {
     private let stableAuthorUsername: String
     private let stablePlatform: SocialPlatform
     private let stableCreatedAt: Date
+    private let stableAuthorEmojiMap: [String: String]?
 
     init(post: Post, onAuthorTap: @escaping () -> Void) {
         self.post = post
@@ -22,6 +23,7 @@ struct PostAuthorView: View {
         self.stableAuthorUsername = post.authorUsername
         self.stablePlatform = post.platform
         self.stableCreatedAt = post.createdAt
+        self.stableAuthorEmojiMap = post.authorEmojiMap
     }
 
     var body: some View {
@@ -40,11 +42,14 @@ struct PostAuthorView: View {
             // Author info
             VStack(alignment: .leading, spacing: 2) {
                 Button(action: onAuthorTap) {
-                    Text(stableAuthorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
+                    EmojiDisplayNameText(
+                        stableAuthorName,
+                        emojiMap: stableAuthorEmojiMap,
+                        font: .subheadline,
+                        fontWeight: .semibold,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
                 }
                 .buttonStyle(PlainButtonStyle())
 
