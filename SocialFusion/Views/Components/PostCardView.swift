@@ -203,6 +203,8 @@ struct PostCardView: View {
                     let displayReplyID = dp.inReplyToID
                     if let username = displayUsername, !username.isEmpty {
                         newReplyInfo = (username, displayReplyID, dp.platform)
+                    } else if displayReplyID != nil {
+                        newReplyInfo = ("someone", displayReplyID, dp.platform)
                     } else {
                         newReplyInfo = nil
                     }
@@ -215,6 +217,8 @@ struct PostCardView: View {
                 let displayReplyID = dp.inReplyToID
                 if let username = displayUsername, !username.isEmpty {
                     newReplyInfo = (username, displayReplyID, dp.platform)
+                } else if displayReplyID != nil {
+                    newReplyInfo = ("someone", displayReplyID, dp.platform)
                 } else {
                     newReplyInfo = nil
                 }
@@ -256,9 +260,15 @@ struct PostCardView: View {
                 newPoll = dp.poll
             }
             
-            // Only update if poll changed (compare by ID if available, or by reference)
-            if cachedPoll?.id != newPoll?.id {
+            // Only update if poll changed (compare by value)
+            if cachedPoll != newPoll {
                 cachedPoll = newPoll
+            }
+
+            // Update cached booster emoji map - only update if value changed
+            let newBoosterEmojiMap = post.boosterEmojiMap
+            if cachedBoosterEmojiMap != newBoosterEmojiMap {
+                cachedBoosterEmojiMap = newBoosterEmojiMap
             }
         }
     }
@@ -273,13 +283,13 @@ struct PostCardView: View {
             let hasOriginalPost = originalPostRef != nil
             let hasBoostedBy = (boostedBy ?? postBoostedByRef) != nil
             let hasReplyInfo = replyInfo != nil
-            print("🔍 [PostCardView] Banner state for post \(post.id):")
-            print("  - hasOriginalPost: \(hasOriginalPost)")
-            print("  - hasBoostedBy: \(hasBoostedBy) (boostedBy param: \(boostedBy ?? "nil"), post.boostedBy: \(postBoostedByRef ?? "nil"))")
-            print("  - hasReplyInfo: \(hasReplyInfo)")
+            DebugLog.verbose("🔍 [PostCardView] Banner state for post \(post.id):")
+            DebugLog.verbose("  - hasOriginalPost: \(hasOriginalPost)")
+            DebugLog.verbose("  - hasBoostedBy: \(hasBoostedBy) (boostedBy param: \(boostedBy ?? "nil"), post.boostedBy: \(postBoostedByRef ?? "nil"))")
+            DebugLog.verbose("  - hasReplyInfo: \(hasReplyInfo)")
             if hasOriginalPost {
-                print("  - originalPost.id: \(originalPostRef?.id ?? "nil")")
-                print("  - originalPost.content.isEmpty: \(originalPostRef?.content.isEmpty ?? true)")
+                DebugLog.verbose("  - originalPost.id: \(originalPostRef?.id ?? "nil")")
+                DebugLog.verbose("  - originalPost.content.isEmpty: \(originalPostRef?.content.isEmpty ?? true)")
             }
         }
     }
@@ -480,9 +490,13 @@ struct PostCardView: View {
                 _cachedReplyInfo = State(initialValue: (username, originalPost.inReplyToID, originalPost.platform))
             } else if let username = entry.post.inReplyToUsername, !username.isEmpty {
                 _cachedReplyInfo = State(initialValue: (username, entry.post.inReplyToID, entry.post.platform))
+            } else if let replyId = originalPost.inReplyToID ?? entry.post.inReplyToID {
+                _cachedReplyInfo = State(initialValue: ("someone", replyId, originalPost.platform))
             }
         } else if let username = entry.post.inReplyToUsername, !username.isEmpty {
             _cachedReplyInfo = State(initialValue: (username, entry.post.inReplyToID, entry.post.platform))
+        } else if let replyId = entry.post.inReplyToID {
+            _cachedReplyInfo = State(initialValue: ("someone", replyId, entry.post.platform))
         }
         
         // Initialize attachments
@@ -608,9 +622,13 @@ struct PostCardView: View {
                 _cachedReplyInfo = State(initialValue: (username, originalPost.inReplyToID, originalPost.platform))
             } else if let username = post.inReplyToUsername, !username.isEmpty {
                 _cachedReplyInfo = State(initialValue: (username, post.inReplyToID, post.platform))
+            } else if let replyId = originalPost.inReplyToID ?? post.inReplyToID {
+                _cachedReplyInfo = State(initialValue: ("someone", replyId, originalPost.platform))
             }
         } else if let username = post.inReplyToUsername, !username.isEmpty {
             _cachedReplyInfo = State(initialValue: (username, post.inReplyToID, post.platform))
+        } else if let replyId = post.inReplyToID {
+            _cachedReplyInfo = State(initialValue: ("someone", replyId, post.platform))
         }
         
         // Initialize attachments
@@ -653,7 +671,7 @@ struct PostCardView: View {
                         try? await Task.sleep(nanoseconds: 10_000_000)  // Defer to avoid cycles
                     // CRITICAL FIX: Use cached boost handle instead of accessing post.boostedBy synchronously
                     let finalBoostedBy = cachedBoostHandle ?? handleToShow
-                    print("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
+                    DebugLog.verbose("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
                     logBoostBanner(
                         boostHandle: handleToShow, postBoostedBy: cachedBoostHandle,
                         finalBoostedBy: finalBoostedBy)
@@ -680,7 +698,7 @@ struct PostCardView: View {
                         try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
                         // CRITICAL FIX: Use cached boost handle instead of accessing post.boostedBy synchronously
                         let finalBoostedBy = cachedBoostHandle ?? handleToShow
-                        print("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
+                        DebugLog.verbose("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
                         logBoostBanner(
                             boostHandle: handleToShow, postBoostedBy: cachedBoostHandle,
                             finalBoostedBy: finalBoostedBy)
@@ -708,7 +726,7 @@ struct PostCardView: View {
                 .onAppear {
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                    print("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
+                    DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
                     logReplyInfo()
                 }
             }
@@ -738,12 +756,13 @@ struct PostCardView: View {
         if let poll = cachedPoll {
             PostPollView(
                 poll: poll,
-                onVote: { optionIndex in
+                allowsVoting: true,
+                onVote: { optionIndexes in
                     Task {
                         do {
-                            try await serviceManager.voteInPoll(post: displayPost, optionIndex: optionIndex)
+                            try await serviceManager.voteInPoll(post: displayPost, choices: optionIndexes)
                         } catch {
-                            print("❌ Failed to vote: \(error.localizedDescription)")
+                            DebugLog.verbose("❌ Failed to vote: \(error.localizedDescription)")
                         }
                     }
                 }
@@ -769,9 +788,9 @@ struct PostCardView: View {
                     .onAppear {
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                        print("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
+                        DebugLog.verbose("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
                         for (index, att) in attachmentsToShow.enumerated() {
-                            print("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
+                            DebugLog.verbose("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
                         }
                     }
                 }

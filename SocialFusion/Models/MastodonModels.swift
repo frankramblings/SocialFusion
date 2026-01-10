@@ -96,6 +96,37 @@ public struct MastodonCard: Codable {
     }
 }
 
+// Poll
+public struct MastodonPoll: Codable {
+    public struct MastodonPollOption: Codable {
+        public let title: String
+        public let votesCount: Int?
+
+        public enum CodingKeys: String, CodingKey {
+            case title
+            case votesCount = "votes_count"
+        }
+    }
+
+    public let id: String
+    public let expiresAt: String?
+    public let expired: Bool
+    public let multiple: Bool
+    public let votesCount: Int
+    public let votersCount: Int?
+    public let voted: Bool?
+    public let ownVotes: [Int]?
+    public let options: [MastodonPollOption]
+
+    public enum CodingKeys: String, CodingKey {
+        case id, expired, multiple, voted, options
+        case expiresAt = "expires_at"
+        case votesCount = "votes_count"
+        case votersCount = "voters_count"
+        case ownVotes = "own_votes"
+    }
+}
+
 // Status (Post)
 public class MastodonStatus: Codable {
     public let id: String
@@ -121,6 +152,7 @@ public class MastodonStatus: Codable {
     public let reblogged: Bool?
     public let bookmarked: Bool?
     public let card: MastodonCard?  // Link preview card
+    public let poll: MastodonPoll?
 
     public init(
         id: String,
@@ -145,7 +177,8 @@ public class MastodonStatus: Codable {
         favourited: Bool?,
         reblogged: Bool?,
         bookmarked: Bool?,
-        card: MastodonCard? = nil
+        card: MastodonCard? = nil,
+        poll: MastodonPoll? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -170,6 +203,7 @@ public class MastodonStatus: Codable {
         self.reblogged = reblogged
         self.bookmarked = bookmarked
         self.card = card
+        self.poll = poll
     }
 
     public enum CodingKeys: String, CodingKey {
@@ -184,6 +218,7 @@ public class MastodonStatus: Codable {
         case inReplyToId = "in_reply_to_id"
         case inReplyToAccountId = "in_reply_to_account_id"
         case favourited, reblogged, bookmarked
+        case poll
     }
 }
 

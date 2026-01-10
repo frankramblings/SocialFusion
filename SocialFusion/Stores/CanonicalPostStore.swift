@@ -105,6 +105,7 @@ public final class CanonicalPostStore {
       let summary = boostSummaryText(for: entry.canonicalPostID)
       if let summary = summary {
         canonicalPost.post.boostedBy = summary
+        canonicalPost.post.boosterEmojiMap = boostEmojiMap(for: entry.canonicalPostID)
       }
       return canonicalPost.post
     }
@@ -126,6 +127,22 @@ public final class CanonicalPostStore {
       return "\(actors[0].displayName) and \(actors[1].displayName)"
     }
     return "\(actors[0].displayName) and \(actors.count - 1) others"
+  }
+
+  private func boostEmojiMap(for canonicalPostID: String) -> [String: String]? {
+    guard let canonicalPost = postsByID[canonicalPostID] else { return nil }
+    let actors = canonicalPost.socialContext.repostActors
+    guard !actors.isEmpty else { return nil }
+
+    var merged: [String: String] = [:]
+    for actor in actors {
+      guard let emojiMap = actor.emojiMap else { continue }
+      for (shortcode, url) in emojiMap where merged[shortcode] == nil {
+        merged[shortcode] = url
+      }
+    }
+
+    return merged.isEmpty ? nil : merged
   }
 
   public func sortKeyForCanonicalPost(_ canonicalPostID: String) -> Date {

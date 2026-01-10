@@ -230,6 +230,21 @@ enum FeatureFlag: String {
     case replyFiltering = "reply_filtering"
 }
 
+enum DebugLog {
+    static var isVerboseEnabled: Bool {
+        #if DEBUG
+        return FeatureFlagManager.isEnabled(.verboseLogging) || FeatureFlagManager.isEnabled(.debugMode)
+        #else
+        return false
+        #endif
+    }
+
+    static func verbose(_ message: @autoclosure () -> String) {
+        guard isVerboseEnabled else { return }
+        print(message())
+    }
+}
+
 // MARK: - SwiftUI View Extension
 
 extension View {

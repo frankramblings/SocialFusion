@@ -3929,11 +3929,16 @@ public final class BlueskyService: Sendable {
             return []
         }
 
-        return Set(
-            follows.compactMap { follow in
-                guard let handle = follow["handle"] as? String else { return nil }
-                return UserID(value: handle, platform: .bluesky)
-            })
+        var results = Set<UserID>()
+        for follow in follows {
+            if let handle = follow["handle"] as? String, !handle.isEmpty {
+                results.insert(UserID(value: handle, platform: .bluesky))
+            }
+            if let did = follow["did"] as? String, !did.isEmpty {
+                results.insert(UserID(value: did, platform: .bluesky))
+            }
+        }
+        return results
     }
 
 }

@@ -185,7 +185,7 @@ struct FetchQuotePostView: View {
         Group {
             if let post = quotedPost, hasMeaningfulContent(post) {
                 QuotedPostView(post: post) {
-                    print("🔗 [FetchQuotePostView] Quote post tapped: \(post.id)")
+                    DebugLog.verbose("🔗 [FetchQuotePostView] Quote post tapped: \(post.id)")
                     handleQuoteTap(for: post)
                 }
             } else if let fallbackPost = fallbackPost, hasMeaningfulContent(fallbackPost) {
@@ -228,7 +228,7 @@ struct FetchQuotePostView: View {
             }
         }
         .onAppear {
-            print("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
             Task {
                 await fetchPost()
             }
@@ -237,10 +237,10 @@ struct FetchQuotePostView: View {
 
     private func handleQuoteTap(for post: Post) {
         if let onQuotePostTap = onQuotePostTap {
-            print("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
             onQuotePostTap(post)
         } else {
-            print("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
             navigationEnvironment.navigateToPost(post)
         }
     }
@@ -254,9 +254,9 @@ struct FetchQuotePostView: View {
         let isValid = hasText || hasMedia || hasAuthor
         
         if !isValid {
-            print("🔗 [FetchQuotePostView] Post has no meaningful content - text: \(hasText), media: \(hasMedia), author: \(hasAuthor)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Post has no meaningful content - text: \(hasText), media: \(hasMedia), author: \(hasAuthor)")
         } else {
-            print("🔗 [FetchQuotePostView] Post has meaningful content - text: \(hasText), media: \(hasMedia) (\(post.attachments.count) attachments), author: \(hasAuthor)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Post has meaningful content - text: \(hasText), media: \(hasMedia) (\(post.attachments.count) attachments), author: \(hasAuthor)")
         }
         
         return isValid
@@ -264,7 +264,7 @@ struct FetchQuotePostView: View {
 
     private func fetchPost() async {
         guard retryCount <= maxRetries else {
-            print("🔗 [FetchQuotePostView] Max retries exceeded for URL: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded for URL: \(url)")
             isLoading = false
             error = NSError(
                 domain: "FetchQuotePostView",
@@ -274,7 +274,7 @@ struct FetchQuotePostView: View {
             return
         }
 
-        print("🔗 [FetchQuotePostView] Fetching post for URL: \(url) (attempt \(retryCount + 1))")
+        DebugLog.verbose("🔗 [FetchQuotePostView] Fetching post for URL: \(url) (attempt \(retryCount + 1))")
 
         isLoading = true
         error = nil
@@ -296,7 +296,7 @@ struct FetchQuotePostView: View {
                 // This covers Mastodon, Pleroma, Akkoma, Misskey, Pixelfed, GoToSocial, etc.
                 post = try await fetchMastodonPost()
             } else {
-                print("🔗 [FetchQuotePostView] Unsupported platform for URL: \(url)")
+                DebugLog.verbose("🔗 [FetchQuotePostView] Unsupported platform for URL: \(url)")
                 throw NSError(
                     domain: "FetchQuotePostView",
                     code: 2,
@@ -315,7 +315,7 @@ struct FetchQuotePostView: View {
                 } else {
                     // Post was fetched but has no meaningful content - fallback to LinkPreview
                     // Don't throw error, just don't set the quotedPost
-                    print("🔗 [FetchQuotePostView] Post fetched but has no meaningful content, falling back to LinkPreview: \(url)")
+                    DebugLog.verbose("🔗 [FetchQuotePostView] Post fetched but has no meaningful content, falling back to LinkPreview: \(url)")
                     await MainActor.run {
                         self.isLoading = false
                         self.error = nil
@@ -325,7 +325,7 @@ struct FetchQuotePostView: View {
             } else {
                 // Post fetch returned nil - fallback to LinkPreview instead of error
                 // This ensures the post still displays even if quote fetch fails
-                print("🔗 [FetchQuotePostView] Post fetch returned nil, falling back to LinkPreview: \(url)")
+                DebugLog.verbose("🔗 [FetchQuotePostView] Post fetch returned nil, falling back to LinkPreview: \(url)")
                 await MainActor.run {
                     self.isLoading = false
                     self.error = nil
@@ -334,7 +334,7 @@ struct FetchQuotePostView: View {
             }
 
         } catch {
-            print("🔗 [FetchQuotePostView] Error fetching post: \(error)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Error fetching post: \(error)")
             await MainActor.run {
                 self.retryCount += 1
                 self.isLoading = false
@@ -344,14 +344,14 @@ struct FetchQuotePostView: View {
             // Retry with exponential backoff
             if retryCount <= maxRetries {
                 let delay = min(pow(2.0, Double(retryCount)), 30.0)
-                print("🔗 [FetchQuotePostView] Retrying in \(delay) seconds...")
+                DebugLog.verbose("🔗 [FetchQuotePostView] Retrying in \(delay) seconds...")
 
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 await fetchPost()
             } else {
                 // After max retries, fallback to LinkPreview instead of showing error
                 // This ensures the post still displays
-                print("🔗 [FetchQuotePostView] Max retries exceeded, falling back to LinkPreview")
+                DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded, falling back to LinkPreview")
                 await MainActor.run {
                     self.isLoading = false
                     self.error = nil  // Clear error so it falls through to LinkPreview
@@ -367,7 +367,7 @@ struct FetchQuotePostView: View {
         // Handle AT Protocol URIs directly (at://did:plc:xxx/app.bsky.feed.post/xxx)
         if url.scheme == "at" {
             let atUri = url.absoluteString
-            print("🔗 [FetchQuotePostView] Using AT URI directly: \(atUri)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Using AT URI directly: \(atUri)")
             return try await serviceManager.fetchBlueskyPostByID(atUri)
         }
 
@@ -411,7 +411,7 @@ struct FetchQuotePostView: View {
         }
 
         guard let postID = postID, !postID.isEmpty else {
-            print("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
@@ -423,15 +423,15 @@ struct FetchQuotePostView: View {
         // For now, we'll use the handle-based URI which the API should accept
         // The API needs a full at:// URI, so we need to resolve the handle to a DID first
         if let handle = handle {
-            print("🔗 [FetchQuotePostView] Resolving handle '\(handle)' to construct AT URI for post: \(postID)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Resolving handle '\(handle)' to construct AT URI for post: \(postID)")
             // Construct a handle-based URI - the API will resolve it
             // Format: at://handle/app.bsky.feed.post/postid
             let atUri = "at://\(handle)/app.bsky.feed.post/\(postID)"
-            print("🔗 [FetchQuotePostView] Constructed AT URI: \(atUri)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Constructed AT URI: \(atUri)")
             return try await serviceManager.fetchBlueskyPostByID(atUri)
         } else {
             // No handle available, cannot construct proper AT URI
-            print("🔗 [FetchQuotePostView] No handle found in URL, cannot construct AT URI: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] No handle found in URL, cannot construct AT URI: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
@@ -453,7 +453,7 @@ struct FetchQuotePostView: View {
         // CRITICAL: Use the Mastodon search API to resolve remote posts
         // The search API with resolve=true will federate the post to the user's instance
         // This is the correct way to fetch posts from other instances
-        print("🔗 [FetchQuotePostView] Using search API to resolve remote post URL: \(url)")
+        DebugLog.verbose("🔗 [FetchQuotePostView] Using search API to resolve remote post URL: \(url)")
         
         do {
             let searchResult = try await serviceManager.searchMastodonWithPosts(
@@ -464,14 +464,14 @@ struct FetchQuotePostView: View {
             )
             
             if let firstPost = searchResult.first {
-                print("🔗 [FetchQuotePostView] Successfully resolved remote post: \(firstPost.id)")
+                DebugLog.verbose("🔗 [FetchQuotePostView] Successfully resolved remote post: \(firstPost.id)")
                 return firstPost
             } else {
-                print("🔗 [FetchQuotePostView] Search returned no results for URL: \(url)")
+                DebugLog.verbose("🔗 [FetchQuotePostView] Search returned no results for URL: \(url)")
                 return nil
             }
         } catch {
-            print("🔗 [FetchQuotePostView] Search API failed: \(error), falling back to direct fetch")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Search API failed: \(error), falling back to direct fetch")
             
             // Fallback: try direct fetch if search fails (for local posts)
             return try await fetchMastodonPostDirect(account: account)
@@ -485,7 +485,7 @@ struct FetchQuotePostView: View {
         let components = path.split(separator: "/").map(String.init)
 
         guard components.count >= 1 else {
-            print("🔗 [FetchQuotePostView] Invalid fediverse URL format: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Invalid fediverse URL format: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
@@ -560,7 +560,7 @@ struct FetchQuotePostView: View {
         }
 
         guard let postID = postID, !postID.isEmpty else {
-            print("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Could not extract post ID from URL: \(url)")
             throw NSError(
                 domain: "FetchQuotePostView",
                 code: 1,
@@ -568,7 +568,7 @@ struct FetchQuotePostView: View {
             )
         }
 
-        print("🔗 [FetchQuotePostView] Extracted fediverse post ID: \(postID) from URL: \(url)")
+        DebugLog.verbose("🔗 [FetchQuotePostView] Extracted fediverse post ID: \(postID) from URL: \(url)")
         return try await serviceManager.fetchMastodonStatus(id: postID, account: account)
     }
 }

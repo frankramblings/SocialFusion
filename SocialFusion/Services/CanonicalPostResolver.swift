@@ -92,6 +92,7 @@ enum CanonicalPostResolver {
       id: actorID,
       handle: actorHandle,
       displayName: displayName,
+      emojiMap: post.boosterEmojiMap,
       platform: post.platform,
       accountID: sourceAccountID
     )

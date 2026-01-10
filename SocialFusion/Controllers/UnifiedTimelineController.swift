@@ -84,9 +84,6 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Update posts with proper state management
     private func updatePosts(_ newPosts: [Post]) {
-        // Prevent unnecessary updates that could cause cycles
-        guard self.posts != newPosts else { return }
-
         self.posts = newPosts
         if FeatureFlagManager.isEnabled(.postActionsV2) {
             newPosts.forEach { post in

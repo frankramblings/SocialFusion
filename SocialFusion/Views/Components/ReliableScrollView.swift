@@ -106,13 +106,13 @@ struct ReliableScrollView<Content: View>: UIViewRepresentable {
 
             if abs(scrollView.contentOffset.y - targetY) > 1 {
                 scrollView.setContentOffset(CGPoint(x: 0, y: targetY), animated: false)
-                print("🎯 ReliableScrollView: Restored to top (y: \(targetY))")
+                DebugLog.verbose("🎯 ReliableScrollView: Restored to top (y: \(targetY))")
             }
 
         case .index(let index, let offset):
             // Safety check: Don't restore to invalid positions
             guard index >= 0 && scrollView.contentSize.height > 0 else {
-                print(
+                DebugLog.verbose(
                     "🎯 ReliableScrollView: Invalid index \(index) or content size, falling back to top"
                 )
                 scrollView.setContentOffset(
@@ -134,7 +134,7 @@ struct ReliableScrollView<Content: View>: UIViewRepresentable {
 
             if abs(scrollView.contentOffset.y - clampedY) > 10 {  // Only scroll if significantly different
                 scrollView.setContentOffset(CGPoint(x: 0, y: clampedY), animated: false)
-                print("🎯 ReliableScrollView: Restored to index \(index) (y: \(clampedY))")
+                DebugLog.verbose("🎯 ReliableScrollView: Restored to index \(index) (y: \(clampedY))")
             }
         }
     }
@@ -238,10 +238,10 @@ extension ReliableScrollView {
             ReliableScrollView(
                 scrollPosition: $position,
                 onScrollPositionChanged: { index, offset in
-                    print("Position changed: \(index), \(offset)")
+                    DebugLog.verbose("Position changed: \(index), \(offset)")
                 },
                 onPostRead: { postId in
-                    print("Post read: \(postId)")
+                    DebugLog.verbose("Post read: \(postId)")
                 }
             ) {
                 LazyVStack {

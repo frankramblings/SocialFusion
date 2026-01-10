@@ -200,6 +200,23 @@ public struct EmojiTextApp: View {
     }
 }
 
+private func makeRemoteEmojis(from emojiMap: [String: URL]) -> [RemoteEmoji] {
+    var remoteEmojis: [RemoteEmoji] = []
+    remoteEmojis.reserveCapacity(emojiMap.count * 2)
+
+    for (shortcode, url) in emojiMap {
+        guard !shortcode.isEmpty else { continue }
+        remoteEmojis.append(RemoteEmoji(shortcode: shortcode, url: url))
+
+        let colonWrapped = ":\(shortcode):"
+        if shortcode != colonWrapped {
+            remoteEmojis.append(RemoteEmoji(shortcode: colonWrapped, url: url))
+        }
+    }
+
+    return remoteEmojis
+}
+
 /// View that uses the EmojiText library for proper inline custom emoji rendering
 /// Caches the parsed AttributedString and uses RemoteEmoji for async emoji loading
 private struct CachedEmojiTextView: View {
@@ -217,9 +234,7 @@ private struct CachedEmojiTextView: View {
         Group {
             if let attributed = attributedString {
                 // Convert custom emoji to RemoteEmoji format for EmojiText library
-                let remoteEmojis: [RemoteEmoji] = (customEmoji ?? [:]).map { shortcode, url in
-                    RemoteEmoji(shortcode: shortcode, url: url)
-                }
+                let remoteEmojis: [RemoteEmoji] = makeRemoteEmojis(from: customEmoji ?? [:])
                 
                 if remoteEmojis.isEmpty {
                     // No custom emoji - render attributed string directly
@@ -298,9 +313,7 @@ public struct EmojiDisplayNameText: View {
     public var body: some View {
         if let emojiMap = emojiMap, !emojiMap.isEmpty {
             // Convert to RemoteEmoji for EmojiText library
-            let remoteEmojis: [RemoteEmoji] = emojiMap.map { shortcode, url in
-                RemoteEmoji(shortcode: shortcode, url: url)
-            }
+            let remoteEmojis: [RemoteEmoji] = makeRemoteEmojis(from: emojiMap)
             
             EmojiText(text, emojis: remoteEmojis)
                 .font(font)

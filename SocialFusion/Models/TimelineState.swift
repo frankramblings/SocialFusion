@@ -132,7 +132,7 @@ class TimelineState: ObservableObject {
         updateRestorationSuggestions()
 
         if config.timelineLogging {
-            print(
+            DebugLog.verbose(
                 "🎯 Smart restoration result: index=\(result.index?.description ?? "nil"), offset=\(result.offset)"
             )
         }
@@ -154,7 +154,7 @@ class TimelineState: ObservableObject {
         showRestoreOptions = false
 
         if config.verboseMode {
-            print("✅ Applied restoration suggestion: \(suggestion.title)")
+            DebugLog.verbose("✅ Applied restoration suggestion: \(suggestion.title)")
         }
     }
 
@@ -189,7 +189,7 @@ class TimelineState: ObservableObject {
         updateRestorationSuggestions()
 
         if config.timelineLogging {
-            print("📱 TimelineState: Updated with \(entries.count) entries, \(unreadCount) unread")
+            DebugLog.verbose("📱 TimelineState: Updated with \(entries.count) entries, \(unreadCount) unread")
         }
     }
 
@@ -267,7 +267,7 @@ class TimelineState: ObservableObject {
             let isNotRead = !isPostRead(post.id)
 
             if config.verboseMode && isRecent && isNotRead {
-                print("📱 TimelineState: Marking post as new (first-time user): \(post.id)")
+                DebugLog.verbose("📱 TimelineState: Marking post as new (first-time user): \(post.id)")
             }
 
             return isRecent && isNotRead
@@ -278,7 +278,7 @@ class TimelineState: ObservableObject {
         let isNotRead = !isPostRead(post.id)
 
         if config.verboseMode && isNewerThanLastVisit && isNotRead {
-            print("📱 TimelineState: Marking post as new (newer than last visit): \(post.id)")
+            DebugLog.verbose("📱 TimelineState: Marking post as new (newer than last visit): \(post.id)")
         }
 
         return isNewerThanLastVisit && isNotRead
@@ -350,13 +350,13 @@ class TimelineState: ObservableObject {
         let newUnreadCount = newEntries.count
 
         if config.verboseMode {
-            print(
+            DebugLog.verbose(
                 "📱 TimelineState: Updating unread count - total entries: \(entries.count), new entries: \(newEntries.count), read posts: \(readPostIds.count)"
             )
 
             // Log a few example entries for debugging
             for (index, entry) in entries.prefix(5).enumerated() {
-                print(
+                DebugLog.verbose(
                     "  Entry \(index): isNew=\(entry.isNew), isRead=\(entry.isRead), id=\(entry.post.id)"
                 )
             }
@@ -366,7 +366,7 @@ class TimelineState: ObservableObject {
             unreadCount = newUnreadCount
 
             if config.timelineLogging {
-                print("📱 TimelineState: Unread count updated to \(unreadCount) (new posts only)")
+                DebugLog.verbose("📱 TimelineState: Unread count updated to \(unreadCount) (new posts only)")
             }
         }
     }
@@ -452,11 +452,11 @@ class TimelineState: ObservableObject {
         }
 
         if config.verboseMode {
-            print("📱 TimelineState: Loaded persisted state:")
-            print("  - Read posts: \(readPostIds.count)")
-            print("  - Scroll position: \(scrollPosition ?? "none")")
-            print("  - Last visit date: \(lastVisitDate)")
-            print("  - Time since last visit: \(Date().timeIntervalSince(lastVisitDate)) seconds")
+            DebugLog.verbose("📱 TimelineState: Loaded persisted state:")
+            DebugLog.verbose("  - Read posts: \(readPostIds.count)")
+            DebugLog.verbose("  - Scroll position: \(scrollPosition ?? "none")")
+            DebugLog.verbose("  - Last visit date: \(lastVisitDate)")
+            DebugLog.verbose("  - Time since last visit: \(Date().timeIntervalSince(lastVisitDate)) seconds")
         }
     }
 
@@ -497,7 +497,7 @@ class TimelineState: ObservableObject {
     /// Optimistically update a post for immediate UI feedback
     func optimisticallyUpdatePost(_ postId: String, updateBlock: (inout Post) -> Void) {
         guard let index = entries.firstIndex(where: { $0.id == postId }) else {
-            print("⚠️ TimelineState: Could not find post \(postId) for optimistic update")
+            DebugLog.verbose("⚠️ TimelineState: Could not find post \(postId) for optimistic update")
             return
         }
 
@@ -511,7 +511,7 @@ class TimelineState: ObservableObject {
             isNew: entries[index].isNew
         )
 
-        print("✅ TimelineState: Optimistically updated post \(postId)")
+        DebugLog.verbose("✅ TimelineState: Optimistically updated post \(postId)")
     }
 
     // MARK: - Utility Methods
@@ -541,7 +541,7 @@ class TimelineState: ObservableObject {
     func debugResetReadPosts() {
         guard config.verboseMode else { return }
 
-        print("🐛 DEBUG: Resetting read posts to test unread indicators")
+        DebugLog.verbose("🐛 DEBUG: Resetting read posts to test unread indicators")
 
         // Clear read posts
         readPostIds.removeAll()
@@ -560,7 +560,7 @@ class TimelineState: ObservableObject {
         // Recalculate unread count
         updateUnreadCount()
 
-        print("🐛 DEBUG: Reset complete - \(unreadCount) posts should now show as unread")
+        DebugLog.verbose("🐛 DEBUG: Reset complete - \(unreadCount) posts should now show as unread")
     }
 
     /// Export state for debugging

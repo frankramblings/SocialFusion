@@ -2061,14 +2061,14 @@ public final class MastodonService: @unchecked Sendable {
     }
 
     /// Vote in a poll on Mastodon
-    func voteInPoll(pollId: String, optionIndex: Int, account: SocialAccount) async throws {
+    func voteInPoll(pollId: String, choices: [Int], account: SocialAccount) async throws {
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
         guard let url = URL(string: "\(serverUrl)/api/v1/polls/\(pollId)/votes") else {
             throw ServiceError.invalidInput(reason: "Invalid poll vote URL")
         }
 
         let parameters: [String: Any] = [
-            "choices": [optionIndex]
+            "choices": choices
         ]
 
         let request = try await createJSONRequest(
@@ -2197,6 +2197,10 @@ public final class MastodonService: @unchecked Sendable {
         print("🔍 [Emoji] extractEmojiMap called for status \(status.id.prefix(10)), emojis array count: \(status.emojis.count)")
         guard !status.emojis.isEmpty else {
             print("📝 [Emoji] No emojis found in status \(status.id.prefix(10))")
+            if let htmlMap = extractEmojiMap(fromHTML: status.content), !htmlMap.isEmpty {
+                print("✅ [Emoji] Extracted \(htmlMap.count) emoji from status HTML for \(status.id.prefix(10))")
+                return htmlMap
+            }
             return nil
         }
         var emojiMap: [String: String] = [:]
@@ -2218,6 +2222,60 @@ public final class MastodonService: @unchecked Sendable {
             print("⚠️ [Emoji] Status \(status.id.prefix(10)) had \(status.emojis.count) emojis but none had valid URLs")
         }
         return emojiMap.isEmpty ? nil : emojiMap
+    }
+
+    private func extractEmojiMap(fromHTML html: String) -> [String: String]? {
+        guard html.contains("emoji"),
+            let regex = try? NSRegularExpression(pattern: "<img[^>]*>", options: [.caseInsensitive])
+        else {
+            return nil
+        }
+
+        var emojiMap: [String: String] = [:]
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        let matches = regex.matches(in: html, options: [], range: range)
+
+        for match in matches {
+            guard let matchRange = Range(match.range, in: html) else { continue }
+            let tag = String(html[matchRange])
+            if !tag.lowercased().contains("emoji") { continue }
+
+            guard let alt = attributeValue("alt", in: tag) else { continue }
+            let shortcode = alt.trimmingCharacters(in: CharacterSet(charactersIn: " :\t\n\r"))
+            guard !shortcode.isEmpty else { continue }
+
+            let url =
+                attributeValue("data-static", in: tag)
+                ?? attributeValue("src", in: tag)
+                ?? attributeValue("data-url", in: tag)
+            guard let url, !url.isEmpty else { continue }
+
+            emojiMap[shortcode] = url
+        }
+
+        return emojiMap.isEmpty ? nil : emojiMap
+    }
+
+    private func attributeValue(_ name: String, in tag: String) -> String? {
+        let pattern = "\\b\(NSRegularExpression.escapedPattern(for: name))\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)')"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let range = NSRange(tag.startIndex..<tag.endIndex, in: tag)
+        guard let match = regex.firstMatch(in: tag, options: [], range: range) else { return nil }
+
+        if let doubleQuotedRange = Range(match.range(at: 1), in: tag),
+            !doubleQuotedRange.isEmpty
+        {
+            return String(tag[doubleQuotedRange])
+        }
+        if let singleQuotedRange = Range(match.range(at: 2), in: tag),
+            !singleQuotedRange.isEmpty
+        {
+            return String(tag[singleQuotedRange])
+        }
+        return nil
     }
 
     /// Extracts custom emoji from a MastodonAccount (for display name emoji)
@@ -2244,6 +2302,12 @@ public final class MastodonService: @unchecked Sendable {
     /// Extracts custom emoji from a MastodonReblog into a dictionary mapping shortcode to URL
     private func extractEmojiMap(from reblog: MastodonReblog) -> [String: String]? {
         guard let emojis = reblog.emojis, !emojis.isEmpty else {
+            if let content = reblog.content,
+                let htmlMap = extractEmojiMap(fromHTML: content),
+                !htmlMap.isEmpty
+            {
+                return htmlMap
+            }
             return nil
         }
         var emojiMap: [String: String] = [:]
@@ -2262,26 +2326,64 @@ public final class MastodonService: @unchecked Sendable {
         return emojiMap.isEmpty ? nil : emojiMap
     }
 
+    private func convertPoll(_ poll: MastodonPoll?) -> Post.Poll? {
+        guard let poll = poll else { return nil }
+        let options = poll.options.map {
+            Post.Poll.PollOption(title: $0.title, votesCount: $0.votesCount)
+        }
+        return Post.Poll(
+            id: poll.id,
+            expiresAt: DateParser.parse(poll.expiresAt),
+            expired: poll.expired,
+            multiple: poll.multiple,
+            votesCount: poll.votesCount,
+            votersCount: poll.votersCount,
+            voted: poll.voted,
+            ownVotes: poll.ownVotes,
+            options: options
+        )
+    }
+
     public func convertMastodonStatusToPost(
         _ status: MastodonStatus, account: SocialAccount? = nil
     ) -> Post {
         // Move the replyToUsername logic to the top of the function
         var replyToUsername: String? = nil
+        let instanceDomain: String? = {
+            if let host = account?.serverURL?.host, !host.isEmpty {
+                return host
+            }
+            if let urlString = status.url, let host = URL(string: urlString)?.host {
+                return host
+            }
+            return nil
+        }()
+        func normalizeMastodonHandle(_ rawHandle: String?) -> String? {
+            guard let rawHandle = rawHandle?.trimmingCharacters(in: .whitespacesAndNewlines),
+                !rawHandle.isEmpty
+            else { return nil }
+            if rawHandle.contains("@") {
+                return rawHandle
+            }
+            guard let domain = instanceDomain else { return rawHandle }
+            return "\(rawHandle)@\(domain)"
+        }
         if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
             // Improved reply username extraction logic
             // CRITICAL FIX: Check if this is a self-reply first
             if replyToAccountId == status.account.id {
                 // Self-reply - use the author's own username
-                replyToUsername = status.account.acct
+                replyToUsername = normalizeMastodonHandle(status.account.acct)
             } else if let mention = status.mentions.first(where: { $0.id == replyToAccountId }) {
                 // Found the reply-to user in mentions
-                replyToUsername = mention.username
+                replyToUsername = normalizeMastodonHandle(mention.acct) ?? mention.username
             } else if let firstMention = status.mentions.first {
                 // Fallback to first mention if reply-to account not found
-                replyToUsername = firstMention.username
+                replyToUsername = normalizeMastodonHandle(firstMention.acct) ?? firstMention.username
             } else if !status.mentions.isEmpty {
                 // Last resort: use first mention's username
-                replyToUsername = status.mentions.first?.username
+                replyToUsername = normalizeMastodonHandle(status.mentions.first?.acct)
+                    ?? status.mentions.first?.username
             }
         }
 
@@ -2295,6 +2397,84 @@ public final class MastodonService: @unchecked Sendable {
                 "[Mastodon] 🔍 Processing reblog: id=\(reblog.id ?? "nil"), hasMediaAttachments=\(reblog.mediaAttachments?.count ?? 0)"
             )
 
+            let reblogCreatedAt: Date = {
+                let createdAtString = reblog.createdAt ?? ""
+                let parsedDate = DateParser.parse(createdAtString)
+                if parsedDate == nil {
+                    logger.error("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
+                    print("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
+                }
+                return parsedDate ?? Date.distantPast
+            }()
+            let reblogAttachments: [Post.Attachment] = {
+                // Debug: Check what we're working with
+                let mediaAttachmentsArray = reblog.mediaAttachments ?? []
+                logger.info(
+                    "[Mastodon] 🔍 reblog.mediaAttachments is \(reblog.mediaAttachments == nil ? "nil" : "not nil"), count: \(mediaAttachmentsArray.count)"
+                )
+                if mediaAttachmentsArray.isEmpty && reblog.mediaAttachments != nil {
+                    logger.warning(
+                        "[Mastodon] ⚠️ reblog.mediaAttachments exists but is empty for reblog \(reblog.id ?? "unknown")"
+                    )
+                }
+
+                let parsedAttachments = mediaAttachmentsArray.compactMap {
+                    media -> Post.Attachment? in
+                    let attachmentType: Post.Attachment.AttachmentType
+                    switch media.type {
+                    case "image":
+                        // Check if image is actually a GIF file
+                        if let url = URL(string: media.url), URLService.shared.isGIFURL(url) {
+                            attachmentType = .animatedGIF
+                        } else {
+                            attachmentType = .image
+                        }
+                    case "video":
+                        attachmentType = .video
+                    case "gifv":
+                        // For gifv attachments, check if remoteUrl exists and is a GIF file
+                        // Mastodon stores the original GIF in remoteUrl and the video version in url
+                        if let remoteUrlString = media.remoteUrl, !remoteUrlString.isEmpty,
+                            let remoteURL = URL(string: remoteUrlString),
+                            URLService.shared.isGIFURL(remoteURL)
+                        {
+                            // Use the original GIF file instead of the video
+                            return Post.Attachment(
+                                url: remoteUrlString,
+                                type: .animatedGIF,
+                                altText: media.description ?? "Animated GIF"
+                            )
+                        } else {
+                            // For .gifv type, always use video version (will loop automatically)
+                            // Don't check if main URL is a GIF - .gifv URLs are always videos
+                            attachmentType = .gifv
+                        }
+                    case "audio":
+                        attachmentType = .audio
+                    default:
+                        return nil  // Skip unsupported types
+                    }
+                    return Post.Attachment(
+                        url: media.url,
+                        type: attachmentType,
+                        altText: media.description
+                    )
+                }
+                // Log attachments for debugging
+                if !parsedAttachments.isEmpty {
+                    logger.info(
+                        "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
+                    )
+                    print(
+                        "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
+                    )
+                }
+                return parsedAttachments
+            }()
+            let reblogMentions = (reblog.mentions ?? []).compactMap { $0.username }
+            let reblogTags = (reblog.tags ?? []).compactMap { $0.name }
+            let reblogPoll = convertPoll(reblog.poll)
+
             var originalPost = Post(
                 id: reblog.id ?? "",
                 content: reblog.content ?? "",
@@ -2302,96 +2482,30 @@ public final class MastodonService: @unchecked Sendable {
                 authorUsername: reblog.account?.acct ?? "",
                 authorId: reblog.account?.id ?? "",
                 authorProfilePictureURL: reblog.account?.avatar ?? "",
-                createdAt: {
-                    let createdAtString = reblog.createdAt ?? ""
-                    let parsedDate = DateParser.parse(createdAtString)
-                    if parsedDate == nil {
-                        logger.error("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
-                        print("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
-                    }
-                    return parsedDate ?? Date.distantPast
-                }(),
+                createdAt: reblogCreatedAt,
                 platform: .mastodon,
                 originalURL: reblog.url ?? "",
-                attachments: {
-                    // Debug: Check what we're working with
-                    let mediaAttachmentsArray = reblog.mediaAttachments ?? []
-                    logger.info(
-                        "[Mastodon] 🔍 reblog.mediaAttachments is \(reblog.mediaAttachments == nil ? "nil" : "not nil"), count: \(mediaAttachmentsArray.count)"
-                    )
-                    if mediaAttachmentsArray.isEmpty && reblog.mediaAttachments != nil {
-                        logger.warning(
-                            "[Mastodon] ⚠️ reblog.mediaAttachments exists but is empty for reblog \(reblog.id ?? "unknown")"
-                        )
-                    }
-
-                    let parsedAttachments = mediaAttachmentsArray.compactMap {
-                        media -> Post.Attachment? in
-                        let attachmentType: Post.Attachment.AttachmentType
-                        switch media.type {
-                        case "image":
-                            // Check if image is actually a GIF file
-                            if let url = URL(string: media.url), URLService.shared.isGIFURL(url) {
-                                attachmentType = .animatedGIF
-                            } else {
-                                attachmentType = .image
-                            }
-                        case "video":
-                            attachmentType = .video
-                        case "gifv":
-                            // For gifv attachments, check if remoteUrl exists and is a GIF file
-                            // Mastodon stores the original GIF in remoteUrl and the video version in url
-                            if let remoteUrlString = media.remoteUrl, !remoteUrlString.isEmpty,
-                                let remoteURL = URL(string: remoteUrlString),
-                                URLService.shared.isGIFURL(remoteURL)
-                            {
-                                // Use the original GIF file instead of the video
-                                return Post.Attachment(
-                                    url: remoteUrlString,
-                                    type: .animatedGIF,
-                                    altText: media.description ?? "Animated GIF"
-                                )
-                            } else {
-                                // For .gifv type, always use video version (will loop automatically)
-                                // Don't check if main URL is a GIF - .gifv URLs are always videos
-                                attachmentType = .gifv
-                            }
-                        case "audio":
-                            attachmentType = .audio
-                        default:
-                            return nil  // Skip unsupported types
-                        }
-                        return Post.Attachment(
-                            url: media.url,
-                            type: attachmentType,
-                            altText: media.description
-                        )
-                    }
-                    // Log attachments for debugging
-                    if !parsedAttachments.isEmpty {
-                        logger.info(
-                            "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
-                        )
-                        print(
-                            "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
-                        )
-                    }
-                    return parsedAttachments
-                }(),
-                mentions: (reblog.mentions ?? []).compactMap { $0.username },
-                tags: (reblog.tags ?? []).compactMap { $0.name },
+                attachments: reblogAttachments,
+                mentions: reblogMentions,
+                tags: reblogTags,
                 isReposted: false,
                 isLiked: false,
                 likeCount: 0,
                 repostCount: 0,
                 replyCount: 0,
                 platformSpecificId: reblog.id ?? "",
-            blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
-            blueskyRepostRecordURI: nil,
-            customEmojiMap: extractEmojiMap(from: reblog),
-            // Note: MastodonReblog uses MastodonPost.MastodonAccount which doesn't include emoji data
-            // authorEmojiMap will be nil here, but when the post is hydrated, it will get proper emoji
-            clientName: nil  // MastodonReblog doesn't have application field - client name comes from wrapper status
+                poll: reblogPoll,
+                cid: nil,
+                primaryLinkURL: nil,
+                primaryLinkTitle: nil,
+                primaryLinkDescription: nil,
+                primaryLinkThumbnailURL: nil,
+                blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
+                blueskyRepostRecordURI: nil,
+                customEmojiMap: extractEmojiMap(from: reblog),
+                // Note: MastodonReblog uses MastodonPost.MastodonAccount which doesn't include emoji data
+                // authorEmojiMap will be nil here, but when the post is hydrated, it will get proper emoji
+                clientName: nil  // MastodonReblog doesn't have application field - client name comes from wrapper status
             )
 
             // Hydrate originalPost if content is empty (defensive, rare)
@@ -2595,7 +2709,7 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         let mentions = status.mentions.compactMap { mention -> String in
-            return mention.username
+            normalizeMastodonHandle(mention.acct) ?? mention.username
         }
 
         let tags = status.tags.compactMap { tag -> String in
@@ -2680,6 +2794,8 @@ public final class MastodonService: @unchecked Sendable {
             parent: parentPost,
             inReplyToID: status.inReplyToId,
             inReplyToUsername: replyToUsername,
+            poll: convertPoll(status.poll),
+            cid: nil,
             primaryLinkURL: cardURL,
             primaryLinkTitle: cardTitle,
             primaryLinkDescription: cardDescription,

@@ -24,6 +24,7 @@ public struct MastodonPost: Codable, Identifiable {
     public let inReplyToId: String?
     public let inReplyToAccountId: String?
     public let reblog: MastodonReblog?
+    public let poll: MastodonPoll?
 
     // MARK: - Nested Types
 
@@ -97,9 +98,10 @@ public struct MastodonReblog: Codable {
     public let mentions: [MastodonPost.MastodonMention]?
     public let tags: [MastodonPost.MastodonTag]?
     public let emojis: [MastodonEmoji]?  // Custom emoji used in reblogged post content
+    public let poll: MastodonPoll?
 
     enum CodingKeys: String, CodingKey {
-        case id, uri, url, content, account, mentions, tags, emojis
+        case id, uri, url, content, account, mentions, tags, emojis, poll
         case createdAt = "created_at"
         case mediaAttachments = "media_attachments"
     }
@@ -148,7 +150,8 @@ extension MastodonPost {
             visibility: "public",
             inReplyToId: nil,
             inReplyToAccountId: nil,
-            reblog: nil
+            reblog: nil,
+            poll: nil
         )
     }
 }

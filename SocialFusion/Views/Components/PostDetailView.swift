@@ -1037,11 +1037,12 @@ struct SelectedPostView: View {
                 if let poll = post.poll {
                     PostPollView(
                         poll: poll,
-                        onVote: { optionIndex in
+                        allowsVoting: true,
+                        onVote: { optionIndexes in
                             Task {
                                 do {
                                     try await serviceManager.voteInPoll(
-                                        post: post, optionIndex: optionIndex)
+                                        post: post, choices: optionIndexes)
                                 } catch {
                                     print("❌ Failed to vote: \(error.localizedDescription)")
                                 }
@@ -1179,11 +1180,12 @@ struct PostRow: View {
                 if let poll = post.poll {
                     PostPollView(
                         poll: poll,
-                        onVote: { optionIndex in
+                        allowsVoting: true,
+                        onVote: { optionIndexes in
                             Task {
                                 do {
                                     try await serviceManager.voteInPoll(
-                                        post: post, optionIndex: optionIndex)
+                                        post: post, choices: optionIndexes)
                                 } catch {
                                     print("❌ Failed to vote: \(error.localizedDescription)")
                                 }

@@ -100,7 +100,7 @@ struct SmartMediaView: View {
                 artist: nil  // Could extract from metadata in the future
             )
             .frame(maxWidth: .infinity)
-            .onAppear { print("[SmartMediaView] audio appear url=\(attachment.url)") }
+            .onAppear { DebugLog.verbose("[SmartMediaView] audio appear url=\(attachment.url)") }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Audio player: \(attachment.altText ?? "Audio content")")
             .accessibilityHint("Use VoiceOver gestures to control playback")
@@ -160,7 +160,7 @@ struct SmartMediaView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .cornerRadius(cornerRadius)
             .clipped()
-            .onAppear { print("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
+            .onAppear { DebugLog.verbose("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
             // Flag-driven unfurling with local fallback
             let url = URL(string: attachment.url)
@@ -181,7 +181,7 @@ struct SmartMediaView: View {
                 // Only constrain maxWidth to prevent overflow
                 .frame(maxWidth: maxWidth ?? .infinity)
                 .onAppear {
-                    print(
+                    DebugLog.verbose(
                         "[SmartMediaView] 🎬 animatedGIF appear url=\(attachment.url) cornerRadius=\(cornerRadius) type=\(attachment.type)"
                     )
                 }
@@ -190,7 +190,7 @@ struct SmartMediaView: View {
                 loadingView
                     .frame(maxWidth: maxWidth ?? .infinity, maxHeight: maxHeight ?? .infinity)
                     .onAppear {
-                        print("[SmartMediaView] ❌ Invalid URL for animatedGIF: \(attachment.url)")
+                        DebugLog.verbose("[SmartMediaView] ❌ Invalid URL for animatedGIF: \(attachment.url)")
                     }
             }
         } else {
@@ -1722,7 +1722,7 @@ private struct AnimatedGIFViewComponent: UIViewRepresentable {
             } catch {
                 await MainActor.run {
                     imageView.image = UIImage(systemName: "photo")
-                    print("[AnimatedGIFView] fetch failed: \(error.localizedDescription)")
+                    DebugLog.verbose("[AnimatedGIFView] fetch failed: \(error.localizedDescription)")
                 }
             }
         }

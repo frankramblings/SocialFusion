@@ -20,6 +20,7 @@ public struct SocialActor: Hashable, Codable {
   public let id: String
   public let handle: String
   public let displayName: String
+  public let emojiMap: [String: String]?
   public let platform: SocialPlatform
   public let accountID: String?
 
@@ -27,12 +28,14 @@ public struct SocialActor: Hashable, Codable {
     id: String,
     handle: String,
     displayName: String,
+    emojiMap: [String: String]? = nil,
     platform: SocialPlatform,
     accountID: String? = nil
   ) {
     self.id = id
     self.handle = handle
     self.displayName = displayName
+    self.emojiMap = emojiMap
     self.platform = platform
     self.accountID = accountID
   }

@@ -105,7 +105,7 @@ public final class SocialServiceManager: ObservableObject {
     // Selected account IDs (Set to store unique IDs)
     @Published var selectedAccountIds: Set<String> = [] {
         didSet {
-            print("🔧 SocialServiceManager: selectedAccountIds changed to: \(selectedAccountIds)")
+            DebugLog.verbose("🔧 SocialServiceManager: selectedAccountIds changed to: \(selectedAccountIds)")
         }
     }
 
@@ -219,7 +219,7 @@ public final class SocialServiceManager: ObservableObject {
     ) {
         self.mastodonService = mastodonService
         self.blueskyService = blueskyService
-        print("🔧 SocialServiceManager: Starting initialization...")
+        DebugLog.verbose("🔧 SocialServiceManager: Starting initialization...")
 
         // Load saved accounts first
         loadAccounts()
@@ -233,38 +233,38 @@ public final class SocialServiceManager: ObservableObject {
         // Load cached timeline from disk
         loadTimelineFromDisk()
 
-        print("🔧 SocialServiceManager: After loadAccounts() - accounts.count = \(accounts.count)")
-        print("🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count)")
-        print("🔧 SocialServiceManager: Bluesky accounts: \(blueskyAccounts.count)")
+        DebugLog.verbose("🔧 SocialServiceManager: After loadAccounts() - accounts.count = \(accounts.count)")
+        DebugLog.verbose("🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count)")
+        DebugLog.verbose("🔧 SocialServiceManager: Bluesky accounts: \(blueskyAccounts.count)")
 
         // Initialize selectedAccountIds based on whether accounts exist
         if !accounts.isEmpty {
             selectedAccountIds = ["all"]  // Default to "all" if accounts exist
-            print(
+            DebugLog.verbose(
                 "🔧 SocialServiceManager: Initialized selectedAccountIds to 'all' with \(accounts.count) accounts"
             )
-            print(
+            DebugLog.verbose(
                 "🔧 SocialServiceManager: Mastodon accounts: \(mastodonAccounts.count), Bluesky accounts: \(blueskyAccounts.count)"
             )
 
             // List all accounts for debugging
             for (index, account) in accounts.enumerated() {
-                print(
+                DebugLog.verbose(
                     "🔧 SocialServiceManager: Account \(index): \(account.username) (\(account.platform)) - ID: \(account.id)"
                 )
             }
         } else {
             selectedAccountIds = []  // No accounts available
-            print("🔧 SocialServiceManager: No accounts found - selectedAccountIds set to empty")
+            DebugLog.verbose("🔧 SocialServiceManager: No accounts found - selectedAccountIds set to empty")
         }
 
-        print("🔧 SocialServiceManager: Initialization completed")
-        print("🔧 SocialServiceManager: Final selectedAccountIds = \(selectedAccountIds)")
-        print("🔧 SocialServiceManager: Final accounts count = \(accounts.count)")
+        DebugLog.verbose("🔧 SocialServiceManager: Initialization completed")
+        DebugLog.verbose("🔧 SocialServiceManager: Final selectedAccountIds = \(selectedAccountIds)")
+        DebugLog.verbose("🔧 SocialServiceManager: Final accounts count = \(accounts.count)")
 
         // Set up PostNormalizerImpl with service manager reference
         PostNormalizerImpl.shared.setServiceManager(self)
-        print("🔧 SocialServiceManager: Final unifiedTimeline count = \(unifiedTimeline.count)")
+        DebugLog.verbose("🔧 SocialServiceManager: Final unifiedTimeline count = \(unifiedTimeline.count)")
 
         // Note: Timeline refresh will be handled by UI lifecycle events
         // This ensures reliable refresh when the user actually opens the app
@@ -297,7 +297,7 @@ public final class SocialServiceManager: ObservableObject {
     @objc private func handleProfileImageUpdate(_ notification: Notification) {
         // Save accounts when profile images are updated to persist the new URLs
         saveAccounts()
-        print("💾 [SocialServiceManager] Saved accounts after profile image update")
+        DebugLog.verbose("💾 [SocialServiceManager] Saved accounts after profile image update")
     }
 
     // MARK: - Account Management
@@ -306,7 +306,7 @@ public final class SocialServiceManager: ObservableObject {
     private func loadAccounts() {
         let logger = Logger(subsystem: "com.socialfusion", category: "AccountPersistence")
         logger.info("Loading saved accounts")
-        print("🔧 SocialServiceManager: loadAccounts() called")
+        DebugLog.verbose("🔧 SocialServiceManager: loadAccounts() called")
 
         Task {
             // Try to load from new PersistenceManager first
@@ -318,10 +318,10 @@ public final class SocialServiceManager: ObservableObject {
                     do {
                         let decoder = JSONDecoder()
                         loadedAccounts = try decoder.decode([SocialAccount].self, from: data)
-                        print("🔧 SocialServiceManager: Loaded accounts from legacy UserDefaults")
+                        DebugLog.verbose("🔧 SocialServiceManager: Loaded accounts from legacy UserDefaults")
                     } catch {
                         ErrorHandler.shared.handleError(error)
-                        print("🔧 SocialServiceManager: Failed to decode legacy accounts: \(error)")
+                        DebugLog.verbose("🔧 SocialServiceManager: Failed to decode legacy accounts: \(error)")
                     }
                 }
             }
@@ -342,7 +342,7 @@ public final class SocialServiceManager: ObservableObject {
                 self.updateAccountLists()
                 self.migrateOldBlueskyAccounts()
                 self.refreshAccountProfiles()
-                print("🔧 SocialServiceManager: loadAccounts() completed")
+                DebugLog.verbose("🔧 SocialServiceManager: loadAccounts() completed")
             }
         }
     }
@@ -390,7 +390,7 @@ public final class SocialServiceManager: ObservableObject {
                         self.unifiedTimeline = self.canonicalPostStore.timelinePosts(
                             for: self.canonicalUnifiedTimelineID
                         )
-                        print("✅ Successfully loaded \(posts.count) posts from offline cache")
+                        DebugLog.verbose("✅ Successfully loaded \(posts.count) posts from offline cache")
                     }
                 }
             }
@@ -408,7 +408,7 @@ public final class SocialServiceManager: ObservableObject {
                 seenIds.insert(account.id)
                 deduplicatedAccounts.append(account)
             } else {
-                print(
+                DebugLog.verbose(
                     "⚠️ SocialServiceManager: Found duplicate account with ID \(account.id) (\(account.username)), removing duplicate"
                 )
             }
@@ -416,7 +416,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Update accounts array if duplicates were found
         if deduplicatedAccounts.count != accounts.count {
-            print(
+            DebugLog.verbose(
                 "🔧 SocialServiceManager: Removed \(accounts.count - deduplicatedAccounts.count) duplicate account(s)"
             )
             accounts = deduplicatedAccounts
@@ -452,7 +452,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Refresh profile information for all accounts
     private func refreshAccountProfiles() {
-        print("🔄 SocialServiceManager: Refreshing profile images for all accounts...")
+        DebugLog.verbose("🔄 SocialServiceManager: Refreshing profile images for all accounts...")
 
         Task {
             for account in accounts {
@@ -463,10 +463,10 @@ public final class SocialServiceManager: ObservableObject {
                     case .bluesky:
                         try await blueskyService.updateProfileInfo(for: account)
                     }
-                    print("✅ Refreshed profile for \(account.username) (\(account.platform))")
+                    DebugLog.verbose("✅ Refreshed profile for \(account.username) (\(account.platform))")
                 } catch {
                     ErrorHandler.shared.handleError(error)
-                    print("⚠️ Failed to refresh profile for \(account.username): \(error)")
+                    DebugLog.verbose("⚠️ Failed to refresh profile for \(account.username): \(error)")
                 }
 
                 // Small delay to avoid overwhelming the APIs
@@ -476,7 +476,7 @@ public final class SocialServiceManager: ObservableObject {
             // Save updated accounts
             Task { @MainActor in
                 saveAccounts()
-                print("💾 Saved accounts after profile refresh")
+                DebugLog.verbose("💾 Saved accounts after profile refresh")
             }
         }
     }
@@ -489,21 +489,21 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Get accounts to fetch based on current selection
     private func getAccountsToFetch() -> [SocialAccount] {
-        print("🔧 SocialServiceManager: getAccountsToFetch() called")
-        print("🔧 SocialServiceManager: selectedAccountIds = \(selectedAccountIds)")
-        print("🔧 SocialServiceManager: total accounts = \(accounts.count)")
+        DebugLog.verbose("🔧 SocialServiceManager: getAccountsToFetch() called")
+        DebugLog.verbose("🔧 SocialServiceManager: selectedAccountIds = \(selectedAccountIds)")
+        DebugLog.verbose("🔧 SocialServiceManager: total accounts = \(accounts.count)")
 
         let accountsToFetch: [SocialAccount]
         if selectedAccountIds.contains("all") {
             accountsToFetch = accounts
-            print("🔧 SocialServiceManager: Using ALL accounts (\(accounts.count))")
+            DebugLog.verbose("🔧 SocialServiceManager: Using ALL accounts (\(accounts.count))")
         } else {
             accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
-            print("🔧 SocialServiceManager: Using filtered accounts (\(accountsToFetch.count))")
+            DebugLog.verbose("🔧 SocialServiceManager: Using filtered accounts (\(accountsToFetch.count))")
         }
 
         for (index, account) in accountsToFetch.enumerated() {
-            print(
+            DebugLog.verbose(
                 "🔧 SocialServiceManager: Account \(index): \(account.username) (\(account.platform)) - ID: \(account.id)"
             )
         }
@@ -514,13 +514,13 @@ public final class SocialServiceManager: ObservableObject {
     /// Force reload accounts for debugging
     @MainActor
     func forceReloadAccounts() async {
-        print("🔄 SocialServiceManager: Force reloading accounts...")
+        DebugLog.verbose("🔄 SocialServiceManager: Force reloading accounts...")
         loadAccounts()
-        print("🔄 SocialServiceManager: Force reload completed")
-        print("🔄 Total accounts: \(accounts.count)")
-        print("🔄 Mastodon accounts: \(mastodonAccounts.count)")
-        print("🔄 Bluesky accounts: \(blueskyAccounts.count)")
-        print("🔄 Selected account IDs: \(selectedAccountIds)")
+        DebugLog.verbose("🔄 SocialServiceManager: Force reload completed")
+        DebugLog.verbose("🔄 Total accounts: \(accounts.count)")
+        DebugLog.verbose("🔄 Mastodon accounts: \(mastodonAccounts.count)")
+        DebugLog.verbose("🔄 Bluesky accounts: \(blueskyAccounts.count)")
+        DebugLog.verbose("🔄 Selected account IDs: \(selectedAccountIds)")
 
         // Also trigger a timeline refresh
         do {
@@ -531,7 +531,7 @@ public final class SocialServiceManager: ObservableObject {
                     try? await self.refreshTimeline(force: true)
                 }
             }
-            print("🔄 Error refreshing timeline after force reload: \(error)")
+            DebugLog.verbose("🔄 Error refreshing timeline after force reload: \(error)")
         }
     }
 
@@ -548,7 +548,7 @@ public final class SocialServiceManager: ObservableObject {
         // If this is the first account, set selectedAccountIds to "all"
         if accounts.count == 1 {
             selectedAccountIds = ["all"]
-            print(
+            DebugLog.verbose(
                 "📊 [SocialServiceManager] First account added, setting selectedAccountIds to 'all'")
         } else {
             // If "all" is already selected, keep it
@@ -667,7 +667,7 @@ public final class SocialServiceManager: ObservableObject {
     /// Remove an account
     @MainActor
     public func removeAccount(_ account: SocialAccount) async {
-        print("🗑️ Removing account: \(account.username) (\(account.platform))")
+        DebugLog.verbose("🗑️ Removing account: \(account.username) (\(account.platform))")
 
         // Remove from memory
         accounts.removeAll { $0.id == account.id }
@@ -701,7 +701,7 @@ public final class SocialServiceManager: ObservableObject {
     /// Log out all accounts and clear all data
     @MainActor
     public func logout() async {
-        print("🚪 Logging out all accounts...")
+        DebugLog.verbose("🚪 Logging out all accounts...")
 
         // Logout each individual account (clears tokens)
         for account in accounts {
@@ -725,7 +725,7 @@ public final class SocialServiceManager: ObservableObject {
         saveAccounts()
 
         resetUnifiedTimelineStore()
-        print("🚪 Logout complete")
+        DebugLog.verbose("🚪 Logout complete")
     }
 
     /// Refresh account profile information from the network
@@ -753,7 +753,7 @@ public final class SocialServiceManager: ObservableObject {
                 }
             } catch {
                 ErrorHandler.shared.handleError(error)
-                print("Failed to refresh profile for \(account.username): \(error)")
+                DebugLog.verbose("Failed to refresh profile for \(account.username): \(error)")
             }
         }
     }
@@ -773,7 +773,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Fetch posts for a specific account
     func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: fetchPostsForAccount called for \(account.username) (\(account.platform))"
         )
 
@@ -781,19 +781,19 @@ public final class SocialServiceManager: ObservableObject {
             let posts: [Post]
             switch account.platform {
             case .mastodon:
-                print("🔄 SocialServiceManager: Fetching Mastodon timeline for \(account.username)")
+                DebugLog.verbose("🔄 SocialServiceManager: Fetching Mastodon timeline for \(account.username)")
                 let result = try await mastodonService.fetchHomeTimeline(for: account)
                 posts = result.posts
-                print("🔄 SocialServiceManager: Mastodon fetch completed - \(posts.count) posts")
+                DebugLog.verbose("🔄 SocialServiceManager: Mastodon fetch completed - \(posts.count) posts")
             case .bluesky:
-                print("🔄 SocialServiceManager: Fetching Bluesky timeline for \(account.username)")
+                DebugLog.verbose("🔄 SocialServiceManager: Fetching Bluesky timeline for \(account.username)")
                 let result = try await blueskyService.fetchTimeline(for: account)
                 posts = result.posts
-                print("🔄 SocialServiceManager: Bluesky fetch completed - \(posts.count) posts")
+                DebugLog.verbose("🔄 SocialServiceManager: Bluesky fetch completed - \(posts.count) posts")
             }
             return posts
         } catch {
-            print(
+            DebugLog.verbose(
                 "❌ SocialServiceManager: fetchPostsForAccount failed for \(account.username): \(error.localizedDescription)"
             )
             throw error
@@ -804,15 +804,15 @@ public final class SocialServiceManager: ObservableObject {
     func refreshTimeline(force: Bool = false) async throws {
         let debugRefresh = UserDefaults.standard.bool(forKey: "debugRefresh")
         if debugRefresh {
-            print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
-            print("🔄 SocialServiceManager: globalRefreshLock: \(Self.globalRefreshLock)")
-            print("🔄 SocialServiceManager: isCircuitBreakerOpen: \(isCircuitBreakerOpen)")
-            print("🔄 SocialServiceManager: isRefreshInProgress: \(isRefreshInProgress)")
-            print("🔄 SocialServiceManager: isLoadingTimeline: \(isLoadingTimeline)")
-            print("🔄 SocialServiceManager: lastRefreshAttempt: \(lastRefreshAttempt)")
-            print("🔄 SocialServiceManager: consecutiveFailures: \(consecutiveFailures)")
+            DebugLog.verbose("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
+            DebugLog.verbose("🔄 SocialServiceManager: globalRefreshLock: \(Self.globalRefreshLock)")
+            DebugLog.verbose("🔄 SocialServiceManager: isCircuitBreakerOpen: \(isCircuitBreakerOpen)")
+            DebugLog.verbose("🔄 SocialServiceManager: isRefreshInProgress: \(isRefreshInProgress)")
+            DebugLog.verbose("🔄 SocialServiceManager: isLoadingTimeline: \(isLoadingTimeline)")
+            DebugLog.verbose("🔄 SocialServiceManager: lastRefreshAttempt: \(lastRefreshAttempt)")
+            DebugLog.verbose("🔄 SocialServiceManager: consecutiveFailures: \(consecutiveFailures)")
         } else {
-            print("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called")
+            DebugLog.verbose("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called")
         }
 
         let now = Date()
@@ -822,10 +822,10 @@ public final class SocialServiceManager: ObservableObject {
         let isUserInitiated = force  // Force flag indicates user-initiated refresh (pull-to-refresh)
         let shouldBypassRestrictions = isUserInitiated || isInitialLoad
 
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: isInitialLoad = \(isInitialLoad), isUserInitiated = \(isUserInitiated), shouldBypassRestrictions = \(shouldBypassRestrictions)"
         )
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: unifiedTimeline.count = \(unifiedTimeline.count), isLoadingTimeline = \(isLoadingTimeline)"
         )
 
@@ -834,17 +834,17 @@ public final class SocialServiceManager: ObservableObject {
             // Check if lock is stale (older than 10 seconds)
             if now.timeIntervalSince(Self.globalRefreshLockTime) > 10.0 {
                 Self.globalRefreshLock = false
-                print("🔓 SocialServiceManager: Stale refresh lock reset")
+                DebugLog.verbose("🔓 SocialServiceManager: Stale refresh lock reset")
             } else {
                 // Lock is active - BLOCK only automatic attempts, allow user-initiated
-                print("🔒 SocialServiceManager: Refresh blocked by global lock (automatic refresh)")
+                DebugLog.verbose("🔒 SocialServiceManager: Refresh blocked by global lock (automatic refresh)")
                 return
             }
         }
 
         // For user-initiated refreshes, cancel any existing refresh and proceed immediately
         if isUserInitiated && Self.globalRefreshLock {
-            print("🔄 SocialServiceManager: User-initiated refresh - canceling existing refresh")
+            DebugLog.verbose("🔄 SocialServiceManager: User-initiated refresh - canceling existing refresh")
             Self.globalRefreshLock = false
         }
 
@@ -866,10 +866,10 @@ public final class SocialServiceManager: ObservableObject {
                 isCircuitBreakerOpen = false
                 circuitBreakerOpenTime = nil
                 consecutiveFailures = 0
-                print("🔄 SocialServiceManager: Circuit breaker reset - resuming requests")
+                DebugLog.verbose("🔄 SocialServiceManager: Circuit breaker reset - resuming requests")
             } else {
                 // Circuit breaker is still open - block only automatic requests
-                print(
+                DebugLog.verbose(
                     "🚫 SocialServiceManager: Refresh blocked by circuit breaker (automatic refresh)"
                 )
                 return
@@ -879,7 +879,7 @@ public final class SocialServiceManager: ObservableObject {
         // For user-initiated refreshes, allow them even if circuit breaker is open
         // but reset the circuit breaker after successful user refresh
         if isUserInitiated && isCircuitBreakerOpen {
-            print("🔄 SocialServiceManager: User-initiated refresh - bypassing circuit breaker")
+            DebugLog.verbose("🔄 SocialServiceManager: User-initiated refresh - bypassing circuit breaker")
         }
 
         // Rate limiting - minimum time between attempts
@@ -897,7 +897,7 @@ public final class SocialServiceManager: ObservableObject {
             shouldBypassRestrictions || now.timeIntervalSince(lastRefreshAttempt) > minimumInterval
         else {
             let timeRemaining = minimumInterval - now.timeIntervalSince(lastRefreshAttempt)
-            print(
+            DebugLog.verbose(
                 "🕐 SocialServiceManager: Refresh blocked by rate limiting (wait \(String(format: "%.1f", timeRemaining))s)"
             )
             return
@@ -905,12 +905,12 @@ public final class SocialServiceManager: ObservableObject {
 
         // Additional check: if we're already loading or refreshing, abort (unless forced or initial)
         guard shouldBypassRestrictions || (!isLoadingTimeline && !isRefreshInProgress) else {
-            print("🔄 SocialServiceManager: Refresh blocked - already in progress")
+            DebugLog.verbose("🔄 SocialServiceManager: Refresh blocked - already in progress")
             return
         }
 
         if isInitialLoad {
-            print("🚀 SocialServiceManager: Initial load detected - bypassing restrictions")
+            DebugLog.verbose("🚀 SocialServiceManager: Initial load detected - bypassing restrictions")
         }
 
         isRefreshInProgress = true
@@ -927,10 +927,10 @@ public final class SocialServiceManager: ObservableObject {
             if isUserInitiated && isCircuitBreakerOpen {
                 isCircuitBreakerOpen = false
                 circuitBreakerOpenTime = nil
-                print("✅ SocialServiceManager: Circuit breaker reset after successful user refresh")
+                DebugLog.verbose("✅ SocialServiceManager: Circuit breaker reset after successful user refresh")
             }
 
-            print("✅ SocialServiceManager: Timeline refresh completed successfully")
+            DebugLog.verbose("✅ SocialServiceManager: Timeline refresh completed successfully")
         } catch {
             consecutiveFailures += 1
             let errorMessage = "Timeline refresh failed: \(error.localizedDescription)"
@@ -940,7 +940,7 @@ public final class SocialServiceManager: ObservableObject {
                 isRetryable: false
             )
             ErrorHandler.shared.handleError(appError)
-            print("❌ SocialServiceManager: \(errorMessage)")
+            DebugLog.verbose("❌ SocialServiceManager: \(errorMessage)")
 
             // For user-initiated refreshes, be more lenient with circuit breaker
             let failureThreshold =
@@ -949,14 +949,14 @@ public final class SocialServiceManager: ObservableObject {
             if consecutiveFailures >= failureThreshold {
                 isCircuitBreakerOpen = true
                 circuitBreakerOpenTime = now
-                print(
+                DebugLog.verbose(
                     "🚫 SocialServiceManager: Circuit breaker opened after \(consecutiveFailures) failures"
                 )
             }
 
             // Provide more detailed error information for user-initiated refreshes
             if isUserInitiated {
-                print(
+                DebugLog.verbose(
                     "ℹ️ SocialServiceManager: User-initiated refresh failed - providing detailed error"
                 )
                 // Throw the original error for now
@@ -1040,19 +1040,19 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Refresh timeline from the specified accounts and return all posts
     func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts"
         )
 
         // Drastically reduce logging spam
         if accounts.isEmpty {
-            print("🔄 SocialServiceManager: No accounts provided, returning empty array")
+            DebugLog.verbose("🔄 SocialServiceManager: No accounts provided, returning empty array")
             return []
         }
 
-        print("🔄 SocialServiceManager: Accounts to fetch from:")
+        DebugLog.verbose("🔄 SocialServiceManager: Accounts to fetch from:")
         for account in accounts {
-            print("🔄   - \(account.username) (\(account.platform)) - ID: \(account.id)")
+            DebugLog.verbose("🔄   - \(account.username) (\(account.platform)) - ID: \(account.id)")
         }
 
         var allPosts: [Post] = []
@@ -1063,20 +1063,20 @@ public final class SocialServiceManager: ObservableObject {
                 for account in accounts {
                     group.addTask {
                         do {
-                            print("🔄 SocialServiceManager: Starting fetch for \(account.username)")
+                            DebugLog.verbose("🔄 SocialServiceManager: Starting fetch for \(account.username)")
                             let posts = try await self.fetchPostsForAccount(account)
-                            print(
+                            DebugLog.verbose(
                                 "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
                             )
                             return posts
                         } catch {
                             // Check for cancellation and handle appropriately
                             if Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                                print(
+                                DebugLog.verbose(
                                     "🔄 SocialServiceManager: Fetch cancelled for \(account.username)"
                                 )
                             } else {
-                                print(
+                                DebugLog.verbose(
                                     "❌ Error fetching \(account.username): \(error.localizedDescription)"
                                 )
                             }
@@ -1090,17 +1090,25 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
 
-            print("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
+            DebugLog.verbose("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
             return allPosts
         }.value
 
         let filteredPosts = await filterRepliesInTimeline(collectedPosts)
         let sourceContext = TimelineSourceContext(source: .refresh)
-        canonicalPostStore.processIncomingPosts(
-            filteredPosts,
-            timelineID: canonicalUnifiedTimelineID,
-            sourceContext: sourceContext
-        )
+        if FeatureFlagManager.isEnabled(.replyFiltering) {
+            canonicalPostStore.replaceTimeline(
+                timelineID: canonicalUnifiedTimelineID,
+                posts: filteredPosts,
+                sourceContext: sourceContext
+            )
+        } else {
+            canonicalPostStore.processIncomingPosts(
+                filteredPosts,
+                timelineID: canonicalUnifiedTimelineID,
+                sourceContext: sourceContext
+            )
+        }
         return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
     }
 
@@ -1119,7 +1127,7 @@ public final class SocialServiceManager: ObservableObject {
                             return try await self.blueskyService.fetchFollowing(for: account)
                         }
                     } catch {
-                        print(
+                        DebugLog.verbose(
                             "⚠️ Error fetching following for \(account.username): \(error.localizedDescription)"
                         )
                         return []
@@ -1134,7 +1142,24 @@ public final class SocialServiceManager: ObservableObject {
 
         // Also add our own accounts as followed
         for account in accounts {
-            followedAccounts.insert(UserID(value: account.username, platform: account.platform))
+            switch account.platform {
+            case .mastodon:
+                let handle: String
+                if account.username.contains("@") {
+                    handle = account.username
+                } else if let host = account.serverURL?.host, !host.isEmpty {
+                    handle = "\(account.username)@\(host)"
+                } else {
+                    handle = account.username
+                }
+                followedAccounts.insert(UserID(value: handle, platform: .mastodon))
+            case .bluesky:
+                followedAccounts.insert(UserID(value: account.username, platform: .bluesky))
+                if !account.platformSpecificId.isEmpty {
+                    followedAccounts.insert(
+                        UserID(value: account.platformSpecificId, platform: .bluesky))
+                }
+            }
         }
 
         return followedAccounts
@@ -1147,7 +1172,7 @@ public final class SocialServiceManager: ObservableObject {
 
         guard isEnabled else { return posts }
 
-        print("🔍 SocialServiceManager: Starting reply filtering for \(posts.count) posts")
+        DebugLog.verbose("🔍 SocialServiceManager: Starting reply filtering for \(posts.count) posts")
         let startTime = Date()
 
         let followedAccounts = await getFollowedAccounts()
@@ -1173,7 +1198,7 @@ public final class SocialServiceManager: ObservableObject {
         filteredPosts.sort { $0.createdAt > $1.createdAt }
 
         let duration = Date().timeIntervalSince(startTime)
-        print(
+        DebugLog.verbose(
             "✅ SocialServiceManager: Filtering complete. Filtered \(posts.count) -> \(filteredPosts.count) posts in \(String(format: "%.2f", duration))s"
         )
 
@@ -1182,7 +1207,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Fetch the unified timeline for all accounts
     public func fetchTimeline(force: Bool = false) async throws {
-        print("🔄 SocialServiceManager: fetchTimeline(force: \(force)) called")
+        DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline(force: \(force)) called")
 
         // Check if we're already loading or if too many rapid requests
         let now = Date()
@@ -1191,7 +1216,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Allow initial loads and forced refreshes to proceed even if refresh is in progress
         guard !isLoadingTimeline && (!isRefreshInProgress || shouldBypassRestrictions) else {
-            print(
+            DebugLog.verbose(
                 "🔄 SocialServiceManager: Already loading or refreshing - aborting (isInitialLoad: \(isInitialLoad), force: \(force))"
             )
             return  // Silent return - avoid spam
@@ -1200,7 +1225,7 @@ public final class SocialServiceManager: ObservableObject {
         // Prevent rapid successive refreshes (minimum 2 seconds between attempts)
         // But allow initial loads and forced refreshes to bypass this restriction
         guard now.timeIntervalSince(lastRefreshAttempt) > 2.0 || shouldBypassRestrictions else {
-            print(
+            DebugLog.verbose(
                 "🔄 SocialServiceManager: Too soon since last attempt - aborting (isInitialLoad: \(isInitialLoad), force: \(force))"
             )
             return  // Silent return - avoid spam
@@ -1212,12 +1237,12 @@ public final class SocialServiceManager: ObservableObject {
 
         // Only log important info, not spam
         let accountsToFetch = getAccountsToFetch()
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: Fetching timeline for \(accountsToFetch.count) accounts (isInitialLoad: \(isInitialLoad))"
         )
 
         for (index, account) in accountsToFetch.enumerated() {
-            print(
+            DebugLog.verbose(
                 "🔄 SocialServiceManager: Account \(index): \(account.username) (\(account.platform))"
             )
         }
@@ -1239,12 +1264,12 @@ public final class SocialServiceManager: ObservableObject {
 
         do {
             let canonicalPosts = try await refreshTimeline(accounts: accountsToFetch)
-            print("🔄 SocialServiceManager: Canonical timeline updated with \(canonicalPosts.count) posts")
+            DebugLog.verbose("🔄 SocialServiceManager: Canonical timeline updated with \(canonicalPosts.count) posts")
 
             // Update UI on main thread with proper delay to prevent rapid updates and AttributeGraph cycles
             Task { @MainActor in
                 self.safelyUpdateTimeline(canonicalPosts)
-                print("🔄 SocialServiceManager: Timeline updated with \(canonicalPosts.count) posts")
+                DebugLog.verbose("🔄 SocialServiceManager: Timeline updated with \(canonicalPosts.count) posts")
             }
         } catch {
             ErrorHandler.shared.handleError(error) {
@@ -1252,7 +1277,7 @@ public final class SocialServiceManager: ObservableObject {
                     try? await self.refreshTimeline(force: false)
                 }
             }
-            print("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
+            DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
             throw error
         }
     }
@@ -1266,7 +1291,7 @@ public final class SocialServiceManager: ObservableObject {
             return tags.map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon) }
         } catch {
             ErrorHandler.shared.handleError(error)
-            print("Failed to fetch trending tags: \(error)")
+            DebugLog.verbose("Failed to fetch trending tags: \(error)")
             return []
         }
     }
@@ -1348,7 +1373,7 @@ public final class SocialServiceManager: ObservableObject {
                         }
                     } catch {
                         ErrorHandler.shared.handleError(error)
-                        print("Search failed for \(account.username): \(error)")
+                        DebugLog.verbose("Search failed for \(account.username): \(error)")
                         return nil
                     }
                 }
@@ -1417,7 +1442,7 @@ public final class SocialServiceManager: ObservableObject {
                                         postsByUri[post.platformSpecificId] = post
                                     }
                                 } catch {
-                                    print(
+                                    DebugLog.verbose(
                                         "Failed to fetch notification posts for Bluesky: \(error)")
                                 }
                             }
@@ -1445,7 +1470,7 @@ public final class SocialServiceManager: ObservableObject {
                         }
                     } catch {
                         ErrorHandler.shared.handleError(error)
-                        print("Failed to fetch notifications for \(account.username): \(error)")
+                        DebugLog.verbose("Failed to fetch notifications for \(account.username): \(error)")
                         return []
                     }
                 }
@@ -1496,16 +1521,16 @@ public final class SocialServiceManager: ObservableObject {
             // If userId is empty, try to fetch it from verify_credentials
             var userId = user.id
             if userId.isEmpty {
-                print("⚠️ SocialServiceManager: userId is empty, fetching from verify_credentials")
+                DebugLog.verbose("⚠️ SocialServiceManager: userId is empty, fetching from verify_credentials")
                 do {
                     let mastodonAccount = try await mastodonService.verifyCredentials(
                         account: account)
                     userId = mastodonAccount.id
                     // Update the account's platformSpecificId for future use
                     account.platformSpecificId = userId
-                    print("✅ SocialServiceManager: Retrieved account ID: \(userId)")
+                    DebugLog.verbose("✅ SocialServiceManager: Retrieved account ID: \(userId)")
                 } catch {
-                    print("❌ SocialServiceManager: Failed to fetch account ID: \(error)")
+                    DebugLog.verbose("❌ SocialServiceManager: Failed to fetch account ID: \(error)")
                     throw NSError(
                         domain: "SocialServiceManager",
                         code: 400,
@@ -1628,7 +1653,7 @@ public final class SocialServiceManager: ObservableObject {
                     }
                 }
             } catch {
-                print("Error fetching next page for \(account.username): \(error)")
+                DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
                 // Continue with other accounts even if one fails
             }
         }
@@ -1671,7 +1696,7 @@ public final class SocialServiceManager: ObservableObject {
             if !recentWindow.isEmpty {
                 let filteredWindow = await filterRepliesInTimeline(recentWindow)
                 if filteredWindow.count != recentWindow.count {
-                    print(
+                    DebugLog.verbose(
                         "⚠️ SocialServiceManager: Reply filtering invariant failed for pagination window (\(recentWindow.count - filteredWindow.count) replies reintroduced)"
                     )
                 }
@@ -1710,18 +1735,18 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Fetch a specific post by ID from Mastodon with caching
     func fetchMastodonStatus(id: String, account: SocialAccount) async throws -> Post? {
-        print("📊 SocialServiceManager: Fetching Mastodon status with ID: \(id)")
+        DebugLog.verbose("📊 SocialServiceManager: Fetching Mastodon status with ID: \(id)")
 
         // Check cache first (valid for 5 minutes)
         if let cached = mastodonPostCache[id],
             Date().timeIntervalSince(cached.timestamp) < 300
         {  // 5 minutes
-            print("📊 SocialServiceManager: Using cached Mastodon post for ID: \(id)")
+            DebugLog.verbose("📊 SocialServiceManager: Using cached Mastodon post for ID: \(id)")
             return cached.post
         }
 
         guard account.platform == .mastodon else {
-            print(
+            DebugLog.verbose(
                 "📊 SocialServiceManager: Invalid account platform - expected Mastodon but got \(account.platform)"
             )
             throw ServiceError.invalidAccount(
@@ -1733,7 +1758,7 @@ public final class SocialServiceManager: ObservableObject {
             return try await Task.detached(priority: .userInitiated) {
                 let result = try await self.mastodonService.fetchStatus(id: id, account: account)
                 if let post = result {
-                    print(
+                    DebugLog.verbose(
                         "📊 SocialServiceManager: Successfully fetched Mastodon post \(post.id), inReplyToID: \(post.inReplyToID ?? "nil")"
                     )
 
@@ -1742,13 +1767,13 @@ public final class SocialServiceManager: ObservableObject {
                         self.mastodonPostCache[id] = (post: post, timestamp: Date())
                     }
                 } else {
-                    print(
+                    DebugLog.verbose(
                         "📊 SocialServiceManager: Mastodon service returned nil post for ID: \(id)")
                 }
                 return result
             }.value
         } catch {
-            print("📊 SocialServiceManager: Error fetching Mastodon status: \(error)")
+            DebugLog.verbose("📊 SocialServiceManager: Error fetching Mastodon status: \(error)")
             throw error
         }
     }
@@ -1761,7 +1786,7 @@ public final class SocialServiceManager: ObservableObject {
         type: String? = nil,
         limit: Int = 20
     ) async throws -> MastodonSearchResult {
-        print("📊 SocialServiceManager: Searching Mastodon for: \(query)")
+        DebugLog.verbose("📊 SocialServiceManager: Searching Mastodon for: \(query)")
         
         guard account.platform == .mastodon else {
             throw ServiceError.invalidAccount(
@@ -1784,7 +1809,7 @@ public final class SocialServiceManager: ObservableObject {
         type: String? = nil,
         limit: Int = 20
     ) async throws -> [Post] {
-        print("📊 SocialServiceManager: Searching Mastodon (with Post conversion) for: \(query)")
+        DebugLog.verbose("📊 SocialServiceManager: Searching Mastodon (with Post conversion) for: \(query)")
         
         guard account.platform == .mastodon else {
             throw ServiceError.invalidAccount(
@@ -1803,7 +1828,7 @@ public final class SocialServiceManager: ObservableObject {
             mastodonService.convertMastodonStatusToPost(status, account: account)
         }
         
-        print("📊 SocialServiceManager: Search returned \(posts.count) posts")
+        DebugLog.verbose("📊 SocialServiceManager: Search returned \(posts.count) posts")
         return posts
     }
 
@@ -1827,7 +1852,7 @@ public final class SocialServiceManager: ObservableObject {
                         let accountPosts = try await fetchPostsForAccount(account)
                         posts.append(contentsOf: accountPosts)
                     } catch {
-                        print("Error fetching posts for \(account.username): \(error)")
+                        DebugLog.verbose("Error fetching posts for \(account.username): \(error)")
                         // Continue with other accounts even if one fails
                     }
                 }
@@ -1950,7 +1975,7 @@ public final class SocialServiceManager: ObservableObject {
                     || errorDesc.contains("Token expired")
                     || errorDesc.contains("No refresh token available")
                 {
-                    print(
+                    DebugLog.verbose(
                         "❌ Mastodon authentication expired for \(account.username). Please re-add this account in settings."
                     )
                     throw ServiceError.authenticationExpired(
@@ -2293,7 +2318,7 @@ public final class SocialServiceManager: ObservableObject {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("❌ Failed to schedule notification: \(error.localizedDescription)")
+                DebugLog.verbose("❌ Failed to schedule notification: \(error.localizedDescription)")
             }
         }
     }
@@ -2657,24 +2682,78 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Vote in a poll
-    public func voteInPoll(post: Post, optionIndex: Int) async throws {
+    public func voteInPoll(post: Post, choices: [Int]) async throws {
         guard let poll = post.poll else { return }
+        let uniqueChoices = Array(Set(choices)).sorted()
+        guard !uniqueChoices.isEmpty else { return }
+        let previousPoll = poll
+        let optimisticPoll = makeOptimisticPollUpdate(
+            poll: poll,
+            choices: uniqueChoices
+        )
+
+        await MainActor.run {
+            post.poll = optimisticPoll
+        }
 
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            try await mastodonService.voteInPoll(
-                pollId: poll.id, optionIndex: optionIndex, account: account)
+            do {
+                try await mastodonService.voteInPoll(
+                    pollId: poll.id, choices: uniqueChoices, account: account)
+            } catch {
+                await MainActor.run {
+                    post.poll = previousPoll
+                }
+                throw error
+            }
 
-        // Optimistically update the poll state if needed, or re-fetch the post
-        // For now, we'll just let the UI handle the immediate state change
-        // and assume the next refresh will bring the updated poll data.
         case .bluesky:
             // Bluesky doesn't support polls yet
             throw ServiceError.unsupportedPlatform
         }
+
+        let refreshedId = post.platformSpecificId.isEmpty ? post.id : post.platformSpecificId
+        if let refreshedPost = try? await fetchPost(id: refreshedId, platform: post.platform) {
+            await MainActor.run {
+                post.poll = refreshedPost.poll
+            }
+        }
+    }
+
+    private func makeOptimisticPollUpdate(poll: Post.Poll, choices: [Int]) -> Post.Poll {
+        let uniqueChoices = Array(Set(choices)).sorted()
+        var options = poll.options
+        var newVotesCount = poll.votesCount + uniqueChoices.count
+        var newVotersCount = poll.votersCount
+
+        for index in uniqueChoices {
+            guard options.indices.contains(index) else { continue }
+            let currentVotes = options[index].votesCount ?? 0
+            options[index] = Post.Poll.PollOption(
+                title: options[index].title,
+                votesCount: currentVotes + 1
+            )
+        }
+
+        if let votersCount = poll.votersCount {
+            newVotersCount = votersCount + 1
+        }
+
+        return Post.Poll(
+            id: poll.id,
+            expiresAt: poll.expiresAt,
+            expired: poll.expired,
+            multiple: poll.multiple,
+            votesCount: newVotesCount,
+            votersCount: newVotersCount,
+            voted: true,
+            ownVotes: uniqueChoices,
+            options: options
+        )
     }
 
     /// Fetch direct messages for all accounts
@@ -2767,7 +2846,7 @@ public final class SocialServiceManager: ObservableObject {
                     allConversations.append(contentsOf: mappedConvos)
                 }
             } catch {
-                print("⚠️ Failed to fetch DMs for \(account.username): \(error)")
+                DebugLog.verbose("⚠️ Failed to fetch DMs for \(account.username): \(error)")
             }
         }
 
@@ -2917,7 +2996,7 @@ public final class SocialServiceManager: ObservableObject {
         let actions = offlineQueueStore.queuedActions
         guard !actions.isEmpty else { return }
 
-        print("🌐 [SocialServiceManager] Processing \(actions.count) offline actions...")
+        DebugLog.verbose("🌐 [SocialServiceManager] Processing \(actions.count) offline actions...")
 
         for action in actions {
             do {
@@ -2949,11 +3028,11 @@ public final class SocialServiceManager: ObservableObject {
 
                 // Remove from queue on success
                 offlineQueueStore.removeAction(action)
-                print(
+                DebugLog.verbose(
                     "✅ [SocialServiceManager] Successfully processed offline \(action.type) for post \(action.postId)"
                 )
             } catch {
-                print(
+                DebugLog.verbose(
                     "❌ [SocialServiceManager] Failed to process offline action: \(error.localizedDescription)"
                 )
                 // Keep in queue for next retry if it's still a transient error
@@ -3092,7 +3171,7 @@ public final class SocialServiceManager: ObservableObject {
                 createdPosts.append(post)
             } catch {
                 errors.append(error)
-                print("Failed to post to \(platform): \(error.localizedDescription)")
+                DebugLog.verbose("Failed to post to \(platform): \(error.localizedDescription)")
             }
         }
 
@@ -3104,7 +3183,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // If some posts failed but at least one succeeded, log warnings but don't throw
         if !errors.isEmpty {
-            print(
+            DebugLog.verbose(
                 "Warning: Posted successfully to \(createdPosts.count) platforms, but \(errors.count) failed"
             )
         }
@@ -3268,13 +3347,13 @@ public final class SocialServiceManager: ObservableObject {
     /// Safely update the timeline with proper isolation to prevent AttributeGraph cycles
     @MainActor
     private func safelyUpdateTimeline(_ posts: [Post]) {
-        print("🔄 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
+        DebugLog.verbose("🔄 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
         self.unifiedTimeline = posts
-        print("✅ SocialServiceManager: unifiedTimeline updated - new count: \(posts.count)")
+        DebugLog.verbose("✅ SocialServiceManager: unifiedTimeline updated - new count: \(posts.count)")
 
         // Proactively fetch parent posts in the background to prevent jittery reply banner animations
         Task.detached(priority: .background) { [weak self] in
-            print("🔄 SocialServiceManager: Starting background proactive parent fetching task")
+            DebugLog.verbose("🔄 SocialServiceManager: Starting background proactive parent fetching task")
             await self?.proactivelyFetchParentPosts(from: posts)
         }
     }
@@ -3300,7 +3379,7 @@ public final class SocialServiceManager: ObservableObject {
         for account in accounts where account.platform == .bluesky {
             // Check if this account has a DID-based ID (starts with "did:")
             if account.id.hasPrefix("did:") {
-                print(
+                DebugLog.verbose(
                     "🔄 [Migration] Found old DID-based Bluesky account: \(account.username) with ID: \(account.id)"
                 )
                 accountsToMigrate.append(account)
@@ -3342,7 +3421,7 @@ public final class SocialServiceManager: ObservableObject {
 
                 migratedAccounts.append(migratedAccount)
 
-                print(
+                DebugLog.verbose(
                     "🔄 [Migration] Migrated account \(account.username) from ID: \(account.id) to ID: \(stableId)"
                 )
             }
@@ -3365,7 +3444,7 @@ public final class SocialServiceManager: ObservableObject {
             saveAccounts()
             updateAccountLists()
 
-            print(
+            DebugLog.verbose(
                 "✅ [Migration] Successfully migrated \(migratedAccounts.count) Bluesky accounts to new stable ID format"
             )
         }
@@ -3376,23 +3455,23 @@ public final class SocialServiceManager: ObservableObject {
     /// Ensures timeline is refreshed when app becomes active or user navigates to timeline
     /// This is the primary method that should be called from UI lifecycle events
     func ensureTimelineRefresh(force: Bool = false) async {
-        print("🔄 SocialServiceManager: ensureTimelineRefresh called (force: \(force))")
+        DebugLog.verbose("🔄 SocialServiceManager: ensureTimelineRefresh called (force: \(force))")
 
         // Simple check: if timeline is empty or force is true, refresh
         let shouldRefresh = force || unifiedTimeline.isEmpty || shouldRefreshBasedOnTime()
 
         if shouldRefresh {
-            print("🔄 SocialServiceManager: Timeline needs refresh - proceeding")
+            DebugLog.verbose("🔄 SocialServiceManager: Timeline needs refresh - proceeding")
             do {
                 try await refreshTimeline(force: true)
-                print("✅ SocialServiceManager: Timeline refresh completed successfully")
+                DebugLog.verbose("✅ SocialServiceManager: Timeline refresh completed successfully")
             } catch {
-                print(
+                DebugLog.verbose(
                     "❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)"
                 )
             }
         } else {
-            print("🔄 SocialServiceManager: Timeline is fresh, no refresh needed")
+            DebugLog.verbose("🔄 SocialServiceManager: Timeline is fresh, no refresh needed")
         }
     }
 
@@ -3407,7 +3486,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Force refresh timeline regardless of current state - for pull-to-refresh
     func forceRefreshTimeline() async {
-        print("🔄 SocialServiceManager: forceRefreshTimeline called")
+        DebugLog.verbose("🔄 SocialServiceManager: forceRefreshTimeline called")
         await ensureTimelineRefresh(force: true)
     }
 
@@ -3415,27 +3494,27 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Fetch thread context for a post (ancestors and descendants)
     func fetchThreadContext(for post: Post) async throws -> ThreadContext {
-        print(
+        DebugLog.verbose(
             "📊 SocialServiceManager: fetchThreadContext called for post \(post.id) on \(post.platform)"
         )
 
         switch post.platform {
         case .mastodon:
             guard let account = mastodonAccounts.first else {
-                print("❌ SocialServiceManager: No Mastodon account available for thread loading")
+                DebugLog.verbose("❌ SocialServiceManager: No Mastodon account available for thread loading")
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
-            print(
+            DebugLog.verbose(
                 "📊 SocialServiceManager: Using Mastodon account \(account.username) for thread loading"
             )
             return try await fetchMastodonThreadContext(
                 postId: post.platformSpecificId, account: account)
         case .bluesky:
             guard let account = blueskyAccounts.first else {
-                print("❌ SocialServiceManager: No Bluesky account available for thread loading")
+                DebugLog.verbose("❌ SocialServiceManager: No Bluesky account available for thread loading")
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
-            print(
+            DebugLog.verbose(
                 "📊 SocialServiceManager: Using Bluesky account \(account.username) for thread loading"
             )
             return try await fetchBlueskyThreadContext(
@@ -3474,7 +3553,7 @@ public final class SocialServiceManager: ObservableObject {
             !existingReplyIds.contains($0.platformSpecificId)
         }
 
-        print(
+        DebugLog.verbose(
             "📊 SocialServiceManager: Thread context loaded - \(newParents.count) new parents, \(newReplies.count) new replies"
         )
 
@@ -3489,7 +3568,7 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Proactively fetch parent posts in the background to prevent jittery reply banner animations
     private func proactivelyFetchParentPosts(from posts: [Post]) async {
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: Starting proactive parent post fetching for \(posts.count) posts"
         )
 
@@ -3501,31 +3580,31 @@ public final class SocialServiceManager: ObservableObject {
 
             // Check if we already have this parent in cache
             let cacheKey = "\(post.platform.rawValue):\(parentId)"
-            print("🔍 SocialServiceManager: Checking cache for key: \(cacheKey)")
+            DebugLog.verbose("🔍 SocialServiceManager: Checking cache for key: \(cacheKey)")
 
             if PostParentCache.shared.getCachedPost(id: cacheKey) != nil {
-                print("✅ SocialServiceManager: Parent \(parentId) already cached, skipping")
+                DebugLog.verbose("✅ SocialServiceManager: Parent \(parentId) already cached, skipping")
                 continue  // Already cached, skip
             }
 
             // Check if we're already fetching this parent
             if parentFetchInProgress.contains(cacheKey) {
-                print("⏳ SocialServiceManager: Parent \(parentId) already being fetched, skipping")
+                DebugLog.verbose("⏳ SocialServiceManager: Parent \(parentId) already being fetched, skipping")
                 continue  // Already in progress, skip
             }
 
-            print(
+            DebugLog.verbose(
                 "📝 SocialServiceManager: Adding parent \(parentId) to fetch queue for post \(post.id)"
             )
             parentsToFetch.append((postId: post.id, parentId: parentId, platform: post.platform))
         }
 
         guard !parentsToFetch.isEmpty else {
-            print("✅ SocialServiceManager: No parent posts need fetching")
+            DebugLog.verbose("✅ SocialServiceManager: No parent posts need fetching")
             return
         }
 
-        print("🔄 SocialServiceManager: Fetching \(parentsToFetch.count) parent posts in background")
+        DebugLog.verbose("🔄 SocialServiceManager: Fetching \(parentsToFetch.count) parent posts in background")
 
         // Fetch parent posts concurrently with a limit to avoid overwhelming the APIs
         let maxConcurrentFetches = 5
@@ -3547,7 +3626,7 @@ public final class SocialServiceManager: ObservableObject {
             try? await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
         }
 
-        print("✅ SocialServiceManager: Completed proactive parent post fetching")
+        DebugLog.verbose("✅ SocialServiceManager: Completed proactive parent post fetching")
     }
 
     /// Fetch a single parent post and its ancestors recursively
@@ -3564,7 +3643,7 @@ public final class SocialServiceManager: ObservableObject {
             return
         }
 
-        print(
+        DebugLog.verbose(
             "🔄 SocialServiceManager: Starting fetch for parent \(parentId) on \(platform) (depth \(depth))"
         )
 
@@ -3586,7 +3665,7 @@ public final class SocialServiceManager: ObservableObject {
             switch platform {
             case .mastodon:
                 guard let account = mastodonAccounts.first else {
-                    print("⚠️ SocialServiceManager: No Mastodon account available for parent fetch")
+                    DebugLog.verbose("⚠️ SocialServiceManager: No Mastodon account available for parent fetch")
                     return
                 }
                 parentPost = try await fetchMastodonStatus(id: parentId, account: account)
@@ -3600,7 +3679,7 @@ public final class SocialServiceManager: ObservableObject {
                 Task { @MainActor in
                     PostParentCache.shared.cache[cacheKey] = parentPost
                 }
-                print("✅ SocialServiceManager: Cached parent post \(parentId) for \(platform)")
+                DebugLog.verbose("✅ SocialServiceManager: Cached parent post \(parentId) for \(platform)")
 
                 // Proactively fetch its parent if it's also a reply
                 if let grandParentId = parentPost.inReplyToID {
@@ -3609,7 +3688,7 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         } catch {
-            print(
+            DebugLog.verbose(
                 "⚠️ SocialServiceManager: Failed to fetch parent post \(parentId): \(error.localizedDescription)"
             )
             // Don't throw - just log the error and continue
