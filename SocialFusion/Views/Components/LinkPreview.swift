@@ -172,7 +172,7 @@ struct LinkPreviewContent: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(maxWidth: .infinity, maxHeight: 200)
-                            .cornerRadius(12)
+                            .cornerRadius(MediaConstants.CornerRadius.feed)
                             .clipped()
                     case .failure(_):
                         EmptyView()
@@ -180,7 +180,7 @@ struct LinkPreviewContent: View {
                         Rectangle()
                             .fill(Color.gray.opacity(0.15))
                             .frame(maxWidth: .infinity, maxHeight: 200)
-                            .cornerRadius(12)
+                            .cornerRadius(MediaConstants.CornerRadius.feed)
                             .overlay(ProgressView())
                     @unknown default:
                         EmptyView()
@@ -209,13 +209,14 @@ struct LinkPreviewContent: View {
             .padding(.vertical, 8)
         }
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
                 .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
                 .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
         )
+        .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .onTapGesture {
             UIApplication.shared.open(url)
         }
@@ -266,7 +267,7 @@ struct LinkPreviewPlaceholder: View {
             Rectangle()
                 .fill(Color.gray.opacity(0.2))
                 .frame(height: 120)
-                .cornerRadius(12)
+                .cornerRadius(MediaConstants.CornerRadius.feed)
                 .overlay(
                     ProgressView()
                         .scaleEffect(0.8)
@@ -290,13 +291,14 @@ struct LinkPreviewPlaceholder: View {
             .padding(.vertical, 8)
         }
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
                 .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
                 .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
         )
+        .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .redacted(reason: .placeholder)
     }
 }
@@ -339,13 +341,14 @@ struct LinkPreviewFallback: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
                 .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
                 .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
         )
+        .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .onTapGesture {
             UIApplication.shared.open(url)
         }

@@ -167,10 +167,10 @@ private struct StabilizedLinkLoadingView: View {
                 .clipShape(
                     UnevenRoundedRectangle(
                         cornerRadii: .init(
-                            topLeading: 12,
+                            topLeading: MediaConstants.CornerRadius.feed,
                             bottomLeading: 0,
                             bottomTrailing: 0,
-                            topTrailing: 12
+                            topTrailing: MediaConstants.CornerRadius.feed
                         )
                     )
                 )
@@ -190,10 +190,16 @@ private struct StabilizedLinkLoadingView: View {
             }
             .padding(12)
         }
-        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
+        .background(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                .fill(Color(.systemGray6).opacity(0.5))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 12).stroke(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
                 Color(.separator).opacity(0.3), lineWidth: 0.5)
+        )
+        .clipShape(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
         )
         .onAppear {
             withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
@@ -273,10 +279,10 @@ private struct StabilizedLinkRichContentView: View {
                 .clipShape(
                     UnevenRoundedRectangle(
                         cornerRadii: .init(
-                            topLeading: 12,
+                            topLeading: MediaConstants.CornerRadius.feed,
                             bottomLeading: 0,
                             bottomTrailing: 0,
-                            topTrailing: 12
+                            topTrailing: MediaConstants.CornerRadius.feed
                         )
                     )
                 )
@@ -313,10 +319,16 @@ private struct StabilizedLinkRichContentView: View {
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
+            .background(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                    .fill(Color(.systemGray6).opacity(0.5))
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 12).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 1))
+            .clipShape(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .onAppear {
@@ -428,10 +440,16 @@ private struct StabilizedLinkCompactContentView: View {
                     .foregroundColor(.secondary.opacity(0.5))
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
+            .background(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                    .fill(Color(.systemGray6).opacity(0.5))
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 12).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 0.5))
+            .clipShape(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .onAppear {
@@ -482,10 +500,16 @@ private struct StabilizedLinkFallbackView: View {
                 Spacer()
             }
             .padding(10)
-            .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray6).opacity(0.5)))
+            .background(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                    .fill(Color(.systemGray6).opacity(0.5))
+            )
             .overlay(
-                RoundedRectangle(cornerRadius: 12).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 0.5))
+            .clipShape(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+            )
         }
         .buttonStyle(PlainButtonStyle())
     }

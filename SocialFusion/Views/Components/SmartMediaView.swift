@@ -225,6 +225,7 @@ struct SmartMediaView: View {
                         .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .onAppear {
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 1_000_000)
@@ -239,6 +240,9 @@ struct SmartMediaView: View {
                             .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                             .clipped()
+                            .clipShape(
+                                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            )
                             .blur(radius: 1)  // Slight blur for progressive effect
                     } placeholder: {
                         loadingView
@@ -286,6 +290,7 @@ struct SmartMediaView: View {
                         .aspectRatio(contentMode: contentMode == .fill ? .fill : .fit)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .onAppear {
                             Task { @MainActor in
                                 try? await Task.sleep(nanoseconds: 1_000_000)

@@ -126,7 +126,9 @@ public struct QuotedPostView: View {
             attachments: post.attachments,
             maxHeight: 220
         )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+        )
         .padding(.top, 4)
     }
 
@@ -715,13 +717,13 @@ private struct PostAttachmentView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(maxWidth: .infinity, maxHeight: 220)
-                    .cornerRadius(14)
+                    .cornerRadius(MediaConstants.CornerRadius.feed)
                     .clipped()
             } else if phase.error != nil {
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
                     .frame(maxWidth: .infinity, maxHeight: 220)
-                    .cornerRadius(14)
+                    .cornerRadius(MediaConstants.CornerRadius.feed)
                     .overlay(
                         Image(systemName: "photo")
                             .foregroundColor(.secondary)
@@ -730,7 +732,7 @@ private struct PostAttachmentView: View {
                 Rectangle()
                     .fill(Color.gray.opacity(0.1))
                     .frame(maxWidth: .infinity, maxHeight: 220)
-                    .cornerRadius(14)
+                    .cornerRadius(MediaConstants.CornerRadius.feed)
                     .overlay(
                         ProgressView()
                     )
