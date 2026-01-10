@@ -226,12 +226,33 @@ extension Post {
         if preventNestedQuotes {
             EmptyView()
         } else if let quotedPost = quotedPost {
-            QuotedPostView(post: quotedPost) {
-                if let onQuotePostTap = onQuotePostTap {
-                    onQuotePostTap(quotedPost)
+            let quotedPostURL: URL? = {
+                if let officialQuoteURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
+                    return officialQuoteURL
                 }
+                if let url = URL(string: quotedPost.originalURL),
+                    URLService.shared.isSocialMediaPostURL(url)
+                {
+                    return url
+                }
+                return nil
+            }()
+
+            if quotedPost.attachments.isEmpty, let quotedPostURL = quotedPostURL {
+                FetchQuotePostView(
+                    url: quotedPostURL,
+                    onQuotePostTap: onQuotePostTap,
+                    fallbackPost: quotedPost
+                )
+                .padding(.top, 8)
+            } else {
+                QuotedPostView(post: quotedPost) {
+                    if let onQuotePostTap = onQuotePostTap {
+                        onQuotePostTap(quotedPost)
+                    }
+                }
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
         } else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
             FetchQuotePostView(
                 url: quotedPostURL,

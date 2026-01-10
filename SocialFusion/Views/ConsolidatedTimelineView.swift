@@ -646,7 +646,7 @@ struct ConsolidatedTimelineView: View {
         let visible = visibleAnchorId ?? "nil"
         let lock = anchorLockUntil?.timeIntervalSinceNow ?? -1
         print(
-            "🧭 [ConsolidatedTimelineView] \(label) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: \"%.2f\", lock)) restored=\(hasRestoredInitialAnchor)"
+            "🧭 [ConsolidatedTimelineView] \(label) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: "%.2f", lock)) restored=\(hasRestoredInitialAnchor)"
         )
     }
 

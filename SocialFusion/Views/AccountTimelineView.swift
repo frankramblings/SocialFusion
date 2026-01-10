@@ -16,6 +16,8 @@ struct AccountTimelineView: View {
     @State private var scrollAnchorId: String?
     @State private var pendingAnchorRestoreId: String?
     @State private var hasRestoredInitialAnchor = false
+    @State private var visibleAnchorId: String?
+    @State private var anchorLockUntil: Date?
     @Environment(\.scenePhase) private var scenePhase
 
     private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
@@ -68,6 +70,14 @@ struct AccountTimelineView: View {
                                         onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
                                     )
                                     .id(entry.id)
+                                    .background(
+                                        GeometryReader { proxy in
+                                            Color.clear.preference(
+                                                key: AccountTimelineVisibleItemPreferenceKey.self,
+                                                value: [entry.id: proxy.frame(in: .named("accountTimelineScroll")).minY]
+                                            )
+                                        }
+                                    )
                                     .padding(.horizontal)
                                     .onAppear {
                                         if shouldLoadMorePosts(currentIndex: index) {
@@ -89,14 +99,23 @@ struct AccountTimelineView: View {
                             .padding(.vertical)
                             .scrollTargetLayout()
                         }
-                        .scrollPosition(id: $scrollAnchorId)
-                        .onChange(of: scrollAnchorId) { newValue in
+                        .coordinateSpace(name: "accountTimelineScroll")
+                        .onPreferenceChange(AccountTimelineVisibleItemPreferenceKey.self) { positions in
                             guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
-                            guard newValue != nil else { return }
-                            setPersistedAnchor(newValue)
+                            if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
+                            guard let nextId = positions
+                                .filter({ $0.value >= 0 })
+                                .min(by: { $0.value < $1.value })?.key
+                                ?? positions.min(by: { abs($0.value) < abs($1.value) })?.key
+                            else { return }
+                            if visibleAnchorId != nextId {
+                                visibleAnchorId = nextId
+                                setPersistedAnchor(nextId)
+                            }
                         }
+                        .scrollPosition(id: $scrollAnchorId)
                         .refreshable {
-                            let anchorBefore = scrollAnchorId ?? persistedAnchor()
+                            let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                             pendingAnchorRestoreId = anchorBefore
                             await loadPosts()
                         }
@@ -171,7 +190,7 @@ struct AccountTimelineView: View {
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
-                setPersistedAnchor(scrollAnchorId)
+                setPersistedAnchor(visibleAnchorId ?? scrollAnchorId)
             }
         }
         .onChange(of: posts) { _ in
@@ -247,6 +266,8 @@ struct AccountTimelineView: View {
             } else {
                 withTransaction(t) { scrollAnchorId = id }
             }
+            setPersistedAnchor(id)
+            anchorLockUntil = Date().addingTimeInterval(0.6)
         }
         pendingAnchorRestoreId = nil
         hasRestoredInitialAnchor = true
@@ -304,6 +325,14 @@ struct AccountTimelineView: View {
                 cursor: cursor
             )
         }
+    }
+}
+
+private struct AccountTimelineVisibleItemPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
     }
 }
 

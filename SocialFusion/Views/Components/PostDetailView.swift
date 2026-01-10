@@ -61,7 +61,6 @@ struct PostDetailView: View {
     @State private var isInitialPositioned: Bool = false
     @State private var scrollTargetID: String? = nil
     @State private var scrollTrigger: Int = 0
-    @State private var dragOffset: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -173,34 +172,6 @@ struct PostDetailView: View {
                     .allowsHitTesting(true)
                 }
             }
-            .offset(x: max(0, dragOffset))
-            .gesture(
-                DragGesture(minimumDistance: 10)
-                    .onChanged { value in
-                        // Only activate if starting from the left edge
-                        if value.startLocation.x < 20 && value.translation.width > 0 {
-                            dragOffset = min(value.translation.width, geometry.size.width * 0.5)
-                        }
-                    }
-                    .onEnded { value in
-                        // If dragged far enough, go back
-                        if dragOffset > 100 {
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                dragOffset = geometry.size.width
-                            }
-                            // Clear navigation after animation
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                navigationEnvironment.clearNavigation()
-                                dragOffset = 0
-                            }
-                        } else {
-                            // Spring back if not far enough
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                dragOffset = 0
-                            }
-                        }
-                    }
-            )
             .sheet(isPresented: $isReplying) {
                 ComposeView(replyingTo: activeReplyPost ?? viewModel.post)
                     .environmentObject(serviceManager)
@@ -210,24 +181,19 @@ struct PostDetailView: View {
             inlineReplyBar
         }
         .toolbarBackground(.clear, for: .navigationBar)
-        .navigationBarBackButtonHidden(true)
-        .navigationBarItems(
-            leading: Button(action: { dismiss() }) {
-                Image(systemName: "chevron.left")
-                    .font(.body.weight(.medium))
-                    .foregroundColor(.primary)
-                    .padding(8)
-            },
-            trailing: Menu {
-                postMenuItems
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.body.weight(.medium))
-                    .foregroundColor(.primary)
-                    .padding(8)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Menu {
+                    postMenuItems
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.body.weight(.medium))
+                        .foregroundColor(.primary)
+                        .padding(8)
+                }
+                .menuStyle(.borderlessButton)
             }
-            .menuStyle(.borderlessButton)
-        )
+        }
         .alert("Reply failed", isPresented: $showQuickReplyError) {
             Button("OK", role: .cancel) {
                 showQuickReplyError = false
@@ -1228,11 +1194,11 @@ struct PostRow: View {
                 }
 
                 post.contentView(
-                    lineLimit: rowType == .reply ? 4 : nil,
+                    lineLimit: nil,
                     showLinkPreview: true,
                     font: contentFont,
                     onQuotePostTap: { onPostTap($0) },
-                    allowTruncation: rowType == .reply
+                    allowTruncation: false
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
 

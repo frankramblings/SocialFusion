@@ -157,6 +157,7 @@ public struct QuotedPostView: View {
 struct FetchQuotePostView: View {
     let url: URL
     var onQuotePostTap: ((Post) -> Void)? = nil
+    var fallbackPost: Post? = nil
     @State private var quotedPost: Post? = nil
     @State private var isLoading = true
     @State private var error: Error? = nil
@@ -185,13 +186,12 @@ struct FetchQuotePostView: View {
             if let post = quotedPost, hasMeaningfulContent(post) {
                 QuotedPostView(post: post) {
                     print("🔗 [FetchQuotePostView] Quote post tapped: \(post.id)")
-                    if let onQuotePostTap = onQuotePostTap {
-                        print("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
-                        onQuotePostTap(post)
-                    } else {
-                        print("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
-                        navigationEnvironment.navigateToPost(post)
-                    }
+                    handleQuoteTap(for: post)
+                }
+            } else if let fallbackPost = fallbackPost, hasMeaningfulContent(fallbackPost) {
+                // Show embedded quote data while we fetch full details/attachments.
+                QuotedPostView(post: fallbackPost) {
+                    handleQuoteTap(for: fallbackPost)
                 }
             } else if isLoading {
                 LoadingQuoteView(platform: platform)
@@ -232,6 +232,16 @@ struct FetchQuotePostView: View {
             Task {
                 await fetchPost()
             }
+        }
+    }
+
+    private func handleQuoteTap(for post: Post) {
+        if let onQuotePostTap = onQuotePostTap {
+            print("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
+            onQuotePostTap(post)
+        } else {
+            print("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
+            navigationEnvironment.navigateToPost(post)
         }
     }
 
