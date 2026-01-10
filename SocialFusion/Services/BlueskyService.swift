@@ -1069,6 +1069,10 @@ public final class BlueskyService: Sendable {
                 author["displayName"] as? String ?? author["handle"] as? String ?? "Unknown"
             let authorUsername = author["handle"] as? String ?? "unknown"
             let authorAvatarURL = author["avatar"] as? String ?? ""
+            let authorViewer = author["viewer"] as? [String: Any]
+            let isFollowingAuthor = authorViewer?["following"] != nil  // following is a URI string if following
+            let isMutedAuthor = (authorViewer?["muted"] as? Bool) ?? false
+            let isBlockedAuthor = (authorViewer?["blockedBy"] as? Bool) ?? false
 
             // Extract viewer information for user interaction status
             let viewer = post["viewer"] as? [String: Any]
@@ -2031,6 +2035,9 @@ public final class BlueskyService: Sendable {
                         likeCount: likeCount,
                         repostCount: repostCount,
                         replyCount: replyCount,
+                        isFollowingAuthor: isFollowingAuthor,
+                        isMutedAuthor: isMutedAuthor,
+                        isBlockedAuthor: isBlockedAuthor,
                         platformSpecificId: uri,
                         boostedBy: nil,
                         parent: parentPost,
@@ -2149,6 +2156,9 @@ public final class BlueskyService: Sendable {
                 likeCount: likeCount,
                 repostCount: repostCount,
                 replyCount: replyCount,
+                isFollowingAuthor: isFollowingAuthor,
+                isMutedAuthor: isMutedAuthor,
+                isBlockedAuthor: isBlockedAuthor,
                 platformSpecificId: uri,
                 boostedBy: boostedBy,
                 parent: parentPost,
@@ -2210,6 +2220,11 @@ public final class BlueskyService: Sendable {
         let authorProfilePictureURL = post.author.avatar ?? ""
         let createdAt = ISO8601DateFormatter().date(from: post.record.createdAt) ?? Date()
         let content = post.record.text
+
+        // Extract author relationship state from viewer data
+        let isFollowingAuthor = post.author.viewer?.following != nil
+        let isMutedAuthor = post.author.viewer?.muted ?? false
+        let isBlockedAuthor = post.author.viewer?.blockedBy ?? false
         let originalURL =
             "https://\(authorUsername)/post/\(post.uri.split(separator: "/").last ?? "")"
         var attachments: [Post.Attachment] = []
@@ -2257,6 +2272,10 @@ public final class BlueskyService: Sendable {
             isLiked: post.viewer?.like != nil,
             likeCount: post.likeCount,
             repostCount: post.repostCount,
+            replyCount: post.replyCount,
+            isFollowingAuthor: isFollowingAuthor,
+            isMutedAuthor: isMutedAuthor,
+            isBlockedAuthor: isBlockedAuthor,
             platformSpecificId: post.uri,
             boostedBy: nil,
             parent: nil,
@@ -2293,6 +2312,12 @@ public final class BlueskyService: Sendable {
         let authorUsername = author["handle"] as? String ?? "unknown"
         let authorId = author["did"] as? String ?? authorUsername
         let authorAvatarURL = author["avatar"] as? String ?? ""
+
+        // Extract author relationship state from viewer data
+        let authorViewer = author["viewer"] as? [String: Any]
+        let isFollowingAuthor = authorViewer?["following"] != nil  // following is a URI string if following
+        let isMutedAuthor = (authorViewer?["muted"] as? Bool) ?? false
+        let isBlockedAuthor = (authorViewer?["blockedBy"] as? Bool) ?? false
 
         let likeCount = post["likeCount"] as? Int ?? 0
         let repostCount = post["repostCount"] as? Int ?? 0
@@ -2516,6 +2541,9 @@ public final class BlueskyService: Sendable {
             likeCount: likeCount,
             repostCount: repostCount,
             replyCount: replyCount,
+            isFollowingAuthor: isFollowingAuthor,
+            isMutedAuthor: isMutedAuthor,
+            isBlockedAuthor: isBlockedAuthor,
             platformSpecificId: uri,
             quotedPostUri: quotedPostUri,
             quotedPostAuthorHandle: quotedPostAuthorHandle,

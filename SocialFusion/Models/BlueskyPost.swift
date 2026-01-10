@@ -90,6 +90,8 @@ public struct BlueskyPost: Codable, Identifiable {
         public let repost: String?
         public let muted: Bool?
         public let blockedBy: Bool?
+        public let following: String?
+        public let followedBy: String?
     }
 }
 
@@ -130,7 +132,9 @@ extension BlueskyPost {
                 like: nil,
                 repost: nil,
                 muted: false,
-                blockedBy: false
+                blockedBy: false,
+                following: nil,
+                followedBy: nil
             )
         )
     }

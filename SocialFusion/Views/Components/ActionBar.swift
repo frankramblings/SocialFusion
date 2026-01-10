@@ -17,6 +17,7 @@ struct SmoothScaleButtonStyle: ButtonStyle {
 struct ActionBar: View {
     @ObservedObject var post: Post
     let onAction: (PostAction) -> Void
+    let onMenuOpen: (() -> Void)?
 
     // Icon size for better visibility
     private let iconSize: CGFloat = 18
@@ -32,10 +33,26 @@ struct ActionBar: View {
         }
     }
 
+    private var menuOpenTrigger: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear { onMenuOpen?() }
+    }
+
     // Track operation state per button
     @State private var isLikeProcessing = false
     @State private var isRepostProcessing = false
     @State private var isReplyProcessing = false
+
+    init(
+        post: Post,
+        onAction: @escaping (PostAction) -> Void,
+        onMenuOpen: (() -> Void)? = nil
+    ) {
+        self.post = post
+        self.onAction = onAction
+        self.onMenuOpen = onMenuOpen
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -112,6 +129,8 @@ struct ActionBar: View {
 
             // Menu button (three dots)
             Menu {
+                menuOpenTrigger
+
                 ForEach(PostAction.platformActions(for: post), id: \.self) { action in
                     menuButton(for: action)
                 }
@@ -132,6 +151,9 @@ struct ActionBar: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
+            .simultaneousGesture(
+                TapGesture().onEnded { onMenuOpen?() }
+            )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
             .frame(maxWidth: .infinity)
@@ -140,12 +162,19 @@ struct ActionBar: View {
         .padding(.horizontal, 0)
     }
 
+    /// Derives current action state from the post for menu label computation
+    private var currentState: PostActionState {
+        post.makeActionState()
+    }
+
     private func menuButton(for action: PostAction) -> some View {
-        Button(role: action.menuRole) {
-            menuLogger.info("📋 ActionBar menu tap: \(action.menuLabel, privacy: .public)")
+        let label = action.menuLabel(for: currentState)
+        let icon = action.menuSystemImage(for: currentState)
+        return Button(role: action.menuRole) {
+            menuLogger.info("📋 ActionBar menu tap: \(label, privacy: .public)")
             onAction(action)
         } label: {
-            Label(action.menuLabel, systemImage: action.menuSystemImage)
+            Label(label, systemImage: icon)
         }
     }
 }
@@ -155,12 +184,33 @@ struct ActionBarV2: View {
     @ObservedObject var store: PostActionStore
     let coordinator: PostActionCoordinator
     let onAction: (PostAction) -> Void
+    let onMenuOpen: (() -> Void)?
     private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
     private var actionKey: String { post.stableId }
     private var state: PostActionState { store.state(for: post) }
     private var isProcessing: Bool { store.inflightKeys.contains(actionKey) }
     private var isPending: Bool { store.pendingKeys.contains(actionKey) }
+
+    private var menuOpenTrigger: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onAppear { onMenuOpen?() }
+    }
+
+    init(
+        post: Post,
+        store: PostActionStore,
+        coordinator: PostActionCoordinator,
+        onAction: @escaping (PostAction) -> Void,
+        onMenuOpen: (() -> Void)? = nil
+    ) {
+        self.post = post
+        self.store = store
+        self.coordinator = coordinator
+        self.onAction = onAction
+        self.onMenuOpen = onMenuOpen
+    }
 
     private var quoteButton: some View {
         UnifiedQuoteButton(
@@ -216,6 +266,8 @@ struct ActionBarV2: View {
             .frame(maxWidth: .infinity)
 
             Menu {
+                menuOpenTrigger
+
                 ForEach(PostAction.platformActions(for: post), id: \.self) { action in
                     menuButton(for: action)
                 }
@@ -236,6 +288,9 @@ struct ActionBarV2: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
+            .simultaneousGesture(
+                TapGesture().onEnded { onMenuOpen?() }
+            )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
             .frame(maxWidth: .infinity)
@@ -246,11 +301,13 @@ struct ActionBarV2: View {
     }
 
     private func menuButton(for action: PostAction) -> some View {
-        Button(role: action.menuRole) {
-            menuLogger.info("📋 ActionBarV2 menu tap: \(action.menuLabel, privacy: .public)")
+        let label = action.menuLabel(for: state)
+        let icon = action.menuSystemImage(for: state)
+        return Button(role: action.menuRole) {
+            menuLogger.info("📋 ActionBarV2 menu tap: \(label, privacy: .public)")
             onAction(action)
         } label: {
-            Label(action.menuLabel, systemImage: action.menuSystemImage)
+            Label(label, systemImage: icon)
         }
     }
 }

@@ -169,6 +169,7 @@ public final class SocialServiceManager: ObservableObject {
     private var blueskyPostCache: [String: Post] = [:]
     // Track in-progress parent fetches to avoid redundant network calls
     private var parentFetchInProgress: Set<String> = []
+    private var mastodonAcctIdCache: [String: String] = [:]
 
     // Automatic token refresh service
     public var automaticTokenRefreshService: AutomaticTokenRefreshService?
@@ -3121,6 +3122,81 @@ public final class SocialServiceManager: ObservableObject {
             return post
         }
         return state
+    }
+
+    // MARK: - Relationship Refresh
+
+    @MainActor
+    public func refreshRelationshipStateForMenu(for post: Post) async {
+        guard post.platform == .mastodon else { return }
+        let host = URL(string: post.originalURL)?.host
+        let account =
+            mastodonAccounts.first(where: { $0.serverURL?.host == host }) ?? mastodonAccounts.first
+        guard let account else { return }
+
+        func resolveAccountId(_ idOrAcct: String) async -> String? {
+            guard !idOrAcct.isEmpty else { return nil }
+            if idOrAcct.allSatisfy({ $0.isNumber }) {
+                return idOrAcct
+            }
+            if let cached = mastodonAcctIdCache[idOrAcct] {
+                return cached
+            }
+            if let resolved = try? await mastodonService.lookupAccountId(
+                acct: idOrAcct, account: account)
+            {
+                mastodonAcctIdCache[idOrAcct] = resolved
+                return resolved
+            }
+            return nil
+        }
+
+        let rawAuthorIds = [post.authorId, post.originalPost?.authorId ?? ""]
+        var resolvedAuthorIds: [String] = []
+        for rawId in rawAuthorIds {
+            if let resolved = await resolveAccountId(rawId) {
+                resolvedAuthorIds.append(resolved)
+            }
+        }
+
+        let authorIds = Set(resolvedAuthorIds)
+
+        guard !authorIds.isEmpty else { return }
+
+        do {
+            let relationships = try await mastodonService.fetchRelationships(
+                accountIds: Array(authorIds),
+                account: account
+            )
+            var relationshipMap: [String: MastodonRelationship] = [:]
+            for rel in relationships {
+                relationshipMap[rel.id] = rel
+            }
+
+            let resolvedPostAuthorId =
+                await resolveAccountId(post.authorId) ?? post.authorId
+            if let relationship = relationshipMap[resolvedPostAuthorId] {
+                post.isFollowingAuthor = relationship.following
+                post.isMutedAuthor = relationship.muting
+                post.isBlockedAuthor = relationship.blocking
+            }
+            if let original = post.originalPost,
+                let resolvedOriginalAuthorId = await resolveAccountId(original.authorId),
+                let relationship = relationshipMap[resolvedOriginalAuthorId]
+            {
+                original.isFollowingAuthor = relationship.following
+                original.isMutedAuthor = relationship.muting
+                original.isBlockedAuthor = relationship.blocking
+            }
+
+            postActionStore.ensureState(for: post)
+            if let original = post.originalPost {
+                postActionStore.ensureState(for: original)
+            }
+        } catch {
+            actionLogger.warning(
+                "Failed to refresh Mastodon relationship state: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - Post Creation
