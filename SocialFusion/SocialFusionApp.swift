@@ -27,6 +27,8 @@ struct SocialFusionApp: App {
     // Draft store for saving unfinished posts
     @StateObject private var draftStore = DraftStore()
 
+    @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
+
     // Environment object for scene phase to detect when app is terminating
     @Environment(\.scenePhase) private var scenePhase
 
@@ -57,7 +59,7 @@ struct SocialFusionApp: App {
                 .onOpenURL { url in
                     handleURL(url)
                 }
-            } else if serviceManager.accounts.isEmpty {
+            } else if serviceManager.accounts.isEmpty && !hasCompletedOnboarding {
                 OnboardingView()
                     .environmentObject(serviceManager)
                     .environmentObject(appVersionManager)

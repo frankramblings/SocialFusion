@@ -4,6 +4,7 @@ struct OnboardingView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @State private var currentPage = 0
     @State private var showingAddAccount = false
+    @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
     
     let pages = [
         OnboardingPage(
@@ -69,8 +70,7 @@ struct OnboardingView: View {
                 }
                 
                 Button(action: {
-                    // Skip onboarding
-                    // For now, just go to the last page or dismiss if it was a sheet
+                    hasCompletedOnboarding = true
                 }) {
                     Text("Skip")
                         .font(.subheadline)
@@ -129,4 +129,3 @@ struct OnboardingView_Previews: PreviewProvider {
             .environmentObject(SocialServiceManager())
     }
 }
-
