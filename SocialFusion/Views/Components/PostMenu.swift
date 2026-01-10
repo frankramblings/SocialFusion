@@ -1,82 +1,39 @@
 import SwiftUI
+import os.log
 
 /// A view that displays platform-specific actions for a post
 struct PostMenu: View {
     let post: Post
     let onAction: (PostAction) -> Void
-    let onOpenInBrowser: () -> Void
-    let onCopyLink: () -> Void
-    let onShare: () -> Void
-    let onReport: () -> Void
+    private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
     var body: some View {
         Menu {
-            // Platform-specific actions
-            if post.platform == .bluesky {
-                blueskyActions
-            } else if post.platform == .mastodon {
-                mastodonActions
+            ForEach(PostAction.platformActions(for: post), id: \.self) { action in
+                menuButton(for: action)
             }
 
             Divider()
 
-            // Common actions
-            Button(action: onOpenInBrowser) {
-                Label("Open in Browser", systemImage: "arrow.up.right.square")
-            }
-
-            Button(action: onCopyLink) {
-                Label("Copy Link", systemImage: "link")
-            }
-
-            Button(action: onShare) {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
+            menuButton(for: .openInBrowser)
+            menuButton(for: .copyLink)
+            menuButton(for: .shareSheet)
 
             Divider()
 
-            Button(role: .destructive, action: onReport) {
-                Label("Report", systemImage: "exclamationmark.triangle")
-            }
+            menuButton(for: .report)
         } label: {
             Image(systemName: "ellipsis")
                 .foregroundColor(.secondary)
         }
     }
 
-    private var blueskyActions: some View {
-        Group {
-            Button(action: { onAction(.follow) }) {
-                Label("Follow", systemImage: "person.badge.plus")
-            }
-
-            Button(action: { onAction(.mute) }) {
-                Label("Mute", systemImage: "speaker.slash")
-            }
-
-            Button(action: { onAction(.block) }) {
-                Label("Block", systemImage: "hand.raised")
-            }
-        }
-    }
-
-    private var mastodonActions: some View {
-        Group {
-            Button(action: { onAction(.follow) }) {
-                Label("Follow", systemImage: "person.badge.plus")
-            }
-
-            Button(action: { onAction(.mute) }) {
-                Label("Mute", systemImage: "speaker.slash")
-            }
-
-            Button(action: { onAction(.block) }) {
-                Label("Block", systemImage: "hand.raised")
-            }
-
-            Button(action: { onAction(.addToList) }) {
-                Label("Add to Lists", systemImage: "list.bullet")
-            }
+    private func menuButton(for action: PostAction) -> some View {
+        Button(role: action.menuRole) {
+            menuLogger.info("📋 PostMenu tap: \(action.menuLabel, privacy: .public)")
+            onAction(action)
+        } label: {
+            Label(action.menuLabel, systemImage: action.menuSystemImage)
         }
     }
 }
@@ -98,11 +55,7 @@ struct PostMenu_Previews: PreviewProvider {
                     originalURL: "",
                     attachments: []
                 ),
-                onAction: { _ in },
-                onOpenInBrowser: {},
-                onCopyLink: {},
-                onShare: {},
-                onReport: {}
+                onAction: { _ in }
             )
 
             // Mastodon post menu
@@ -118,11 +71,7 @@ struct PostMenu_Previews: PreviewProvider {
                     originalURL: "",
                     attachments: []
                 ),
-                onAction: { _ in },
-                onOpenInBrowser: {},
-                onCopyLink: {},
-                onShare: {},
-                onReport: {}
+                onAction: { _ in }
             )
         }
         .padding()

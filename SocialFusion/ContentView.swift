@@ -100,6 +100,7 @@ struct ContentView: View {
             AddAccountView()
                 .environmentObject(serviceManager)
         }
+        .withToastNotifications()
     }
 
     private var sidebar: some View {

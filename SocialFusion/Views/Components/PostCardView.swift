@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Modifier that conditionally applies clipping
 private struct ConditionalClippedModifier: ViewModifier {
@@ -380,6 +381,9 @@ struct PostCardView: View {
         onRepost: @escaping () -> Void = {},
         onLike: @escaping () -> Void = {},
         onShare: @escaping () -> Void = {},
+        onOpenInBrowser: @escaping () -> Void = {},
+        onCopyLink: @escaping () -> Void = {},
+        onReport: @escaping () -> Void = {},
         onQuote: @escaping () -> Void = {}
     ) {
         self.post = entry.post
@@ -394,11 +398,11 @@ struct PostCardView: View {
         self.onRepost = onRepost
         self.onLike = onLike
         self.onShare = onShare
+        self.onOpenInBrowser = onOpenInBrowser
+        self.onCopyLink = onCopyLink
+        self.onReport = onReport
         self.onQuote = onQuote
         self.onMediaTap = { _ in }
-        self.onOpenInBrowser = {}
-        self.onCopyLink = {}
-        self.onReport = {}
         self.onPostTap = onPostTap
         self.onParentPostTap = onParentPostTap
         self.viewModel = viewModel
@@ -877,15 +881,18 @@ struct PostCardView: View {
                         }
                     case .addToList:
                         showListSelection = true
+                    case .openInBrowser:
+                        onOpenInBrowser()
+                    case .copyLink:
+                        onCopyLink()
+                    case .shareSheet:
+                        onShare()
+                    case .report:
+                        onReport()
                     @unknown default:
                         break
                     }
                 },
-                onReply: onReply,
-                onShare: onShare,
-                onOpenInBrowser: onOpenInBrowser,
-                onCopyLink: onCopyLink,
-                onReport: onReport
             )
         } else {
             ActionBar(
@@ -916,13 +923,18 @@ struct PostCardView: View {
                         }
                     case .addToList:
                         showListSelection = true
+                    case .openInBrowser:
+                        onOpenInBrowser()
+                    case .copyLink:
+                        onCopyLink()
+                    case .shareSheet:
+                        onShare()
+                    case .report:
+                        onReport()
                     @unknown default:
                         break
                     }
-                },
-                onOpenInBrowser: onOpenInBrowser,
-                onCopyLink: onCopyLink,
-                onReport: onReport
+                }
             )
         }
     }

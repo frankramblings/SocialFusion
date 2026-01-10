@@ -37,6 +37,9 @@
 		2320205A9D432AFF1AD824D3 /* UnifiedAccountsIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D6DA5D1ADDD532970A4D64 /* UnifiedAccountsIcon.swift */; };
 		2442C98F0C38F1640ADEA656 /* ParentPostPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39707FACEBD61A89EBA1BB73 /* ParentPostPreview.swift */; };
 		246D1EA13F90288B2447DB19 /* PostActionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */; };
+		8106EC1569614902A7CBA121 /* PostSystemActionsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECE97E936384A0780E79C67 /* PostSystemActionsTests.swift */; };
+		FDC9B17A56EB4C5B80C81123 /* PostMenuActionRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1B79FEC3A134D65BC6D2FF4 /* PostMenuActionRoutingTests.swift */; };
+		48D7245937C84830B1EF6F65 /* PostMenuCapabilityGatingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF53397B9EA4719A5BCD987 /* PostMenuCapabilityGatingTests.swift */; };
 		263848F648598CCF4C4C281B /* PostAuthorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A775D3F2651AB9DF5BC960B /* PostAuthorView.swift */; };
 		26A9F829C527AED2BB88AED9 /* TimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161D75A9E63DCFB50B5BD11D /* TimelineController.swift */; };
 		288D50005DDE36B4538A245B /* SocialFusionTimelineDebug.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5009EE1EAECC7E012285EC8C /* SocialFusionTimelineDebug.swift */; };
@@ -44,6 +47,11 @@
 		2D9952C1578AD9A3ACD02BAC /* SystemImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */; };
 		2ECEF0DD8AE41DE5FB4CFD05 /* AddAccountView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515EEFD6EA2AC8D243C307B7 /* AddAccountView.swift */; };
 		2EE845AC73F6E96035D64073 /* Post.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28473D186DFB59778DF996BE /* Post.swift */; };
+		30778805A7C4464AA7A2FCAD /* PostSystemActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4B1AFA9DEC478BA144E460 /* PostSystemActions.swift */; };
+		87F1182E8E4E4C46A96ADEAC /* Post+SystemActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16021992915C431EBAB91292 /* Post+SystemActions.swift */; };
+		56E89DFAAB254717AB5826AC /* RelationshipState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90959F651F20426C83DBB38F /* RelationshipState.swift */; };
+		0B955250E65B49BAB1255FCB /* ShareSheetWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F22E6E4883401FB2E3BEE3 /* ShareSheetWrapper.swift */; };
+		B189AD361008480BB5A053A6 /* ToastNotification.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FB66CFA99341A2AD5D5148 /* ToastNotification.swift */; };
 		327CCF6C371ABB0974451152 /* PROFILE_IMAGE_LOADING_IMPROVEMENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 005A11BDDF8059DB64CF13D7 /* PROFILE_IMAGE_LOADING_IMPROVEMENTS.md */; };
 		345861287C5AEE4E9FBB3A3E /* HTMLString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300AA939D84D2C52B01BDE86 /* HTMLString.swift */; };
 		3464BE8ABD57F31635010890 /* DebugBlueskyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A860601A91F7A04FDA6EC16 /* DebugBlueskyView.swift */; };
@@ -226,9 +234,17 @@
 		1B5D154F6A71571D8E20E749 /* ErrorHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorHandler.swift; sourceTree = "<group>"; };
 		255ADE201981E507154D54E5 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2632F4FE2BF5264DE28BC29A /* MediaRobustnessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRobustnessTests.swift; sourceTree = "<group>"; };
+		6ECE97E936384A0780E79C67 /* PostSystemActionsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostSystemActionsTests.swift; sourceTree = "<group>"; };
+		E1B79FEC3A134D65BC6D2FF4 /* PostMenuActionRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenuActionRoutingTests.swift; sourceTree = "<group>"; };
+		EDF53397B9EA4719A5BCD987 /* PostMenuCapabilityGatingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenuCapabilityGatingTests.swift; sourceTree = "<group>"; };
 		26E830AABA8DABB97C4E623C /* ReliableScrollView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReliableScrollView.swift; sourceTree = "<group>"; };
 		26E8A75C0D9CDA966D6B0520 /* MastodonAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonAPIClient.swift; sourceTree = "<group>"; };
 		28473D186DFB59778DF996BE /* Post.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Post.swift; sourceTree = "<group>"; };
+		16021992915C431EBAB91292 /* Post+SystemActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Post+SystemActions.swift"; sourceTree = "<group>"; };
+		90959F651F20426C83DBB38F /* RelationshipState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipState.swift; sourceTree = "<group>"; };
+		DF4B1AFA9DEC478BA144E460 /* PostSystemActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostSystemActions.swift; sourceTree = "<group>"; };
+		95F22E6E4883401FB2E3BEE3 /* ShareSheetWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareSheetWrapper.swift; sourceTree = "<group>"; };
+		D7FB66CFA99341A2AD5D5148 /* ToastNotification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastNotification.swift; sourceTree = "<group>"; };
 		286DCA502BBF006A19FB31F3 /* PreviewLinkSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewLinkSelection.swift; sourceTree = "<group>"; };
 		28FC04DC95EB5E4CA73B9AFB /* FeatureFlagManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlagManager.swift; sourceTree = "<group>"; };
 		2A77E7121365985484CA241F /* DebugOptionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugOptionsView.swift; sourceTree = "<group>"; };
@@ -417,8 +433,11 @@
 				59BEE2A98FD70BFF0690372B /* CanonicalPostStoreTests.swift */,
 				AE19F9EA8CE7D25EA00658C0 /* Info.plist */,
 				2632F4FE2BF5264DE28BC29A /* MediaRobustnessTests.swift */,
+				EDF53397B9EA4719A5BCD987 /* PostMenuCapabilityGatingTests.swift */,
+				E1B79FEC3A134D65BC6D2FF4 /* PostMenuActionRoutingTests.swift */,
 				F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */,
 				B49B114612A0F4B5B1E47F94 /* PostActionStoreTests.swift */,
+				6ECE97E936384A0780E79C67 /* PostSystemActionsTests.swift */,
 				7F2F6C1B67E90BE6C04FA415 /* SocialServiceManagerPostActionTests.swift */,
 			);
 			path = SocialFusionTests;
@@ -498,6 +517,7 @@
 				022CFA9F095E5B027A26BCE5 /* KeychainManager.swift */,
 				E497139047CBDE033C121E82 /* LinkDetection.swift */,
 				BB67E601460FD0229A3E6AA3 /* MonitoringService.swift */,
+				DF4B1AFA9DEC478BA144E460 /* PostSystemActions.swift */,
 				E8AC27566C7AB02758D55BE2 /* PostStore.swift */,
 				D157F35ECD85282C4486CCF6 /* RobotsTxtChecker.swift */,
 				4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */,
@@ -649,6 +669,8 @@
 				0A0031088E442B86B93B5225 /* MastodonPost.swift */,
 				0627DF87981D189A2823C3DE /* PersistentModels.swift */,
 				28473D186DFB59778DF996BE /* Post.swift */,
+				16021992915C431EBAB91292 /* Post+SystemActions.swift */,
+				90959F651F20426C83DBB38F /* RelationshipState.swift */,
 				5DD74322B593593F2DB43C92 /* Post+ContentView.swift */,
 				4413493C1891D722617907EB /* PostActionState.swift */,
 				9CC68033DFF03E617388048E /* PostNormalizer.swift */,
@@ -703,10 +725,12 @@
 				2AB23817356BB7E546C84F0A /* PostPlatformBadge.swift */,
 				A0E7DB0D4A4C268E9FD11655 /* PostPollView.swift */,
 				69738A273785F603F13D9F4D /* PostShareButton.swift */,
+				95F22E6E4883401FB2E3BEE3 /* ShareSheetWrapper.swift */,
 				673869366E4615124FBBD3E3 /* PostTimestamp.swift */,
 				D469B3E0B4B4763498E1224A /* QuotePostView.swift */,
 				26E830AABA8DABB97C4E623C /* ReliableScrollView.swift */,
 				17530533FA997291EBE2F916 /* SmartMediaView.swift */,
+				D7FB66CFA99341A2AD5D5148 /* ToastNotification.swift */,
 				3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */,
 				51088AE821CEAB08BDD30960 /* StabilizedLinkPreview.swift */,
 				2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */,
@@ -826,8 +850,11 @@
 			files = (
 				BFCB85497B9DA34CC9B52E79 /* CanonicalPostStoreTests.swift in Sources */,
 				461AA383E305DF74616E7683 /* MediaRobustnessTests.swift in Sources */,
+				48D7245937C84830B1EF6F65 /* PostMenuCapabilityGatingTests.swift in Sources */,
+				FDC9B17A56EB4C5B80C81123 /* PostMenuActionRoutingTests.swift in Sources */,
 				246D1EA13F90288B2447DB19 /* PostActionCoordinatorTests.swift in Sources */,
 				CF767CB8C9864109605E1353 /* PostActionStoreTests.swift in Sources */,
+				8106EC1569614902A7CBA121 /* PostSystemActionsTests.swift in Sources */,
 				4BAF06E19D5D6AB3C3A61750 /* SocialServiceManagerPostActionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -932,6 +959,11 @@
 				A57FD5D983A4272FC9925755 /* PlatformLogoBadge.swift in Sources */,
 				8BB088BEEFAF72C48856A6ED /* Post+ContentView.swift in Sources */,
 				2EE845AC73F6E96035D64073 /* Post.swift in Sources */,
+				87F1182E8E4E4C46A96ADEAC /* Post+SystemActions.swift in Sources */,
+				56E89DFAAB254717AB5826AC /* RelationshipState.swift in Sources */,
+				30778805A7C4464AA7A2FCAD /* PostSystemActions.swift in Sources */,
+				0B955250E65B49BAB1255FCB /* ShareSheetWrapper.swift in Sources */,
+				B189AD361008480BB5A053A6 /* ToastNotification.swift in Sources */,
 				BF9232370B901A0FFEB7868E /* PostActionBar.swift in Sources */,
 				F8D8EEE37552A7584FD88B29 /* PostActionCoordinator.swift in Sources */,
 				0A9C26FD32C0654CDF1D4A9B /* PostActionState.swift in Sources */,

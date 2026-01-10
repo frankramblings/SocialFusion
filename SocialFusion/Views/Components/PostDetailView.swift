@@ -564,17 +564,21 @@ struct PostDetailView: View {
 
     @ViewBuilder
     private var postMenuItems: some View {
-        Button(action: openInBrowser) {
+        Button(action: { handleAction(.openInBrowser) }) {
             Label("Open in Browser", systemImage: "safari")
         }
 
-        Button(action: copyLink) {
+        Button(action: { handleAction(.copyLink) }) {
             Label("Copy Link", systemImage: "doc.on.doc")
+        }
+
+        Button(action: { handleAction(.shareSheet) }) {
+            Label("Share", systemImage: "square.and.arrow.up")
         }
 
         Divider()
 
-        Button(role: .destructive, action: reportPost) {
+        Button(role: .destructive, action: { handleAction(.report) }) {
             Label("Report Post", systemImage: "exclamationmark.bubble")
         }
     }
@@ -643,63 +647,23 @@ struct PostDetailView: View {
         case .addToList:
             // Handled via separate UI path
             break
+        case .openInBrowser:
+            viewModel.post.openInBrowser()
+        case .copyLink:
+            viewModel.post.copyLink()
+        case .shareSheet:
+            viewModel.post.presentShareSheet()
+        case .report:
+            Task {
+                await viewModel.reportPost()
+            }
         @unknown default:
             break
         }
     }
 
-    private func openInBrowser() {
-        guard let url = URL(string: viewModel.post.originalURL) else { return }
-        UIApplication.shared.open(url)
-    }
-
-    private func copyLink() {
-        UIPasteboard.general.string = viewModel.post.originalURL
-    }
-
-    private func reportPost() {
-        NSLog("Report post: %@", viewModel.post.id)
-    }
-    
     private func sharePost(_ post: Post) {
-        guard let url = URL(string: post.originalURL) else { return }
-        
-        let activityVC = UIActivityViewController(
-            activityItems: [url],
-            applicationActivities: nil
-        )
-        
-        // Exclude some activity types that don't make sense for URLs
-        activityVC.excludedActivityTypes = [
-            .assignToContact,
-            .addToReadingList
-        ]
-        
-        // Find the topmost view controller to present from
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first(where: { $0.isKeyWindow }),
-           let rootVC = window.rootViewController {
-            
-            // Find the topmost presented view controller
-            var topVC = rootVC
-            while let presented = topVC.presentedViewController {
-                topVC = presented
-            }
-            
-            // Configure for iPad
-            if let popover = activityVC.popoverPresentationController {
-                popover.sourceView = topVC.view
-                popover.sourceRect = CGRect(
-                    x: topVC.view.bounds.midX,
-                    y: topVC.view.bounds.midY,
-                    width: 0,
-                    height: 0
-                )
-                popover.permittedArrowDirections = []
-            }
-            
-            topVC.present(activityVC, animated: true, completion: nil)
-        }
+        post.presentShareSheet()
     }
 
     // MARK: - Reply Composer Helpers

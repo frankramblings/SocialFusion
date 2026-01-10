@@ -122,7 +122,11 @@ struct SearchView: View {
                                     createdAt: post.createdAt
                                 ),
                                 postActionStore: serviceManager.postActionStore,
-                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
+                                onShare: { post.presentShareSheet() },
+                                onOpenInBrowser: { post.openInBrowser() },
+                                onCopyLink: { post.copyLink() },
+                                onReport: { report(post) }
                             )
                             .listRowInsets(EdgeInsets())
                             .listRowSeparator(.hidden)
@@ -414,6 +418,16 @@ struct SearchView: View {
         .zIndex(1000)
     }
     
+    private func report(_ post: Post) {
+        Task {
+            do {
+                try await serviceManager.reportPost(post)
+            } catch {
+                ErrorHandler.shared.handleError(error)
+            }
+        }
+    }
+
     private func getCurrentAccount() -> SocialAccount? {
         guard let selectedId = selectedAccountId else { return nil }
         return serviceManager.mastodonAccounts.first(where: { $0.id == selectedId })

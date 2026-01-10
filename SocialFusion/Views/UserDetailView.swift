@@ -108,7 +108,19 @@ struct UserDetailView: View {
                                     createdAt: post.createdAt
                                 ),
                                 postActionStore: serviceManager.postActionStore,
-                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
+                                onShare: { post.presentShareSheet() },
+                                onOpenInBrowser: { post.openInBrowser() },
+                                onCopyLink: { post.copyLink() },
+                                onReport: {
+                                    Task {
+                                        do {
+                                            try await serviceManager.reportPost(post)
+                                        } catch {
+                                            ErrorHandler.shared.handleError(error)
+                                        }
+                                    }
+                                }
                             )
                             .onAppear {
                                 if post.id == posts.last?.id && canLoadMore && !isLoadingMore {
@@ -206,4 +218,3 @@ struct UserDetailView: View {
         isLoadingMore = false
     }
 }
-

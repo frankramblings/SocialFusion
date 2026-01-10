@@ -57,7 +57,19 @@ struct TagDetailView: View {
                                     createdAt: post.createdAt
                                 ),
                                 postActionStore: serviceManager.postActionStore,
-                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) }
+                                onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
+                                onShare: { post.presentShareSheet() },
+                                onOpenInBrowser: { post.openInBrowser() },
+                                onCopyLink: { post.copyLink() },
+                                onReport: {
+                                    Task {
+                                        do {
+                                            try await serviceManager.reportPost(post)
+                                        } catch {
+                                            ErrorHandler.shared.handleError(error)
+                                        }
+                                    }
+                                }
                             )
                             Divider().padding(.horizontal)
                         }
@@ -102,4 +114,3 @@ struct TagDetailView: View {
         isLoading = false
     }
 }
-

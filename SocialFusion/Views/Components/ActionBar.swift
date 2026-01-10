@@ -1,4 +1,5 @@
 import SwiftUI
+import os.log
 
 /// Custom button style that provides smooth Apple-like feedback when pressed
 struct SmoothScaleButtonStyle: ButtonStyle {
@@ -16,12 +17,10 @@ struct SmoothScaleButtonStyle: ButtonStyle {
 struct ActionBar: View {
     @ObservedObject var post: Post
     let onAction: (PostAction) -> Void
-    let onOpenInBrowser: () -> Void
-    let onCopyLink: () -> Void
-    let onReport: () -> Void
 
     // Icon size for better visibility
     private let iconSize: CGFloat = 18
+    private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
     // Platform color helper
     private var platformColor: Color {
@@ -113,50 +112,19 @@ struct ActionBar: View {
 
             // Menu button (three dots)
             Menu {
-                // Platform-specific actions
-                if post.platform == .bluesky {
-                    Button(action: { onAction(.follow) }) {
-                        Label("Follow", systemImage: "person.badge.plus")
-                    }
-                    Button(action: { onAction(.mute) }) {
-                        Label("Mute", systemImage: "speaker.slash")
-                    }
-                    Button(action: { onAction(.block) }) {
-                        Label("Block", systemImage: "hand.raised")
-                    }
-                } else if post.platform == .mastodon {
-                    Button(action: { onAction(.follow) }) {
-                        Label("Follow", systemImage: "person.badge.plus")
-                    }
-                    Button(action: { onAction(.mute) }) {
-                        Label("Mute", systemImage: "speaker.slash")
-                    }
-                    Button(action: { onAction(.block) }) {
-                        Label("Block", systemImage: "hand.raised")
-                    }
-                    Button(action: { onAction(.addToList) }) {
-                        Label("Add to Lists", systemImage: "list.bullet")
-                    }
+                ForEach(PostAction.platformActions(for: post), id: \.self) { action in
+                    menuButton(for: action)
                 }
 
                 Divider()
 
-                // Common actions
-                Button(action: onOpenInBrowser) {
-                    Label("Open in Browser", systemImage: "arrow.up.right.square")
-                }
-                Button(action: onCopyLink) {
-                    Label("Copy Link", systemImage: "link")
-                }
-                Button(action: { onAction(.share) }) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
+                menuButton(for: .openInBrowser)
+                menuButton(for: .copyLink)
+                menuButton(for: .shareSheet)
 
                 Divider()
 
-                Button(role: .destructive, action: onReport) {
-                    Label("Report", systemImage: "exclamationmark.triangle")
-                }
+                menuButton(for: .report)
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: iconSize))
@@ -171,6 +139,15 @@ struct ActionBar: View {
         .padding(.vertical, 2)
         .padding(.horizontal, 0)
     }
+
+    private func menuButton(for action: PostAction) -> some View {
+        Button(role: action.menuRole) {
+            menuLogger.info("📋 ActionBar menu tap: \(action.menuLabel, privacy: .public)")
+            onAction(action)
+        } label: {
+            Label(action.menuLabel, systemImage: action.menuSystemImage)
+        }
+    }
 }
 
 struct ActionBarV2: View {
@@ -178,11 +155,7 @@ struct ActionBarV2: View {
     @ObservedObject var store: PostActionStore
     let coordinator: PostActionCoordinator
     let onAction: (PostAction) -> Void
-    let onReply: () -> Void
-    let onShare: () -> Void
-    let onOpenInBrowser: () -> Void
-    let onCopyLink: () -> Void
-    let onReport: () -> Void
+    private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
     private var actionKey: String { post.stableId }
     private var state: PostActionState { store.state(for: post) }
@@ -209,7 +182,7 @@ struct ActionBarV2: View {
                 platform: post.platform,
                 isProcessing: false, // Reply opens compose view, no async processing needed
                 onTap: {
-                    onReply()
+                    onAction(.reply)
                 }
             )
             .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
@@ -238,54 +211,24 @@ struct ActionBarV2: View {
 
             PostShareButton(
                 post: post,
-                onTap: onShare
+                onTap: { onAction(.share) }
             )
             .frame(maxWidth: .infinity)
 
             Menu {
-                // Platform-specific actions
-                if post.platform == .bluesky {
-                    Button(action: { onAction(.follow) }) {
-                        Label("Follow", systemImage: "person.badge.plus")
-                    }
-                    Button(action: { onAction(.mute) }) {
-                        Label("Mute", systemImage: "speaker.slash")
-                    }
-                    Button(action: { onAction(.block) }) {
-                        Label("Block", systemImage: "hand.raised")
-                    }
-                } else if post.platform == .mastodon {
-                    Button(action: { onAction(.follow) }) {
-                        Label("Follow", systemImage: "person.badge.plus")
-                    }
-                    Button(action: { onAction(.mute) }) {
-                        Label("Mute", systemImage: "speaker.slash")
-                    }
-                    Button(action: { onAction(.block) }) {
-                        Label("Block", systemImage: "hand.raised")
-                    }
-                    Button(action: { onAction(.addToList) }) {
-                        Label("Add to Lists", systemImage: "list.bullet")
-                    }
+                ForEach(PostAction.platformActions(for: post), id: \.self) { action in
+                    menuButton(for: action)
                 }
 
                 Divider()
 
-                Button(action: onOpenInBrowser) {
-                    Label("Open in Browser", systemImage: "arrow.up.right.square")
-                }
-                Button(action: onCopyLink) {
-                    Label("Copy Link", systemImage: "link")
-                }
-                Button(action: onShare) {
-                    Label("Share", systemImage: "square.and.arrow.up")
-                }
+                menuButton(for: .openInBrowser)
+                menuButton(for: .copyLink)
+                menuButton(for: .shareSheet)
 
                 Divider()
 
-                Button(role: .destructive, action: onReport) {
-                    Label("Report", systemImage: "exclamationmark.triangle")
-                }
+                menuButton(for: .report)
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 18))
@@ -301,23 +244,26 @@ struct ActionBarV2: View {
         .padding(.vertical, 2)
         .padding(.horizontal, 0)
     }
+
+    private func menuButton(for action: PostAction) -> some View {
+        Button(role: action.menuRole) {
+            menuLogger.info("📋 ActionBarV2 menu tap: \(action.menuLabel, privacy: .public)")
+            onAction(action)
+        } label: {
+            Label(action.menuLabel, systemImage: action.menuSystemImage)
+        }
+    }
 }
 
 /// ActionBarViewModel for observing PostViewModel state changes
 struct ObservableActionBar: View {
     @ObservedObject var viewModel: PostViewModel
     let onAction: (PostAction) -> Void
-    let onOpenInBrowser: () -> Void
-    let onCopyLink: () -> Void
-    let onReport: () -> Void
 
     var body: some View {
         ActionBar(
             post: viewModel.post,
-            onAction: onAction,
-            onOpenInBrowser: onOpenInBrowser,
-            onCopyLink: onCopyLink,
-            onReport: onReport
+            onAction: onAction
         )
     }
 }
@@ -337,10 +283,7 @@ struct ObservableActionBar: View {
 
     ActionBar(
         post: samplePost,
-        onAction: { _ in },
-        onOpenInBrowser: {},
-        onCopyLink: {},
-        onReport: {}
+        onAction: { _ in }
     )
     .padding()
     .background(Color.black)
@@ -361,10 +304,7 @@ struct ObservableActionBar: View {
 
     ActionBar(
         post: samplePost,
-        onAction: { _ in },
-        onOpenInBrowser: {},
-        onCopyLink: {},
-        onReport: {}
+        onAction: { _ in }
     )
     .padding()
     .background(Color.black)
@@ -385,10 +325,7 @@ struct ObservableActionBar: View {
 
     ActionBar(
         post: samplePost,
-        onAction: { _ in },
-        onOpenInBrowser: {},
-        onCopyLink: {},
-        onReport: {}
+        onAction: { _ in }
     )
     .padding()
     .background(Color.black)

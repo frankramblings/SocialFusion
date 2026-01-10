@@ -546,45 +546,11 @@ struct ConsolidatedTimelineView: View {
             onRepost: { controller.repostPost(post) },
             onLike: { controller.likePost(post) },
             onShare: {
-                guard let url = URL(string: post.originalURL) else { return }
-                
-                let activityVC = UIActivityViewController(
-                    activityItems: [url], 
-                    applicationActivities: nil
-                )
-                
-                // Exclude some activity types that don't make sense for URLs
-                activityVC.excludedActivityTypes = [
-                    .assignToContact,
-                    .addToReadingList
-                ]
-                
-                // Find the topmost view controller to present from
-                if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                   let window = windowScene.windows.first(where: { $0.isKeyWindow }),
-                   let rootVC = window.rootViewController {
-                    
-                    // Find the topmost presented view controller
-                    var topVC = rootVC
-                    while let presented = topVC.presentedViewController {
-                        topVC = presented
-                    }
-                    
-                    // Configure for iPad
-                    if let popover = activityVC.popoverPresentationController {
-                        popover.sourceView = topVC.view
-                        popover.sourceRect = CGRect(
-                            x: topVC.view.bounds.midX, 
-                            y: topVC.view.bounds.midY, 
-                            width: 0, 
-                            height: 0
-                        )
-                        popover.permittedArrowDirections = []
-                    }
-                    
-                    topVC.present(activityVC, animated: true, completion: nil)
-                }
+                post.presentShareSheet()
             },
+            onOpenInBrowser: { post.openInBrowser() },
+            onCopyLink: { post.copyLink() },
+            onReport: { reportingPost = post },
             onQuote: { quotingToPost = post }
         )
     }

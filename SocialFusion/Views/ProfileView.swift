@@ -130,7 +130,11 @@ struct ProfileView: View {
                                 onReply: {
                                     // When replying to a boost/repost, reply to the original post instead
                                     replyingToPost = post.isReposted ? (post.originalPost ?? post) : post
-                                }
+                                },
+                                onShare: { post.presentShareSheet() },
+                                onOpenInBrowser: { post.openInBrowser() },
+                                onCopyLink: { post.copyLink() },
+                                onReport: { report(post) }
                             )
                             .onAppear {
                                 if post.id == posts.last?.id && canLoadMore && !isLoadingMore {
@@ -183,6 +187,16 @@ struct ProfileView: View {
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
+        }
+    }
+
+    private func report(_ post: Post) {
+        Task {
+            do {
+                try await serviceManager.reportPost(post)
+            } catch {
+                ErrorHandler.shared.handleError(error)
+            }
         }
     }
 

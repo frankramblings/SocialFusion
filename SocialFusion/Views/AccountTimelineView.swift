@@ -67,7 +67,19 @@ struct AccountTimelineView: View {
                                         entry: entry,
                                         postActionStore: serviceManager.postActionStore,
                                         postActionCoordinator: serviceManager.postActionCoordinator,
-                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
+                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) },
+                                        onShare: { entry.post.presentShareSheet() },
+                                        onOpenInBrowser: { entry.post.openInBrowser() },
+                                        onCopyLink: { entry.post.copyLink() },
+                                        onReport: {
+                                            Task {
+                                                do {
+                                                    try await serviceManager.reportPost(entry.post)
+                                                } catch {
+                                                    ErrorHandler.shared.handleError(error)
+                                                }
+                                            }
+                                        }
                                     )
                                     .id(entry.id)
                                     .background(
@@ -135,7 +147,19 @@ struct AccountTimelineView: View {
                                         entry: entry,
                                         postActionStore: serviceManager.postActionStore,
                                         postActionCoordinator: serviceManager.postActionCoordinator,
-                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) }
+                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) },
+                                        onShare: { entry.post.presentShareSheet() },
+                                        onOpenInBrowser: { entry.post.openInBrowser() },
+                                        onCopyLink: { entry.post.copyLink() },
+                                        onReport: {
+                                            Task {
+                                                do {
+                                                    try await serviceManager.reportPost(entry.post)
+                                                } catch {
+                                                    ErrorHandler.shared.handleError(error)
+                                                }
+                                            }
+                                        }
                                     )
                                     .id(entry.id)
                                     .padding(.horizontal)

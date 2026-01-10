@@ -5,7 +5,7 @@ import SwiftUI
 import UIKit
 
 // MARK: - Post Actions
-public enum PostAction {
+public enum PostAction: Hashable {
     case reply
     case repost
     case like
@@ -15,6 +15,91 @@ public enum PostAction {
     case mute
     case block
     case addToList
+    case openInBrowser
+    case copyLink
+    case shareSheet
+    case report
+}
+
+extension PostAction {
+    var menuLabel: String {
+        switch self {
+        case .follow:
+            return "Follow"
+        case .mute:
+            return "Mute"
+        case .block:
+            return "Block"
+        case .addToList:
+            return "Add to Lists"
+        case .openInBrowser:
+            return "Open in Browser"
+        case .copyLink:
+            return "Copy Link"
+        case .shareSheet:
+            return "Share"
+        case .report:
+            return "Report"
+        case .reply:
+            return "Reply"
+        case .repost:
+            return "Repost"
+        case .like:
+            return "Like"
+        case .share:
+            return "Share"
+        case .quote:
+            return "Quote"
+        }
+    }
+
+    var menuSystemImage: String {
+        switch self {
+        case .follow:
+            return "person.badge.plus"
+        case .mute:
+            return "speaker.slash"
+        case .block:
+            return "hand.raised"
+        case .addToList:
+            return "list.bullet"
+        case .openInBrowser:
+            return "arrow.up.right.square"
+        case .copyLink:
+            return "link"
+        case .shareSheet:
+            return "square.and.arrow.up"
+        case .report:
+            return "exclamationmark.triangle"
+        case .reply:
+            return "arrowshape.turn.up.left"
+        case .repost:
+            return "arrow.2.squarepath"
+        case .like:
+            return "heart"
+        case .share:
+            return "square.and.arrow.up"
+        case .quote:
+            return "quote.bubble"
+        }
+    }
+
+    var menuRole: ButtonRole? {
+        switch self {
+        case .report:
+            return .destructive
+        default:
+            return nil
+        }
+    }
+
+    static func platformActions(for post: Post) -> [PostAction] {
+        var actions: [PostAction] = [.follow, .mute, .block]
+        if post.platform == .mastodon {
+            actions.append(.addToList)
+        }
+        return actions
+    }
 }
 
 // MARK: - Post visibility level

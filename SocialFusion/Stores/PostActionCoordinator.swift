@@ -360,6 +360,7 @@ final class PostActionCoordinator: ObservableObject {
 
         if let previous = action.previousState {
             store.revert(to: previous)
+            logger.debug("Rolled back state for key \(key, privacy: .public) after failure")
         }
 
         let actionType = String(describing: action.intent)
@@ -370,6 +371,10 @@ final class PostActionCoordinator: ObservableObject {
         let shouldRequeue = isNetworkDowntime(error)
         if shouldRequeue {
             queueOffline(action)
+        }
+
+        if !shouldRequeue {
+            ToastManager.shared.show(toastMessage(for: action.intent))
         }
 
         ErrorHandler.shared.handleError(error)
@@ -429,6 +434,23 @@ final class PostActionCoordinator: ObservableObject {
         }
 
         return false
+    }
+
+    private func toastMessage(for intent: ActionIntent) -> String {
+        switch intent {
+        case .like(let shouldBeLiked):
+            return shouldBeLiked ? "Couldn't like post" : "Couldn't unlike post"
+        case .repost(let shouldBeReposted):
+            return shouldBeReposted ? "Couldn't repost" : "Couldn't undo repost"
+        case .follow(let shouldFollow):
+            return shouldFollow ? "Couldn't follow account" : "Couldn't unfollow account"
+        case .mute(let shouldMute):
+            return shouldMute ? "Couldn't mute account" : "Couldn't unmute account"
+        case .block(let shouldBlock):
+            return shouldBlock ? "Couldn't block account" : "Couldn't unblock account"
+        case .refresh:
+            return "Couldn't refresh actions"
+        }
     }
 }
 
