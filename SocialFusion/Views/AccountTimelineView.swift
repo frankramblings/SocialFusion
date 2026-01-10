@@ -1,16 +1,11 @@
 import SwiftUI
 
 struct AccountTimelineView: View {
-    @EnvironmentObject private var serviceManager: SocialServiceManager
+    private let serviceManager: SocialServiceManager
     let account: SocialAccount
 
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
-    @State private var posts: [Post] = []
-    @State private var isLoading = false
-    @State private var error: Error? = nil
-    @State private var hasNextPage = true
-    @State private var isLoadingNextPage = false
-    @State private var paginationToken: String?
+    @StateObject private var controller: AccountTimelineController
 
     // Scroll position persistence (per account)
     @State private var scrollAnchorId: String?
@@ -18,6 +13,11 @@ struct AccountTimelineView: View {
     @State private var hasRestoredInitialAnchor = false
     @State private var visibleAnchorId: String?
     @State private var anchorLockUntil: Date?
+    @State private var lastVisiblePositions: [String: CGFloat] = [:]
+    @State private var lastTopVisibleId: String?
+    @State private var lastTopVisibleOffset: CGFloat = 0
+    @State private var pendingMergeAnchorOffset: CGFloat?
+    @State private var mergeOffsetCompensation: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
@@ -30,8 +30,19 @@ struct AccountTimelineView: View {
         }
     }
 
+    init(account: SocialAccount, serviceManager: SocialServiceManager) {
+        self.account = account
+        self.serviceManager = serviceManager
+        _controller = StateObject(
+            wrappedValue: AccountTimelineController(
+                account: account,
+                serviceManager: serviceManager
+            )
+        )
+    }
+
     private var timelineEntries: [TimelineEntry] {
-        serviceManager.makeTimelineEntries(from: posts)
+        serviceManager.makeTimelineEntries(from: controller.posts)
     }
 
     var body: some View {
@@ -39,10 +50,10 @@ struct AccountTimelineView: View {
             Color(UIColor.systemBackground)
                 .ignoresSafeArea()
 
-            if isLoading && posts.isEmpty {
+            if controller.isLoading && controller.posts.isEmpty {
                 ProgressView()
                     .scaleEffect(1.5)
-            } else if posts.isEmpty {
+            } else if controller.posts.isEmpty {
                 VStack(spacing: 20) {
                     Image(systemName: "person.crop.circle")
                         .font(.system(size: 60))
@@ -59,7 +70,7 @@ struct AccountTimelineView: View {
                 }
             } else {
                 if #available(iOS 17.0, *) {
-                    ScrollViewReader { _ in
+                    ScrollViewReader { proxy in
                         ScrollView {
                             LazyVStack(spacing: 12) {
                                 ForEach(Array(timelineEntries.enumerated()), id: \.element.id) { index, entry in
@@ -93,26 +104,28 @@ struct AccountTimelineView: View {
                                     .padding(.horizontal)
                                     .onAppear {
                                         if shouldLoadMorePosts(currentIndex: index) {
-                                            Task { await loadMorePosts() }
+                                            Task { await controller.loadMorePosts() }
                                         }
                                     }
                                 }
 
-                                if isLoadingNextPage {
+                                if controller.isLoadingNextPage {
                                     infiniteScrollLoadingView
                                         .padding(.vertical, 20)
                                 }
 
-                                if !hasNextPage && !posts.isEmpty {
+                                if !controller.hasNextPage && !controller.posts.isEmpty {
                                     endOfTimelineView
                                         .padding(.vertical, 20)
                                 }
                             }
+                            .padding(.top, mergeOffsetCompensation)
                             .padding(.vertical)
                             .scrollTargetLayout()
                         }
                         .coordinateSpace(name: "accountTimelineScroll")
                         .onPreferenceChange(AccountTimelineVisibleItemPreferenceKey.self) { positions in
+                            lastVisiblePositions = positions
                             guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
                             if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
                             guard let nextId = positions
@@ -124,12 +137,67 @@ struct AccountTimelineView: View {
                                 visibleAnchorId = nextId
                                 setPersistedAnchor(nextId)
                             }
+                            let topId = controller.posts.first.map { $0.id }
+                            let isAtTop = topId.flatMap { positions[$0] }.map { $0 >= -12 } ?? false
+                            if let topId = topId, let topOffset = positions[topId] {
+                                lastTopVisibleId = topId
+                                lastTopVisibleOffset = topOffset
+                                syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
+                                let deepHistoryThreshold = UIScreen.main.bounds.height * 2.0
+                                let isDeepHistory = topOffset < -deepHistoryThreshold
+                                controller.updateScrollState(
+                                    isNearTop: isAtTop,
+                                    isDeepHistory: isDeepHistory
+                                )
+                            } else {
+                                controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: false)
+                            }
+
+                            if let mergeId = pendingAnchorRestoreId,
+                                let mergeOffset = pendingMergeAnchorOffset,
+                                let currentOffset = positions[mergeId]
+                            {
+                                let delta = MergeOffsetCompensator.compensation(
+                                    previousOffset: mergeOffset,
+                                    currentOffset: currentOffset
+                                )
+                                if delta != 0 {
+                                    mergeOffsetCompensation = delta
+                                }
+                                pendingMergeAnchorOffset = nil
+                            }
                         }
                         .scrollPosition(id: $scrollAnchorId)
+                        .onChange(of: scrollAnchorId) { _ in
+                            controller.recordVisibleInteraction()
+                        }
                         .refreshable {
                             let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                             pendingAnchorRestoreId = anchorBefore
-                            await loadPosts()
+                            await controller.manualRefresh()
+                        }
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { _ in
+                                    if mergeOffsetCompensation != 0 {
+                                        mergeOffsetCompensation = 0
+                                    }
+                                    controller.scrollInteractionBegan()
+                                }
+                                .onEnded { _ in
+                                    controller.scrollInteractionEnded()
+                                }
+                        )
+                        .overlay(alignment: .top) {
+                            mergePill(proxy: proxy)
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
+                        { _ in
+                            scrollToTop(using: proxy)
+                            syncAnchorToTopIfNeeded(
+                                topId: controller.posts.first?.id,
+                                isAtTop: true
+                            )
                         }
                         .onAppear {
                             if pendingAnchorRestoreId == nil {
@@ -165,24 +233,40 @@ struct AccountTimelineView: View {
                                     .padding(.horizontal)
                                     .onAppear {
                                         if shouldLoadMorePosts(currentIndex: index) {
-                                            Task { await loadMorePosts() }
+                                            Task { await controller.loadMorePosts() }
                                         }
                                     }
                                 }
 
-                                if isLoadingNextPage {
+                                if controller.isLoadingNextPage {
                                     infiniteScrollLoadingView
                                         .padding(.vertical, 20)
                                 }
 
-                                if !hasNextPage && !posts.isEmpty {
+                                if !controller.hasNextPage && !controller.posts.isEmpty {
                                     endOfTimelineView
                                         .padding(.vertical, 20)
                                 }
                             }
+                            .padding(.top, mergeOffsetCompensation)
                             .padding(.vertical)
                         }
-                        .refreshable { await loadPosts() }
+                        .refreshable { await controller.manualRefresh() }
+                        .simultaneousGesture(
+                            DragGesture()
+                                .onChanged { _ in
+                                    if mergeOffsetCompensation != 0 {
+                                        mergeOffsetCompensation = 0
+                                    }
+                                    controller.scrollInteractionBegan()
+                                }
+                                .onEnded { _ in
+                                    controller.scrollInteractionEnded()
+                                }
+                        )
+                        .overlay(alignment: .top) {
+                            mergePill(proxy: proxy)
+                        }
                         .onAppear {
                             if let id = persistedAnchor() {
                                 withAnimation(.none) { proxy.scrollTo(id, anchor: .top) }
@@ -210,15 +294,55 @@ struct AccountTimelineView: View {
             if #available(iOS 17.0, *), pendingAnchorRestoreId == nil {
                 pendingAnchorRestoreId = scrollAnchorId ?? persistedAnchor()
             }
-            Task { await loadPosts() }
+            controller.setTimelineVisible(true)
+            controller.requestInitialPrefetch()
+        }
+        .onDisappear {
+            controller.setTimelineVisible(false)
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
                 setPersistedAnchor(visibleAnchorId ?? scrollAnchorId)
             }
+            if phase == .active {
+                controller.handleAppForegrounded()
+            }
         }
-        .onChange(of: posts) { _ in
+        .onChange(of: controller.posts) { _ in
             restorePendingAnchorIfPossible()
+        }
+        .toolbar {
+            if controller.bufferCount > 0 {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Circle()
+                        .fill(Color.secondary.opacity(0.7))
+                        .frame(width: 8, height: 8)
+                        .accessibilityIdentifier("AccountBufferedIndicator")
+                        .accessibilityLabel("\(controller.bufferCount) new posts")
+                }
+            }
+        }
+        .overlay {
+            if UITestHooks.isEnabled {
+                VStack(spacing: 6) {
+                    Button("Seed Timeline") { controller.debugSeedTimeline() }
+                        .accessibilityIdentifier("AccountSeedTimelineButton")
+                    Button("Trigger Idle Prefetch") { controller.debugTriggerIdlePrefetch() }
+                        .accessibilityIdentifier("AccountTriggerIdlePrefetchButton")
+                    Button("Begin Scroll") { controller.scrollInteractionBegan() }
+                        .accessibilityIdentifier("AccountBeginScrollButton")
+                    Button("End Scroll") { controller.scrollInteractionEnded() }
+                        .accessibilityIdentifier("AccountEndScrollButton")
+                    Text("\(controller.bufferCount)")
+                        .accessibilityIdentifier("AccountBufferCount")
+                    Text(lastTopVisibleId ?? "nil")
+                        .accessibilityIdentifier("AccountTopAnchorId")
+                    Text(String(format: "%.2f", lastTopVisibleOffset))
+                        .accessibilityIdentifier("AccountTopAnchorOffset")
+                }
+                .font(.caption2)
+                .opacity(0.01)
+            }
         }
     }
 
@@ -250,34 +374,14 @@ struct AccountTimelineView: View {
         .padding(.horizontal)
     }
 
-    private func loadPosts() async {
-        isLoading = true
-        error = nil
-        // Reset pagination for fresh load
-        paginationToken = nil
-        hasNextPage = true
-
-        do {
-            let result = try await fetchTimelineForAccount()
-            posts = result.posts
-            hasNextPage = result.pagination.hasNextPage
-            paginationToken = result.pagination.nextPageToken
-        } catch {
-            self.error = error
-            posts = []
-        }
-
-        isLoading = false
-    }
-
     private func restorePendingAnchorIfPossible() {
         guard #available(iOS 17.0, *) else { return }
-        guard !posts.isEmpty else { return }
+        guard !controller.posts.isEmpty else { return }
         guard let id = pendingAnchorRestoreId else {
             hasRestoredInitialAnchor = true
             return
         }
-        if posts.contains(where: { $0.id == id }) {
+        if controller.posts.contains(where: { $0.id == id }) {
             var t = Transaction()
             t.disablesAnimations = true
             if scrollAnchorId == id {
@@ -302,53 +406,80 @@ struct AccountTimelineView: View {
         let totalPosts = timelineEntries.count
         let threshold = max(5, totalPosts / 4)  // Load when 25% from bottom, minimum 5 posts
 
-        return currentIndex >= totalPosts - threshold && hasNextPage && !isLoadingNextPage
+        return currentIndex >= totalPosts - threshold
+            && controller.hasNextPage
+            && !controller.isLoadingNextPage
     }
 
-    /// Load more posts for infinite scrolling
-    private func loadMorePosts() async {
-        guard hasNextPage && !isLoadingNextPage else {
+    @ViewBuilder
+    private func mergePill(proxy: ScrollViewProxy) -> some View {
+        if controller.bufferCount > 0 {
+            Button(action: { handleMergeTap(proxy: proxy) }) {
+                HStack(spacing: 8) {
+                    Text("\(controller.bufferCount) new posts")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Image(systemName: "arrow.up.to.line")
+                        .font(.caption)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+            }
+            .accessibilityIdentifier("AccountMergePill")
+            .padding(.top, 8)
+            .accessibilityLabel("\(controller.bufferCount) new posts")
+            .accessibilityHint("Tap to merge new posts into the timeline")
+        }
+    }
+
+    private func handleMergeTap(proxy: ScrollViewProxy) {
+        if controller.isNearTop {
+            prepareMergeAnchorRestore()
+            controller.mergeBufferedPosts()
             return
         }
-
-        isLoadingNextPage = true
-
-        do {
-            let result = try await fetchTimelineForAccount(cursor: paginationToken)
-
-            // Deduplicate new posts against existing ones
-            let existingIds = Set(posts.map { $0.stableId })
-            let newPosts = result.posts.filter { !existingIds.contains($0.stableId) }
-
-            posts.append(contentsOf: newPosts)
-            hasNextPage = result.pagination.hasNextPage
-            paginationToken = result.pagination.nextPageToken
-
-            print(
-                "📊 AccountTimelineView: Loaded \(newPosts.count) more posts for \(account.username)"
-            )
-        } catch {
-            print("❌ AccountTimelineView: Error loading more posts: \(error)")
-            // Don't show error for pagination failures, just stop loading
+        scrollToTop(using: proxy)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            prepareMergeAnchorRestore()
+            controller.mergeBufferedPosts()
         }
-
-        isLoadingNextPage = false
     }
 
-    /// Fetch timeline for the specific account with pagination support
-    private func fetchTimelineForAccount(cursor: String? = nil) async throws -> TimelineResult {
-        switch account.platform {
-        case .mastodon:
-            return try await serviceManager.mastodonSvc.fetchHomeTimeline(
-                for: account,
-                maxId: cursor
-            )
-        case .bluesky:
-            return try await serviceManager.blueskySvc.fetchHomeTimeline(
-                for: account,
-                cursor: cursor
-            )
+    private func scrollToTop(using proxy: ScrollViewProxy) {
+        guard let topId = controller.posts.first?.id else { return }
+        if #available(iOS 17.0, *) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { scrollAnchorId = topId }
+        } else {
+            withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
         }
+    }
+
+    private func prepareMergeAnchorRestore() {
+        guard #available(iOS 17.0, *) else { return }
+        let anchorId = lastTopVisibleId ?? visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
+        pendingMergeAnchorOffset = lastTopVisibleOffset
+        pendingAnchorRestoreId = anchorId
+        anchorLockUntil = Date().addingTimeInterval(0.6)
+    }
+
+    private func syncAnchorToTopIfNeeded(topId: String?, isAtTop: Bool) {
+        guard #available(iOS 17.0, *), isAtTop, let topId = topId else { return }
+        if scrollAnchorId != topId {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { scrollAnchorId = topId }
+        }
+        setPersistedAnchor(topId)
+        pendingAnchorRestoreId = nil
     }
 }
 
@@ -376,7 +507,6 @@ struct AccountTimelineView_Previews: PreviewProvider {
             platform: .mastodon
         )
 
-        AccountTimelineView(account: mastodonAccount)
-            .environmentObject(SocialServiceManager())
+        AccountTimelineView(account: mastodonAccount, serviceManager: SocialServiceManager())
     }
 }

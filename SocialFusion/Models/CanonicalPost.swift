@@ -136,6 +136,7 @@ public enum TimelineSource: String, Codable {
   case list
   case profile
   case pinned
+  case buffer
   case system
 }
 

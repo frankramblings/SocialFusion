@@ -121,6 +121,7 @@ public final class SocialServiceManager: ObservableObject {
     }
     @Published var isLoadingTimeline: Bool = false
     @Published var timelineError: Error?
+    @Published var isComposing: Bool = false
     private var lastTimelineUpdate: Date = Date.distantPast
 
     // Strong refresh control with circuit breaker pattern
@@ -147,6 +148,8 @@ public final class SocialServiceManager: ObservableObject {
             .first!
         return documents.appendingPathComponent("timeline_cache.json")
     }()
+    private var hasHydratedUnifiedTimelineCache = false
+    private var hasPresentedUnifiedTimeline = false
 
     // Services for each platform
     nonisolated internal let mastodonService: MastodonService
@@ -371,6 +374,19 @@ public final class SocialServiceManager: ObservableObject {
     /// Load the cached timeline from disk
     private func loadTimelineFromDisk() {
         Task {
+            let policy = CacheHydrationPolicy()
+            let canHydrate = await MainActor.run {
+                policy.shouldHydrate(
+                    hasHydrated: self.hasHydratedUnifiedTimelineCache,
+                    hasPresented: self.hasPresentedUnifiedTimeline,
+                    isTimelineEmpty: self.unifiedTimeline.isEmpty
+                )
+            }
+            guard canHydrate else {
+                DebugLog.verbose("🧊 SocialServiceManager: Skipping cache hydration (policy)")
+                return
+            }
+
             let cachedPosts: [Post]?
             if #available(iOS 17.0, *) {
                 cachedPosts = await TimelineSwiftDataStore.shared.loadTimeline()
@@ -381,7 +397,10 @@ public final class SocialServiceManager: ObservableObject {
             if let posts = cachedPosts {
                 await MainActor.run {
                     // Only update if current timeline is empty
-                    if self.unifiedTimeline.isEmpty {
+                    if self.unifiedTimeline.isEmpty
+                        && !self.hasPresentedUnifiedTimeline
+                        && !self.hasHydratedUnifiedTimelineCache
+                    {
                         let sourceContext = TimelineSourceContext(source: .system)
                         self.canonicalPostStore.replaceTimeline(
                             timelineID: self.canonicalUnifiedTimelineID,
@@ -391,10 +410,18 @@ public final class SocialServiceManager: ObservableObject {
                         self.unifiedTimeline = self.canonicalPostStore.timelinePosts(
                             for: self.canonicalUnifiedTimelineID
                         )
+                        self.hasHydratedUnifiedTimelineCache = true
                         DebugLog.verbose("✅ Successfully loaded \(posts.count) posts from offline cache")
                     }
                 }
             }
+        }
+    }
+
+    @MainActor
+    func markUnifiedTimelinePresented() {
+        if !hasPresentedUnifiedTimeline {
+            hasPresentedUnifiedTimeline = true
         }
     }
 
@@ -512,6 +539,12 @@ public final class SocialServiceManager: ObservableObject {
         return accountsToFetch
     }
 
+    /// Public wrapper for timeline account selection (used by auto-refresh buffering)
+    @MainActor
+    func timelineAccountsToFetch() -> [SocialAccount] {
+        return getAccountsToFetch()
+    }
+
     /// Force reload accounts for debugging
     @MainActor
     func forceReloadAccounts() async {
@@ -525,11 +558,11 @@ public final class SocialServiceManager: ObservableObject {
 
         // Also trigger a timeline refresh
         do {
-            try await refreshTimeline(force: true)
+            try await refreshTimeline(intent: .manualRefresh)
         } catch {
             ErrorHandler.shared.handleError(error) {
                 Task {
-                    try? await self.refreshTimeline(force: true)
+                    try? await self.refreshTimeline(intent: .manualRefresh)
                 }
             }
             DebugLog.verbose("🔄 Error refreshing timeline after force reload: \(error)")
@@ -564,7 +597,7 @@ public final class SocialServiceManager: ObservableObject {
         // Automatically refresh timeline after adding account
         Task {
             do {
-                try await refreshTimeline(force: true)
+                try await refreshTimeline(intent: .manualRefresh)
             } catch {
                 // Error is already logged by the timeline refresh method
             }
@@ -695,7 +728,7 @@ public final class SocialServiceManager: ObservableObject {
         } else {
             resetUnifiedTimelineStore()
             // Trigger a refresh to remove posts from the deleted account
-            try? await refreshTimeline(force: true)
+            try? await refreshTimeline(intent: .manualRefresh)
         }
     }
 
@@ -778,17 +811,23 @@ public final class SocialServiceManager: ObservableObject {
             "🔄 SocialServiceManager: fetchPostsForAccount called for \(account.username) (\(account.platform))"
         )
 
+        if Task.isCancelled {
+            throw CancellationError()
+        }
+
         do {
             let posts: [Post]
             switch account.platform {
             case .mastodon:
                 DebugLog.verbose("🔄 SocialServiceManager: Fetching Mastodon timeline for \(account.username)")
                 let result = try await mastodonService.fetchHomeTimeline(for: account)
+                if Task.isCancelled { throw CancellationError() }
                 posts = result.posts
                 DebugLog.verbose("🔄 SocialServiceManager: Mastodon fetch completed - \(posts.count) posts")
             case .bluesky:
                 DebugLog.verbose("🔄 SocialServiceManager: Fetching Bluesky timeline for \(account.username)")
                 let result = try await blueskyService.fetchTimeline(for: account)
+                if Task.isCancelled { throw CancellationError() }
                 posts = result.posts
                 DebugLog.verbose("🔄 SocialServiceManager: Bluesky fetch completed - \(posts.count) posts")
             }
@@ -801,11 +840,17 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Refresh timeline, with option to force refresh
-    func refreshTimeline(force: Bool = false) async throws {
+    /// Refresh timeline with explicit intent
+    func refreshTimeline(intent: TimelineRefreshIntent) async throws {
+        assert(
+            intent == .manualRefresh || intent == .mergeTap,
+            "refreshTimeline must be called with explicit user intent"
+        )
         let debugRefresh = UserDefaults.standard.bool(forKey: "debugRefresh")
         if debugRefresh {
-            DebugLog.verbose("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called - ENTRY POINT")
+            DebugLog.verbose(
+                "🔄 SocialServiceManager: refreshTimeline(intent: \(intent.rawValue)) called - ENTRY POINT"
+            )
             DebugLog.verbose("🔄 SocialServiceManager: globalRefreshLock: \(Self.globalRefreshLock)")
             DebugLog.verbose("🔄 SocialServiceManager: isCircuitBreakerOpen: \(isCircuitBreakerOpen)")
             DebugLog.verbose("🔄 SocialServiceManager: isRefreshInProgress: \(isRefreshInProgress)")
@@ -813,14 +858,16 @@ public final class SocialServiceManager: ObservableObject {
             DebugLog.verbose("🔄 SocialServiceManager: lastRefreshAttempt: \(lastRefreshAttempt)")
             DebugLog.verbose("🔄 SocialServiceManager: consecutiveFailures: \(consecutiveFailures)")
         } else {
-            DebugLog.verbose("🔄 SocialServiceManager: refreshTimeline(force: \(force)) called")
+            DebugLog.verbose(
+                "🔄 SocialServiceManager: refreshTimeline(intent: \(intent.rawValue)) called"
+            )
         }
 
         let now = Date()
 
         // Allow initial load to bypass restrictions if timeline is completely empty
         let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
-        let isUserInitiated = force  // Force flag indicates user-initiated refresh (pull-to-refresh)
+        let isUserInitiated = true
         let shouldBypassRestrictions = isUserInitiated || isInitialLoad
 
         DebugLog.verbose(
@@ -1206,6 +1253,11 @@ public final class SocialServiceManager: ObservableObject {
         return filteredPosts
     }
 
+    /// Apply timeline filters (reply filtering, keyword filtering, etc.) to a candidate set of posts.
+    public func filterPostsForTimeline(_ posts: [Post]) async -> [Post] {
+        return await filterRepliesInTimeline(posts)
+    }
+
     /// Fetch the unified timeline for all accounts
     public func fetchTimeline(force: Bool = false) async throws {
         DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline(force: \(force)) called")
@@ -1273,11 +1325,7 @@ public final class SocialServiceManager: ObservableObject {
                 DebugLog.verbose("🔄 SocialServiceManager: Timeline updated with \(canonicalPosts.count) posts")
             }
         } catch {
-            ErrorHandler.shared.handleError(error) {
-                Task {
-                    try? await self.refreshTimeline(force: false)
-                }
-            }
+            ErrorHandler.shared.handleError(error)
             DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
             throw error
         }
@@ -3445,6 +3493,35 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Merge buffered posts into the canonical unified timeline without forcing a full refresh.
+    @MainActor
+    func mergeBufferedPosts(_ posts: [Post]) {
+        guard !posts.isEmpty else { return }
+        DebugLog.verbose("🔄 SocialServiceManager: Merging \(posts.count) buffered posts into unified timeline")
+        let sourceContext = TimelineSourceContext(source: .buffer)
+        canonicalPostStore.processIncomingPosts(
+            posts,
+            timelineID: canonicalUnifiedTimelineID,
+            sourceContext: sourceContext
+        )
+        let mergedPosts = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+        safelyUpdateTimeline(mergedPosts)
+    }
+
+#if DEBUG
+    @MainActor
+    func debugSeedUnifiedTimeline(_ posts: [Post]) {
+        let sourceContext = TimelineSourceContext(source: .system)
+        canonicalPostStore.replaceTimeline(
+            timelineID: canonicalUnifiedTimelineID,
+            posts: posts,
+            sourceContext: sourceContext
+        )
+        unifiedTimeline = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+        DebugLog.verbose("🧪 SocialServiceManager: Seeded unified timeline with \(posts.count) posts")
+    }
+#endif
+
     // MARK: - Migration Logic
 
     private func migrateOldBlueskyAccounts() {
@@ -3526,44 +3603,17 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    // MARK: - Reliable Refresh Methods
+    // MARK: - Prefetch / Manual Refresh
 
-    /// Ensures timeline is refreshed when app becomes active or user navigates to timeline
-    /// This is the primary method that should be called from UI lifecycle events
-    func ensureTimelineRefresh(force: Bool = false) async {
-        DebugLog.verbose("🔄 SocialServiceManager: ensureTimelineRefresh called (force: \(force))")
-
-        // Simple check: if timeline is empty or force is true, refresh
-        let shouldRefresh = force || unifiedTimeline.isEmpty || shouldRefreshBasedOnTime()
-
-        if shouldRefresh {
-            DebugLog.verbose("🔄 SocialServiceManager: Timeline needs refresh - proceeding")
-            do {
-                try await refreshTimeline(force: true)
-                DebugLog.verbose("✅ SocialServiceManager: Timeline refresh completed successfully")
-            } catch {
-                DebugLog.verbose(
-                    "❌ SocialServiceManager: Timeline refresh failed: \(error.localizedDescription)"
-                )
-            }
-        } else {
-            DebugLog.verbose("🔄 SocialServiceManager: Timeline is fresh, no refresh needed")
-        }
+    /// No-op prefetch placeholder; refresh is coordinated by TimelineRefreshCoordinator.
+    func ensureTimelinePrefetch() async {
+        DebugLog.verbose("🔄 SocialServiceManager: ensureTimelinePrefetch called")
     }
 
-    /// Check if timeline should be refreshed based on time elapsed
-    private func shouldRefreshBasedOnTime() -> Bool {
-        let now = Date()
-        let timeSinceLastRefresh = now.timeIntervalSince(lastRefreshAttempt)
-
-        // Refresh if more than 5 minutes have passed since last refresh
-        return timeSinceLastRefresh > 300
-    }
-
-    /// Force refresh timeline regardless of current state - for pull-to-refresh
+    /// Force refresh timeline regardless of current state - for explicit user intent
     func forceRefreshTimeline() async {
         DebugLog.verbose("🔄 SocialServiceManager: forceRefreshTimeline called")
-        await ensureTimelineRefresh(force: true)
+        try? await refreshTimeline(intent: .manualRefresh)
     }
 
     // MARK: - Thread Context Loading
