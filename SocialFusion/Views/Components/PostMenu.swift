@@ -4,8 +4,14 @@ import os.log
 /// A view that displays platform-specific actions for a post
 struct PostMenu: View {
     let post: Post
+    var state: PostActionState?
     let onAction: (PostAction) -> Void
     private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
+
+    /// Effective state for menu label derivation: uses provided state or derives from post
+    private var effectiveState: PostActionState {
+        state ?? post.makeActionState()
+    }
 
     var body: some View {
         Menu {
@@ -29,11 +35,13 @@ struct PostMenu: View {
     }
 
     private func menuButton(for action: PostAction) -> some View {
-        Button(role: action.menuRole) {
-            menuLogger.info("📋 PostMenu tap: \(action.menuLabel, privacy: .public)")
+        let label = action.menuLabel(for: effectiveState)
+        let icon = action.menuSystemImage(for: effectiveState)
+        return Button(role: action.menuRole) {
+            menuLogger.info("📋 PostMenu tap: \(label, privacy: .public)")
             onAction(action)
         } label: {
-            Label(action.menuLabel, systemImage: action.menuSystemImage)
+            Label(label, systemImage: icon)
         }
     }
 }

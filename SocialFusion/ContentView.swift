@@ -461,9 +461,6 @@ struct ContentView: View {
             selectedAccountId = nil
             serviceManager.selectedAccountIds = ["all"]
         }
-        Task {
-            await serviceManager.ensureTimelineRefresh()
-        }
     }
 
     /// Request notification permissions for showing token refresh alerts
@@ -599,7 +596,7 @@ struct ContentView: View {
 
         // Refresh timeline with new account selection
         Task {
-            try? await serviceManager.refreshTimeline(force: false)
+            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
         }
     }
 
@@ -647,7 +644,7 @@ struct SimpleAccountDropdown: View {
 
                 isVisible = false
                 Task {
-                    try? await serviceManager.refreshTimeline(force: true)
+                    try? await serviceManager.refreshTimeline(intent: .manualRefresh)
                 }
             }) {
                 HStack {
@@ -685,7 +682,7 @@ struct SimpleAccountDropdown: View {
 
                     isVisible = false
                     Task {
-                        try? await serviceManager.refreshTimeline(force: true)
+                        try? await serviceManager.refreshTimeline(intent: .manualRefresh)
                     }
                 }) {
                     HStack {
@@ -809,7 +806,7 @@ struct AccountDropdownView: View {
 
                         // Refresh the timeline
                         Task {
-                            try? await serviceManager.refreshTimeline(force: false)
+                            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
                         }
                     }) {
                         HStack {
@@ -852,7 +849,7 @@ struct AccountDropdownView: View {
 
                             // Refresh the timeline
                             Task {
-                                try? await serviceManager.refreshTimeline(force: false)
+                                try? await serviceManager.refreshTimeline(intent: .manualRefresh)
                             }
                         }) {
                             HStack {
@@ -1377,7 +1374,7 @@ struct TimelineValidationDebugView: View {
         addResult("  🔄 Testing refresh capability...")
         let initialCount = serviceManager.unifiedTimeline.count
         do {
-            try await serviceManager.refreshTimeline()
+            try await serviceManager.refreshTimeline(intent: .manualRefresh)
         } catch {
             addResult("  ⚠️  Refresh: Error occurred - \(error.localizedDescription)")
         }

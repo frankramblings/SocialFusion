@@ -323,18 +323,64 @@ public struct MastodonRelationship: Codable {
     public let muting: Bool
     public let mutingNotifications: Bool
     public let requested: Bool
+    public let requestedBy: Bool
     public let domainBlocking: Bool
     public let showingReblogs: Bool
     public let endorsing: Bool
+    public let notifying: Bool
+    public let languages: [String]?
     public let note: String?
 
     public enum CodingKeys: String, CodingKey {
-        case id, following, blocking, muting, requested, endorsing, note
+        case id, following, blocking, muting, requested, endorsing, endorsed, notifying, languages, note
         case followedBy = "followed_by"
         case blockedBy = "blocked_by"
         case mutingNotifications = "muting_notifications"
         case domainBlocking = "domain_blocking"
         case showingReblogs = "showing_reblogs"
+        case requestedBy = "requested_by"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        following = try container.decodeIfPresent(Bool.self, forKey: .following) ?? false
+        followedBy = try container.decodeIfPresent(Bool.self, forKey: .followedBy) ?? false
+        blocking = try container.decodeIfPresent(Bool.self, forKey: .blocking) ?? false
+        blockedBy = try container.decodeIfPresent(Bool.self, forKey: .blockedBy) ?? false
+        muting = try container.decodeIfPresent(Bool.self, forKey: .muting) ?? false
+        mutingNotifications =
+            try container.decodeIfPresent(Bool.self, forKey: .mutingNotifications) ?? false
+        requested = try container.decodeIfPresent(Bool.self, forKey: .requested) ?? false
+        requestedBy = try container.decodeIfPresent(Bool.self, forKey: .requestedBy) ?? false
+        domainBlocking = try container.decodeIfPresent(Bool.self, forKey: .domainBlocking) ?? false
+        showingReblogs = try container.decodeIfPresent(Bool.self, forKey: .showingReblogs) ?? true
+        endorsing =
+            try container.decodeIfPresent(Bool.self, forKey: .endorsed)
+            ?? container.decodeIfPresent(Bool.self, forKey: .endorsing)
+            ?? false
+        notifying = try container.decodeIfPresent(Bool.self, forKey: .notifying) ?? false
+        languages = try container.decodeIfPresent([String].self, forKey: .languages)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(following, forKey: .following)
+        try container.encode(followedBy, forKey: .followedBy)
+        try container.encode(blocking, forKey: .blocking)
+        try container.encode(blockedBy, forKey: .blockedBy)
+        try container.encode(muting, forKey: .muting)
+        try container.encode(mutingNotifications, forKey: .mutingNotifications)
+        try container.encode(requested, forKey: .requested)
+        try container.encode(requestedBy, forKey: .requestedBy)
+        try container.encode(domainBlocking, forKey: .domainBlocking)
+        try container.encode(showingReblogs, forKey: .showingReblogs)
+        try container.encode(endorsing, forKey: .endorsing)
+        try container.encode(notifying, forKey: .notifying)
+        try container.encodeIfPresent(languages, forKey: .languages)
+        try container.encodeIfPresent(note, forKey: .note)
     }
 }
 

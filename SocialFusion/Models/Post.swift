@@ -22,6 +22,7 @@ public enum PostAction: Hashable {
 }
 
 extension PostAction {
+    /// Default menu label (for static/non-stateful actions)
     var menuLabel: String {
         switch self {
         case .follow:
@@ -53,6 +54,21 @@ extension PostAction {
         }
     }
 
+    /// State-aware menu label that flips based on current relationship state
+    func menuLabel(for state: PostActionState) -> String {
+        switch self {
+        case .follow:
+            return state.isFollowingAuthor ? "Unfollow" : "Follow"
+        case .mute:
+            return state.isMutedAuthor ? "Unmute" : "Mute"
+        case .block:
+            return state.isBlockedAuthor ? "Unblock" : "Block"
+        default:
+            return menuLabel
+        }
+    }
+
+    /// Default menu icon (for static/non-stateful actions)
     var menuSystemImage: String {
         switch self {
         case .follow:
@@ -81,6 +97,20 @@ extension PostAction {
             return "square.and.arrow.up"
         case .quote:
             return "quote.bubble"
+        }
+    }
+
+    /// State-aware menu icon that changes based on current relationship state
+    func menuSystemImage(for state: PostActionState) -> String {
+        switch self {
+        case .follow:
+            return state.isFollowingAuthor ? "person.badge.minus" : "person.badge.plus"
+        case .mute:
+            return state.isMutedAuthor ? "speaker.wave.2" : "speaker.slash"
+        case .block:
+            return state.isBlockedAuthor ? "hand.raised.slash" : "hand.raised"
+        default:
+            return menuSystemImage
         }
     }
 

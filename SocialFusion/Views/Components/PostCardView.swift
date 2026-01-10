@@ -871,7 +871,7 @@ struct PostCardView: View {
             let coordinator = postActionCoordinator
         {
             ActionBarV2(
-                post: post,
+                post: displayPost,
                 store: postActionStore,
                 coordinator: coordinator,
                 onAction: { action in
@@ -912,6 +912,11 @@ struct PostCardView: View {
                         break
                     }
                 },
+                onMenuOpen: {
+                    Task {
+                        await serviceManager.refreshRelationshipStateForMenu(for: displayPost)
+                    }
+                }
             )
         } else {
             ActionBar(
@@ -952,6 +957,11 @@ struct PostCardView: View {
                         onReport()
                     @unknown default:
                         break
+                    }
+                },
+                onMenuOpen: {
+                    Task {
+                        await serviceManager.refreshRelationshipStateForMenu(for: displayPost)
                     }
                 }
             )

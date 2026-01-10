@@ -1,3 +1,4 @@
+#if DEBUG
 import Combine
 import Foundation
 import SwiftUI
@@ -363,6 +364,7 @@ class TimelineController: ObservableObject {
         }
     }
 }
+#endif
 
 // MARK: - Supporting Types
 

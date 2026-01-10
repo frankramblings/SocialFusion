@@ -17,7 +17,7 @@ struct AccountPickerView: View {
                         selectedAccountId = nil
                         serviceManager.selectedAccountIds = ["all"]
                         Task {
-                            try? await serviceManager.refreshTimeline(force: false)
+                            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
                         }
                         isPresented = false
                     }) {
@@ -164,7 +164,7 @@ struct AccountPickerView: View {
             selectedAccountId = account.id
             serviceManager.selectedAccountIds = [account.id]
             Task {
-                try? await serviceManager.refreshTimeline(force: false)
+                try? await serviceManager.refreshTimeline(intent: .manualRefresh)
             }
             isPresented = false
         }) {
