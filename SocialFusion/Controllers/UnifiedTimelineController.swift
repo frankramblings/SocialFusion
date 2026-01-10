@@ -16,12 +16,69 @@ class UnifiedTimelineController: ObservableObject {
     @Published private(set) var unreadCount: Int = 0
     @Published private(set) var isLoadingNextPage: Bool = false
     @Published private(set) var hasNextPage: Bool = true
+    @Published private(set) var bufferCount: Int = 0
+    @Published private(set) var bufferEarliestTimestamp: Date?
+    @Published private(set) var bufferSources: Set<SocialPlatform> = []
+    @Published private(set) var isNearTop: Bool = true
+    @Published private(set) var isDeepHistory: Bool = false
 
     // MARK: - Private Properties
 
     private let serviceManager: SocialServiceManager
     private let actionStore: PostActionStore
     private let actionCoordinator: PostActionCoordinator
+    private lazy var refreshCoordinator: TimelineRefreshCoordinator = {
+        TimelineRefreshCoordinator(
+            timelineID: "unified",
+            platforms: SocialPlatform.allCases,
+            isLoading: { [weak serviceManager] in serviceManager?.isLoadingTimeline ?? false },
+            fetchPostsForPlatform: { [weak serviceManager] platform in
+#if DEBUG
+                if UITestHooks.isEnabled {
+                    return Self.makeTestPosts(count: 3, platform: platform)
+                }
+#endif
+                guard let serviceManager = serviceManager else { return [] }
+                let accounts = await MainActor.run {
+                    serviceManager.timelineAccountsToFetch().filter { $0.platform == platform }
+                }
+                guard !accounts.isEmpty else { return [] }
+                var collected: [Post] = []
+                await withTaskGroup(of: [Post].self) { group in
+                    for account in accounts {
+                        group.addTask {
+                            do {
+                                return try await serviceManager.fetchPostsForAccount(account)
+                            } catch {
+                                return []
+                            }
+                        }
+                    }
+                    for await posts in group {
+                        collected.append(contentsOf: posts)
+                    }
+                }
+                return collected.sorted { $0.createdAt > $1.createdAt }
+            },
+            filterPosts: { [weak serviceManager] posts in
+                guard let serviceManager = serviceManager else { return posts }
+                return await serviceManager.filterPostsForTimeline(posts)
+            },
+            mergeBufferedPosts: { [weak serviceManager] posts in
+                serviceManager?.mergeBufferedPosts(posts)
+            },
+            refreshVisibleTimeline: { [weak serviceManager] intent in
+                guard let serviceManager = serviceManager else { return }
+                try? await serviceManager.refreshTimeline(intent: intent)
+            },
+            visiblePostsProvider: { [weak self] in
+                self?.posts ?? []
+            },
+            log: { message in
+                DebugLog.verbose(message)
+            }
+        )
+    }()
     private var cancellables = Set<AnyCancellable>()
     private var isInitialized = false
 
@@ -80,6 +137,48 @@ class UnifiedTimelineController: ObservableObject {
                 self?.hasNextPage = hasNext
             }
             .store(in: &cancellables)
+
+        serviceManager.$isComposing
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isComposing in
+                self?.refreshCoordinator.setComposing(isComposing)
+            }
+            .store(in: &cancellables)
+
+        refreshCoordinator.$bufferCount
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] count in
+                self?.bufferCount = count
+            }
+            .store(in: &cancellables)
+
+        refreshCoordinator.$bufferEarliestTimestamp
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] timestamp in
+                self?.bufferEarliestTimestamp = timestamp
+            }
+            .store(in: &cancellables)
+
+        refreshCoordinator.$bufferSources
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] sources in
+                self?.bufferSources = sources
+            }
+            .store(in: &cancellables)
+
+        refreshCoordinator.$isNearTop
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isNearTop in
+                self?.isNearTop = isNearTop
+            }
+            .store(in: &cancellables)
+
+        refreshCoordinator.$isDeepHistory
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] isDeepHistory in
+                self?.isDeepHistory = isDeepHistory
+            }
+            .store(in: &cancellables)
     }
 
     /// Update posts with proper state management
@@ -91,6 +190,7 @@ class UnifiedTimelineController: ObservableObject {
             }
         }
         self.lastRefreshDate = Date()
+        refreshCoordinator.handleVisibleTimelineUpdate(newPosts)
 
         if !isInitialized {
             isInitialized = true
@@ -105,11 +205,7 @@ class UnifiedTimelineController: ObservableObject {
         guard !isLoading else { return }
 
         Task {
-            do {
-                try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
-            } catch {
-                // Error is automatically propagated via binding
-            }
+            await refreshCoordinator.manualRefresh(intent: .manualRefresh)
         }
     }
 
@@ -118,11 +214,7 @@ class UnifiedTimelineController: ObservableObject {
         // Remove the guard - pull-to-refresh should always be allowed
         // The service manager will handle preventing duplicate refreshes properly
 
-        do {
-            try await serviceManager.refreshTimeline(force: true)  // Force=true for user-initiated refresh
-        } catch {
-            // Error is automatically propagated via binding
-        }
+        await refreshCoordinator.manualRefresh(intent: .manualRefresh)
     }
 
     /// Like or unlike a post - proper event-driven pattern
@@ -166,6 +258,78 @@ class UnifiedTimelineController: ObservableObject {
             // Error is automatically propagated via binding
         }
     }
+
+    // MARK: - Auto Refresh and Buffering
+
+    func setTimelineVisible(_ isVisible: Bool) {
+        refreshCoordinator.setTimelineVisible(isVisible)
+    }
+
+    func handleAppForegrounded() {
+        refreshCoordinator.handleAppForegrounded()
+    }
+
+    func recordVisibleInteraction() {
+        refreshCoordinator.recordVisibleInteraction()
+    }
+
+    func scrollInteractionBegan() {
+        refreshCoordinator.scrollInteractionBegan()
+    }
+
+    func scrollInteractionEnded() {
+        refreshCoordinator.scrollInteractionEnded()
+    }
+
+    func updateScrollState(isNearTop: Bool, isDeepHistory: Bool) {
+        refreshCoordinator.updateScrollState(isNearTop: isNearTop, isDeepHistory: isDeepHistory)
+    }
+
+    func mergeBufferedPosts() {
+        refreshCoordinator.mergeBufferedPostsIfNeeded()
+    }
+
+    func requestInitialPrefetch() {
+        Task { await refreshCoordinator.requestPrefetch(trigger: .foreground) }
+    }
+
+#if DEBUG
+    func debugSeedTimeline() {
+        guard UITestHooks.isEnabled else { return }
+        let posts = Self.makeTestPosts(count: 8, platform: .mastodon)
+        Task { @MainActor in
+            serviceManager.debugSeedUnifiedTimeline(posts)
+        }
+    }
+
+    func debugTriggerIdlePrefetch() {
+        guard UITestHooks.isEnabled else { return }
+        Task { await refreshCoordinator.requestPrefetch(trigger: .idlePolling) }
+    }
+
+    func debugTriggerForegroundPrefetch() {
+        guard UITestHooks.isEnabled else { return }
+        refreshCoordinator.handleAppForegrounded()
+    }
+
+    private static func makeTestPosts(count: Int, platform: SocialPlatform) -> [Post] {
+        let now = Date()
+        return (0..<count).map { index in
+            let id = "ui-test-\(platform.rawValue)-\(UUID().uuidString)-\(index)"
+            return Post(
+                id: id,
+                content: "UI Test Post \(index)",
+                authorName: "UI Test",
+                authorUsername: "ui-test",
+                authorProfilePictureURL: "",
+                createdAt: now.addingTimeInterval(-Double(index)),
+                platform: platform,
+                originalURL: "https://example.com/\(id)",
+                platformSpecificId: id
+            )
+        }
+    }
+#endif
 
     // MARK: - Private Helpers
 

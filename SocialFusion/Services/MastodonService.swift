@@ -988,7 +988,10 @@ public final class MastodonService: @unchecked Sendable {
             }
 
             // Convert to post models
-            let posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+            var posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+
+            // Enrich posts with relationship data (following/muting/blocking status)
+            posts = await enrichPostsWithRelationships(posts, account: account)
 
             logger.info("✅ MASTODON: Successfully fetched \(posts.count) posts")
             print("✅ MASTODON: Successfully fetched \(posts.count) posts")
@@ -1060,8 +1063,10 @@ public final class MastodonService: @unchecked Sendable {
 
         let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
 
-        // Convert to our app's Post model
-        return statuses.map { convertMastodonStatusToPost($0, account: account) }
+        // Convert to our app's Post model and enrich with relationship data
+        var posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+        posts = await enrichPostsWithRelationships(posts, account: account)
+        return posts
     }
 
     /// Fetch the public timeline from the Mastodon API without requiring an account
@@ -1210,8 +1215,10 @@ public final class MastodonService: @unchecked Sendable {
             logger.info("✅ MASTODON: Successfully fetched \(statuses.count) statuses")
             print("✅ MASTODON: Successfully fetched \(statuses.count) statuses")
 
-            // Convert to our app's Post model
-            return statuses.map { convertMastodonStatusToPost($0, account: account) }
+            // Convert to our app's Post model and enrich with relationship data
+            var posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+            posts = await enrichPostsWithRelationships(posts, account: account)
+            return posts
         } catch {
             logger.error("❌ MASTODON: Error fetching user timeline: \(error.localizedDescription)")
             print("❌ MASTODON: Error fetching user timeline: \(error.localizedDescription)")
@@ -1879,11 +1886,117 @@ public final class MastodonService: @unchecked Sendable {
             url: url, method: "GET", account: account)
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.networkError(
+                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+        }
+
+        if httpResponse.statusCode != 200 {
             throw ServiceError.apiError("Failed to fetch relationships")
         }
 
-        return try JSONDecoder().decode([MastodonRelationship].self, from: data)
+        do {
+            return try JSONDecoder().decode([MastodonRelationship].self, from: data)
+        } catch {
+            logger.error("❌ MASTODON: Relationship decode failed: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Lookup a Mastodon account by acct handle and return its numeric id
+    func lookupAccountId(acct: String, account: SocialAccount) async throws -> String {
+        let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
+        var components = URLComponents(string: "\(serverUrl)/api/v1/accounts/lookup")!
+        components.queryItems = [URLQueryItem(name: "acct", value: acct)]
+
+        guard let url = components.url else {
+            throw ServiceError.invalidInput(reason: "Invalid acct lookup value")
+        }
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.networkError(
+                underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
+        }
+
+        if httpResponse.statusCode != 200 {
+            if let responseString = String(data: data, encoding: .utf8) {
+                logger.error("❌ MASTODON: Account lookup failed (\(httpResponse.statusCode)) response: \(String(responseString.prefix(500)))")
+            } else {
+                logger.error("❌ MASTODON: Account lookup failed (\(httpResponse.statusCode)) with empty response")
+            }
+            throw ServiceError.apiError("Failed to lookup account")
+        }
+
+        let account = try JSONDecoder().decode(MastodonAccount.self, from: data)
+        return account.id
+    }
+
+    /// Enrich posts with relationship data (following/muting/blocking status)
+    /// This fetches relationships for all unique authors in the posts array and updates the posts
+    func enrichPostsWithRelationships(_ posts: [Post], account: SocialAccount) async -> [Post] {
+        // Skip if no posts or no account
+        guard !posts.isEmpty else { return posts }
+
+        // Collect unique author IDs (excluding the current user)
+        let currentUserId = account.platformSpecificId
+        let uniqueAuthorIds = Array(Set(posts.flatMap { post -> [String] in
+            var ids: [String] = []
+            if !post.authorId.isEmpty, post.authorId != currentUserId {
+                ids.append(post.authorId)
+            }
+            if let original = post.originalPost,
+                !original.authorId.isEmpty,
+                original.authorId != currentUserId
+            {
+                ids.append(original.authorId)
+            }
+            return ids
+        }))
+
+        // Skip if no authors to look up
+        guard !uniqueAuthorIds.isEmpty else { return posts }
+
+        // Fetch relationships in batches (Mastodon API typically limits to ~40 per request)
+        let batchSize = 40
+        var relationshipMap: [String: MastodonRelationship] = [:]
+
+        for batchStart in stride(from: 0, to: uniqueAuthorIds.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, uniqueAuthorIds.count)
+            let batch = Array(uniqueAuthorIds[batchStart..<batchEnd])
+
+            do {
+                let relationships = try await fetchRelationships(accountIds: batch, account: account)
+                for rel in relationships {
+                    relationshipMap[rel.id] = rel
+                }
+            } catch {
+                // Log error but continue - we don't want to fail timeline loading
+                logger.warning("Failed to fetch relationships for batch: \(error.localizedDescription)")
+            }
+        }
+
+        // Update posts with relationship data
+        for post in posts {
+            if let relationship = relationshipMap[post.authorId] {
+                post.isFollowingAuthor = relationship.following
+                post.isMutedAuthor = relationship.muting
+                post.isBlockedAuthor = relationship.blocking
+            }
+            if let original = post.originalPost,
+                let relationship = relationshipMap[original.authorId]
+            {
+                original.isFollowingAuthor = relationship.following
+                original.isMutedAuthor = relationship.muting
+                original.isBlockedAuthor = relationship.blocking
+            }
+        }
+
+        logger.debug("Enriched \(posts.count) posts with \(relationshipMap.count) author relationships")
+        return posts
     }
 
     /// Follow a user on Mastodon

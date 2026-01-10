@@ -508,7 +508,7 @@ class TimelineV2ValidationRunner: ObservableObject {
 
         // Trigger refresh
         do {
-            try await socialServiceManager.refreshTimeline()
+            try await socialServiceManager.refreshTimeline(intent: .manualRefresh)
         } catch {
             return (false, "Refresh failed: \(error.localizedDescription)")
         }

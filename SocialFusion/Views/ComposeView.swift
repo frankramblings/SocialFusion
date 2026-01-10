@@ -1010,6 +1010,12 @@ struct ComposeView: View {
                 hydrateAccountSelection()
             }
         }
+        .onAppear {
+            socialServiceManager.isComposing = true
+        }
+        .onDisappear {
+            socialServiceManager.isComposing = false
+        }
     }
 
     private func togglePlatform(_ platform: SocialPlatform) {

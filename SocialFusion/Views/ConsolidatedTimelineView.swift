@@ -126,6 +126,12 @@ struct ConsolidatedTimelineView: View {
     @State private var hasRestoredInitialAnchor = false
     @State private var visibleAnchorId: String?
     @State private var anchorLockUntil: Date?
+    @State private var lastVisiblePositions: [String: CGFloat] = [:]
+    @State private var lastTopVisibleId: String?
+    @State private var lastTopVisibleOffset: CGFloat = 0
+    @State private var pendingMergeAnchorId: String?
+    @State private var pendingMergeAnchorOffset: CGFloat?
+    @State private var mergeOffsetCompensation: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
@@ -231,12 +237,22 @@ struct ConsolidatedTimelineView: View {
                     restorePendingAnchorIfPossible()
                 }
             }
+            .onAppear {
+                serviceManager.markUnifiedTimelinePresented()
+                controller.setTimelineVisible(true)
+            }
+            .onDisappear {
+                controller.setTimelineVisible(false)
+            }
             .onChange(of: scenePhase) { phase in
                 if phase == .background {
                     // Persist latest known anchor on background as a safety net
                     if #available(iOS 17.0, *) {
                         persistedAnchorId = scrollAnchorId
                     }
+                }
+                if phase == .active {
+                    controller.handleAppForegrounded()
                 }
             }
             .onChange(of: controller.isLoading) { isLoading in
@@ -279,6 +295,30 @@ struct ConsolidatedTimelineView: View {
                     ErrorHandler.shared.handleError(error) {
                         controller.refreshTimeline()
                     }
+                }
+            }
+            .overlay {
+                if UITestHooks.isEnabled {
+                    VStack(spacing: 6) {
+                        Button("Seed Timeline") { controller.debugSeedTimeline() }
+                            .accessibilityIdentifier("SeedTimelineButton")
+                        Button("Trigger Foreground Prefetch") { controller.debugTriggerForegroundPrefetch() }
+                            .accessibilityIdentifier("TriggerForegroundPrefetchButton")
+                        Button("Trigger Idle Prefetch") { controller.debugTriggerIdlePrefetch() }
+                            .accessibilityIdentifier("TriggerIdlePrefetchButton")
+                        Button("Begin Scroll") { controller.scrollInteractionBegan() }
+                            .accessibilityIdentifier("BeginScrollButton")
+                        Button("End Scroll") { controller.scrollInteractionEnded() }
+                            .accessibilityIdentifier("EndScrollButton")
+                        Text("\(controller.bufferCount)")
+                            .accessibilityIdentifier("TimelineBufferCount")
+                        Text(lastTopVisibleId ?? "nil")
+                            .accessibilityIdentifier("TimelineTopAnchorId")
+                        Text(String(format: "%.2f", lastTopVisibleOffset))
+                            .accessibilityIdentifier("TimelineTopAnchorOffset")
+                    }
+                    .font(.caption2)
+                    .opacity(0.01)
                 }
             }
     }
@@ -325,7 +365,7 @@ struct ConsolidatedTimelineView: View {
     @ViewBuilder
     private var timelineView: some View {
         if #available(iOS 17.0, *) {
-            ScrollViewReader { _ in
+            ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(controller.posts.enumerated()), id: \.element.stableId) { index, post in
@@ -364,10 +404,12 @@ struct ConsolidatedTimelineView: View {
                                 .accessibilityHint("No more posts to load")
                         }
                     }
+                    .padding(.top, mergeOffsetCompensation)
                     .scrollTargetLayout()
                 }
                 .coordinateSpace(name: "timelineScroll")
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
+                    lastVisiblePositions = positions
                     guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
                     if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
                     guard let nextId = positions
@@ -380,9 +422,35 @@ struct ConsolidatedTimelineView: View {
                         persistedAnchorId = nextId
                         logAnchorState("visible anchor -> \(nextId)")
                     }
+                    let topId = controller.posts.first.map(scrollIdentifier(for:))
+                    let isAtTop = topId.flatMap { positions[$0] }.map { $0 >= -12 } ?? false
+                    if let topId = topId, let topOffset = positions[topId] {
+                        lastTopVisibleId = topId
+                        lastTopVisibleOffset = topOffset
+                    }
+                    syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
+                    let deepHistoryThreshold = UIScreen.main.bounds.height * 2.0
+                    let isDeepHistory = (topId.flatMap { positions[$0] }.map { $0 < -deepHistoryThreshold }) ?? false
+                    controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: isDeepHistory)
+
+                    if let mergeId = pendingMergeAnchorId,
+                        let mergeOffset = pendingMergeAnchorOffset,
+                        let currentOffset = positions[mergeId]
+                    {
+                        let delta = MergeOffsetCompensator.compensation(
+                            previousOffset: mergeOffset,
+                            currentOffset: currentOffset
+                        )
+                        if delta != 0 {
+                            mergeOffsetCompensation = delta
+                        }
+                        pendingMergeAnchorId = nil
+                        pendingMergeAnchorOffset = nil
+                    }
                 }
                 .scrollPosition(id: $scrollAnchorId)
                 .onChange(of: scrollAnchorId) { newValue in
+                    controller.recordVisibleInteraction()
                     logAnchorState("scrollAnchorId changed -> \(newValue ?? "nil")")
                 }
                 .refreshable {
@@ -391,6 +459,29 @@ struct ConsolidatedTimelineView: View {
                     logAnchorState("refresh start")
                     await refreshTimeline()
                     logAnchorState("refresh end")
+                }
+                .simultaneousGesture(
+                    DragGesture()
+                        .onChanged { _ in
+                            if mergeOffsetCompensation != 0 {
+                                mergeOffsetCompensation = 0
+                            }
+                            controller.scrollInteractionBegan()
+                        }
+                        .onEnded { _ in
+                            controller.scrollInteractionEnded()
+                        }
+                )
+                .overlay(alignment: .top) {
+                    mergePill(proxy: proxy)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
+                { _ in
+                    scrollToTop(using: proxy)
+                    syncAnchorToTopIfNeeded(
+                        topId: controller.posts.first.map(scrollIdentifier(for:)),
+                        isAtTop: true
+                    )
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Timeline")
@@ -437,8 +528,24 @@ struct ConsolidatedTimelineView: View {
                                 .accessibilityHint("No more posts to load")
                         }
                     }
+                    .padding(.top, mergeOffsetCompensation)
                 }
                 .refreshable { await refreshTimeline() }
+                .simultaneousGesture(
+                    DragGesture()
+                        .onChanged { _ in
+                            if mergeOffsetCompensation != 0 {
+                                mergeOffsetCompensation = 0
+                            }
+                            controller.scrollInteractionBegan()
+                        }
+                        .onEnded { _ in
+                            controller.scrollInteractionEnded()
+                        }
+                )
+                .overlay(alignment: .top) {
+                    mergePill(proxy: proxy)
+                }
                 .onAppear {
                     // Best-effort restoration if we have a persisted ID (may be nil on first run)
                     if let id = persistedAnchorId {
@@ -474,6 +581,68 @@ struct ConsolidatedTimelineView: View {
             }
             reportingPost = nil
         }
+    }
+
+    @ViewBuilder
+    private func mergePill(proxy: ScrollViewProxy) -> some View {
+        if controller.bufferCount > 0 {
+            Button(action: { handleMergeTap(proxy: proxy) }) {
+                HStack(spacing: 8) {
+                    Text("\(controller.bufferCount) new posts")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                    Image(systemName: "arrow.up.to.line")
+                        .font(.caption)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+            }
+            .accessibilityIdentifier("UnifiedMergePill")
+            .padding(.top, 8)
+            .accessibilityLabel("\(controller.bufferCount) new posts")
+            .accessibilityHint("Tap to merge new posts into the timeline")
+        }
+    }
+
+    private func handleMergeTap(proxy: ScrollViewProxy) {
+        if controller.isNearTop {
+            prepareMergeAnchorRestore()
+            controller.mergeBufferedPosts()
+            return
+        }
+        scrollToTop(using: proxy)
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            prepareMergeAnchorRestore()
+            controller.mergeBufferedPosts()
+        }
+    }
+
+    private func scrollToTop(using proxy: ScrollViewProxy) {
+        guard let topId = controller.posts.first.map(scrollIdentifier(for:)) else { return }
+        if #available(iOS 17.0, *) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { scrollAnchorId = topId }
+        } else {
+            withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+        }
+    }
+
+    private func prepareMergeAnchorRestore() {
+        guard #available(iOS 17.0, *) else { return }
+        let anchorId = lastTopVisibleId ?? visibleAnchorId ?? scrollAnchorId ?? persistedAnchorId
+        pendingMergeAnchorId = anchorId
+        pendingMergeAnchorOffset = lastTopVisibleOffset
+        pendingAnchorRestoreId = anchorId
+        anchorLockUntil = Date().addingTimeInterval(0.6)
+        logAnchorState("merge anchor set -> \(anchorId ?? "nil")")
     }
 
     private var infiniteScrollLoadingView: some View {
@@ -560,7 +729,7 @@ struct ConsolidatedTimelineView: View {
     /// Ensure timeline is loaded - proper async pattern
     private func ensureTimelineLoaded() async {
         guard controller.posts.isEmpty && !controller.isLoading else { return }
-        controller.refreshTimeline()
+        controller.requestInitialPrefetch()
     }
 
     /// Refresh timeline - proper async pattern for user-initiated refresh
@@ -614,6 +783,18 @@ struct ConsolidatedTimelineView: View {
         print(
             "🧭 [ConsolidatedTimelineView] \(label) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: "%.2f", lock)) restored=\(hasRestoredInitialAnchor)"
         )
+    }
+
+    private func syncAnchorToTopIfNeeded(topId: String?, isAtTop: Bool) {
+        guard #available(iOS 17.0, *), isAtTop, let topId = topId else { return }
+        if scrollAnchorId != topId {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { scrollAnchorId = topId }
+            logAnchorState("sync to top")
+        }
+        persistedAnchorId = topId
+        pendingAnchorRestoreId = nil
     }
 
     /// Handle infinite scroll - proper async pattern

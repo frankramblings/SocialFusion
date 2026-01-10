@@ -96,7 +96,7 @@ struct DebugBlueskyView: View {
                             Button("Reset Account Selection to All") {
                                 serviceManager.selectedAccountIds = ["all"]
                                 Task {
-                                    try? await serviceManager.refreshTimeline(force: true)
+                                    try? await serviceManager.refreshTimeline(intent: .manualRefresh)
                                 }
                             }
 
@@ -189,7 +189,7 @@ struct DebugBlueskyView: View {
         lastRefreshResult = "Refreshing..."
 
         do {
-            try await serviceManager.refreshTimeline(force: true)
+            try await serviceManager.refreshTimeline(intent: .manualRefresh)
             await MainActor.run {
                 lastRefreshResult = "Success! Loaded \(serviceManager.unifiedTimeline.count) posts"
                 updateDebugInfo()
@@ -276,7 +276,7 @@ struct DebugBlueskyView: View {
 
         // Step 5: Force timeline refresh
         do {
-            try await serviceManager.refreshTimeline(force: true)
+            try await serviceManager.refreshTimeline(intent: .manualRefresh)
             let newBlueskyCount = serviceManager.unifiedTimeline.filter { $0.platform == .bluesky }
                 .count
             let newMastodonCount = serviceManager.unifiedTimeline.filter {

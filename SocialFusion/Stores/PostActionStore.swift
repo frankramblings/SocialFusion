@@ -5,10 +5,16 @@ import os.log
 @MainActor
 final class PostActionStore: ObservableObject {
     typealias ActionKey = String
+    typealias AuthorKey = String
 
     @Published private(set) var actions: [ActionKey: PostActionState] = [:]
     @Published private(set) var pendingKeys: Set<ActionKey> = []
     @Published private(set) var inflightKeys: Set<ActionKey> = []
+
+    /// Index from authorId to set of post stableIds for propagating author-level changes
+    private var postsByAuthor: [AuthorKey: Set<ActionKey>] = [:]
+    /// Reverse lookup from post stableId to authorId
+    private var authorByPost: [ActionKey: AuthorKey] = [:]
 
     private let logger = Logger(subsystem: "com.socialfusion", category: "PostActionStore")
 
@@ -17,12 +23,49 @@ final class PostActionStore: ObservableObject {
     @discardableResult
     func ensureState(for post: Post) -> PostActionState {
         let key = post.stableId
-        if let existing = actions[key] {
-            return existing
+        if var existing = actions[key] {
+            if authorByPost[key] == nil {
+                let authorKey = post.authorId
+                if !authorKey.isEmpty {
+                    authorByPost[key] = authorKey
+                    postsByAuthor[authorKey, default: []].insert(key)
+                }
+            }
+            // Sync relationship state from latest server-backed post when not mid-action
+            if !pendingKeys.contains(key), !inflightKeys.contains(key) {
+                let newFollow = post.isFollowingAuthor
+                let newMute = post.isMutedAuthor
+                let newBlock = post.isBlockedAuthor
+
+                let followChanged = existing.isFollowingAuthor != newFollow
+                let muteChanged = existing.isMutedAuthor != newMute
+                let blockChanged = existing.isBlockedAuthor != newBlock
+
+                if followChanged || muteChanged || blockChanged {
+                    existing.isFollowingAuthor = newFollow
+                    existing.isMutedAuthor = newMute
+                    existing.isBlockedAuthor = newBlock
+                    existing.lastUpdatedAt = Date()
+                    actions[key] = existing
+
+                    if followChanged { propagateFollowState(fromKey: key, shouldFollow: newFollow) }
+                    if muteChanged { propagateMuteState(fromKey: key, shouldMute: newMute) }
+                    if blockChanged { propagateBlockState(fromKey: key, shouldBlock: newBlock) }
+                }
+            }
+            return actions[key] ?? existing
         }
 
         let snapshot = post.makeActionState()
         actions[key] = snapshot
+
+        // Track author index for propagation
+        let authorKey = post.authorId
+        if !authorKey.isEmpty {
+            authorByPost[key] = authorKey
+            postsByAuthor[authorKey, default: []].insert(key)
+        }
+
         return snapshot
     }
 
@@ -148,6 +191,10 @@ final class PostActionStore: ObservableObject {
         current.isFollowingAuthor = shouldFollow
         current.lastUpdatedAt = Date()
         actions[key] = current
+
+        // Propagate to all posts by the same author
+        propagateFollowState(fromKey: key, shouldFollow: shouldFollow)
+
         return previous
     }
 
@@ -158,6 +205,10 @@ final class PostActionStore: ObservableObject {
         current.isMutedAuthor = shouldMute
         current.lastUpdatedAt = Date()
         actions[key] = current
+
+        // Propagate to all posts by the same author
+        propagateMuteState(fromKey: key, shouldMute: shouldMute)
+
         return previous
     }
 
@@ -168,7 +219,61 @@ final class PostActionStore: ObservableObject {
         current.isBlockedAuthor = shouldBlock
         current.lastUpdatedAt = Date()
         actions[key] = current
+
+        // Propagate to all posts by the same author
+        propagateBlockState(fromKey: key, shouldBlock: shouldBlock)
+
         return previous
+    }
+
+    // MARK: - Author-Level Propagation
+
+    private func propagateFollowState(fromKey sourceKey: ActionKey, shouldFollow: Bool) {
+        guard let authorKey = authorByPost[sourceKey],
+              let siblingKeys = postsByAuthor[authorKey]
+        else { return }
+
+        let now = Date()
+        for key in siblingKeys where key != sourceKey {
+            guard var state = actions[key] else { continue }
+            state.isFollowingAuthor = shouldFollow
+            state.lastUpdatedAt = now
+            actions[key] = state
+        }
+
+        logger.debug("Propagated follow state to \(siblingKeys.count - 1) sibling posts for author \(authorKey, privacy: .public)")
+    }
+
+    private func propagateMuteState(fromKey sourceKey: ActionKey, shouldMute: Bool) {
+        guard let authorKey = authorByPost[sourceKey],
+              let siblingKeys = postsByAuthor[authorKey]
+        else { return }
+
+        let now = Date()
+        for key in siblingKeys where key != sourceKey {
+            guard var state = actions[key] else { continue }
+            state.isMutedAuthor = shouldMute
+            state.lastUpdatedAt = now
+            actions[key] = state
+        }
+
+        logger.debug("Propagated mute state to \(siblingKeys.count - 1) sibling posts for author \(authorKey, privacy: .public)")
+    }
+
+    private func propagateBlockState(fromKey sourceKey: ActionKey, shouldBlock: Bool) {
+        guard let authorKey = authorByPost[sourceKey],
+              let siblingKeys = postsByAuthor[authorKey]
+        else { return }
+
+        let now = Date()
+        for key in siblingKeys where key != sourceKey {
+            guard var state = actions[key] else { continue }
+            state.isBlockedAuthor = shouldBlock
+            state.lastUpdatedAt = now
+            actions[key] = state
+        }
+
+        logger.debug("Propagated block state to \(siblingKeys.count - 1) sibling posts for author \(authorKey, privacy: .public)")
     }
 
     func revert(to state: PostActionState) {
@@ -177,7 +282,12 @@ final class PostActionStore: ObservableObject {
 
     func reconcile(from serverState: PostActionState) {
         let key = serverState.stableId
-        
+
+        // Capture existing relationship state for comparison
+        let existingFollow = actions[key]?.isFollowingAuthor
+        let existingMute = actions[key]?.isMutedAuthor
+        let existingBlock = actions[key]?.isBlockedAuthor
+
         // Merge intelligently: preserve counts that weren't part of the action
         // If we have existing state, merge server state with existing state
         if var existing = actions[key] {
@@ -186,7 +296,7 @@ final class PostActionStore: ObservableObject {
             existing.isReposted = serverState.isReposted
             existing.likeCount = serverState.likeCount
             existing.repostCount = serverState.repostCount
-            
+
             // Preserve replyCount and isReplied from existing state if server state has zero/missing
             // Only update if server state has a higher value (server is authoritative for increases)
             if serverState.replyCount > existing.replyCount {
@@ -196,24 +306,35 @@ final class PostActionStore: ObservableObject {
             if serverState.isReplied {
                 existing.isReplied = true
             }
-            
+
             // Preserve isQuoted similarly
             if serverState.isQuoted {
                 existing.isQuoted = true
             }
-            
+
             // Update author relationship fields
             existing.isFollowingAuthor = serverState.isFollowingAuthor
             existing.isMutedAuthor = serverState.isMutedAuthor
             existing.isBlockedAuthor = serverState.isBlockedAuthor
-            
+
             existing.lastUpdatedAt = Date()
             actions[key] = existing
         } else {
             // No existing state, use server state as-is
             actions[key] = serverState.updated(with: Date())
         }
-        
+
+        // Propagate relationship changes to sibling posts by the same author
+        if existingFollow != serverState.isFollowingAuthor {
+            propagateFollowState(fromKey: key, shouldFollow: serverState.isFollowingAuthor)
+        }
+        if existingMute != serverState.isMutedAuthor {
+            propagateMuteState(fromKey: key, shouldMute: serverState.isMutedAuthor)
+        }
+        if existingBlock != serverState.isBlockedAuthor {
+            propagateBlockState(fromKey: key, shouldBlock: serverState.isBlockedAuthor)
+        }
+
         pendingKeys.remove(key)
         inflightKeys.remove(key)
     }
@@ -236,4 +357,3 @@ final class PostActionStore: ObservableObject {
         }
     }
 }
-
