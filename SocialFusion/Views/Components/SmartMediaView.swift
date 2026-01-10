@@ -6,15 +6,6 @@ import SwiftUI
 import UIKit
 import os.log
 
-/// PreferenceKey to track video visibility in scroll views
-private struct VideoVisibilityPreferenceKey: PreferenceKey {
-    static var defaultValue: [String: Bool] = [:]
-    
-    static func reduce(value: inout [String: Bool], nextValue: () -> [String: Bool]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, new in new })
-    }
-}
-
 /// A professional-grade media display component that handles all media types robustly
 struct SmartMediaView: View {
     let attachment: Post.Attachment

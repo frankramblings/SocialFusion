@@ -14,6 +14,8 @@ struct AccountTimelineView: View {
 
     // Scroll position persistence (per account)
     @State private var scrollAnchorId: String?
+    @State private var pendingAnchorRestoreId: String?
+    @State private var hasRestoredInitialAnchor = false
     @Environment(\.scenePhase) private var scenePhase
 
     private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
@@ -88,20 +90,21 @@ struct AccountTimelineView: View {
                             .scrollTargetLayout()
                         }
                         .scrollPosition(id: $scrollAnchorId)
-                        .onChange(of: scrollAnchorId) { setPersistedAnchor($0) }
+                        .onChange(of: scrollAnchorId) { newValue in
+                            guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
+                            guard newValue != nil else { return }
+                            setPersistedAnchor(newValue)
+                        }
                         .refreshable {
                             let anchorBefore = scrollAnchorId ?? persistedAnchor()
+                            pendingAnchorRestoreId = anchorBefore
                             await loadPosts()
-                            if let id = anchorBefore, timelineEntries.contains(where: { $0.id == id }) {
-                                var t = Transaction(); t.disablesAnimations = true
-                                withTransaction(t) { scrollAnchorId = id }
-                            }
                         }
                         .onAppear {
-                            if let id = persistedAnchor(), timelineEntries.contains(where: { $0.id == id }) {
-                                var t = Transaction(); t.disablesAnimations = true
-                                withTransaction(t) { scrollAnchorId = id }
+                            if pendingAnchorRestoreId == nil {
+                                pendingAnchorRestoreId = persistedAnchor()
                             }
+                            restorePendingAnchorIfPossible()
                         }
                     }
                 } else {
@@ -161,12 +164,18 @@ struct AccountTimelineView: View {
             .hidden()
         )
         .onAppear {
+            if #available(iOS 17.0, *), pendingAnchorRestoreId == nil {
+                pendingAnchorRestoreId = scrollAnchorId ?? persistedAnchor()
+            }
             Task { await loadPosts() }
         }
         .onChange(of: scenePhase) { phase in
             if phase == .background {
                 setPersistedAnchor(scrollAnchorId)
             }
+        }
+        .onChange(of: posts) { _ in
+            restorePendingAnchorIfPossible()
         }
     }
 
@@ -216,6 +225,31 @@ struct AccountTimelineView: View {
         }
 
         isLoading = false
+    }
+
+    private func restorePendingAnchorIfPossible() {
+        guard #available(iOS 17.0, *) else { return }
+        guard !posts.isEmpty else { return }
+        guard let id = pendingAnchorRestoreId else {
+            hasRestoredInitialAnchor = true
+            return
+        }
+        if posts.contains(where: { $0.id == id }) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            if scrollAnchorId == id {
+                withTransaction(t) { scrollAnchorId = nil }
+                DispatchQueue.main.async {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { scrollAnchorId = id }
+                }
+            } else {
+                withTransaction(t) { scrollAnchorId = id }
+            }
+        }
+        pendingAnchorRestoreId = nil
+        hasRestoredInitialAnchor = true
     }
 
     /// Determines if we should load more posts based on current scroll position

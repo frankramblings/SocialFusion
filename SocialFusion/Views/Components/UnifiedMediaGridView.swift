@@ -1,25 +1,5 @@
 import SwiftUI
 
-// Media display constants (inlined for compatibility)
-private enum MediaConstants {
-    enum CornerRadius {
-        static let feed: CGFloat = 12
-        static let compact: CGFloat = 10
-    }
-    enum Spacing {
-        static let grid: CGFloat = 4
-        static let altBadgeHorizontal: CGFloat = 8
-        static let altBadgeVertical: CGFloat = 4
-    }
-    enum Visual {
-        static let shadowColor = Color.black.opacity(0.05)
-        static let shadowRadius: CGFloat = 2
-        static let shadowY: CGFloat = 1
-        static let borderOpacity: CGFloat = 0.05
-        static let borderWidth: CGFloat = 0.5
-    }
-}
-
 // MARK: - Frame Tracking for Hero Eligibility
 
 /// PreferenceKey to track thumbnail frames for hero transition eligibility

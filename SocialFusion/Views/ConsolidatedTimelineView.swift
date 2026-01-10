@@ -122,6 +122,10 @@ struct ConsolidatedTimelineView: View {
     // Position persistence (iOS 17+ primary path)
     @SceneStorage("unifiedTimeline.anchorId") private var persistedAnchorId: String?
     @State private var scrollAnchorId: String?
+    @State private var pendingAnchorRestoreId: String?
+    @State private var hasRestoredInitialAnchor = false
+    @State private var visibleAnchorId: String?
+    @State private var anchorLockUntil: Date?
     @Environment(\.scenePhase) private var scenePhase
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
@@ -220,15 +224,11 @@ struct ConsolidatedTimelineView: View {
                 // Load data if needed
                 await ensureTimelineLoaded()
 
-                // Attempt to restore position once posts are present (iOS 17+)
-                if #available(iOS 17.0, *),
-                   let id = persistedAnchorId,
-                   controller.posts.contains(where: { $0.id == id }) {
-                    var t = Transaction()
-                    t.disablesAnimations = true
-                    withTransaction(t) {
-                        scrollAnchorId = id
-                    }
+                // Queue initial restoration once posts are available (iOS 17+)
+                if #available(iOS 17.0, *), pendingAnchorRestoreId == nil {
+                    pendingAnchorRestoreId = persistedAnchorId
+                    logAnchorState("initial queue")
+                    restorePendingAnchorIfPossible()
                 }
             }
             .onChange(of: scenePhase) { phase in
@@ -238,6 +238,17 @@ struct ConsolidatedTimelineView: View {
                         persistedAnchorId = scrollAnchorId
                     }
                 }
+            }
+            .onChange(of: controller.isLoading) { isLoading in
+                guard #available(iOS 17.0, *), isLoading else { return }
+                if !controller.posts.isEmpty {
+                    pendingAnchorRestoreId = scrollAnchorId ?? persistedAnchorId
+                    logAnchorState("loading started")
+                }
+            }
+            .onChange(of: controller.posts) { _ in
+                logAnchorState("posts updated")
+                restorePendingAnchorIfPossible()
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("Retry") {
@@ -317,9 +328,20 @@ struct ConsolidatedTimelineView: View {
             ScrollViewReader { _ in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
+                        ForEach(Array(controller.posts.enumerated()), id: \.element.stableId) { index, post in
                             postCard(for: post)
-                                .id(post.id) // stable row identity for restoration
+                                .id(scrollIdentifier(for: post))
+                                .background(
+                                    GeometryReader { proxy in
+                                        Color.clear.preference(
+                                            key: TimelineVisibleItemPreferenceKey.self,
+                                            value: [
+                                                scrollIdentifier(for: post):
+                                                    proxy.frame(in: .named("timelineScroll")).minY
+                                            ]
+                                        )
+                                    }
+                                )
                                 .task { await handleInfiniteScroll(currentIndex: index) }
 
                             if post.id != controller.posts.last?.id {
@@ -344,17 +366,31 @@ struct ConsolidatedTimelineView: View {
                     }
                     .scrollTargetLayout()
                 }
-                .scrollPosition(id: $scrollAnchorId)
-                .onChange(of: scrollAnchorId) { persistedAnchorId = $0 }
-                .refreshable {
-                    // Preserve current anchor during refresh and restore it
-                    let anchorBefore = scrollAnchorId ?? persistedAnchorId
-                    await refreshTimeline()
-                    if let id = anchorBefore,
-                       controller.posts.contains(where: { $0.id == id }) {
-                        var t = Transaction(); t.disablesAnimations = true
-                        withTransaction(t) { scrollAnchorId = id }
+                .coordinateSpace(name: "timelineScroll")
+                .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
+                    guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
+                    if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
+                    guard let nextId = positions
+                        .filter({ $0.value >= 0 })
+                        .min(by: { $0.value < $1.value })?.key
+                        ?? positions.min(by: { abs($0.value) < abs($1.value) })?.key
+                    else { return }
+                    if visibleAnchorId != nextId {
+                        visibleAnchorId = nextId
+                        persistedAnchorId = nextId
+                        logAnchorState("visible anchor -> \(nextId)")
                     }
+                }
+                .scrollPosition(id: $scrollAnchorId)
+                .onChange(of: scrollAnchorId) { newValue in
+                    logAnchorState("scrollAnchorId changed -> \(newValue ?? "nil")")
+                }
+                .refreshable {
+                    // Preserve current anchor during refresh; restoration happens on posts update
+                    pendingAnchorRestoreId = visibleAnchorId ?? scrollAnchorId ?? persistedAnchorId
+                    logAnchorState("refresh start")
+                    await refreshTimeline()
+                    logAnchorState("refresh end")
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Timeline")
@@ -376,9 +412,9 @@ struct ConsolidatedTimelineView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(controller.posts.enumerated()), id: \.element.id) { index, post in
+                        ForEach(Array(controller.posts.enumerated()), id: \.element.stableId) { index, post in
                             postCard(for: post)
-                                .id(post.id)
+                                .id(scrollIdentifier(for: post))
                                 .task { await handleInfiniteScroll(currentIndex: index) }
 
                             if post.id != controller.posts.last?.id {
@@ -567,6 +603,53 @@ struct ConsolidatedTimelineView: View {
         await controller.refreshTimelineAsync()
     }
 
+    private func restorePendingAnchorIfPossible() {
+        guard #available(iOS 17.0, *) else { return }
+        guard !controller.posts.isEmpty else { return }
+        guard let id = pendingAnchorRestoreId else {
+            hasRestoredInitialAnchor = true
+            return
+        }
+        logAnchorState("restore attempt")
+        if controller.posts.contains(where: { scrollIdentifier(for: $0) == id }) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            if scrollAnchorId == id {
+                withTransaction(t) { scrollAnchorId = nil }
+                DispatchQueue.main.async {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { scrollAnchorId = id }
+                }
+            } else {
+                withTransaction(t) { scrollAnchorId = id }
+            }
+            persistedAnchorId = id
+            anchorLockUntil = Date().addingTimeInterval(0.6)
+        }
+        pendingAnchorRestoreId = nil
+        hasRestoredInitialAnchor = true
+        logAnchorState("restore done")
+    }
+
+    private func scrollIdentifier(for post: Post) -> String {
+        let stable = post.stableId
+        return stable.hasSuffix("-") ? post.id : stable
+    }
+
+    private func logAnchorState(_ label: String) {
+        guard UserDefaults.standard.bool(forKey: "debugScrollAnchor") else { return }
+        let topId = controller.posts.first.map(scrollIdentifier(for:)) ?? "nil"
+        let persisted = persistedAnchorId ?? "nil"
+        let anchor = scrollAnchorId ?? "nil"
+        let pending = pendingAnchorRestoreId ?? "nil"
+        let visible = visibleAnchorId ?? "nil"
+        let lock = anchorLockUntil?.timeIntervalSinceNow ?? -1
+        print(
+            "🧭 [ConsolidatedTimelineView] \(label) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: \"%.2f\", lock)) restored=\(hasRestoredInitialAnchor)"
+        )
+    }
+
     /// Handle infinite scroll - proper async pattern
     private func handleInfiniteScroll(currentIndex: Int) async {
         guard shouldLoadMorePosts(currentIndex: currentIndex) else { return }
@@ -600,6 +683,14 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
 
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
+    }
+}
+
+private struct TimelineVisibleItemPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: CGFloat] = [:]
+
+    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
     }
 }
 

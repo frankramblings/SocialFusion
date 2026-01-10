@@ -157,6 +157,8 @@ public final class SocialServiceManager: ObservableObject {
     internal lazy var postActionStore = PostActionStore()
     internal lazy var postActionCoordinator = PostActionCoordinator(
         store: postActionStore, service: self)
+    private let canonicalPostStore = CanonicalPostStore()
+    private let canonicalUnifiedTimelineID = CanonicalPostStore.unifiedTimelineID
 
     // Edge case handling - temporarily disabled
     // private let edgeCase = EdgeCaseHandler.shared
@@ -379,7 +381,15 @@ public final class SocialServiceManager: ObservableObject {
                 await MainActor.run {
                     // Only update if current timeline is empty
                     if self.unifiedTimeline.isEmpty {
-                        self.unifiedTimeline = posts
+                        let sourceContext = TimelineSourceContext(source: .system)
+                        self.canonicalPostStore.replaceTimeline(
+                            timelineID: self.canonicalUnifiedTimelineID,
+                            posts: posts,
+                            sourceContext: sourceContext
+                        )
+                        self.unifiedTimeline = self.canonicalPostStore.timelinePosts(
+                            for: self.canonicalUnifiedTimelineID
+                        )
                         print("✅ Successfully loaded \(posts.count) posts from offline cache")
                     }
                 }
@@ -679,9 +689,10 @@ public final class SocialServiceManager: ObservableObject {
 
         // Reset timeline if no accounts left
         if accounts.isEmpty {
-            unifiedTimeline = []
+            resetUnifiedTimelineStore()
             await PersistenceManager.shared.clearAll()
         } else {
+            resetUnifiedTimelineStore()
             // Trigger a refresh to remove posts from the deleted account
             try? await refreshTimeline(force: true)
         }
@@ -713,6 +724,7 @@ public final class SocialServiceManager: ObservableObject {
         // Save empty state to persistence
         saveAccounts()
 
+        resetUnifiedTimelineStore()
         print("🚪 Logout complete")
     }
 
@@ -747,6 +759,17 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     // MARK: - Timeline
+
+    @MainActor
+    private func resetUnifiedTimelineStore() {
+        let sourceContext = TimelineSourceContext(source: .refresh)
+        canonicalPostStore.replaceTimeline(
+            timelineID: canonicalUnifiedTimelineID,
+            posts: [],
+            sourceContext: sourceContext
+        )
+        unifiedTimeline = []
+    }
 
     /// Fetch posts for a specific account
     func fetchPostsForAccount(_ account: SocialAccount) async throws -> [Post] {
@@ -1035,7 +1058,7 @@ public final class SocialServiceManager: ObservableObject {
         var allPosts: [Post] = []
 
         // Use Task.detached to prevent cancellation during navigation
-        return await Task.detached(priority: .userInitiated) {
+        let collectedPosts = await Task.detached(priority: .userInitiated) {
             await withTaskGroup(of: [Post].self) { group in
                 for account in accounts {
                     group.addTask {
@@ -1070,6 +1093,15 @@ public final class SocialServiceManager: ObservableObject {
             print("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
             return allPosts
         }.value
+
+        let filteredPosts = await filterRepliesInTimeline(collectedPosts)
+        let sourceContext = TimelineSourceContext(source: .refresh)
+        canonicalPostStore.processIncomingPosts(
+            filteredPosts,
+            timelineID: canonicalUnifiedTimelineID,
+            sourceContext: sourceContext
+        )
+        return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
     }
 
     /// Get all followed accounts across all platforms
@@ -1206,20 +1238,13 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         do {
-            let collectedPosts = try await refreshTimeline(accounts: accountsToFetch)
-            print("🔄 SocialServiceManager: Collected \(collectedPosts.count) posts from accounts")
-
-            // Filter replies if enabled
-            let filteredPosts = await filterRepliesInTimeline(collectedPosts)
-
-            // Process and update timeline
-            let sortedPosts = filteredPosts.sorted { $0.createdAt > $1.createdAt }
-            print("🔄 SocialServiceManager: Sorted posts, updating timeline...")
+            let canonicalPosts = try await refreshTimeline(accounts: accountsToFetch)
+            print("🔄 SocialServiceManager: Canonical timeline updated with \(canonicalPosts.count) posts")
 
             // Update UI on main thread with proper delay to prevent rapid updates and AttributeGraph cycles
             Task { @MainActor in
-                self.safelyUpdateTimeline(sortedPosts)
-                print("🔄 SocialServiceManager: Timeline updated with \(sortedPosts.count) posts")
+                self.safelyUpdateTimeline(canonicalPosts)
+                print("🔄 SocialServiceManager: Timeline updated with \(canonicalPosts.count) posts")
             }
         } catch {
             ErrorHandler.shared.handleError(error) {
@@ -1623,19 +1648,17 @@ public final class SocialServiceManager: ObservableObject {
 
         let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
         let filteredNewPosts = await filterRepliesInTimeline(sortedNewPosts)
+        let sourceContext = TimelineSourceContext(source: .pagination)
 
-        let existingIds = await MainActor.run { Set(self.unifiedTimeline.map { $0.stableId }) }
-        let deduplicatedNewPosts = filteredNewPosts.filter {
-            !existingIds.contains($0.stableId)
-        }
-
-        print(
-            "📊 SocialServiceManager: Deduplicating \(filteredNewPosts.count) new posts -> \(deduplicatedNewPosts.count) unique posts"
+        canonicalPostStore.processIncomingPosts(
+            filteredNewPosts,
+            timelineID: canonicalUnifiedTimelineID,
+            sourceContext: sourceContext
         )
+        let canonicalPosts = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
 
         await MainActor.run {
-            // Append new posts to existing timeline
-            self.unifiedTimeline.append(contentsOf: deduplicatedNewPosts)
+            self.unifiedTimeline = canonicalPosts
             self.hasNextPage = hasMorePages
             self.isLoadingNextPage = false
         }
@@ -1644,7 +1667,7 @@ public final class SocialServiceManager: ObservableObject {
         if FeatureFlagManager.isEnabled(.replyFiltering)
             && UserDefaults.standard.bool(forKey: "debugReplyFilteringInvariant")
         {
-            let recentWindow = Array(deduplicatedNewPosts.suffix(200))
+            let recentWindow = Array(filteredNewPosts.suffix(200))
             if !recentWindow.isEmpty {
                 let filteredWindow = await filterRepliesInTimeline(recentWindow)
                 if filteredWindow.count != recentWindow.count {
@@ -1832,44 +1855,47 @@ public final class SocialServiceManager: ObservableObject {
     /// Converts an array of Post objects into TimelineEntry objects for robust SwiftUI rendering
     func makeTimelineEntries(from posts: [Post]) -> [TimelineEntry] {
         var entries: [TimelineEntry] = []
+        var seenCanonicalIDs = Set<String>()
+
         for post in posts {
-            if let original = post.originalPost {
-                // This is a boost/repost - pass the wrapper post so PostCardView can access boostedBy
-                // Use post.boostedBy if available, otherwise fall back to post.authorUsername
-                let boostedByHandle = post.boostedBy ?? post.authorUsername
-                // CRITICAL FIX: Ensure boostedBy is set on the post itself for consistency
-                // Set synchronously before adding to timeline - this happens during timeline processing,
-                // not during view updates, so it's safe
-                if post.boostedBy == nil {
-                    post.boostedBy = post.authorUsername
-                }
-                let entry = TimelineEntry(
-                    id: "boost-\(post.authorUsername)-\(original.id)",
-                    kind: .boost(boostedBy: boostedByHandle),
-                    post: post,  // Pass the wrapper post, not the original
-                    createdAt: post.createdAt
-                )
-                entries.append(entry)
-            } else if let parentId = post.inReplyToID {
-                // This is a reply
-                let entry = TimelineEntry(
-                    id: "reply-\(post.id)",
-                    kind: .reply(parentId: parentId),
-                    post: post,
-                    createdAt: post.createdAt
-                )
-                entries.append(entry)
+            let resolution = CanonicalPostResolver.resolve(post: post)
+            let canonicalPostID = resolution.canonicalPostID
+
+            guard !seenCanonicalIDs.contains(canonicalPostID) else { continue }
+            seenCanonicalIDs.insert(canonicalPostID)
+
+            let canonicalPost =
+                canonicalPostStore.canonicalPost(for: canonicalPostID)?.post
+                ?? resolution.canonicalPost.post
+
+            let boostText =
+                canonicalPostStore.boostSummaryText(for: canonicalPostID)
+                ?? (post.originalPost != nil ? (post.boostedBy ?? post.authorUsername) : nil)
+
+            let kind: TimelineEntryKind
+            if let boostText = boostText {
+                kind = .boost(boostedBy: boostText)
+            } else if let parentId = canonicalPost.inReplyToID {
+                kind = .reply(parentId: parentId)
             } else {
-                // Normal post
-                let entry = TimelineEntry(
-                    id: post.id,
-                    kind: .normal,
-                    post: post,
-                    createdAt: post.createdAt
-                )
-                entries.append(entry)
+                kind = .normal
             }
+
+            let sortKey =
+                canonicalPostStore.canonicalPost(for: canonicalPostID) != nil
+                ? canonicalPostStore.sortKeyForCanonicalPost(canonicalPostID)
+                : canonicalPost.createdAt
+
+            entries.append(
+                TimelineEntry(
+                    id: canonicalPostID,
+                    kind: kind,
+                    post: canonicalPost,
+                    createdAt: sortKey
+                )
+            )
         }
+
         // Sort by date, newest first
         return entries.sorted(by: { $0.createdAt > $1.createdAt })
     }
