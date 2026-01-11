@@ -17,6 +17,7 @@ private struct ConditionalClippedModifier: ViewModifier {
 /// A view that displays a post card with all its components
 struct PostCardView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @ObservedObject var post: Post
     let replyCount: Int
     let repostCount: Int
@@ -253,16 +254,17 @@ struct PostCardView: View {
             
             // Update cached poll - only update if value changed
             let newPoll: Post.Poll?
+            let dp = cachedDisplayPost ?? post
             if let original = originalPostRef {
-                newPoll = original.poll
+                newPoll = original.poll ?? dp.poll
             } else {
-                let dp = cachedDisplayPost ?? post
                 newPoll = dp.poll
             }
-            
-            // Only update if poll changed (compare by value)
-            if cachedPoll != newPoll {
-                cachedPoll = newPoll
+
+            // Prefer existing poll when incoming data is nil
+            let finalPoll = newPoll ?? cachedPoll
+            if cachedPoll != finalPoll {
+                cachedPoll = finalPoll
             }
 
             // Update cached booster emoji map - only update if value changed
@@ -661,50 +663,17 @@ struct PostCardView: View {
     // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
     @ViewBuilder
     private var boostBannerView: some View {
-        if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
-            BoostBanner(handle: handleToShow, platform: displayPlatform, emojiMap: cachedBoosterEmojiMap)
-                .padding(.horizontal, 12)  // Apple standard: 12pt for content
-                .padding(.vertical, 6)  // Adequate touch target
-                .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
-                .onAppear {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 10_000_000)  // Defer to avoid cycles
-                    // CRITICAL FIX: Use cached boost handle instead of accessing post.boostedBy synchronously
-                    let finalBoostedBy = cachedBoostHandle ?? handleToShow
-                    DebugLog.verbose("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
-                    logBoostBanner(
-                        boostHandle: handleToShow, postBoostedBy: cachedBoostHandle,
-                        finalBoostedBy: finalBoostedBy)
-                    }
-                }
-        } else {
-            EmptyView()
-        }
+        boostBannerContent
     }
 
     // MARK: - View Components (broken down to help type checker)
     
     @ViewBuilder
     private var bannerSection: some View {
+        VStack(spacing: 0) {
             // Boost banner if this post was boosted/reposted
-        // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
-            if let handleToShow = boostHandleToShow, !handleToShow.isEmpty {
-            BoostBanner(handle: handleToShow, platform: displayPlatform, emojiMap: cachedBoosterEmojiMap)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                    .onAppear {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                        // CRITICAL FIX: Use cached boost handle instead of accessing post.boostedBy synchronously
-                        let finalBoostedBy = cachedBoostHandle ?? handleToShow
-                        DebugLog.verbose("🔍 [PostCardView] Rendering boost banner for post \(post.id) with handle: \(handleToShow)")
-                        logBoostBanner(
-                            boostHandle: handleToShow, postBoostedBy: cachedBoostHandle,
-                            finalBoostedBy: finalBoostedBy)
-                    }
-                    }
-            }
+            // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
+            boostBannerContent
 
             // Expanding reply banner if this post is a reply
             if let replyInfo = replyInfo {
@@ -716,18 +685,19 @@ struct PostCardView: View {
                     isExpanded: $isReplyBannerExpanded,
                     onBannerTap: { bannerWasTapped = true },
                     onParentPostTap: { parentPost in
-                    onParentPostTap(parentPost)
-                }
-            )
-            .padding(.horizontal, 12)
-            .padding(.bottom, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .id(displayPost.id + "_reply_banner")
+                        onParentPostTap(parentPost)
+                    }
+                )
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .id(displayPost.id + "_reply_banner")
                 .onAppear {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                    DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
-                    logReplyInfo()
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+                        DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
+                        logReplyInfo()
+                    }
                 }
             }
         }
@@ -752,8 +722,9 @@ struct PostCardView: View {
         // CRITICAL FIX: Removed onAppear callback that was accessing post.originalPost
         // This was causing AttributeGraph cycles. Debug logging moved to deferred Task.
         
-        // CRITICAL FIX: Use cached poll instead of accessing displayPost.poll during rendering
-        if let poll = cachedPoll {
+        // CRITICAL FIX: Use cached poll when available, but fall back to the cached display post if needed
+        let pollToShow = cachedPoll ?? displayPost.poll
+        if let poll = pollToShow {
             PostPollView(
                 poll: poll,
                 allowsVoting: true,
@@ -768,6 +739,49 @@ struct PostCardView: View {
                 }
             )
             .padding(.horizontal, 12)
+        }
+    }
+
+    @ViewBuilder
+    private var boostBannerContent: some View {
+        let followedBoosters = (displayPost.boosters?.isEmpty == false
+            ? (displayPost.boosters ?? [])
+            : displayPost.boostersPreview
+        ).filter { $0.isFollowedByMe && !$0.isBlocked }
+        let shouldShowEnhancedBoostBanner = followedBoosters.count >= 2
+
+        if shouldShowEnhancedBoostBanner {
+            BoostBannerView(
+                post: displayPost,
+                viewModel: BoostBannerViewModelAdapter(
+                    platform: displayPlatform,
+                    serviceManager: serviceManager,
+                    navigationEnvironment: navigationEnvironment,
+                    userResolver: { userId in
+                        let source = displayPost.boosters ?? displayPost.boostersPreview
+                        return source.first { $0.id == userId }
+                    },
+                    postProvider: { displayPost }
+                )
+            )
+            .padding(.horizontal, 12)  // Mirror ReplyBanner spacing in collapsed state.
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let booster = followedBoosters.first {
+            let name = booster.displayName?.isEmpty == false ? (booster.displayName ?? "") : booster.username
+            BoostBanner(handle: name, platform: displayPlatform)
+                .padding(.horizontal, 12)  // Apple standard: 12pt for content
+                .padding(.vertical, 6)  // Adequate touch target
+                .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
+        } else if let handle = boostHandleToShow ?? displayPost.boostedBy {
+            BoostBanner(
+                handle: handle,
+                platform: displayPlatform,
+                emojiMap: cachedBoosterEmojiMap ?? displayPost.boosterEmojiMap
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
     
@@ -836,6 +850,18 @@ struct PostCardView: View {
                 guard !isUpdatingCache else { return }
                 updateCachedValues()
             }
+        }
+        .onChange(of: ObjectIdentifier(post)) { _ in
+            // CRITICAL FIX: Update cache when SwiftUI reuses the PostCardView with a new Post instance
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 200_000_000)
+                guard !isUpdatingCache else { return }
+                updateCachedValues()
+            }
+        }
+        .onReceive(post.$poll) { _ in
+            guard !isUpdatingCache else { return }
+            updateCachedValues()
         }
         // CRITICAL FIX: Removed onChange modifiers for post.originalPost that were causing AttributeGraph cycles
         // Instead, we watch post.id and update cache asynchronously when it changes

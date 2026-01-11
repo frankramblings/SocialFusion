@@ -1660,6 +1660,48 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Fetch boosters for a post and normalize them into User models.
+    public func fetchBoosters(for post: Post) async throws -> [User] {
+        switch post.platform {
+        case .mastodon:
+            guard let account = mastodonAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+            }
+
+            let statusId = post.platformSpecificId.isEmpty ? post.id : post.platformSpecificId
+            let accounts = try await mastodonService.fetchRebloggedBy(
+                statusId: statusId, account: account)
+            let relationshipLookup = try await mastodonRelationshipLookup(
+                for: accounts.map { $0.id }, account: account)
+            let instanceDomain = mastodonInstanceDomain(for: account)
+
+            return accounts.map { acct in
+                let username =
+                    acct.acct.contains("@")
+                    ? acct.acct : "\(acct.acct)@\(instanceDomain)"
+                let relationship = relationshipLookup[acct.id]
+                let isBlocked =
+                    (relationship?.blocking ?? false) || (relationship?.blockedBy ?? false)
+                return User(
+                    id: acct.id,
+                    displayName: acct.displayName,
+                    username: username,
+                    avatarURL: URL(string: acct.avatar),
+                    isFollowedByMe: relationship?.following ?? false,
+                    followsMe: relationship?.followedBy ?? false,
+                    isBlocked: isBlocked,
+                    boostedAt: nil
+                )
+            }
+        case .bluesky:
+            guard let account = blueskyAccounts.first else {
+                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+            }
+            let uri = blueskyPostURI(for: post)
+            return try await blueskyService.fetchRepostedBy(uri: uri, account: account)
+        }
+    }
+
     /// Fetch the next page of posts for infinite scrolling
     func fetchNextPage() async throws {
         guard !isLoadingNextPage && hasNextPage else {
@@ -2768,7 +2810,9 @@ public final class SocialServiceManager: ObservableObject {
         let refreshedId = post.platformSpecificId.isEmpty ? post.id : post.platformSpecificId
         if let refreshedPost = try? await fetchPost(id: refreshedId, platform: post.platform) {
             await MainActor.run {
-                post.poll = refreshedPost.poll
+                if let refreshedPoll = refreshedPost.poll {
+                    post.poll = refreshedPoll
+                }
             }
         }
     }
@@ -3819,6 +3863,43 @@ public final class SocialServiceManager: ObservableObject {
             )
             // Don't throw - just log the error and continue
         }
+    }
+
+    private func mastodonInstanceDomain(for account: SocialAccount) -> String {
+        let serverUrl = mastodonService.formatServerURL(account.serverURL?.absoluteString ?? "")
+        return serverUrl
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+    }
+
+    private func mastodonRelationshipLookup(
+        for accountIds: [String],
+        account: SocialAccount
+    ) async -> [String: MastodonRelationship] {
+        guard !accountIds.isEmpty else { return [:] }
+        do {
+            let relationships = try await mastodonService.fetchRelationships(
+                accountIds: accountIds, account: account)
+            return Dictionary(uniqueKeysWithValues: relationships.map { ($0.id, $0) })
+        } catch {
+            DebugLog.verbose(
+                "⚠️ SocialServiceManager: Failed to fetch booster relationships: \(error.localizedDescription)"
+            )
+            return [:]
+        }
+    }
+
+    private func blueskyPostURI(for post: Post) -> String {
+        if post.platformSpecificId.hasPrefix("at://") {
+            return post.platformSpecificId
+        }
+        if post.id.hasPrefix("at://") {
+            return post.id
+        }
+        if !post.authorUsername.isEmpty && !post.platformSpecificId.isEmpty {
+            return "at://\(post.authorUsername)/app.bsky.feed.post/\(post.platformSpecificId)"
+        }
+        return post.platformSpecificId
     }
 
 }

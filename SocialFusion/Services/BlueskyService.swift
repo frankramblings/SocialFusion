@@ -3969,6 +3969,78 @@ public final class BlueskyService: Sendable {
         return results
     }
 
+    /// Fetch users who reposted a post (boosters).
+    public func fetchRepostedBy(
+        uri: String,
+        account: SocialAccount,
+        limit: Int = 100
+    ) async throws -> [User] {
+        let accessToken = try await account.getValidAccessToken()
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if !serverURLString.hasPrefix("https://") && !serverURLString.hasPrefix("http://") {
+            serverURLString = "https://\(serverURLString)"
+        }
+
+        let xrpcBase: String
+        if serverURLString.contains("bsky.social") {
+            xrpcBase = "https://bsky.social/xrpc"
+        } else {
+            xrpcBase =
+                serverURLString.hasSuffix("/xrpc") ? serverURLString : "\(serverURLString)/xrpc"
+        }
+
+        let encodedUri = uri.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed)
+            ?? uri
+        guard
+            let url = URL(
+                string: "\(xrpcBase)/app.bsky.feed.getRepostedBy?uri=\(encodedUri)&limit=\(limit)")
+        else {
+            throw ServiceError.invalidInput(reason: "Invalid URL")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch reposted-by list")
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let repostedBy = json["repostedBy"] as? [[String: Any]]
+        else {
+            return []
+        }
+
+        return repostedBy.compactMap { entry in
+            let did = entry["did"] as? String ?? ""
+            let handle = entry["handle"] as? String ?? did
+            if did.isEmpty && handle.isEmpty { return nil }
+
+            let displayName = entry["displayName"] as? String
+            let avatarString = entry["avatar"] as? String
+            let viewer = entry["viewer"] as? [String: Any]
+            let isFollowedByMe = viewer?["following"] as? String != nil
+            let followsMe = viewer?["followedBy"] as? String != nil
+            let isBlocked =
+                viewer?["blocking"] as? String != nil || viewer?["blockedBy"] as? String != nil
+            let boostedAt = DateParser.parse(entry["indexedAt"] as? String)
+
+            return User(
+                id: did.isEmpty ? handle : did,
+                displayName: displayName,
+                username: handle,
+                avatarURL: avatarString.flatMap(URL.init(string:)),
+                isFollowedByMe: isFollowedByMe,
+                followsMe: followsMe,
+                isBlocked: isBlocked,
+                boostedAt: boostedAt
+            )
+        }
+    }
+
 }
 
 extension URL {

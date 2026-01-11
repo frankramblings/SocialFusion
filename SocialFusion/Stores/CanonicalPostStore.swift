@@ -167,8 +167,17 @@ public final class CanonicalPostStore {
 
   private func upsertCanonicalPost(_ post: CanonicalPost, canonicalPostID: String) -> CanonicalPost {
     if var existing = postsByID[canonicalPostID] {
+      var incomingPost = post.post
+      if incomingPost.poll == nil {
+        incomingPost.poll = existing.post.poll
+      }
+      if let existingOriginal = existing.post.originalPost,
+         let incomingOriginal = incomingPost.originalPost,
+         incomingOriginal.poll == nil {
+        incomingOriginal.poll = existingOriginal.poll
+      }
       existing.nativeKeys.formUnion(post.nativeKeys)
-      existing.post = post.post
+      existing.post = incomingPost
       existing.createdAt = post.createdAt
       existing.lastSocialActivityAt = max(existing.lastSocialActivityAt, post.lastSocialActivityAt)
       postsByID[canonicalPostID] = existing

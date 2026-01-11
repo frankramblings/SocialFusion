@@ -1,6 +1,38 @@
 import Foundation
 import SwiftUI
 
+/// Normalized user data used for booster lists and cross-platform UI.
+public struct User: Identifiable, Codable, Equatable, Sendable {
+    public let id: String
+    public let displayName: String?
+    public let username: String
+    public let avatarURL: URL?
+    public let isFollowedByMe: Bool
+    public let followsMe: Bool
+    public let isBlocked: Bool
+    public let boostedAt: Date?
+
+    public init(
+        id: String,
+        displayName: String? = nil,
+        username: String,
+        avatarURL: URL? = nil,
+        isFollowedByMe: Bool = false,
+        followsMe: Bool = false,
+        isBlocked: Bool = false,
+        boostedAt: Date? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.username = username
+        self.avatarURL = avatarURL
+        self.isFollowedByMe = isFollowedByMe
+        self.followsMe = followsMe
+        self.isBlocked = isBlocked
+        self.boostedAt = boostedAt
+    }
+}
+
 /// Normalized user identifier that works across platforms
 public struct UserID: Hashable, Codable {
     public let value: String  // @handle@instance (Mastodon) or handle.bsky.social (Bluesky)

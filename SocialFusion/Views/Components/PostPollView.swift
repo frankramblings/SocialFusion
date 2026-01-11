@@ -150,40 +150,53 @@ private struct PollOptionView: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 4) {
-                // Option text and percentage
-                HStack {
-                    Text(option.title)
-                        .font(.body)
-                        .foregroundColor(.primary)
+            HStack(alignment: .top, spacing: 10) {
+                PollSelectionIndicator(
+                    isSelected: isSelected,
+                    isInteractive: isInteractive,
+                    allowsMultiple: allowsMultiple
+                )
+                VStack(alignment: .leading, spacing: 6) {
+                    // Option text and percentage
+                    HStack {
+                        Text(option.title)
+                            .font(.body)
+                            .foregroundColor(.primary)
 
-                    Spacer()
+                        Spacer()
 
-                    if showsResults {
-                        Text("\(Int(percentage * 100))%")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        if showsResults {
+                            Text("\(Int(percentage * 100))%")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
-                }
 
-                // Progress bar
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        // Background
-                        Rectangle()
-                            .fill(Color(.systemGray5))
-                            .frame(height: 8)
-                            .cornerRadius(4)
+                    // Progress bar
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // Background
+                            Rectangle()
+                                .fill(Color(.systemGray5))
+                                .frame(height: 8)
+                                .cornerRadius(4)
 
-                        // Progress
-                        Rectangle()
-                            .fill(isSelected ? Color.blue : Color(.systemGray3))
-                            .frame(width: geometry.size.width * CGFloat(displayedPercentage), height: 8)
-                            .cornerRadius(4)
+                            // Progress
+                            Rectangle()
+                                .fill(isSelected ? Color.accentColor : Color(.systemGray3))
+                                .frame(width: geometry.size.width * CGFloat(displayedPercentage), height: 8)
+                                .cornerRadius(4)
+                        }
                     }
+                    .frame(height: 8)
                 }
-                .frame(height: 8)
             }
+            .padding(10)
+            .background(selectionBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(selectionBorder, lineWidth: 1)
+            )
         }
         .buttonStyle(PlainButtonStyle())
         .disabled(isVoted || !isInteractive)
@@ -207,6 +220,47 @@ private struct PollOptionView: View {
             return isSelected ? "Double tap to deselect" : "Double tap to select"
         }
         return "Double tap to vote"
+    }
+
+    private var selectionBackground: Color {
+        guard isVoted && isSelected else { return Color.clear }
+        return Color.accentColor.opacity(0.12)
+    }
+
+    private var selectionBorder: Color {
+        guard isVoted && isSelected else { return Color(.systemGray5) }
+        return Color.accentColor.opacity(0.6)
+    }
+}
+
+private struct PollSelectionIndicator: View {
+    let isSelected: Bool
+    let isInteractive: Bool
+    let allowsMultiple: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(borderColor, lineWidth: 2)
+                .background(Circle().fill(fillColor))
+                .frame(width: 20, height: 20)
+
+            if isSelected {
+                Image(systemName: allowsMultiple ? "checkmark" : "circle.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var fillColor: Color {
+        isSelected ? Color.accentColor : Color.clear
+    }
+
+    private var borderColor: Color {
+        guard isInteractive || isSelected else { return Color(.systemGray4) }
+        return isSelected ? Color.accentColor : Color(.systemGray3)
     }
 }
 

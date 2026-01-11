@@ -298,6 +298,13 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             // Calling objectWillChange.send() in didSet triggers warnings when properties are set during view updates
         }
     }
+    /// Total boosts for this post (mirrors repostCount).
+    public var boostCount: Int {
+        get { repostCount }
+        set { repostCount = newValue }
+    }
+    @Published public var boostersPreview: [User] = []
+    @Published public var boosters: [User]? = nil
     public var parent: Post? {
         didSet {
             if let parentPost = parent, Post.detectCycle(start: self, next: parentPost) {
@@ -453,6 +460,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         case authorEmojiMap
         case boosterEmojiMap
         case clientName
+        case boostersPreview
+        case boosters
     }
 
     // MARK: - Poll Support (nested types for UI components)
@@ -559,6 +568,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         let boosterEmojiMap = try container.decodeIfPresent(
             [String: String].self, forKey: .boosterEmojiMap)
         let clientName = try container.decodeIfPresent(String.self, forKey: .clientName)
+        let boostersPreview = try container.decodeIfPresent([User].self, forKey: .boostersPreview)
+            ?? []
+        let boosters = try container.decodeIfPresent([User].self, forKey: .boosters)
         self.init(
             id: id,
             content: content,
@@ -600,7 +612,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             customEmojiMap: customEmojiMap,
             authorEmojiMap: authorEmojiMap,
             boosterEmojiMap: boosterEmojiMap,
-            clientName: clientName
+            clientName: clientName,
+            boostersPreview: boostersPreview,
+            boosters: boosters
         )
         self.cid = cid
         self.primaryLinkURL = primaryLinkURL
@@ -653,6 +667,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         try container.encodeIfPresent(authorEmojiMap, forKey: .authorEmojiMap)
         try container.encodeIfPresent(boosterEmojiMap, forKey: .boosterEmojiMap)
         try container.encodeIfPresent(clientName, forKey: .clientName)
+        try container.encode(boostersPreview, forKey: .boostersPreview)
+        try container.encodeIfPresent(boosters, forKey: .boosters)
     }
 
     public init(
@@ -697,7 +713,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         customEmojiMap: [String: String]? = nil,
         authorEmojiMap: [String: String]? = nil,
         boosterEmojiMap: [String: String]? = nil,
-        clientName: String? = nil
+        clientName: String? = nil,
+        boostersPreview: [User] = [],
+        boosters: [User]? = nil
     ) {
         self.id = id
         self.content = content
@@ -739,6 +757,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.authorEmojiMap = authorEmojiMap
         self.boosterEmojiMap = boosterEmojiMap
         self.clientName = clientName
+        self.boostersPreview = boostersPreview
+        self.boosters = boosters
         // Defensive: prevent self-reference on construction
         if let parent = parent, parent.id == id {
             print(
@@ -978,7 +998,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             primaryLinkURL: self.primaryLinkURL,
             primaryLinkTitle: self.primaryLinkTitle,
             primaryLinkDescription: self.primaryLinkDescription,
-            primaryLinkThumbnailURL: self.primaryLinkThumbnailURL
+            primaryLinkThumbnailURL: self.primaryLinkThumbnailURL,
+            boostersPreview: self.boostersPreview,
+            boosters: self.boosters
         )
     }
 
@@ -1021,7 +1043,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             primaryLinkDescription: self.primaryLinkDescription,
             primaryLinkThumbnailURL: self.primaryLinkThumbnailURL,
             blueskyLikeRecordURI: self.blueskyLikeRecordURI,
-            blueskyRepostRecordURI: self.blueskyRepostRecordURI
+            blueskyRepostRecordURI: self.blueskyRepostRecordURI,
+            boostersPreview: self.boostersPreview,
+            boosters: self.boosters
         )
     }
 

@@ -3555,6 +3555,35 @@ public final class MastodonService: @unchecked Sendable {
                 return UserID(value: handle, platform: .mastodon)
             })
     }
+
+    /// Fetch accounts that reblogged (boosted) a status.
+    public func fetchRebloggedBy(
+        statusId: String,
+        account: SocialAccount,
+        limit: Int = 80
+    ) async throws -> [MastodonAccount] {
+        guard let serverURLString = account.serverURL else {
+            throw ServiceError.invalidAccount(reason: "No server URL")
+        }
+
+        let serverUrl = formatServerURL(serverURLString.absoluteString)
+        guard
+            let url = URL(
+                string: "\(serverUrl)/api/v1/statuses/\(statusId)/reblogged_by?limit=\(limit)")
+        else {
+            throw ServiceError.invalidInput(reason: "Invalid URL")
+        }
+
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "GET", account: account)
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw ServiceError.apiError("Failed to fetch boosters")
+        }
+
+        return try JSONDecoder().decode([MastodonAccount].self, from: data)
+    }
 }
 
 // MARK: - Mastodon Status Context Models
