@@ -54,7 +54,6 @@ struct PostCardView: View {
     // Cached values to prevent AttributeGraph cycles from accessing nested @ObservedObject properties
     @State private var cachedDisplayPost: Post?
     @State private var cachedBoostHandle: String?
-    @State private var cachedReplyInfo: (username: String, id: String?, platform: SocialPlatform)?
     @State private var cachedAttachments: [Post.Attachment] = []
     @State private var cachedPlatform: SocialPlatform?
     @State private var cachedPoll: Post.Poll?  // Cache poll to avoid accessing displayPost.poll during rendering
@@ -105,8 +104,24 @@ struct PostCardView: View {
     // Get the reply info - check displayPost (which is originalPost for boosts)
     // CRITICAL FIX: Only use cached value to prevent AttributeGraph cycles
     private var replyInfo: (username: String, id: String?, platform: SocialPlatform)? {
-        // Always use cached value - it's updated in onAppear/onChange
-        return cachedReplyInfo
+        func info(from candidate: Post) -> (username: String, id: String?, platform: SocialPlatform)? {
+            guard let replyId = candidate.inReplyToID else { return nil }
+            let username: String
+            if let raw = candidate.inReplyToUsername, !raw.isEmpty {
+                username = raw
+            } else {
+                username = "someone"
+            }
+            return (username, replyId, candidate.platform)
+        }
+
+        if let info = info(from: cachedDisplayPost ?? post) {
+            return info
+        }
+        if let info = info(from: post) {
+            return info
+        }
+        return nil
     }
     
     // CRITICAL FIX: Update cached values to prevent AttributeGraph cycles
@@ -187,49 +202,6 @@ struct PostCardView: View {
             // Only update if value changed
             if cachedBoostHandle != newBoostHandle {
                 cachedBoostHandle = newBoostHandle
-            }
-            
-            // Update cached reply info - only update if value changed
-            let newReplyInfo: (username: String, id: String?, platform: SocialPlatform)?
-            if let original = originalPostRef {
-                let originalUsername = original.inReplyToUsername
-                let originalReplyID = original.inReplyToID
-                if let username = originalUsername, !username.isEmpty {
-                    newReplyInfo = (username, originalReplyID, original.platform)
-                } else if let username = post.inReplyToUsername, !username.isEmpty {
-                    newReplyInfo = (username, post.inReplyToID, post.platform)
-                } else {
-                    let dp = cachedDisplayPost ?? post
-                    let displayUsername = dp.inReplyToUsername
-                    let displayReplyID = dp.inReplyToID
-                    if let username = displayUsername, !username.isEmpty {
-                        newReplyInfo = (username, displayReplyID, dp.platform)
-                    } else if displayReplyID != nil {
-                        newReplyInfo = ("someone", displayReplyID, dp.platform)
-                    } else {
-                        newReplyInfo = nil
-                    }
-                }
-            } else if let username = post.inReplyToUsername, !username.isEmpty {
-                newReplyInfo = (username, post.inReplyToID, post.platform)
-            } else {
-                let dp = cachedDisplayPost ?? post
-                let displayUsername = dp.inReplyToUsername
-                let displayReplyID = dp.inReplyToID
-                if let username = displayUsername, !username.isEmpty {
-                    newReplyInfo = (username, displayReplyID, dp.platform)
-                } else if displayReplyID != nil {
-                    newReplyInfo = ("someone", displayReplyID, dp.platform)
-                } else {
-                    newReplyInfo = nil
-                }
-            }
-            
-            // Only update if value changed
-            if cachedReplyInfo?.username != newReplyInfo?.username ||
-               cachedReplyInfo?.id != newReplyInfo?.id ||
-               cachedReplyInfo?.platform != newReplyInfo?.platform {
-                cachedReplyInfo = newReplyInfo
             }
             
             // Update cached attachments - only update if value changed
@@ -486,20 +458,7 @@ struct PostCardView: View {
         _cachedBoosterEmojiMap = State(initialValue: entry.post.boosterEmojiMap)
         
         // Initialize reply info if this is a reply
-        if let originalPost = entry.post.originalPost {
-            // For boosts, check original post for reply info
-            if let username = originalPost.inReplyToUsername, !username.isEmpty {
-                _cachedReplyInfo = State(initialValue: (username, originalPost.inReplyToID, originalPost.platform))
-            } else if let username = entry.post.inReplyToUsername, !username.isEmpty {
-                _cachedReplyInfo = State(initialValue: (username, entry.post.inReplyToID, entry.post.platform))
-            } else if let replyId = originalPost.inReplyToID ?? entry.post.inReplyToID {
-                _cachedReplyInfo = State(initialValue: ("someone", replyId, originalPost.platform))
-            }
-        } else if let username = entry.post.inReplyToUsername, !username.isEmpty {
-            _cachedReplyInfo = State(initialValue: (username, entry.post.inReplyToID, entry.post.platform))
-        } else if let replyId = entry.post.inReplyToID {
-            _cachedReplyInfo = State(initialValue: ("someone", replyId, entry.post.platform))
-        }
+        // Reply info handled dynamically
         
         // Initialize attachments
         if let originalPost = entry.post.originalPost, !originalPost.attachments.isEmpty {
@@ -617,21 +576,7 @@ struct PostCardView: View {
         // Initialize booster emoji map for boost banner
         _cachedBoosterEmojiMap = State(initialValue: post.boosterEmojiMap)
         
-        // Initialize reply info if this is a reply
-        if let originalPost = post.originalPost {
-            // For boosts, check original post for reply info
-            if let username = originalPost.inReplyToUsername, !username.isEmpty {
-                _cachedReplyInfo = State(initialValue: (username, originalPost.inReplyToID, originalPost.platform))
-            } else if let username = post.inReplyToUsername, !username.isEmpty {
-                _cachedReplyInfo = State(initialValue: (username, post.inReplyToID, post.platform))
-            } else if let replyId = originalPost.inReplyToID ?? post.inReplyToID {
-                _cachedReplyInfo = State(initialValue: ("someone", replyId, originalPost.platform))
-            }
-        } else if let username = post.inReplyToUsername, !username.isEmpty {
-            _cachedReplyInfo = State(initialValue: (username, post.inReplyToID, post.platform))
-        } else if let replyId = post.inReplyToID {
-            _cachedReplyInfo = State(initialValue: ("someone", replyId, post.platform))
-        }
+        // Reply info handled dynamically
         
         // Initialize attachments
         if let originalPost = post.originalPost, !originalPost.attachments.isEmpty {
@@ -670,34 +615,32 @@ struct PostCardView: View {
     
     @ViewBuilder
     private var bannerSection: some View {
-        VStack(spacing: 0) {
-            // Boost banner if this post was boosted/reposted
-            // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
-            boostBannerContent
+        // Boost banner if this post was boosted/reposted
+        // CRITICAL FIX: Use cached platform to prevent AttributeGraph cycles
+        boostBannerContent
 
-            // Expanding reply banner if this post is a reply
-            if let replyInfo = replyInfo {
-                ExpandingReplyBanner(
-                    username: replyInfo.username,
-                    network: replyInfo.platform,
-                    parentId: replyInfo.id,
-                    initialParent: nil,
-                    isExpanded: $isReplyBannerExpanded,
-                    onBannerTap: { bannerWasTapped = true },
-                    onParentPostTap: { parentPost in
-                        onParentPostTap(parentPost)
-                    }
-                )
-                .padding(.horizontal, 12)
-                .padding(.bottom, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .id(displayPost.id + "_reply_banner")
-                .onAppear {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                        DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
-                        logReplyInfo()
-                    }
+        // Expanding reply banner if this post is a reply
+        if let replyInfo = replyInfo {
+            ExpandingReplyBanner(
+                username: replyInfo.username,
+                network: replyInfo.platform,
+                parentId: replyInfo.id,
+                initialParent: nil,
+                isExpanded: $isReplyBannerExpanded,
+                onBannerTap: { bannerWasTapped = true },
+                onParentPostTap: { parentPost in
+                    onParentPostTap(parentPost)
+                }
+            )
+            .padding(.horizontal, 12)
+            .padding(.bottom, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .id(displayPost.id + "_reply_banner")
+            .onAppear {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
+                    DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
+                    logReplyInfo()
                 }
             }
         }
@@ -744,21 +687,22 @@ struct PostCardView: View {
 
     @ViewBuilder
     private var boostBannerContent: some View {
-        let followedBoosters = (displayPost.boosters?.isEmpty == false
-            ? (displayPost.boosters ?? [])
-            : displayPost.boostersPreview
+        let boostSourcePost = post
+        let followedBoosters = (boostSourcePost.boosters?.isEmpty == false
+            ? (boostSourcePost.boosters ?? [])
+            : boostSourcePost.boostersPreview
         ).filter { $0.isFollowedByMe && !$0.isBlocked }
         let shouldShowEnhancedBoostBanner = followedBoosters.count >= 2
 
         if shouldShowEnhancedBoostBanner {
             BoostBannerView(
-                post: displayPost,
+                post: boostSourcePost,
                 viewModel: BoostBannerViewModelAdapter(
                     platform: displayPlatform,
                     serviceManager: serviceManager,
                     navigationEnvironment: navigationEnvironment,
                     userResolver: { userId in
-                        let source = displayPost.boosters ?? displayPost.boostersPreview
+                        let source = boostSourcePost.boosters ?? boostSourcePost.boostersPreview
                         return source.first { $0.id == userId }
                     },
                     postProvider: { displayPost }
@@ -773,11 +717,11 @@ struct PostCardView: View {
                 .padding(.horizontal, 12)  // Apple standard: 12pt for content
                 .padding(.vertical, 6)  // Adequate touch target
                 .frame(maxWidth: .infinity, alignment: .leading)  // Ensure full width visibility
-        } else if let handle = boostHandleToShow ?? displayPost.boostedBy {
+        } else if let handle = boostHandleToShow ?? boostedBy ?? boostSourcePost.boostedBy {
             BoostBanner(
                 handle: handle,
                 platform: displayPlatform,
-                emojiMap: cachedBoosterEmojiMap ?? displayPost.boosterEmojiMap
+                emojiMap: cachedBoosterEmojiMap ?? boostSourcePost.boosterEmojiMap
             )
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
