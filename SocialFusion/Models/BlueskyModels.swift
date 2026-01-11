@@ -47,6 +47,14 @@ public struct BlueskyFeed: Codable {
     public let cursor: String?
 }
 
+public struct BlueskyFeedGenerator: Identifiable, Hashable, Codable {
+    public let uri: String
+    public let displayName: String
+    public let description: String?
+
+    public var id: String { uri }
+}
+
 // Feed Item
 public struct BlueskyFeedItem: Codable {
     public let post: BlueskyPostDTO

@@ -1014,6 +1014,22 @@ public final class MastodonService: @unchecked Sendable {
     /// Fetch the public timeline from the Mastodon API
     func fetchPublicTimeline(for account: SocialAccount, local: Bool = false) async throws -> [Post]
     {
+        let result = try await fetchPublicTimeline(
+            for: account,
+            local: local,
+            limit: 40,
+            maxId: nil
+        )
+        return result.posts
+    }
+
+    /// Fetch the public timeline from the Mastodon API with pagination
+    func fetchPublicTimeline(
+        for account: SocialAccount,
+        local: Bool = false,
+        limit: Int = 40,
+        maxId: String? = nil
+    ) async throws -> TimelineResult {
         guard let accessToken = account.getAccessToken() else {
             throw NSError(
                 domain: "MastodonService", code: 401,
@@ -1033,13 +1049,19 @@ public final class MastodonService: @unchecked Sendable {
             serverUrlString.contains("://")
             ? serverUrlString : "https://\(serverUrlString)"
         let endpoint = local ? "public?local=true" : "public"
-        // Fix: Changed '&limit=40' to '?limit=40' for the non-local case or append with &
         let urlString =
             local
-            ? "\(serverUrl)/api/v1/timelines/\(endpoint)&limit=40"
-            : "\(serverUrl)/api/v1/timelines/\(endpoint)?limit=40"
+            ? "\(serverUrl)/api/v1/timelines/\(endpoint)&limit=\(limit)"
+            : "\(serverUrl)/api/v1/timelines/\(endpoint)?limit=\(limit)"
 
-        guard let url = URL(string: urlString) else {
+        var components = URLComponents(string: urlString)
+        var queryItems = components?.queryItems ?? []
+        if let maxId = maxId {
+            queryItems.append(URLQueryItem(name: "max_id", value: maxId))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1066,7 +1088,70 @@ public final class MastodonService: @unchecked Sendable {
         // Convert to our app's Post model and enrich with relationship data
         var posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
         posts = await enrichPostsWithRelationships(posts, account: account)
-        return posts
+        let hasNextPage = posts.count >= limit
+        let nextPageToken = posts.last?.id
+        return TimelineResult(
+            posts: posts,
+            pagination: PaginationInfo(hasNextPage: hasNextPage, nextPageToken: nextPageToken)
+        )
+    }
+
+    /// Fetch the timeline for a Mastodon list
+    func fetchListTimeline(
+        for account: SocialAccount,
+        listId: String,
+        limit: Int = 40,
+        maxId: String? = nil
+    ) async throws -> TimelineResult {
+        guard let accessToken = account.getAccessToken() else {
+            throw NSError(
+                domain: "MastodonService", code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No access token available"])
+        }
+
+        let serverUrlString = account.serverURL?.absoluteString ?? ""
+        let serverUrl =
+            serverUrlString.contains("://")
+            ? serverUrlString : "https://\(serverUrlString)"
+        var components = URLComponents(
+            string: "\(serverUrl)/api/v1/timelines/list/\(listId)?limit=\(limit)")
+        var queryItems = components?.queryItems ?? []
+        if let maxId = maxId {
+            queryItems.append(URLQueryItem(name: "max_id", value: maxId))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
+            throw NSError(
+                domain: "MastodonService",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw errorResponse
+            }
+            throw NSError(
+                domain: "MastodonService", code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to fetch list timeline"])
+        }
+
+        let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
+        var posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
+        posts = await enrichPostsWithRelationships(posts, account: account)
+        let hasNextPage = posts.count >= limit
+        let nextPageToken = posts.last?.id
+        return TimelineResult(
+            posts: posts,
+            pagination: PaginationInfo(hasNextPage: hasNextPage, nextPageToken: nextPageToken)
+        )
     }
 
     /// Fetch the public timeline from the Mastodon API without requiring an account
@@ -1079,15 +1164,38 @@ public final class MastodonService: @unchecked Sendable {
     func fetchPublicTimeline(serverURL: URL, count: Int = 20, local: Bool = false) async throws
         -> [Post]
     {
+        let result = try await fetchPublicTimeline(
+            serverURL: serverURL,
+            limit: count,
+            maxId: nil,
+            local: local
+        )
+        return result.posts
+    }
+
+    /// Fetch the public timeline from the Mastodon API without requiring an account (with pagination)
+    func fetchPublicTimeline(
+        serverURL: URL,
+        limit: Int = 20,
+        maxId: String? = nil,
+        local: Bool = false
+    ) async throws -> TimelineResult {
         // Ensure server has the scheme
         let serverUrlString = serverURL.absoluteString
         let serverUrl = formatServerURL(serverUrlString)
 
         let endpoint = local ? "public?local=true" : "public"
-        let limitParam = local ? "&limit=\(count)" : "?limit=\(count)"
+        let limitParam = local ? "&limit=\(limit)" : "?limit=\(limit)"
         let urlString = "\(serverUrl)/api/v1/timelines/\(endpoint)\(limitParam)"
 
-        guard let url = URL(string: urlString) else {
+        var components = URLComponents(string: urlString)
+        var queryItems = components?.queryItems ?? []
+        if let maxId = maxId {
+            queryItems.append(URLQueryItem(name: "max_id", value: maxId))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url else {
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1122,7 +1230,13 @@ public final class MastodonService: @unchecked Sendable {
             platform: .mastodon)
 
         // Convert to our app's Post model
-        return statuses.map { convertMastodonStatusToPost($0, account: serverAccount) }
+        let posts = statuses.map { convertMastodonStatusToPost($0, account: serverAccount) }
+        let hasNextPage = posts.count >= limit
+        let nextPageToken = posts.last?.id
+        return TimelineResult(
+            posts: posts,
+            pagination: PaginationInfo(hasNextPage: hasNextPage, nextPageToken: nextPageToken)
+        )
     }
 
     /// Fetch a user's profile timeline

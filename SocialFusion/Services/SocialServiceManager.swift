@@ -106,8 +106,16 @@ public final class SocialServiceManager: ObservableObject {
     @Published var selectedAccountIds: Set<String> = [] {
         didSet {
             DebugLog.verbose("🔧 SocialServiceManager: selectedAccountIds changed to: \(selectedAccountIds)")
+            updateTimelineSelectionFromScope()
         }
     }
+
+    // Timeline selection state (scope + feed)
+    @Published private(set) var currentTimelineScope: TimelineScope = .allAccounts
+    @Published private(set) var currentTimelineFeedSelection: TimelineFeedSelection = .unified
+    private var timelineFeedSelectionsByScope: [String: TimelineFeedSelection] = [:]
+    private let timelineFeedSelectionsKey = "timelineFeedSelectionsV1"
+    private var currentTimelinePlan: TimelineFetchPlan?
 
     // Filtered account lists
     @Published var mastodonAccounts: [SocialAccount] = []
@@ -225,6 +233,8 @@ public final class SocialServiceManager: ObservableObject {
         self.blueskyService = blueskyService
         DebugLog.verbose("🔧 SocialServiceManager: Starting initialization...")
 
+        loadTimelineFeedSelections()
+
         // Load saved accounts first
         loadAccounts()
 
@@ -302,6 +312,131 @@ public final class SocialServiceManager: ObservableObject {
         // Save accounts when profile images are updated to persist the new URLs
         saveAccounts()
         DebugLog.verbose("💾 [SocialServiceManager] Saved accounts after profile image update")
+    }
+
+    // MARK: - Timeline Selection
+
+    func updateTimelineSelectionFromScope() {
+        let previousScope = currentTimelineScope
+        let previousSelection = currentTimelineFeedSelection
+        let nextScope = resolveTimelineScope()
+        if currentTimelineScope != nextScope {
+            currentTimelineScope = nextScope
+        }
+
+        let selectionKey = nextScope.storageKey
+        let storedSelection = timelineFeedSelectionsByScope[selectionKey]
+        let resolvedSelection = resolveSelection(
+            storedSelection,
+            for: nextScope,
+            account: accountForScope(nextScope)
+        )
+        currentTimelineFeedSelection = resolvedSelection
+        timelineFeedSelectionsByScope[selectionKey] = resolvedSelection
+        persistTimelineFeedSelections()
+        if previousScope != currentTimelineScope || previousSelection != currentTimelineFeedSelection {
+            resetPagination()
+        }
+    }
+
+    func setTimelineFeedSelection(_ selection: TimelineFeedSelection, for scope: TimelineScope? = nil)
+    {
+        let targetScope = scope ?? currentTimelineScope
+        let resolvedSelection = resolveSelection(
+            selection,
+            for: targetScope,
+            account: accountForScope(targetScope)
+        )
+        let key = targetScope.storageKey
+        timelineFeedSelectionsByScope[key] = resolvedSelection
+        currentTimelineFeedSelection = resolvedSelection
+        persistTimelineFeedSelections()
+        resetPagination()
+    }
+
+    func resolveTimelineFetchPlan() -> TimelineFetchPlan? {
+        let scope = currentTimelineScope
+        let selection = currentTimelineFeedSelection
+        switch scope {
+        case .allAccounts:
+            return .unified(accounts: accounts)
+        case .account(let id):
+            guard let account = accounts.first(where: { $0.id == id }) else { return nil }
+            switch account.platform {
+            case .mastodon:
+                if case .mastodon(let feed) = selection {
+                    return .mastodon(account: account, feed: feed)
+                }
+                return .mastodon(account: account, feed: .home)
+            case .bluesky:
+                if case .bluesky(let feed) = selection {
+                    return .bluesky(account: account, feed: feed)
+                }
+                return .bluesky(account: account, feed: .following)
+            }
+        }
+    }
+
+    private func resolveTimelineScope() -> TimelineScope {
+        if selectedAccountIds.contains("all") || selectedAccountIds.count != 1 {
+            return .allAccounts
+        }
+        guard let id = selectedAccountIds.first else {
+            return .allAccounts
+        }
+        return .account(id: id)
+    }
+
+    private func resolveSelection(
+        _ selection: TimelineFeedSelection?,
+        for scope: TimelineScope,
+        account: SocialAccount?
+    ) -> TimelineFeedSelection {
+        switch scope {
+        case .allAccounts:
+            return .unified
+        case .account:
+            guard let account = account else {
+                return .unified
+            }
+            switch account.platform {
+            case .mastodon:
+                if let selection = selection, case .mastodon = selection {
+                    return selection
+                }
+                return .mastodon(.home)
+            case .bluesky:
+                if let selection = selection, case .bluesky = selection {
+                    return selection
+                }
+                return .bluesky(.following)
+            }
+        }
+    }
+
+    private func accountForScope(_ scope: TimelineScope) -> SocialAccount? {
+        switch scope {
+        case .allAccounts:
+            return nil
+        case .account(let id):
+            return accounts.first(where: { $0.id == id })
+        }
+    }
+
+    private func loadTimelineFeedSelections() {
+        guard let data = UserDefaults.standard.data(forKey: timelineFeedSelectionsKey),
+            let selections = try? JSONDecoder().decode([String: TimelineFeedSelection].self, from: data)
+        else {
+            return
+        }
+        timelineFeedSelectionsByScope = selections
+    }
+
+    private func persistTimelineFeedSelections() {
+        guard let data = try? JSONEncoder().encode(timelineFeedSelectionsByScope) else {
+            return
+        }
+        UserDefaults.standard.set(data, forKey: timelineFeedSelectionsKey)
     }
 
     // MARK: - Account Management
@@ -1258,6 +1393,41 @@ public final class SocialServiceManager: ObservableObject {
         return await filterRepliesInTimeline(posts)
     }
 
+    /// Fetch posts for the currently selected timeline, scoped to a specific platform.
+    public func fetchPostsForTimeline(platform: SocialPlatform) async throws -> [Post] {
+        guard let plan = resolveTimelineFetchPlan() else { return [] }
+
+        switch plan {
+        case .unified(let accounts):
+            let accountsToFetch = accounts.filter { $0.platform == platform }
+            guard !accountsToFetch.isEmpty else { return [] }
+            var collected: [Post] = []
+            await withTaskGroup(of: [Post].self) { group in
+                for account in accountsToFetch {
+                    group.addTask {
+                        do {
+                            return try await self.fetchPostsForAccount(account)
+                        } catch {
+                            return []
+                        }
+                    }
+                }
+                for await posts in group {
+                    collected.append(contentsOf: posts)
+                }
+            }
+            return collected.sorted { $0.createdAt > $1.createdAt }
+        case .mastodon(let account, let feed):
+            guard platform == .mastodon else { return [] }
+            let result = try await fetchMastodonTimeline(account: account, feed: feed, maxId: nil)
+            return result.posts
+        case .bluesky(let account, let feed):
+            guard platform == .bluesky else { return [] }
+            let result = try await fetchBlueskyTimeline(account: account, feed: feed, cursor: nil)
+            return result.posts
+        }
+    }
+
     /// Fetch the unified timeline for all accounts
     public func fetchTimeline(force: Bool = false) async throws {
         DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline(force: \(force)) called")
@@ -1288,17 +1458,12 @@ public final class SocialServiceManager: ObservableObject {
         isRefreshInProgress = true
         defer { isRefreshInProgress = false }
 
-        // Only log important info, not spam
-        let accountsToFetch = getAccountsToFetch()
-        DebugLog.verbose(
-            "🔄 SocialServiceManager: Fetching timeline for \(accountsToFetch.count) accounts (isInitialLoad: \(isInitialLoad))"
-        )
-
-        for (index, account) in accountsToFetch.enumerated() {
-            DebugLog.verbose(
-                "🔄 SocialServiceManager: Account \(index): \(account.username) (\(account.platform))"
-            )
+        guard let plan = resolveTimelineFetchPlan() else {
+            DebugLog.verbose("🔄 SocialServiceManager: No timeline plan available")
+            return
         }
+
+        currentTimelinePlan = plan
 
         // Reset loading state
         // CRITICAL FIX: Defer state updates to prevent "Publishing changes from within view updates" warnings
@@ -1316,7 +1481,7 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         do {
-            let canonicalPosts = try await refreshTimeline(accounts: accountsToFetch)
+            let canonicalPosts = try await refreshTimeline(plan: plan)
             DebugLog.verbose("🔄 SocialServiceManager: Canonical timeline updated with \(canonicalPosts.count) posts")
 
             // Update UI on main thread with proper delay to prevent rapid updates and AttributeGraph cycles
@@ -1328,6 +1493,132 @@ public final class SocialServiceManager: ObservableObject {
             ErrorHandler.shared.handleError(error)
             DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
             throw error
+        }
+    }
+
+    private func refreshTimeline(plan: TimelineFetchPlan) async throws -> [Post] {
+        switch plan {
+        case .unified(let accounts):
+            return try await refreshTimeline(accounts: accounts)
+        case .mastodon(let account, let feed):
+            let result = try await fetchMastodonTimeline(account: account, feed: feed, maxId: nil)
+            updatePaginationTokens(
+                for: account,
+                selection: .mastodon(feed),
+                pagination: result.pagination
+            )
+            hasNextPage = result.pagination.hasNextPage
+            return await applyTimelinePosts(result.posts, source: .refresh)
+        case .bluesky(let account, let feed):
+            let result = try await fetchBlueskyTimeline(account: account, feed: feed, cursor: nil)
+            updatePaginationTokens(
+                for: account,
+                selection: .bluesky(feed),
+                pagination: result.pagination
+            )
+            hasNextPage = result.pagination.hasNextPage
+            return await applyTimelinePosts(result.posts, source: .refresh)
+        }
+    }
+
+    private func applyTimelinePosts(_ posts: [Post], source: TimelineSource) async -> [Post] {
+        let filteredPosts = await filterRepliesInTimeline(posts)
+        let sourceContext = TimelineSourceContext(source: source)
+        if FeatureFlagManager.isEnabled(.replyFiltering) {
+            canonicalPostStore.replaceTimeline(
+                timelineID: canonicalUnifiedTimelineID,
+                posts: filteredPosts,
+                sourceContext: sourceContext
+            )
+        } else {
+            canonicalPostStore.processIncomingPosts(
+                filteredPosts,
+                timelineID: canonicalUnifiedTimelineID,
+                sourceContext: sourceContext
+            )
+        }
+        return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+    }
+
+    private func fetchMastodonTimeline(
+        account: SocialAccount,
+        feed: MastodonTimelineFeed,
+        maxId: String?
+    ) async throws -> TimelineResult {
+        switch feed {
+        case .home:
+            return try await mastodonService.fetchHomeTimeline(for: account, maxId: maxId)
+        case .local:
+            return try await mastodonService.fetchPublicTimeline(
+                for: account,
+                local: true,
+                maxId: maxId
+            )
+        case .federated:
+            return try await mastodonService.fetchPublicTimeline(
+                for: account,
+                local: false,
+                maxId: maxId
+            )
+        case .list(let id, _):
+            return try await mastodonService.fetchListTimeline(
+                for: account,
+                listId: id,
+                maxId: maxId
+            )
+        case .instance(let server):
+            guard let url = URL(string: "https://\(server)") else {
+                throw ServiceError.invalidInput(reason: "Invalid server URL")
+            }
+            return try await mastodonService.fetchPublicTimeline(
+                serverURL: url,
+                limit: 40,
+                maxId: maxId,
+                local: true
+            )
+        }
+    }
+
+    private func fetchBlueskyTimeline(
+        account: SocialAccount,
+        feed: BlueskyTimelineFeed,
+        cursor: String?
+    ) async throws -> TimelineResult {
+        switch feed {
+        case .following:
+            return try await blueskyService.fetchHomeTimeline(for: account, cursor: cursor)
+        case .custom(let uri, _):
+            return try await blueskyService.fetchCustomFeed(
+                for: account,
+                feedURI: uri,
+                cursor: cursor
+            )
+        }
+    }
+
+    private func updatePaginationTokens(
+        for account: SocialAccount,
+        selection: TimelineFeedSelection,
+        pagination: PaginationInfo
+    ) {
+        let key = paginationTokenKey(for: account, selection: selection)
+        if let token = pagination.nextPageToken {
+            paginationTokens[key] = token
+        } else {
+            paginationTokens.removeValue(forKey: key)
+        }
+    }
+
+    private func paginationTokenKey(for account: SocialAccount, selection: TimelineFeedSelection)
+        -> String
+    {
+        switch selection {
+        case .unified:
+            return account.id
+        case .mastodon(let feed):
+            return "\(account.id):\(feed.cacheKey)"
+        case .bluesky(let feed):
+            return "\(account.id):\(feed.cacheKey)"
         }
     }
 
@@ -1712,16 +2003,7 @@ public final class SocialServiceManager: ObservableObject {
             isLoadingNextPage = true
         }
 
-        // Determine which accounts to fetch based on selection
-        var accountsToFetch: [SocialAccount] = []
-
-        if selectedAccountIds.contains("all") {
-            accountsToFetch = accounts
-        } else {
-            accountsToFetch = accounts.filter { selectedAccountIds.contains($0.id) }
-        }
-
-        guard !accountsToFetch.isEmpty else {
+        guard let plan = currentTimelinePlan ?? resolveTimelineFetchPlan() else {
             Task { @MainActor in
                 isLoadingNextPage = false
             }
@@ -1731,21 +2013,64 @@ public final class SocialServiceManager: ObservableObject {
         var allNewPosts: [Post] = []
         var hasMorePages = false
 
-        // Fetch next page from each account
-        for account in accountsToFetch {
-            do {
-                let result = try await fetchNextPageForAccount(account)
-                allNewPosts.append(contentsOf: result.posts)
-                if result.pagination.hasNextPage {
-                    hasMorePages = true
-                    // Store pagination token for this account
-                    if let token = result.pagination.nextPageToken {
-                        paginationTokens[account.id] = token
-                    }
+        switch plan {
+        case .unified(let accountsToFetch):
+            guard !accountsToFetch.isEmpty else {
+                Task { @MainActor in
+                    isLoadingNextPage = false
                 }
+                return
+            }
+
+            // Fetch next page from each account
+            for account in accountsToFetch {
+                do {
+                    let result = try await fetchNextPageForAccount(account, selection: .unified)
+                    allNewPosts.append(contentsOf: result.posts)
+                    updatePaginationTokens(
+                        for: account,
+                        selection: .unified,
+                        pagination: result.pagination
+                    )
+                    if result.pagination.hasNextPage {
+                        hasMorePages = true
+                    }
+                } catch {
+                    DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
+                    // Continue with other accounts even if one fails
+                }
+            }
+        case .mastodon(let account, let feed):
+            do {
+                let result = try await fetchNextPageForAccount(
+                    account,
+                    selection: .mastodon(feed)
+                )
+                allNewPosts.append(contentsOf: result.posts)
+                hasMorePages = result.pagination.hasNextPage
+                updatePaginationTokens(
+                    for: account,
+                    selection: .mastodon(feed),
+                    pagination: result.pagination
+                )
             } catch {
                 DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
-                // Continue with other accounts even if one fails
+            }
+        case .bluesky(let account, let feed):
+            do {
+                let result = try await fetchNextPageForAccount(
+                    account,
+                    selection: .bluesky(feed)
+                )
+                allNewPosts.append(contentsOf: result.posts)
+                hasMorePages = result.pagination.hasNextPage
+                updatePaginationTokens(
+                    for: account,
+                    selection: .bluesky(feed),
+                    pagination: result.pagination
+                )
+            } catch {
+                DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
             }
         }
 
@@ -1797,14 +2122,25 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Fetch next page for a specific account
-    private func fetchNextPageForAccount(_ account: SocialAccount) async throws -> TimelineResult {
-        let token = paginationTokens[account.id]
+    private func fetchNextPageForAccount(
+        _ account: SocialAccount,
+        selection: TimelineFeedSelection
+    ) async throws -> TimelineResult {
+        let tokenKey = paginationTokenKey(for: account, selection: selection)
+        let token = paginationTokens[tokenKey]
 
-        switch account.platform {
-        case .mastodon:
-            return try await mastodonService.fetchHomeTimeline(for: account, maxId: token)
-        case .bluesky:
-            return try await blueskyService.fetchHomeTimeline(for: account, cursor: token)
+        switch selection {
+        case .unified:
+            switch account.platform {
+            case .mastodon:
+                return try await mastodonService.fetchHomeTimeline(for: account, maxId: token)
+            case .bluesky:
+                return try await blueskyService.fetchHomeTimeline(for: account, cursor: token)
+            }
+        case .mastodon(let feed):
+            return try await fetchMastodonTimeline(account: account, feed: feed, maxId: token)
+        case .bluesky(let feed):
+            return try await fetchBlueskyTimeline(account: account, feed: feed, cursor: token)
         }
     }
 
@@ -2759,6 +3095,15 @@ public final class SocialServiceManager: ObservableObject {
             throw ServiceError.unsupportedPlatform
         }
         return try await mastodonService.fetchLists(account: account)
+    }
+
+    /// Fetch saved custom feeds for a Bluesky account
+    public func fetchBlueskySavedFeeds(account: SocialAccount) async throws -> [BlueskyFeedGenerator]
+    {
+        guard account.platform == .bluesky else {
+            throw ServiceError.unsupportedPlatform
+        }
+        return try await blueskyService.fetchSavedFeeds(for: account)
     }
 
     /// Add an account to a Mastodon list

@@ -134,37 +134,28 @@ struct NotificationsView: View {
                             Spacer()
                             
                             // Dropdown content
-                            VStack(spacing: 0) {
-                                ForEach([nil] + [AppNotification.NotificationType.mention, .repost, .like, .follow] as [AppNotification.NotificationType?], id: \.self) { filter in
-                                    FilterDropdownRow(
-                                        title: filter?.displayName ?? "All",
-                                        isSelected: selectedFilter == filter,
-                                        action: {
-                                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                                selectedFilter = filter
-                                                showFilterDropdown = false
-                                            }
+                            NavBarPillDropdown(
+                                sections: [
+                                    NavBarPillDropdownSection(
+                                        id: "notifications-filter",
+                                        header: nil,
+                                        items: ([nil] + [AppNotification.NotificationType.mention, .repost, .like, .follow] as [AppNotification.NotificationType?]).map { filter in
+                                            NavBarPillDropdownItem(
+                                                id: filter?.rawValue ?? "all",
+                                                title: filter?.displayName ?? "All",
+                                                isSelected: selectedFilter == filter,
+                                                action: {
+                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                        selectedFilter = filter
+                                                        showFilterDropdown = false
+                                                    }
+                                                }
+                                            )
                                         }
                                     )
-                                    
-                                    if filter != AppNotification.NotificationType.follow {
-                                        Divider()
-                                            .padding(.horizontal, 12)
-                                    }
-                                }
-                            }
-                            .frame(width: 200)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                                    )
-                                    .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 4)
-                                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                                ],
+                                width: 200
                             )
-                            .frame(maxHeight: 300)
                             
                             Spacer()
                         }
@@ -184,35 +175,15 @@ struct NotificationsView: View {
                 accountButton
             }
             ToolbarItem(placement: .principal) {
-                Button(action: {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showFilterDropdown.toggle()
+                NavBarPillSelector(
+                    title: filterTitle,
+                    isExpanded: showFilterDropdown,
+                    action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showFilterDropdown.toggle()
+                        }
                     }
-                }) {
-                    HStack(spacing: 4) {
-                        Text(filterTitle)
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                        Image(systemName: "chevron.down")
-                            .font(.caption2)
-                            .fontWeight(.semibold)
-                            .rotationEffect(.degrees(showFilterDropdown ? 180 : 0))
-                    }
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(.ultraThinMaterial)
-                            .overlay(
-                                Capsule()
-                                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-                            )
-                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 1)
-                            .shadow(color: .black.opacity(0.02), radius: 2, x: 0, y: 0.5)
-                    )
-                }
-                .buttonStyle(PlainButtonStyle())
+                )
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 composeButton
@@ -357,37 +328,6 @@ extension AppNotification.NotificationType {
         case .poll: return "Polls"
         case .update: return "Updates"
         }
-    }
-}
-
-// Filter dropdown row
-struct FilterDropdownRow: View {
-    let title: String
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
     }
 }
 

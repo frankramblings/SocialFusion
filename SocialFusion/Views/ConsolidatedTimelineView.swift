@@ -118,6 +118,7 @@ struct ConsolidatedTimelineView: View {
     @State private var showAddAccountView = false
     @State private var reportingPost: Post? = nil
     @State private var showReportDialog = false
+    @State private var showFeedPicker = false
 
     // Position persistence (iOS 17+ primary path)
     @SceneStorage("unifiedTimeline.anchorId") private var persistedAnchorId: String?
@@ -136,6 +137,7 @@ struct ConsolidatedTimelineView: View {
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
     @StateObject private var timelineState = TimelineState()
+    @StateObject private var feedPickerViewModel: TimelineFeedPickerViewModel
     private let config = TimelineConfiguration.shared
 
     // MARK: - Accessibility Environment
@@ -148,6 +150,8 @@ struct ConsolidatedTimelineView: View {
         // Use a factory pattern to create the controller with proper dependency injection
         _controller = StateObject(
             wrappedValue: UnifiedTimelineController(serviceManager: serviceManager))
+        _feedPickerViewModel = StateObject(
+            wrappedValue: TimelineFeedPickerViewModel(serviceManager: serviceManager))
     }
 
     var body: some View {
@@ -214,6 +218,54 @@ struct ConsolidatedTimelineView: View {
                 )
                 .hidden()
             )
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    NavBarPillSelector(
+                        title: currentFeedTitle,
+                        isExpanded: showFeedPicker,
+                        action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showFeedPicker.toggle()
+                            }
+                        }
+                    )
+                }
+            }
+            .navigationBarTitleDisplayMode(.inline)
+            .overlay(alignment: .top) {
+                if showFeedPicker {
+                    ZStack {
+                        Color.black.opacity(0.001)
+                            .ignoresSafeArea()
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showFeedPicker = false
+                                }
+                            }
+
+                        VStack {
+                            HStack {
+                                Spacer()
+
+                                TimelineFeedPickerPopover(
+                                    viewModel: feedPickerViewModel,
+                                    isPresented: $showFeedPicker,
+                                    scope: serviceManager.currentTimelineScope,
+                                    selection: serviceManager.currentTimelineFeedSelection,
+                                    account: currentScopeAccount,
+                                    onSelect: handleFeedSelection(_:)
+                                )
+
+                                Spacer()
+                            }
+                            .padding(.top, 2)
+
+                            Spacer()
+                        }
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                }
+            }
             .sheet(item: $replyingToPost) { post in
                 ComposeView(replyingTo: post)
                     .environmentObject(serviceManager)
@@ -265,6 +317,9 @@ struct ConsolidatedTimelineView: View {
             .onChange(of: controller.posts) { _ in
                 logAnchorState("posts updated")
                 restorePendingAnchorIfPossible()
+            }
+            .onChange(of: serviceManager.currentTimelineScope) { _ in
+                controller.refreshTimeline()
             }
             .alert("Error", isPresented: .constant(controller.error != nil)) {
                 Button("Retry") {
@@ -360,6 +415,68 @@ struct ConsolidatedTimelineView: View {
                 onAddAccount: nil
             )
         }
+    }
+
+    private var currentScopeAccount: SocialAccount? {
+        switch serviceManager.currentTimelineScope {
+        case .allAccounts:
+            return nil
+        case .account(let id):
+            return serviceManager.accounts.first(where: { $0.id == id })
+        }
+    }
+
+    private var currentFeedTitle: String {
+        switch serviceManager.currentTimelineScope {
+        case .allAccounts:
+            return "Unified"
+        case .account:
+            return feedTitle(for: serviceManager.currentTimelineFeedSelection)
+        }
+    }
+
+    private func feedTitle(for selection: TimelineFeedSelection) -> String {
+        switch selection {
+        case .unified:
+            return "Unified"
+        case .mastodon(let feed):
+            switch feed {
+            case .home:
+                return "Home"
+            case .local:
+                return "Local"
+            case .federated:
+                return "Federated"
+            case .list(let id, let title):
+                if let title = title {
+                    return title
+                }
+                if let list = feedPickerViewModel.mastodonLists.first(where: { $0.id == id }) {
+                    return list.title
+                }
+                return "List"
+            case .instance(let server):
+                return "Instance: \(server)"
+            }
+        case .bluesky(let feed):
+            switch feed {
+            case .following:
+                return "Following"
+            case .custom(let uri, let name):
+                if let name = name {
+                    return name
+                }
+                if let feed = feedPickerViewModel.blueskyFeeds.first(where: { $0.uri == uri }) {
+                    return feed.displayName
+                }
+                return "Feed"
+            }
+        }
+    }
+
+    private func handleFeedSelection(_ selection: TimelineFeedSelection) {
+        serviceManager.setTimelineFeedSelection(selection)
+        controller.refreshTimeline()
     }
 
     @ViewBuilder

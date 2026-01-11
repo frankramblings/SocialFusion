@@ -39,26 +39,12 @@ class UnifiedTimelineController: ObservableObject {
                 }
 #endif
                 guard let serviceManager = serviceManager else { return [] }
-                let accounts = await MainActor.run {
-                    serviceManager.timelineAccountsToFetch().filter { $0.platform == platform }
+                do {
+                    let posts = try await serviceManager.fetchPostsForTimeline(platform: platform)
+                    return posts.sorted { $0.createdAt > $1.createdAt }
+                } catch {
+                    return []
                 }
-                guard !accounts.isEmpty else { return [] }
-                var collected: [Post] = []
-                await withTaskGroup(of: [Post].self) { group in
-                    for account in accounts {
-                        group.addTask {
-                            do {
-                                return try await serviceManager.fetchPostsForAccount(account)
-                            } catch {
-                                return []
-                            }
-                        }
-                    }
-                    for await posts in group {
-                        collected.append(contentsOf: posts)
-                    }
-                }
-                return collected.sorted { $0.createdAt > $1.createdAt }
             },
             filterPosts: { [weak serviceManager] posts in
                 guard let serviceManager = serviceManager else { return posts }

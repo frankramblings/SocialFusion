@@ -671,6 +671,126 @@ public final class BlueskyService: Sendable {
         return try await fetchHomeTimeline(for: account)
     }
 
+    /// Fetch a custom feed timeline from Bluesky
+    public func fetchCustomFeed(
+        for account: SocialAccount,
+        feedURI: String,
+        limit: Int = 40,
+        cursor: String? = nil
+    ) async throws -> TimelineResult {
+        let accessToken = try await account.getValidAccessToken()
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getFeed")!
+        var queryItems = [
+            URLQueryItem(name: "feed", value: feedURI),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let cursor = cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        components.queryItems = queryItems
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NetworkError.apiError("Fetch custom feed failed")
+        }
+
+        return try await processFeedDataWithPagination(data, account: account)
+    }
+
+    /// Fetch saved custom feeds for a Bluesky account
+    public func fetchSavedFeeds(for account: SocialAccount) async throws -> [BlueskyFeedGenerator] {
+        let accessToken = try await account.getValidAccessToken()
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        let prefsURL = URL(
+            string: "https://\(serverURLString)/xrpc/app.bsky.actor.getPreferences")!
+        var request = URLRequest(url: prefsURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (prefsData, prefsResponse) = try await session.data(for: request)
+        guard let prefsHttp = prefsResponse as? HTTPURLResponse, prefsHttp.statusCode == 200 else {
+            throw NetworkError.apiError("Fetch preferences failed")
+        }
+
+        guard
+            let prefsJSON = try JSONSerialization.jsonObject(with: prefsData) as? [String: Any],
+            let preferences = prefsJSON["preferences"] as? [[String: Any]]
+        else {
+            return []
+        }
+
+        let savedFeeds = preferences.first { pref in
+            (pref["$type"] as? String) == "app.bsky.actor.defs#savedFeedsPref"
+        }
+        
+        // Log the keys to debug
+        if let savedFeeds = savedFeeds {
+            print("🔍 [BlueskyService] Found savedFeedsPref with keys: \(savedFeeds.keys.joined(separator: ", "))")
+        } else {
+            print("🔍 [BlueskyService] No savedFeedsPref found in preferences")
+        }
+        
+        // The key is 'saved', not 'items'
+        let feedURIs = savedFeeds?["saved"] as? [String] ?? []
+        guard !feedURIs.isEmpty else { 
+            print("🔍 [BlueskyService] No saved feed URIs found")
+            return [] 
+        }
+
+        var feedsComponents = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getFeedGenerators")!
+        feedsComponents.queryItems = feedURIs.map { uri in
+            URLQueryItem(name: "feeds", value: uri)
+        }
+
+        var feedsRequest = URLRequest(url: feedsComponents.url!)
+        feedsRequest.httpMethod = "GET"
+        feedsRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (feedsData, feedsResponse) = try await session.data(for: feedsRequest)
+        guard let feedsHttp = feedsResponse as? HTTPURLResponse, feedsHttp.statusCode == 200 else {
+            throw NetworkError.apiError("Fetch feed generators failed")
+        }
+
+        guard
+            let feedsJSON = try JSONSerialization.jsonObject(with: feedsData) as? [String: Any],
+            let feedObjects = feedsJSON["feeds"] as? [[String: Any]]
+        else {
+            return []
+        }
+
+        let feeds: [BlueskyFeedGenerator] = feedObjects.compactMap { feed in
+            guard let uri = feed["uri"] as? String else { return nil }
+            let displayName = feed["displayName"] as? String ?? "Feed"
+            let description = feed["description"] as? String
+            return BlueskyFeedGenerator(
+                uri: uri,
+                displayName: displayName,
+                description: description
+            )
+        }
+
+        // Preserve saved feed order when possible.
+        let feedLookup = Dictionary(uniqueKeysWithValues: feeds.map { ($0.uri, $0) })
+        return feedURIs.compactMap { feedLookup[$0] }
+    }
+
     /// Search for posts on Bluesky
     public func searchPosts(
         query: String, account: SocialAccount, limit: Int = 20, cursor: String? = nil

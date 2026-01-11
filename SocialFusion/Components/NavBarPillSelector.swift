@@ -98,6 +98,36 @@ struct NavBarPillDropdown: View {
     }
 }
 
+struct NavBarPillDropdownContainer<Content: View>: View {
+    let width: CGFloat
+    let maxHeight: CGFloat
+    let content: Content
+
+    init(width: CGFloat, maxHeight: CGFloat = 300, @ViewBuilder content: () -> Content) {
+        self.width = width
+        self.maxHeight = maxHeight
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .frame(width: width)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 4)
+                .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+        )
+        .frame(maxHeight: maxHeight)
+    }
+}
+
 struct NavBarPillDropdownRow: View {
     let title: String
     let isSelected: Bool

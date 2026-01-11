@@ -172,7 +172,6 @@ struct ContentView: View {
                         accountDropdownOverlay
                     }
                 }
-                .navigationTitle("Home")
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         accountButton
