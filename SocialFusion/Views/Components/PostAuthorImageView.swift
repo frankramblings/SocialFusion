@@ -42,6 +42,7 @@ struct PostAuthorImageView: View {
                             .clipShape(Circle())
                             .transition(.opacity)
                     }
+                    .frame(width: size, height: size)
                 } placeholder: {
                     // Show initials + spinner while loading or on failure
                     ZStack {
