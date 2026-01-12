@@ -115,7 +115,7 @@ class GradualMigrationManager: ObservableObject {
     // MARK: - Migration Error
 
     struct MigrationError: Identifiable, Codable {
-        let id = UUID()
+        var id = UUID()
         let timestamp: Date
         let phase: String
         let error: String

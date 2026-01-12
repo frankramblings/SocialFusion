@@ -269,20 +269,17 @@ struct SearchView: View {
                 }
             }
         }
-        .background(
-            NavigationLink(
-                destination: navigationEnvironment.selectedUser.map { user in
-                    UserDetailView(user: user)
-                        .environmentObject(serviceManager)
-                },
-                isActive: Binding(
-                    get: { navigationEnvironment.selectedUser != nil },
-                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                ),
-                label: { EmptyView() }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { navigationEnvironment.selectedUser != nil },
+                set: { if !$0 { navigationEnvironment.clearNavigation() } }
             )
-            .hidden()
-        )
+        ) {
+            if let user = navigationEnvironment.selectedUser {
+                UserDetailView(user: user)
+                    .environmentObject(serviceManager)
+            }
+        }
         .navigationTitle("Search")
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {

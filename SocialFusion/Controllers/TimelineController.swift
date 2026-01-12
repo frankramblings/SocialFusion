@@ -364,7 +364,6 @@ class TimelineController: ObservableObject {
         }
     }
 }
-#endif
 
 // MARK: - Supporting Types
 
@@ -397,3 +396,5 @@ extension TimelineController {
     /// Bridge to existing TimelineState interface (for gradual migration)
     // TODO: Re-implement compatibility bridge if needed
 }
+#endif
+

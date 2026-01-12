@@ -127,7 +127,7 @@ class ConnectionManager {
         responseType: T.Type
     ) async throws -> T {
         do {
-            let (data, response) = try await send(request)
+            let (data, _) = try await send(request)
 
             // Attempt decoding with our standard decoder
             let decoder = JSONDecoder()
@@ -300,9 +300,7 @@ class ConnectionManager {
         beginBackgroundTaskIfNeeded()
 
         // Cancel low-priority requests to conserve resources
-        serialQueue.async { [weak self] in
-            guard let self = self else { return }
-
+        serialQueue.async {
             // For now we don't have priority system, so we keep all requests
             // In a more sophisticated implementation, we could cancel non-essential requests here
         }

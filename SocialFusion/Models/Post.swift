@@ -576,6 +576,7 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             content: content,
             authorName: authorName,
             authorUsername: authorUsername,
+            authorId: authorId,
             authorProfilePictureURL: authorProfilePictureURL,
             createdAt: createdAt,
             platform: platform,
@@ -1454,7 +1455,7 @@ public struct DMConversation: Identifiable, Codable, Sendable {
     }
 }
 
-public enum UnifiedChatMessage: Identifiable, Sendable {
+public enum UnifiedChatMessage: Identifiable, @unchecked Sendable {
     case bluesky(BlueskyChatMessage)
     case mastodon(Post)
 

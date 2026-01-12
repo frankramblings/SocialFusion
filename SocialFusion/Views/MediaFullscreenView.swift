@@ -79,7 +79,7 @@ struct LegacyFullscreenMediaView: View {
                             .font(.headline)
                             .foregroundColor(.white)
                     }
-                } else if let currentAttachment = currentAttachment {
+                } else if currentAttachment != nil {
                     // Use a custom TabView implementation to avoid state reset
                     HStack(spacing: 0) {
                         ForEach(currentAttachments.indices, id: \.self) { index in
@@ -676,8 +676,10 @@ struct LegacyFullscreenMediaView: View {
             activityItems: [url],
             applicationActivities: nil
         )
-        UIApplication.shared.windows.first?.rootViewController?
-            .present(activityVC, animated: true)
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first(where: { $0.isKeyWindow }) {
+            window.rootViewController?.present(activityVC, animated: true)
+        }
     }
 
     private func cleanup() {

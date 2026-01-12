@@ -339,7 +339,7 @@ struct AudioPlayerView: View {
                 let asset = AVAsset(url: url)
                 let track = try await asset.loadTracks(withMediaType: .audio).first
 
-                guard let track = track else {
+                guard track != nil else {
                     await MainActor.run {
                         isGeneratingWaveform = false
                     }

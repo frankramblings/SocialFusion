@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -237,7 +237,7 @@
 		0BD574D596E911CA879F1F4F /* NativeYouTubePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeYouTubePlayer.swift; sourceTree = "<group>"; };
 		0CEAD9BB34659AEAA42BEA30 /* AccountPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountPickerView.swift; sourceTree = "<group>"; };
 		0D80D8E657DE7507D5B1D411 /* CanonicalPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalPost.swift; sourceTree = "<group>"; };
-		0DE6DEAE10E943046F5ED8D6 /* SocialFusionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SocialFusionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0DE6DEAE10E943046F5ED8D6 /* SocialFusionTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialFusionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		10E2261F8703E0FDFBF1592E /* PostMenuCapabilityGatingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostMenuCapabilityGatingTests.swift; sourceTree = "<group>"; };
 		13C0747FDCFF6508AD507AA5 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
 		161D75A9E63DCFB50B5BD11D /* TimelineController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineController.swift; sourceTree = "<group>"; };
@@ -263,7 +263,7 @@
 		2AB52206B26658AB75187524 /* UnifiedPostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedPostStore.swift; sourceTree = "<group>"; };
 		2AFE90EF41329A63BD590FBC /* Text+HTML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Text+HTML.swift"; sourceTree = "<group>"; };
 		2BE37AAC1F0E00EA31F0F1E0 /* YouTubeExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeExtractor.swift; sourceTree = "<group>"; };
-		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemImagePicker.swift; sourceTree = "<group>"; };
 		300AA939D84D2C52B01BDE86 /* HTMLString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLString.swift; sourceTree = "<group>"; };
 		317FA54C052BABBA9833F6AA /* UITestHooks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHooks.swift; sourceTree = "<group>"; };
@@ -275,7 +275,7 @@
 		39707FACEBD61A89EBA1BB73 /* ParentPostPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentPostPreview.swift; sourceTree = "<group>"; };
 		3A6F5AFDC0B0B4E1580FD2F8 /* MediaConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaConfiguration.swift; sourceTree = "<group>"; };
 		3AB5D5F2EE7FA9395F3BA275 /* CacheHydrationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheHydrationPolicy.swift; sourceTree = "<group>"; };
-		3D703FF04BA51D8929A92E5F /* ConsolidatedTimelineView.swift.backup */ = {isa = PBXFileReference; path = ConsolidatedTimelineView.swift.backup; sourceTree = "<group>"; };
+		3D703FF04BA51D8929A92E5F /* ConsolidatedTimelineView.swift.backup */ = {isa = PBXFileReference; lastKnownFileType = text; path = ConsolidatedTimelineView.swift.backup; sourceTree = "<group>"; };
 		3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
 		4042894BCB021D7EA32D968E /* PostActionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionCoordinator.swift; sourceTree = "<group>"; };
 		4194B806E703387B16EFB108 /* MediaConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaConstants.swift; sourceTree = "<group>"; };
@@ -285,7 +285,7 @@
 		4413493C1891D722617907EB /* PostActionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionState.swift; sourceTree = "<group>"; };
 		457F70C4F810DDAAE1FA2524 /* DataFlow.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DataFlow.md; sourceTree = "<group>"; };
 		458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagDetailView.swift; sourceTree = "<group>"; };
-		466AB960225BCAC997006B9A /* ContentView.swift.bak */ = {isa = PBXFileReference; path = ContentView.swift.bak; sourceTree = "<group>"; };
+		466AB960225BCAC997006B9A /* ContentView.swift.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = ContentView.swift.bak; sourceTree = "<group>"; };
 		466E8DC57C6E08DFC3853709 /* UserDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDetailView.swift; sourceTree = "<group>"; };
 		47F069E26AF8BE5D605C3A41 /* LinkPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreview.swift; sourceTree = "<group>"; };
 		4864BD80A9CD5146570FD054 /* TimelineBufferTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineBufferTests.swift; sourceTree = "<group>"; };
@@ -380,7 +380,7 @@
 		BB67E601460FD0229A3E6AA3 /* MonitoringService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringService.swift; sourceTree = "<group>"; };
 		BD1CC15EEAA7523F3FAECC24 /* PostCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCardView.swift; sourceTree = "<group>"; };
 		BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyService.swift; sourceTree = "<group>"; };
-		BEE138AB89AE4B297B2E452C /* PostDetailView.swift.bak */ = {isa = PBXFileReference; path = PostDetailView.swift.bak; sourceTree = "<group>"; };
+		BEE138AB89AE4B297B2E452C /* PostDetailView.swift.bak */ = {isa = PBXFileReference; lastKnownFileType = text; path = PostDetailView.swift.bak; sourceTree = "<group>"; };
 		BEEC9F25B0D2EA289E617ACA /* DraftStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftStore.swift; sourceTree = "<group>"; };
 		C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonModels.swift; sourceTree = "<group>"; };
 		C31F0F0322B63A6705DAD32C /* MediaFullscreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFullscreenView.swift; sourceTree = "<group>"; };
@@ -846,13 +846,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1400;
-				TargetAttributes = {
-					ADE2AF9D7E04A5DE3C122C20 = {
-						DevelopmentTeam = "$(TEAM_ID)";
-						ProvisioningStyle = Manual;
-					};
-				};
+				LastUpgradeCheck = 2620;
 			};
 			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -867,7 +861,6 @@
 			packageReferences = (
 				31F090B8FC76218E3A5307B0 /* XCRemoteSwiftPackageReference "EmojiText" */,
 			);
-			preferredProjectObjectVersion = 54;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -1131,11 +1124,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = "$(GITHUB_RUN_NUMBER)";
-				DEVELOPMENT_TEAM = "$(TEAM_ID)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 87;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1143,7 +1137,7 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.app;
 				PRODUCT_NAME = SocialFusion;
-				PROVISIONING_PROFILE_SPECIFIER = "$(PROFILE_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -1205,6 +1199,7 @@
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1218,6 +1213,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -1261,6 +1257,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -1281,6 +1278,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -1291,11 +1289,12 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = "$(GITHUB_RUN_NUMBER)";
-				DEVELOPMENT_TEAM = "$(TEAM_ID)";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 87;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -1303,7 +1302,7 @@
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.app;
 				PRODUCT_NAME = SocialFusion;
-				PROVISIONING_PROFILE_SPECIFIER = "$(PROFILE_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

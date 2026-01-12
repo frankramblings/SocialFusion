@@ -635,7 +635,6 @@ public final class BlueskyService: Sendable {
             logger.info("Processing Bluesky timeline data...")
             var totalPosts = 0
             var postsWithEmbeds = 0
-            var postsWithQuotes = 0
 
             let result = try await processFeedDataWithPagination(data, account: account)
 
@@ -2339,7 +2338,6 @@ public final class BlueskyService: Sendable {
         let authorUsername = post.author.handle
         let authorProfilePictureURL = post.author.avatar ?? ""
         let createdAt = ISO8601DateFormatter().date(from: post.record.createdAt) ?? Date()
-        let content = post.record.text
 
         // Extract author relationship state from viewer data
         let isFollowingAuthor = post.author.viewer?.following != nil
@@ -3824,7 +3822,7 @@ public final class BlueskyService: Sendable {
         profileRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
         let (profileData, _) = try await session.data(for: profileRequest)
-        var currentProfile =
+        let currentProfile =
             try JSONSerialization.jsonObject(with: profileData) as? [String: Any] ?? [:]
 
         // 2. Upload avatar if provided

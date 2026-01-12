@@ -227,7 +227,7 @@ extension Post {
             EmptyView()
         } else if let quotedPost = quotedPost {
             let quotedPostURL: URL? = {
-                if let officialQuoteURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
+                if let officialQuoteURL = self.quotedPostURL {
                     return officialQuoteURL
                 }
                 if let url = URL(string: quotedPost.originalURL),
@@ -253,7 +253,7 @@ extension Post {
                 }
                 .padding(.top, 8)
             }
-        } else if let quotedPostURL = (self as? BlueskyQuotedPostProvider)?.quotedPostURL {
+        } else if let quotedPostURL = self.quotedPostURL {
             FetchQuotePostView(
                 url: quotedPostURL,
                 onQuotePostTap: onQuotePostTap
@@ -704,7 +704,7 @@ struct YouTubeVideoPreview: View {
                 channelName = json["author_name"] as? String ?? "YouTube"
 
                 // Extract duration from thumbnail URL if available
-                if let thumbnailUrl = json["thumbnail_url"] as? String {
+                if json["thumbnail_url"] != nil {
                     // Sometimes duration info is embedded in the response
                     duration = extractDurationFromMetadata(json)
                 }
@@ -1054,7 +1054,6 @@ struct ExpandableTextView: View {
             if post.attachments.isEmpty && !previewableLinks.isEmpty {
                 // Remove the first few previewable links from content since they'll be shown as previews
                 for link in previewableLinks.prefix(2) {
-                    let originalContent = processedContent
 
                     // More comprehensive URL removal patterns for Mastodon HTML
                     let urlEscaped = NSRegularExpression.escapedPattern(for: link.absoluteString)

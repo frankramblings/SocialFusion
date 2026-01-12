@@ -1,7 +1,6 @@
+#if DEBUG
 import Foundation
 import SwiftUI
-
-#if DEBUG
 
 /// Migration test controller to safely validate the new architecture
 /// This allows us to test without breaking existing functionality
@@ -181,7 +180,6 @@ class MigrationTestController: ObservableObject {
         print("✅ Migration completed successfully")
     }
 }
-#endif
 
 // MARK: - Supporting Types
 
@@ -315,3 +313,4 @@ struct MigrationTestView: View {
         }
     }
 }
+#endif

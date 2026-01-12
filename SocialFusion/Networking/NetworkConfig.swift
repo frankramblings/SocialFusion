@@ -29,7 +29,7 @@ struct NetworkConfig {
         return [
             "User-Agent": userAgent,
             "Accept": "application/json",
-            "Accept-Language": Locale.current.languageCode ?? "en",
+            "Accept-Language": Locale.current.language.languageCode?.identifier ?? "en",
         ]
     }
 

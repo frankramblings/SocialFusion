@@ -609,8 +609,8 @@ public final class TimelineViewModel: ObservableObject {
 
             case .networkError:
                 state = .error(serviceError)
-
-            default:
+            
+            case .invalidInput, .invalidAccount, .duplicateAccount, .authenticationFailed, .timelineError, .invalidContent, .noPlatformsSelected, .postFailed, .unsupportedPlatform, .apiError, .emptyResponse, .dataFormatError, .unknown, .timeout, .authenticationExpired:
                 state = .error(serviceError)
             }
         } else {

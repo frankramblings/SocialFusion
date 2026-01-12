@@ -260,7 +260,7 @@ private struct CachedEmojiTextView: View {
         .task {
             // Parse HTML asynchronously (emoji loading is handled by EmojiText library)
             let attributed = await Task.detached(priority: .userInitiated) {
-                EmojiTextApp.buildAttributedString(
+                await EmojiTextApp.buildAttributedString(
                     htmlString: htmlString,
                     font: font,
                     foregroundColor: foregroundColor,

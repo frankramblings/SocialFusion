@@ -8,7 +8,7 @@ struct DebugBlueskyView: View {
     @State private var lastRefreshResult: String = ""
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Account Status Section
@@ -144,7 +144,7 @@ struct DebugBlueskyView: View {
     }
 
     private func tokenStatus(for account: SocialAccount) -> String {
-        guard let token = account.getAccessToken() else {
+        guard account.getAccessToken() != nil else {
             return "Missing"
         }
 
@@ -207,7 +207,7 @@ struct DebugBlueskyView: View {
         isRefreshing = true
         lastRefreshResult = "Testing Bluesky connection..."
 
-        guard let blueskyAccount = serviceManager.blueskyAccounts.first else {
+        guard serviceManager.blueskyAccounts.first != nil else {
             lastRefreshResult = "No Bluesky account found"
             isRefreshing = false
             return
@@ -258,7 +258,7 @@ struct DebugBlueskyView: View {
         diagnosticResult += "Reset selection to 'all'\n"
 
         // Step 4: Test Bluesky connection directly
-        if let blueskyAccount = serviceManager.blueskyAccounts.first {
+        if serviceManager.blueskyAccounts.first != nil {
             do {
                 // TODO: Re-implement using public API
                 // let result = try await serviceManager.blueskyService.fetchHomeTimeline(

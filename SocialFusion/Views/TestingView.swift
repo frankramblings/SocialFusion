@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 
 /// Testing view to validate the new architecture
@@ -14,7 +15,7 @@ struct TestingView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 20) {
                 // Test Status Card
                 VStack(alignment: .leading, spacing: 12) {
@@ -37,7 +38,7 @@ struct TestingView: View {
                             if migrationController.isRunningTests {
                                 ProgressView()
                                     .scaleEffect(0.8)
-                                Text("Running Tests...")
+                                    Text("Running Tests...")
                             } else {
                                 Image(systemName: "play.circle.fill")
                                 Text("Run Migration Tests")
@@ -194,4 +195,5 @@ extension DateFormatter {
                 .environmentObject(SocialServiceManager.shared)
         }
     }
+#endif
 #endif

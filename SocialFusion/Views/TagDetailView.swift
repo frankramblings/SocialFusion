@@ -30,7 +30,7 @@ struct TagDetailView: View {
                 if isLoading && posts.isEmpty {
                     ProgressView()
                         .padding(.top, 40)
-                } else if let error = error {
+                } else if error != nil {
                     VStack(spacing: 12) {
                         Text("Failed to load posts")
                             .foregroundColor(.secondary)
@@ -77,20 +77,17 @@ struct TagDetailView: View {
                 }
             }
         }
-        .background(
-            NavigationLink(
-                destination: navigationEnvironment.selectedUser.map { user in
-                    UserDetailView(user: user)
-                        .environmentObject(serviceManager)
-                },
-                isActive: Binding(
-                    get: { navigationEnvironment.selectedUser != nil },
-                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                ),
-                label: { EmptyView() }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { navigationEnvironment.selectedUser != nil },
+                set: { if !$0 { navigationEnvironment.clearNavigation() } }
             )
-            .hidden()
-        )
+        ) {
+            if let user = navigationEnvironment.selectedUser {
+                UserDetailView(user: user)
+                    .environmentObject(serviceManager)
+            }
+        }
         .navigationTitle("#\(tag.name)")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

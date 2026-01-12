@@ -155,69 +155,15 @@ struct ConsolidatedTimelineView: View {
     }
 
     var body: some View {
-        contentView
-            .environmentObject(navigationEnvironment)
-            .environmentObject(mediaCoordinator)
+        mainContent
             .fullScreenCover(isPresented: $mediaCoordinator.showFullscreen) {
                 if let media = mediaCoordinator.selectedMedia {
-                    FullscreenMediaOverlay(
-                        media: media,
-                        allMedia: mediaCoordinator.allMedia,
-                        showAltTextInitially: mediaCoordinator.showAltTextInitially,
-                        mediaNamespace: mediaCoordinator.mediaNamespace,
-                        thumbnailFrames: mediaCoordinator.thumbnailFrames,
-                        dismissalDirection: $mediaCoordinator.dismissalDirection,
-                        onDismiss: { mediaCoordinator.dismiss() }
-                    )
+                    fullscreenMediaOverlay(media: media)
                 }
             }
-            .background(
-                NavigationLink(
-                    destination: navigationEnvironment.selectedPost.map { post in
-                        PostDetailView(
-                            viewModel: PostViewModel(
-                                post: post, serviceManager: serviceManager),
-                            focusReplyComposer: false
-                        )
-                        .environmentObject(serviceManager)
-                        .environmentObject(navigationEnvironment)
-                    },
-                    isActive: Binding(
-                        get: { navigationEnvironment.selectedPost != nil },
-                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                    ),
-                    label: { EmptyView() }
-                )
-                .hidden()
-            )
-            .background(
-                NavigationLink(
-                    destination: navigationEnvironment.selectedUser.map { user in
-                        UserDetailView(user: user)
-                            .environmentObject(serviceManager)
-                    },
-                    isActive: Binding(
-                        get: { navigationEnvironment.selectedUser != nil },
-                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                    ),
-                    label: { EmptyView() }
-                )
-                .hidden()
-            )
-            .background(
-                NavigationLink(
-                    destination: navigationEnvironment.selectedTag.map { tag in
-                        TagDetailView(tag: tag)
-                            .environmentObject(serviceManager)
-                    },
-                    isActive: Binding(
-                        get: { navigationEnvironment.selectedTag != nil },
-                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                    ),
-                    label: { EmptyView() }
-                )
-                .hidden()
-            )
+            .background(postDetailLink)
+            .background(userDetailLink)
+            .background(tagDetailLink)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     NavBarPillSelector(
@@ -234,36 +180,7 @@ struct ConsolidatedTimelineView: View {
             .navigationBarTitleDisplayMode(.inline)
             .overlay(alignment: .top) {
                 if showFeedPicker {
-                    ZStack {
-                        Color.black.opacity(0.001)
-                            .ignoresSafeArea()
-                            .onTapGesture {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showFeedPicker = false
-                                }
-                            }
-
-                        VStack {
-                            HStack {
-                                Spacer()
-
-                                TimelineFeedPickerPopover(
-                                    viewModel: feedPickerViewModel,
-                                    isPresented: $showFeedPicker,
-                                    scope: serviceManager.currentTimelineScope,
-                                    selection: serviceManager.currentTimelineFeedSelection,
-                                    account: currentScopeAccount,
-                                    onSelect: handleFeedSelection(_:)
-                                )
-
-                                Spacer()
-                            }
-                            .padding(.top, 2)
-
-                            Spacer()
-                        }
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    feedPickerOverlay
                 }
             }
             .sheet(item: $replyingToPost) { post in
@@ -279,10 +196,7 @@ struct ConsolidatedTimelineView: View {
                     .environmentObject(serviceManager)
             }
             .task {
-                // Load data if needed
                 await ensureTimelineLoaded()
-
-                // Queue initial restoration once posts are available (iOS 17+)
                 if #available(iOS 17.0, *), pendingAnchorRestoreId == nil {
                     pendingAnchorRestoreId = persistedAnchorId
                     logAnchorState("initial queue")
@@ -298,7 +212,6 @@ struct ConsolidatedTimelineView: View {
             }
             .onChange(of: scenePhase) { phase in
                 if phase == .background {
-                    // Persist latest known anchor on background as a safety net
                     if #available(iOS 17.0, *) {
                         persistedAnchorId = scrollAnchorId
                     }
@@ -354,28 +267,137 @@ struct ConsolidatedTimelineView: View {
             }
             .overlay {
                 if UITestHooks.isEnabled {
-                    VStack(spacing: 6) {
-                        Button("Seed Timeline") { controller.debugSeedTimeline() }
-                            .accessibilityIdentifier("SeedTimelineButton")
-                        Button("Trigger Foreground Prefetch") { controller.debugTriggerForegroundPrefetch() }
-                            .accessibilityIdentifier("TriggerForegroundPrefetchButton")
-                        Button("Trigger Idle Prefetch") { controller.debugTriggerIdlePrefetch() }
-                            .accessibilityIdentifier("TriggerIdlePrefetchButton")
-                        Button("Begin Scroll") { controller.scrollInteractionBegan() }
-                            .accessibilityIdentifier("BeginScrollButton")
-                        Button("End Scroll") { controller.scrollInteractionEnded() }
-                            .accessibilityIdentifier("EndScrollButton")
-                        Text("\(controller.bufferCount)")
-                            .accessibilityIdentifier("TimelineBufferCount")
-                        Text(lastTopVisibleId ?? "nil")
-                            .accessibilityIdentifier("TimelineTopAnchorId")
-                        Text(String(format: "%.2f", lastTopVisibleOffset))
-                            .accessibilityIdentifier("TimelineTopAnchorOffset")
-                    }
-                    .font(.caption2)
-                    .opacity(0.01)
+                    debugOverlay
                 }
             }
+    }
+
+    private var mainContent: some View {
+        contentView
+            .environmentObject(navigationEnvironment)
+            .environmentObject(mediaCoordinator)
+    }
+
+    private func fullscreenMediaOverlay(media: Post.Attachment) -> some View {
+        FullscreenMediaOverlay(
+            media: media,
+            allMedia: mediaCoordinator.allMedia,
+            showAltTextInitially: mediaCoordinator.showAltTextInitially,
+            mediaNamespace: mediaCoordinator.mediaNamespace,
+            thumbnailFrames: mediaCoordinator.thumbnailFrames,
+            dismissalDirection: $mediaCoordinator.dismissalDirection,
+            onDismiss: { mediaCoordinator.dismiss() }
+        )
+    }
+
+    private var postDetailLink: some View {
+        EmptyView()
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { navigationEnvironment.selectedPost != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                )
+            ) {
+                if let post = navigationEnvironment.selectedPost {
+                    PostDetailView(
+                        viewModel: PostViewModel(
+                            post: post, serviceManager: serviceManager),
+                        focusReplyComposer: false
+                    )
+                    .environmentObject(serviceManager)
+                    .environmentObject(navigationEnvironment)
+                }
+            }
+    }
+
+    private var userDetailLink: some View {
+        EmptyView()
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                )
+            ) {
+                if let user = navigationEnvironment.selectedUser {
+                    UserDetailView(user: user)
+                        .environmentObject(serviceManager)
+                }
+            }
+    }
+
+    private var tagDetailLink: some View {
+        EmptyView()
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { navigationEnvironment.selectedTag != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                )
+            ) {
+                if let tag = navigationEnvironment.selectedTag {
+                    TagDetailView(tag: tag)
+                        .environmentObject(serviceManager)
+                }
+            }
+    }
+
+    private var feedPickerOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.001)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showFeedPicker = false
+                    }
+                }
+
+            VStack {
+                HStack {
+                    Spacer()
+
+                    TimelineFeedPickerPopover(
+                        viewModel: feedPickerViewModel,
+                        isPresented: $showFeedPicker,
+                        scope: serviceManager.currentTimelineScope,
+                        selection: serviceManager.currentTimelineFeedSelection,
+                        account: currentScopeAccount,
+                        onSelect: handleFeedSelection(_:)
+                    )
+
+                    Spacer()
+                }
+                .padding(.top, 2)
+
+                Spacer()
+            }
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+
+    private var debugOverlay: some View {
+        #if DEBUG
+        VStack(spacing: 6) {
+            Button("Seed Timeline") { controller.debugSeedTimeline() }
+                .accessibilityIdentifier("SeedTimelineButton")
+            Button("Trigger Foreground Prefetch") { controller.debugTriggerForegroundPrefetch() }
+                .accessibilityIdentifier("TriggerForegroundPrefetchButton")
+            Button("Trigger Idle Prefetch") { controller.debugTriggerIdlePrefetch() }
+                .accessibilityIdentifier("TriggerIdlePrefetchButton")
+            Button("Begin Scroll") { controller.scrollInteractionBegan() }
+                .accessibilityIdentifier("BeginScrollButton")
+            Button("End Scroll") { controller.scrollInteractionEnded() }
+                .accessibilityIdentifier("EndScrollButton")
+            Text("\(controller.bufferCount)")
+                .accessibilityIdentifier("TimelineBufferCount")
+            Text(lastTopVisibleId ?? "nil")
+                .accessibilityIdentifier("TimelineTopAnchorId")
+            Text(String(format: "%.2f", lastTopVisibleOffset))
+                .accessibilityIdentifier("TimelineTopAnchorOffset")
+        }
+        .font(.caption2)
+        .opacity(0.01)
+        #else
+        EmptyView()
+        #endif
     }
 
     @ViewBuilder

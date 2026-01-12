@@ -140,20 +140,17 @@ struct UserDetailView: View {
                 }
             }
         }
-        .background(
-            NavigationLink(
-                destination: navigationEnvironment.selectedUser.map { selectedUser in
-                    UserDetailView(user: selectedUser)
-                        .environmentObject(serviceManager)
-                },
-                isActive: Binding(
-                    get: { navigationEnvironment.selectedUser != nil },
-                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                ),
-                label: { EmptyView() }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { navigationEnvironment.selectedUser != nil },
+                set: { if !$0 { navigationEnvironment.clearNavigation() } }
             )
-            .hidden()
-        )
+        ) {
+            if let selectedUser = navigationEnvironment.selectedUser {
+                UserDetailView(user: selectedUser)
+                    .environmentObject(serviceManager)
+            }
+        }
         .navigationTitle(user.displayName ?? user.username)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {

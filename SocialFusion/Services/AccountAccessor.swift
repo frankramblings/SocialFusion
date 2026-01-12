@@ -31,8 +31,6 @@ class AccountAccessor {
                 logger.info("✅ Found Mastodon account in AccountManager: \(account!.username, privacy: .public)")
                 return account
             }
-        default:
-            return nil
         }
         
         logger.warning("⚠️ No account found in AccountManager for \(platform.rawValue, privacy: .public) - Mastodon: \(accountManager.mastodonAccounts.count), Bluesky: \(accountManager.blueskyAccounts.count)")
@@ -49,8 +47,6 @@ class AccountAccessor {
             return accountManager.blueskyAccounts
         case .mastodon:
             return accountManager.mastodonAccounts
-        default:
-            return []
         }
     }
 }

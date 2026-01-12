@@ -154,7 +154,7 @@ class BlueskyAccountService: AccountService {
             )
 
             // Save the new account
-            saveAccount(account)
+            _ = saveAccount(account)
 
             return account
         } catch {
@@ -176,7 +176,7 @@ class BlueskyAccountService: AccountService {
 
         do {
             // Use BlueskyService to refresh the authentication
-            let (newAccessToken, _) = try await BlueskyService.shared.refreshSession(for: account)
+            _ = try await BlueskyService.shared.refreshSession(for: account)
 
             // Return the updated account
             return account

@@ -165,7 +165,7 @@ struct ContentView: View {
     private var detailView: some View {
         switch sidebarSelection {
         case 0:
-            NavigationView {
+            NavigationStack {
                 ZStack {
                     ConsolidatedTimelineView(serviceManager: serviceManager)
                     if showAccountDropdown {
@@ -182,7 +182,7 @@ struct ContentView: View {
                 }
             }
         case 1:
-            NavigationView {
+            NavigationStack {
                 NotificationsView(
                     showAccountDropdown: $showAccountDropdown,
                     showComposeView: $showComposeView,
@@ -193,7 +193,7 @@ struct ContentView: View {
                 .environmentObject(serviceManager)
             }
         case 2:
-            NavigationView {
+            NavigationStack {
                 DirectMessagesView(
                     showAccountDropdown: $showAccountDropdown,
                     showComposeView: $showComposeView,
@@ -204,7 +204,7 @@ struct ContentView: View {
                 .environmentObject(serviceManager)
             }
         case 3:
-            NavigationView {
+            NavigationStack {
                 SearchView(
                     showAccountDropdown: $showAccountDropdown,
                     showComposeView: $showComposeView,
@@ -215,7 +215,7 @@ struct ContentView: View {
                 .environmentObject(serviceManager)
             }
         case 4:
-            NavigationView {
+            NavigationStack {
                 profileContent
             }
         default:
@@ -226,7 +226,7 @@ struct ContentView: View {
     private var tabView: some View {
         TabView(selection: $selectedTab) {
             // Home Tab
-            NavigationView {
+            NavigationStack {
                 ZStack {
                     ConsolidatedTimelineView(serviceManager: serviceManager)
                     if showAccountDropdown {
@@ -248,7 +248,7 @@ struct ContentView: View {
             .tag(0)
 
             // Notifications Tab
-            NavigationView {
+            NavigationStack {
                 NotificationsView(
                     showAccountDropdown: $showAccountDropdown,
                     showComposeView: $showComposeView,
@@ -264,7 +264,7 @@ struct ContentView: View {
             .tag(1)
 
             // Messages Tab
-            NavigationView {
+            NavigationStack {
                 DirectMessagesView(
                     showAccountDropdown: $showAccountDropdown,
                     showComposeView: $showComposeView,
@@ -280,7 +280,7 @@ struct ContentView: View {
             .tag(2)
 
             // Search Tab
-            NavigationView {
+            NavigationStack {
                 SearchView(
                     showAccountDropdown: $showAccountDropdown,
                     showComposeView: $showComposeView,
@@ -296,7 +296,7 @@ struct ContentView: View {
             .tag(3)
 
             // Profile Tab
-            NavigationView {
+            NavigationStack {
                 profileContent
             }
             .tabItem {
@@ -1003,7 +1003,7 @@ struct AccountPickerSheet: View {
     @State private var showAddAccountView = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 // Account section - show all accounts
                 Section(header: Text("Accounts")) {

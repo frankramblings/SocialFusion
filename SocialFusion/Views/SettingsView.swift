@@ -17,7 +17,7 @@ struct SettingsView: View {
     @State private var showingDebugOptions = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Appearance")) {
                     Picker("Theme", selection: $appearanceMode) {
@@ -148,7 +148,7 @@ struct SettingsView: View {
                 WebContentView(title: "Terms of Service", content: termsOfServiceContent)
             }
             .sheet(isPresented: $showingDebugOptions) {
-                NavigationView {
+                NavigationStack {
                     ProfileImageDebugView()
                         .toolbar {
                             ToolbarItem(placement: .navigationBarTrailing) {
@@ -165,7 +165,7 @@ struct SettingsView: View {
 
 struct AboutView: View {
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     Image(systemName: "globe.americas.fill")
@@ -216,7 +216,7 @@ struct WebContentView: View {
     let content: String
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 Text(content)
                     .padding()
@@ -388,7 +388,7 @@ struct ProfileImageDebugView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Profile Image Stats:")
                             .font(.headline)
-                        Text("Total loads: \(profileStats["total_loads"] ?? 0)")
+                        Text("Total loads: \(String(describing: profileStats["total_loads"] ?? 0))")
                         Text(
                             "Success rate: \(String(format: "%.1f%%", (profileStats["success_rate"] as? Double ?? 0.0) * 100))"
                         )

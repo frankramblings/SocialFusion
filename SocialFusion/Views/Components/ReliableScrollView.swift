@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 import UIKit
 
@@ -258,4 +259,5 @@ extension ReliableScrollView {
             }
         }
     }
+#endif
 #endif

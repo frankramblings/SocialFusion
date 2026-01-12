@@ -1059,7 +1059,12 @@ public final class MastodonService: @unchecked Sendable {
         if let maxId = maxId {
             queryItems.append(URLQueryItem(name: "max_id", value: maxId))
         }
-        components?.queryItems = queryItems
+        
+        // Fix: Assign to a temporary variable first to avoid exclusivity crash
+        if var finalComponents = components {
+            finalComponents.queryItems = queryItems
+            components = finalComponents
+        }
 
         guard let url = components?.url else {
             throw NSError(
@@ -1119,7 +1124,12 @@ public final class MastodonService: @unchecked Sendable {
         if let maxId = maxId {
             queryItems.append(URLQueryItem(name: "max_id", value: maxId))
         }
-        components?.queryItems = queryItems
+        
+        // Fix: Assign to a temporary variable first to avoid exclusivity crash
+        if var finalComponents = components {
+            finalComponents.queryItems = queryItems
+            components = finalComponents
+        }
 
         guard let url = components?.url else {
             throw NSError(
@@ -1193,7 +1203,12 @@ public final class MastodonService: @unchecked Sendable {
         if let maxId = maxId {
             queryItems.append(URLQueryItem(name: "max_id", value: maxId))
         }
-        components?.queryItems = queryItems
+        
+        // Fix: Assign to a temporary variable first to avoid exclusivity crash
+        if var finalComponents = components {
+            finalComponents.queryItems = queryItems
+            components = finalComponents
+        }
 
         guard let url = components?.url else {
             throw NSError(
@@ -1631,7 +1646,7 @@ public final class MastodonService: @unchecked Sendable {
         do {
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
             print("[Mastodon] Successfully liked post: \(status.id)")
-            return await self.convertMastodonStatusToPost(status, account: account)
+            return self.convertMastodonStatusToPost(status, account: account)
         } catch {
             print("[Mastodon] Failed to decode like response: \(error)")
             if let responseBody = String(data: data, encoding: .utf8) {
@@ -1730,7 +1745,7 @@ public final class MastodonService: @unchecked Sendable {
         do {
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
             print("[Mastodon] Successfully unliked post: \(status.id)")
-            return await self.convertMastodonStatusToPost(status, account: account)
+            return self.convertMastodonStatusToPost(status, account: account)
         } catch {
             print("[Mastodon] Failed to decode unlike response: \(error)")
             if let responseBody = String(data: data, encoding: .utf8) {
@@ -1804,7 +1819,7 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return await self.convertMastodonStatusToPost(status, account: account)
+        return self.convertMastodonStatusToPost(status, account: account)
     }
 
     /// Unrepost (unreblog) a post on Mastodon
@@ -1848,7 +1863,7 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return await self.convertMastodonStatusToPost(status, account: account)
+        return self.convertMastodonStatusToPost(status, account: account)
     }
 
     /// Reply to a post on Mastodon
@@ -1981,7 +1996,7 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return await self.convertMastodonStatusToPost(status, account: account)
+        return self.convertMastodonStatusToPost(status, account: account)
     }
 
     /// Fetch relationship between current user and other accounts
@@ -2595,7 +2610,7 @@ public final class MastodonService: @unchecked Sendable {
             guard let domain = instanceDomain else { return rawHandle }
             return "\(rawHandle)@\(domain)"
         }
-        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId {
+        if let replyToAccountId = status.inReplyToAccountId, status.inReplyToId != nil {
             // Improved reply username extraction logic
             // CRITICAL FIX: Check if this is a self-reply first
             if replyToAccountId == status.account.id {
@@ -2963,7 +2978,7 @@ public final class MastodonService: @unchecked Sendable {
         // Try to find the username being replied to from mentions
         var parentPost: Post? = nil
 
-        if let replyToAccountId = status.inReplyToAccountId, let replyToId = status.inReplyToId,
+        if status.inReplyToAccountId != nil, let replyToId = status.inReplyToId,
             replyToId != status.id
         {  // Prevent self-referencing
             // Create a minimal parent post with the info we have to display immediately
@@ -3134,7 +3149,7 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-        return await self.convertMastodonStatusToPost(status, account: account)
+        return self.convertMastodonStatusToPost(status, account: account)
     }
 
     // MARK: - Public Access APIs
@@ -3253,10 +3268,11 @@ public final class MastodonService: @unchecked Sendable {
                 // Ensure UI updates happen on the main thread
                 // Make local copies of values to avoid Sendable issues
                 let accountId = account.id
+                let username = mastodonAccount.username
                 DispatchQueue.main.async { [avatarURL] in
                     account.profileImageURL = avatarURL
                     print(
-                        "✅ Updated Mastodon account \(mastodonAccount.username) with profile image URL"
+                        "✅ Updated Mastodon account \(username) with profile image URL"
                     )
 
                     // Post notification about the profile image update
@@ -3373,7 +3389,7 @@ public final class MastodonService: @unchecked Sendable {
 
         do {
             let status = try decoder.decode(MastodonStatus.self, from: data)
-            return await self.convertMastodonStatusToPost(status, account: account)
+            return self.convertMastodonStatusToPost(status, account: account)
         } catch {
             print("Error decoding Mastodon status: \(error)")
             return nil

@@ -818,7 +818,6 @@ private struct VideoPlayerView: View {
             "data": [
                 "url": url.absoluteString,
                 "isFileURL": url.isFileURL,
-                "thread": Thread.isMainThread ? "main" : "background",
             ],
             "sessionId": "debug-session",
             "runId": "run1",
@@ -1034,7 +1033,6 @@ private struct VideoPlayerView: View {
             "data": [
                 "assetURL": asset.url.absoluteString,
                 "isFileURL": asset.url.isFileURL,
-                "thread": Thread.isMainThread ? "main" : "background",
             ],
             "sessionId": "debug-session",
             "runId": "run1",
@@ -1150,7 +1148,6 @@ private struct VideoPlayerView: View {
                 "data": [
                     "assetURL": asset.url.absoluteString,
                     "initialStatus": playerItem.status.rawValue,
-                    "thread": Thread.isMainThread ? "main" : "background",
                 ],
                 "sessionId": "debug-session",
                 "runId": "run1",
@@ -1208,7 +1205,6 @@ private struct VideoPlayerView: View {
                         "message": "status_observer_skipped_already_resumed",
                         "data": [
                             "status": item.status.rawValue,
-                            "thread": Thread.isMainThread ? "main" : "background",
                         ],
                         "sessionId": "debug-session",
                         "runId": "run1",

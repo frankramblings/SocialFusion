@@ -1962,7 +1962,7 @@ public final class SocialServiceManager: ObservableObject {
             let statusId = post.platformSpecificId.isEmpty ? post.id : post.platformSpecificId
             let accounts = try await mastodonService.fetchRebloggedBy(
                 statusId: statusId, account: account)
-            let relationshipLookup = try await mastodonRelationshipLookup(
+            let relationshipLookup = await mastodonRelationshipLookup(
                 for: accounts.map { $0.id }, account: account)
             let instanceDomain = mastodonInstanceDomain(for: account)
 
@@ -3165,7 +3165,7 @@ public final class SocialServiceManager: ObservableObject {
     private func makeOptimisticPollUpdate(poll: Post.Poll, choices: [Int]) -> Post.Poll {
         let uniqueChoices = Array(Set(choices)).sorted()
         var options = poll.options
-        var newVotesCount = poll.votesCount + uniqueChoices.count
+        let newVotesCount = poll.votesCount + uniqueChoices.count
         var newVotersCount = poll.votersCount
 
         for index in uniqueChoices {

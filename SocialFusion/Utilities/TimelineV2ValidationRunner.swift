@@ -440,38 +440,21 @@ class TimelineV2ValidationRunner: ObservableObject {
         )
         validationResults.append(result)
 
-        do {
-            let (success, details) = await testBlock()
+        let (success, details) = await testBlock()
 
-            // Update result
-            if let index = validationResults.firstIndex(where: { $0.testName == name }) {
-                validationResults[index] = ValidationResult(
-                    category: category,
-                    testName: name,
-                    description: description,
-                    status: success ? .passed : .failed,
-                    details: details,
-                    timestamp: Date()
-                )
-            }
-
-            logMessage("    \(success ? "✅" : "❌") \(name): \(details)")
-
-        } catch {
-            // Update result with error
-            if let index = validationResults.firstIndex(where: { $0.testName == name }) {
-                validationResults[index] = ValidationResult(
-                    category: category,
-                    testName: name,
-                    description: description,
-                    status: .failed,
-                    details: "Error: \(error.localizedDescription)",
-                    timestamp: Date()
-                )
-            }
-
-            logMessage("    ❌ \(name): Failed with error - \(error.localizedDescription)")
+        // Update result
+        if let index = validationResults.firstIndex(where: { $0.testName == name }) {
+            validationResults[index] = ValidationResult(
+                category: category,
+                testName: name,
+                description: description,
+                status: success ? .passed : .failed,
+                details: details,
+                timestamp: Date()
+            )
         }
+
+        logMessage("    \(success ? "✅" : "❌") \(name): \(details)")
 
         // Small delay between tests
         try? await Task.sleep(nanoseconds: 500_000_000)  // 0.5 seconds

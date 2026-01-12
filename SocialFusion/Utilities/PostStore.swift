@@ -29,7 +29,7 @@ final class PostStore: ObservableObject {
 
     // Optimistic like
     func like(postID: String, service: SocialServiceManager, account: SocialAccount) async {
-        guard var post = posts[postID] else { return }
+        guard let post = posts[postID] else { return }
         let prevLiked = post.isLiked
         let prevCount = post.likeCount
         // Optimistic update
@@ -51,7 +51,7 @@ final class PostStore: ObservableObject {
 
     // Optimistic repost (stub for future)
     func repost(postID: String, service: SocialServiceManager, account: SocialAccount) async {
-        guard var post = posts[postID] else { return }
+        guard let post = posts[postID] else { return }
         let prevReposted = post.isReposted
         let prevCount = post.repostCount
         post.isReposted = true

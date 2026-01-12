@@ -51,245 +51,24 @@ struct AccountTimelineView: View {
                 .ignoresSafeArea()
 
             if controller.isLoading && controller.posts.isEmpty {
-                ProgressView()
-                    .scaleEffect(1.5)
+                loadingView
             } else if controller.posts.isEmpty {
-                VStack(spacing: 20) {
-                    Image(systemName: "person.crop.circle")
-                        .font(.system(size: 60))
-                        .foregroundColor(Color(hex: account.platform.colorHex))
-
-                    Text("No posts to display")
-                        .font(.headline)
-
-                    Text("Pull to refresh")
-                        .font(.subheadline)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .foregroundColor(.secondary)
-                }
+                emptyStateView
             } else {
-                if #available(iOS 17.0, *) {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                ForEach(Array(timelineEntries.enumerated()), id: \.element.id) { index, entry in
-                                    PostCardView(
-                                        entry: entry,
-                                        postActionStore: serviceManager.postActionStore,
-                                        postActionCoordinator: serviceManager.postActionCoordinator,
-                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) },
-                                        onShare: { entry.post.presentShareSheet() },
-                                        onOpenInBrowser: { entry.post.openInBrowser() },
-                                        onCopyLink: { entry.post.copyLink() },
-                                        onReport: {
-                                            Task {
-                                                do {
-                                                    try await serviceManager.reportPost(entry.post)
-                                                } catch {
-                                                    ErrorHandler.shared.handleError(error)
-                                                }
-                                            }
-                                        }
-                                    )
-                                    .id(entry.id)
-                                    .background(
-                                        GeometryReader { proxy in
-                                            Color.clear.preference(
-                                                key: AccountTimelineVisibleItemPreferenceKey.self,
-                                                value: [entry.id: proxy.frame(in: .named("accountTimelineScroll")).minY]
-                                            )
-                                        }
-                                    )
-                                    .padding(.horizontal)
-                                    .onAppear {
-                                        if shouldLoadMorePosts(currentIndex: index) {
-                                            Task { await controller.loadMorePosts() }
-                                        }
-                                    }
-                                }
-
-                                if controller.isLoadingNextPage {
-                                    infiniteScrollLoadingView
-                                        .padding(.vertical, 20)
-                                }
-
-                                if !controller.hasNextPage && !controller.posts.isEmpty {
-                                    endOfTimelineView
-                                        .padding(.vertical, 20)
-                                }
-                            }
-                            .padding(.top, mergeOffsetCompensation)
-                            .padding(.vertical)
-                            .scrollTargetLayout()
-                        }
-                        .coordinateSpace(name: "accountTimelineScroll")
-                        .onPreferenceChange(AccountTimelineVisibleItemPreferenceKey.self) { positions in
-                            lastVisiblePositions = positions
-                            guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
-                            if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
-                            guard let nextId = positions
-                                .filter({ $0.value >= 0 })
-                                .min(by: { $0.value < $1.value })?.key
-                                ?? positions.min(by: { abs($0.value) < abs($1.value) })?.key
-                            else { return }
-                            if visibleAnchorId != nextId {
-                                visibleAnchorId = nextId
-                                setPersistedAnchor(nextId)
-                            }
-                            let topId = controller.posts.first.map { $0.id }
-                            let isAtTop = topId.flatMap { positions[$0] }.map { $0 >= -12 } ?? false
-                            if let topId = topId, let topOffset = positions[topId] {
-                                lastTopVisibleId = topId
-                                lastTopVisibleOffset = topOffset
-                                syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
-                                let deepHistoryThreshold = UIScreen.main.bounds.height * 2.0
-                                let isDeepHistory = topOffset < -deepHistoryThreshold
-                                controller.updateScrollState(
-                                    isNearTop: isAtTop,
-                                    isDeepHistory: isDeepHistory
-                                )
-                            } else {
-                                controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: false)
-                            }
-
-                            if let mergeId = pendingAnchorRestoreId,
-                                let mergeOffset = pendingMergeAnchorOffset,
-                                let currentOffset = positions[mergeId]
-                            {
-                                let delta = MergeOffsetCompensator.compensation(
-                                    previousOffset: mergeOffset,
-                                    currentOffset: currentOffset
-                                )
-                                if delta != 0 {
-                                    mergeOffsetCompensation = delta
-                                }
-                                pendingMergeAnchorOffset = nil
-                            }
-                        }
-                        .scrollPosition(id: $scrollAnchorId)
-                        .onChange(of: scrollAnchorId) { _ in
-                            controller.recordVisibleInteraction()
-                        }
-                        .refreshable {
-                            let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
-                            pendingAnchorRestoreId = anchorBefore
-                            await controller.manualRefresh()
-                        }
-                        .simultaneousGesture(
-                            DragGesture()
-                                .onChanged { _ in
-                                    if mergeOffsetCompensation != 0 {
-                                        mergeOffsetCompensation = 0
-                                    }
-                                    controller.scrollInteractionBegan()
-                                }
-                                .onEnded { _ in
-                                    controller.scrollInteractionEnded()
-                                }
-                        )
-                        .overlay(alignment: .top) {
-                            mergePill(proxy: proxy)
-                        }
-                        .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
-                        { _ in
-                            scrollToTop(using: proxy)
-                            syncAnchorToTopIfNeeded(
-                                topId: controller.posts.first?.id,
-                                isAtTop: true
-                            )
-                        }
-                        .onAppear {
-                            if pendingAnchorRestoreId == nil {
-                                pendingAnchorRestoreId = persistedAnchor()
-                            }
-                            restorePendingAnchorIfPossible()
-                        }
-                    }
-                } else {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                ForEach(Array(timelineEntries.enumerated()), id: \.element.id) { index, entry in
-                                    PostCardView(
-                                        entry: entry,
-                                        postActionStore: serviceManager.postActionStore,
-                                        postActionCoordinator: serviceManager.postActionCoordinator,
-                                        onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) },
-                                        onShare: { entry.post.presentShareSheet() },
-                                        onOpenInBrowser: { entry.post.openInBrowser() },
-                                        onCopyLink: { entry.post.copyLink() },
-                                        onReport: {
-                                            Task {
-                                                do {
-                                                    try await serviceManager.reportPost(entry.post)
-                                                } catch {
-                                                    ErrorHandler.shared.handleError(error)
-                                                }
-                                            }
-                                        }
-                                    )
-                                    .id(entry.id)
-                                    .padding(.horizontal)
-                                    .onAppear {
-                                        if shouldLoadMorePosts(currentIndex: index) {
-                                            Task { await controller.loadMorePosts() }
-                                        }
-                                    }
-                                }
-
-                                if controller.isLoadingNextPage {
-                                    infiniteScrollLoadingView
-                                        .padding(.vertical, 20)
-                                }
-
-                                if !controller.hasNextPage && !controller.posts.isEmpty {
-                                    endOfTimelineView
-                                        .padding(.vertical, 20)
-                                }
-                            }
-                            .padding(.top, mergeOffsetCompensation)
-                            .padding(.vertical)
-                        }
-                        .refreshable { await controller.manualRefresh() }
-                        .simultaneousGesture(
-                            DragGesture()
-                                .onChanged { _ in
-                                    if mergeOffsetCompensation != 0 {
-                                        mergeOffsetCompensation = 0
-                                    }
-                                    controller.scrollInteractionBegan()
-                                }
-                                .onEnded { _ in
-                                    controller.scrollInteractionEnded()
-                                }
-                        )
-                        .overlay(alignment: .top) {
-                            mergePill(proxy: proxy)
-                        }
-                        .onAppear {
-                            if let id = persistedAnchor() {
-                                withAnimation(.none) { proxy.scrollTo(id, anchor: .top) }
-                            }
-                        }
-                    }
-                }
+                contentView
             }
         }
-        .background(
-            NavigationLink(
-                destination: navigationEnvironment.selectedUser.map { user in
-                    UserDetailView(user: user)
-                        .environmentObject(serviceManager)
-                },
-                isActive: Binding(
-                    get: { navigationEnvironment.selectedUser != nil },
-                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                ),
-                label: { EmptyView() }
+        .navigationDestination(
+            isPresented: Binding(
+                get: { navigationEnvironment.selectedUser != nil },
+                set: { if !$0 { navigationEnvironment.clearNavigation() } }
             )
-            .hidden()
-        )
+        ) {
+            if let user = navigationEnvironment.selectedUser {
+                UserDetailView(user: user)
+                    .environmentObject(serviceManager)
+            }
+        }
         .onAppear {
             if #available(iOS 17.0, *), pendingAnchorRestoreId == nil {
                 pendingAnchorRestoreId = scrollAnchorId ?? persistedAnchor()
@@ -324,25 +103,247 @@ struct AccountTimelineView: View {
         }
         .overlay {
             if UITestHooks.isEnabled {
-                VStack(spacing: 6) {
-                    Button("Seed Timeline") { controller.debugSeedTimeline() }
-                        .accessibilityIdentifier("AccountSeedTimelineButton")
-                    Button("Trigger Idle Prefetch") { controller.debugTriggerIdlePrefetch() }
-                        .accessibilityIdentifier("AccountTriggerIdlePrefetchButton")
-                    Button("Begin Scroll") { controller.scrollInteractionBegan() }
-                        .accessibilityIdentifier("AccountBeginScrollButton")
-                    Button("End Scroll") { controller.scrollInteractionEnded() }
-                        .accessibilityIdentifier("AccountEndScrollButton")
-                    Text("\(controller.bufferCount)")
-                        .accessibilityIdentifier("AccountBufferCount")
-                    Text(lastTopVisibleId ?? "nil")
-                        .accessibilityIdentifier("AccountTopAnchorId")
-                    Text(String(format: "%.2f", lastTopVisibleOffset))
-                        .accessibilityIdentifier("AccountTopAnchorOffset")
-                }
-                .font(.caption2)
-                .opacity(0.01)
+                debugOverlay
             }
+        }
+    }
+
+    private var loadingView: some View {
+        ProgressView()
+            .scaleEffect(1.5)
+    }
+
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "person.crop.circle")
+                .font(.system(size: 60))
+                .foregroundColor(Color(hex: account.platform.colorHex))
+
+            Text("No posts to display")
+                .font(.headline)
+
+            Text("Pull to refresh")
+                .font(.subheadline)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+                .foregroundColor(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if #available(iOS 17.0, *) {
+            iOS17ScrollView
+        } else {
+            legacyScrollView
+        }
+    }
+
+    private var debugOverlay: some View {
+        #if DEBUG
+        VStack(spacing: 6) {
+            Button("Seed Timeline") { controller.debugSeedTimeline() }
+                .accessibilityIdentifier("AccountSeedTimelineButton")
+            Button("Trigger Idle Prefetch") { controller.debugTriggerIdlePrefetch() }
+                .accessibilityIdentifier("AccountTriggerIdlePrefetchButton")
+            Button("Begin Scroll") { controller.scrollInteractionBegan() }
+                .accessibilityIdentifier("AccountBeginScrollButton")
+            Button("End Scroll") { controller.scrollInteractionEnded() }
+                .accessibilityIdentifier("AccountEndScrollButton")
+            Text("\(controller.bufferCount)")
+                .accessibilityIdentifier("AccountBufferCount")
+            Text(lastTopVisibleId ?? "nil")
+                .accessibilityIdentifier("AccountTopAnchorId")
+            Text(String(format: "%.2f", lastTopVisibleOffset))
+                .accessibilityIdentifier("AccountTopAnchorOffset")
+        }
+        .font(.caption2)
+        .opacity(0.01)
+        #else
+        EmptyView()
+        #endif
+    }
+
+    @available(iOS 17.0, *)
+    private var iOS17ScrollView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    postListContent
+                }
+                .padding(.top, mergeOffsetCompensation)
+                .padding(.vertical)
+                .scrollTargetLayout()
+            }
+            .coordinateSpace(name: "accountTimelineScroll")
+            .onPreferenceChange(AccountTimelineVisibleItemPreferenceKey.self) { positions in
+                handleScrollPreferenceChange(positions)
+            }
+            .scrollPosition(id: $scrollAnchorId)
+            .onChange(of: scrollAnchorId) { _ in
+                controller.recordVisibleInteraction()
+            }
+            .refreshable {
+                let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
+                pendingAnchorRestoreId = anchorBefore
+                await controller.manualRefresh()
+            }
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { _ in
+                        if mergeOffsetCompensation != 0 {
+                            mergeOffsetCompensation = 0
+                        }
+                        controller.scrollInteractionBegan()
+                    }
+                    .onEnded { _ in
+                        controller.scrollInteractionEnded()
+                    }
+            )
+            .overlay(alignment: .top) {
+                mergePill(proxy: proxy)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
+            { _ in
+                scrollToTop(using: proxy)
+                syncAnchorToTopIfNeeded(
+                    topId: controller.posts.first?.id,
+                    isAtTop: true
+                )
+            }
+            .onAppear {
+                if pendingAnchorRestoreId == nil {
+                    pendingAnchorRestoreId = persistedAnchor()
+                }
+                restorePendingAnchorIfPossible()
+            }
+        }
+    }
+
+    private var legacyScrollView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    postListContent
+                }
+                .padding(.top, mergeOffsetCompensation)
+                .padding(.vertical)
+            }
+            .refreshable { await controller.manualRefresh() }
+            .simultaneousGesture(
+                DragGesture()
+                    .onChanged { _ in
+                        if mergeOffsetCompensation != 0 {
+                            mergeOffsetCompensation = 0
+                        }
+                        controller.scrollInteractionBegan()
+                    }
+                    .onEnded { _ in
+                        controller.scrollInteractionEnded()
+                    }
+            )
+            .overlay(alignment: .top) {
+                mergePill(proxy: proxy)
+            }
+            .onAppear {
+                if let id = persistedAnchor() {
+                    withAnimation(.none) { proxy.scrollTo(id, anchor: .top) }
+                }
+            }
+        }
+    }
+
+    private var postListContent: some View {
+        Group {
+            ForEach(Array(timelineEntries.enumerated()), id: \.element.id) { index, entry in
+                PostCardView(
+                    entry: entry,
+                    postActionStore: serviceManager.postActionStore,
+                    postActionCoordinator: serviceManager.postActionCoordinator,
+                    onAuthorTap: { navigationEnvironment.navigateToUser(from: entry.post) },
+                    onShare: { entry.post.presentShareSheet() },
+                    onOpenInBrowser: { entry.post.openInBrowser() },
+                    onCopyLink: { entry.post.copyLink() },
+                    onReport: {
+                        Task {
+                            do {
+                                try await serviceManager.reportPost(entry.post)
+                            } catch {
+                                ErrorHandler.shared.handleError(error)
+                            }
+                        }
+                    }
+                )
+                .id(entry.id)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: AccountTimelineVisibleItemPreferenceKey.self,
+                            value: [entry.id: proxy.frame(in: .named("accountTimelineScroll")).minY]
+                        )
+                    }
+                )
+                .padding(.horizontal)
+                .onAppear {
+                    if shouldLoadMorePosts(currentIndex: index) {
+                        Task { await controller.loadMorePosts() }
+                    }
+                }
+            }
+
+            if controller.isLoadingNextPage {
+                infiniteScrollLoadingView
+                    .padding(.vertical, 20)
+            }
+
+            if !controller.hasNextPage && !controller.posts.isEmpty {
+                endOfTimelineView
+                    .padding(.vertical, 20)
+            }
+        }
+    }
+
+    private func handleScrollPreferenceChange(_ positions: [String: CGFloat]) {
+        lastVisiblePositions = positions
+        guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
+        if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
+        guard let nextId = positions
+            .filter({ $0.value >= 0 })
+            .min(by: { $0.value < $1.value })?.key
+            ?? positions.min(by: { abs($0.value) < abs($1.value) })?.key
+        else { return }
+        if visibleAnchorId != nextId {
+            visibleAnchorId = nextId
+            setPersistedAnchor(nextId)
+        }
+        let topId = controller.posts.first.map { $0.id }
+        let isAtTop = topId.flatMap { positions[$0] }.map { $0 >= -12 } ?? false
+        if let topId = topId, let topOffset = positions[topId] {
+            lastTopVisibleId = topId
+            lastTopVisibleOffset = topOffset
+            syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
+            let deepHistoryThreshold = UIScreen.main.bounds.height * 2.0
+            let isDeepHistory = topOffset < -deepHistoryThreshold
+            controller.updateScrollState(
+                isNearTop: isAtTop,
+                isDeepHistory: isDeepHistory
+            )
+        } else {
+            controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: false)
+        }
+
+        if let mergeId = pendingAnchorRestoreId,
+            let mergeOffset = pendingMergeAnchorOffset,
+            let currentOffset = positions[mergeId]
+        {
+            let delta = MergeOffsetCompensator.compensation(
+                previousOffset: mergeOffset,
+                currentOffset: currentOffset
+            )
+            if delta != 0 {
+                mergeOffsetCompensation = delta
+            }
+            pendingMergeAnchorOffset = nil
         }
     }
 

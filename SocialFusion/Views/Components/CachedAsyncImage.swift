@@ -458,7 +458,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         // Load image from cache
         imageCache.loadImage(from: url, priority: isVisible ? .high : priority)
             .receive(on: DispatchQueue.main)
-            .sink { [stableID] loadedImage in
+            .sink { loadedImage in
                 // Check visibility and ensure we're still loading the same URL
                 guard self.isVisible, self.url == url else { return }
                 

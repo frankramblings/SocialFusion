@@ -89,17 +89,12 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
     // MARK: - ASWebAuthenticationPresentationContextProviding
 
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        if let window = UIApplication.shared.connectedScenes
-            .filter({ $0.activationState == .foregroundActive })
-            .compactMap({ $0 as? UIWindowScene })
-            .first?.windows
-            .filter({ $0.isKeyWindow })
-            .first {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let window = windowScene.windows.first(where: { $0.isKeyWindow }) {
             return window
         }
         
-        // Fallback for cases where the above might fail
-        return UIApplication.shared.windows.first { $0.isKeyWindow } ?? UIWindow()
+        return ASPresentationAnchor()
     }
 
     // MARK: - Public Methods

@@ -492,7 +492,7 @@ struct ComposeView: View {
 
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 // Reply context header (only shown for replies)
                 if let replyingTo = replyingTo {
@@ -823,20 +823,17 @@ struct ComposeView: View {
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
-            .background(
-                NavigationLink(
-                    destination: navigationEnvironment.selectedUser.map { user in
-                        UserDetailView(user: user)
-                            .environmentObject(socialServiceManager)
-                    },
-                    isActive: Binding(
-                        get: { navigationEnvironment.selectedUser != nil },
-                        set: { if !$0 { navigationEnvironment.clearNavigation() } }
-                    ),
-                    label: { EmptyView() }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { navigationEnvironment.selectedUser != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
                 )
-                .hidden()
-            )
+            ) {
+                if let user = navigationEnvironment.selectedUser {
+                    UserDetailView(user: user)
+                        .environmentObject(socialServiceManager)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
@@ -1456,7 +1453,7 @@ struct DraftsListView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 ForEach(draftStore.drafts) { draft in
                     Button(action: {

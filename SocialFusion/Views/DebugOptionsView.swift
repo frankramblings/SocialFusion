@@ -123,7 +123,7 @@ struct DebugOptionsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Profile Image Stats:")
                             .font(.headline)
-                        Text("Total loads: \(profileStats["total_loads"] ?? 0)")
+                        Text("Total loads: \(String(describing: profileStats["total_loads"] ?? 0))")
                         Text(
                             "Success rate: \(String(format: "%.1f%%", (profileStats["success_rate"] as? Double ?? 0.0) * 100))"
                         )

@@ -371,8 +371,6 @@ class AccountManager: ObservableObject {
             // Fallback to UserDefaults for migration
             return migrateFromUserDefaults(service: service)
         }
-
-        return []
     }
 
     /// Save accounts to Keychain
