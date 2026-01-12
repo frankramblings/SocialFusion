@@ -44,9 +44,163 @@ public struct UserID: Hashable, Codable {
     }
 }
 
+/// Canonical user identity using stable IDs (DID/account ID) with handle fallback
+/// This ensures reliable identity matching across platforms and prevents collisions
+public struct CanonicalUserID: Hashable, Codable, Sendable {
+    public let platform: SocialPlatform
+    public let stableID: String?  // DID (Bluesky) or account ID (Mastodon)
+    public let normalizedHandle: String  // Normalized handle as fallback
+    
+    public init(platform: SocialPlatform, stableID: String?, normalizedHandle: String) {
+        self.platform = platform
+        self.stableID = stableID
+        self.normalizedHandle = normalizedHandle
+    }
+    
+    /// Create from a Post's author information
+    public static func from(post: Post) -> CanonicalUserID {
+        let normalized = CanonicalUserID.normalizeHandle(post.authorUsername, platform: post.platform)
+        let stableID = post.authorId.isEmpty ? nil : post.authorId
+        return CanonicalUserID(platform: post.platform, stableID: stableID, normalizedHandle: normalized)
+    }
+    
+    /// Normalize a handle for comparison (lowercase, trim, strip leading @, normalize host casing)
+    public static func normalizeHandle(_ handle: String, platform: SocialPlatform) -> String {
+        var s = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Strip leading @
+        if s.hasPrefix("@") {
+            s.removeFirst()
+        }
+        
+        // Lowercase for case-insensitive comparison
+        s = s.lowercased()
+        
+        // For federated handles (Mastodon), normalize host casing
+        if platform == .mastodon, let atIndex = s.firstIndex(of: "@") {
+            let beforeAt = String(s[..<atIndex])
+            let afterAt = String(s[s.index(after: atIndex)...])
+            s = "\(beforeAt)@\(afterAt.lowercased())"
+        }
+        
+        return s
+    }
+    
+    /// Check if two canonical IDs match (using stable ID if available, else handle)
+    public func matches(_ other: CanonicalUserID) -> Bool {
+        guard platform == other.platform else { return false }
+        
+        // Prefer stable ID matching if both have it
+        if let myStableID = stableID, let otherStableID = other.stableID {
+            return myStableID == otherStableID
+        }
+        
+        // Fall back to normalized handle matching
+        return normalizedHandle == other.normalizedHandle
+    }
+}
+
 /// Abstract interface for resolving thread participants
 public protocol ThreadParticipantResolver: Sendable {
     func getThreadParticipants(for post: Post) async throws -> Set<UserID>
+}
+
+/// Resolves the canonical identity of the reply target for a post
+/// This is the user being replied to, not the thread participants
+public protocol ReplyTargetResolver: Sendable {
+    /// Resolve the canonical ID of the reply target
+    /// Returns nil if the target cannot be determined (fail-closed)
+    func resolveReplyTarget(for post: Post) async -> CanonicalUserID?
+}
+
+/// Unified reply target resolver that works across platforms
+public final class UnifiedReplyTargetResolver: ReplyTargetResolver, @unchecked Sendable {
+    private let mastodonService: MastodonService?
+    private let blueskyService: BlueskyService?
+    private let accountProvider: @Sendable () async -> [SocialAccount]
+    private var parentPostCache: [String: Post] = [:]  // Cache parent posts by reply ID
+    private let cacheLock = NSLock()
+    
+    public init(
+        mastodonService: MastodonService?,
+        blueskyService: BlueskyService?,
+        accountProvider: @escaping @Sendable () async -> [SocialAccount]
+    ) {
+        self.mastodonService = mastodonService
+        self.blueskyService = blueskyService
+        self.accountProvider = accountProvider
+    }
+    
+    public func resolveReplyTarget(for post: Post) async -> CanonicalUserID? {
+        // Prefer embedded parent post if available (most reliable)
+        if let parent = post.parent {
+            return CanonicalUserID.from(post: parent)
+        }
+        
+        // Try to resolve via inReplyToID if we have it
+        guard let inReplyToID = post.inReplyToID else {
+            // No reply indicators - this shouldn't be a reply, but fail-closed
+            return nil
+        }
+        
+        // Check cache first
+        cacheLock.lock()
+        if let cached = parentPostCache[inReplyToID] {
+            cacheLock.unlock()
+            return CanonicalUserID.from(post: cached)
+        }
+        cacheLock.unlock()
+        
+        // Fetch parent post based on platform
+        let parentPost: Post?
+        switch post.platform {
+        case .mastodon:
+            guard let service = mastodonService,
+                  let account = await accountProvider().first(where: { $0.platform == .mastodon }) else {
+                return nil
+            }
+            do {
+                // Try fetchPostByID first, fall back to fetchStatus if needed
+                if let post = try await service.fetchPostByID(inReplyToID, account: account) {
+                    parentPost = post
+                } else {
+                    // Fallback to fetchStatus
+                    parentPost = try await service.fetchStatus(id: inReplyToID, account: account)
+                }
+            } catch {
+                // Fail-closed: if we can't fetch, exclude the reply
+                return nil
+            }
+        case .bluesky:
+            guard let service = blueskyService,
+                  let account = await accountProvider().first(where: { $0.platform == .bluesky }) else {
+                return nil
+            }
+            do {
+                parentPost = try await service.fetchPostByID(inReplyToID, account: account)
+            } catch {
+                // Fail-closed: if we can't fetch, exclude the reply
+                return nil
+            }
+        }
+        
+        guard let parent = parentPost else {
+            return nil
+        }
+        
+        // Cache for future use
+        cacheLock.lock()
+        parentPostCache[inReplyToID] = parent
+        cacheLock.unlock()
+        
+        return CanonicalUserID.from(post: parent)
+    }
+    
+    public func clearCache() {
+        cacheLock.lock()
+        parentPostCache.removeAll()
+        cacheLock.unlock()
+    }
 }
 
 /// Generic user profile information
@@ -174,8 +328,7 @@ public struct AppNotification: Identifiable, Sendable {
 
 /// Coordinator for filtering posts in the feed based on reply logic
 public class PostFeedFilter {
-    private let mastodonResolver: ThreadParticipantResolver?
-    private let blueskyResolver: ThreadParticipantResolver?
+    private let replyTargetResolver: ReplyTargetResolver
 
     /// Feature flag to enable/disable filtering
     public var isReplyFilteringEnabled: Bool = true
@@ -184,64 +337,31 @@ public class PostFeedFilter {
     public var blockedKeywords: [String] = []
     public var isKeywordFilteringEnabled: Bool = true
 
-    /// Thread participant cache (normalized handle -> participants)
-    private var participantCache: [String: (participants: Set<UserID>, timestamp: Date)] = [:]
-    private let cacheLock = NSLock()
-    private let cacheTTL: TimeInterval = 300  // 5 minutes
-
-    // Normalize a user identifier string for comparison across sources
-    // - Lowercase
-    // - Strip leading '@'
-    // - Strip optional 'at://' prefix (seen in some Bluesky URIs)
-    // - Preserve DID strings (did:plc:...)
-    private func normalizeIdentifier(_ raw: String, platform: SocialPlatform) -> String {
-        var s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Drop common URI prefix if present
-        if s.hasPrefix("at://") {
-            s = String(s.dropFirst(5))
-        }
-        // Lowercase for case-insensitive compare
-        s = s.lowercased()
-        // Remove leading '@' (Mastodon handles may show '@user@host')
-        if s.hasPrefix("@") {
-            s.removeFirst()
-        }
-        // Leave DIDs intact; they already compare in lowercase
-        return s
+    public init(replyTargetResolver: ReplyTargetResolver) {
+        self.replyTargetResolver = replyTargetResolver
     }
-
-    public init(
+    
+    // Legacy initializer for backward compatibility
+    public convenience init(
         mastodonResolver: ThreadParticipantResolver?, blueskyResolver: ThreadParticipantResolver?
     ) {
-        self.mastodonResolver = mastodonResolver
-        self.blueskyResolver = blueskyResolver
-    }
-
-    private func getCachedParticipants(for key: String) -> Set<UserID>? {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        if let cached = participantCache[key],
-            Date().timeIntervalSince(cached.timestamp) < cacheTTL
-        {
-            return cached.participants
-        }
-        return nil
-    }
-
-    private func updateCache(for key: String, participants: Set<UserID>) {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        participantCache[key] = (participants, Date())
+        // Create a dummy resolver - this path should not be used with strict filtering
+        let dummyResolver = UnifiedReplyTargetResolver(
+            mastodonService: nil,
+            blueskyService: nil,
+            accountProvider: { [] }
+        )
+        self.init(replyTargetResolver: dummyResolver)
     }
 
     /// Determines if a post should be included in the feed
-    public func shouldIncludePost(_ post: Post, followedAccounts: Set<UserID>) async -> Bool {
+    public func shouldIncludePost(_ post: Post, followedAccounts: Set<CanonicalUserID>) async -> Bool {
         // Keyword filtering
         if isKeywordFilteringEnabled && !blockedKeywords.isEmpty {
             let lowercasedContent = post.content.lowercased()
             for keyword in blockedKeywords {
                 if lowercasedContent.contains(keyword.lowercased()) {
-                    print("🚫 Filtered out post \(post.id) - matched blocked keyword: \(keyword)")
+                    DebugLog.verbose("🚫 Filtered out post \(post.id) - matched blocked keyword: \(keyword)")
                     return false
                 }
             }
@@ -251,102 +371,57 @@ public class PostFeedFilter {
         return await shouldIncludeReply(post, followedAccounts: followedAccounts)
     }
 
-    /// Determines if a post should be included in the feed based on reply filtering rules
-    public func shouldIncludeReply(_ post: Post, followedAccounts: Set<UserID>) async -> Bool {
+    /// Strict reply filtering: only include replies if:
+    /// 1. The reply target is followed, OR
+    /// 2. It is a self-reply (author replying to themselves)
+    /// Boosts are never filtered.
+    /// Fails closed: if reply target cannot be determined, exclude the reply.
+    public func shouldIncludeReply(_ post: Post, followedAccounts: Set<CanonicalUserID>) async -> Bool {
         // Rule: If filtering is disabled, always show
         guard isReplyFilteringEnabled else { return true }
 
-        // Rule: Always show top-level posts
-        guard post.inReplyToID != nil else { return true }
+        // Rule: NEVER filter boosts - they must always appear
+        if post.boostedBy != nil || post.originalPost != nil {
+            return true
+        }
 
-        // Build normalized keys
-        let normalizedAuthor = normalizeIdentifier(post.authorUsername, platform: post.platform)
-        let authorKey = UserID(value: normalizedAuthor, platform: post.platform)
-        let isAuthorFollowed = followedAccounts.contains(authorKey)
+        // Rule: Always show top-level posts (not replies)
+        guard post.isReply else { return true }
 
-        // For self-reply match, consider both authorUsername and authorId (DID on Bluesky)
-        let normalizedAuthorId = post.authorId.isEmpty ? nil : normalizeIdentifier(post.authorId, platform: post.platform)
+        // Get canonical identity of the post author
+        let authorID = post.authorCanonicalID
+        
+        // Check if author is followed
+        let isAuthorFollowed = followedAccounts.contains { $0.matches(authorID) }
 
-        // Debug logging for reply filtering
-        let inReplyRaw = post.inReplyToUsername ?? "unknown"
-        let normalizedInReply = normalizeIdentifier(inReplyRaw, platform: post.platform)
-        print("🔍 Filtering reply: @\(post.authorUsername) -> @\(inReplyRaw) [normalized: @\(normalizedAuthor) -> @\(normalizedInReply)]")
-        print("   Author followed: \(isAuthorFollowed)")
+        // Resolve the reply target (the user being replied to)
+        guard let replyTargetID = await replyTargetResolver.resolveReplyTarget(for: post) else {
+            // Fail-closed: if we can't determine the reply target, exclude the reply
+            DebugLog.verbose("🚫 Filtered out reply \(post.id) - cannot determine reply target")
+            return false
+        }
 
         // Rule: Show self-replies (author replying to themselves) from followed users
-        if post.inReplyToUsername != nil {
-            let selfReplyMatchesAuthor = (normalizedInReply == normalizedAuthor)
-            let selfReplyMatchesAuthorId = (normalizedAuthorId != nil && normalizedInReply == normalizedAuthorId)
-            if (selfReplyMatchesAuthor || selfReplyMatchesAuthorId) && isAuthorFollowed {
-                print("   ✅ Showing self-reply from followed user (matched self: \(selfReplyMatchesAuthor ? "handle" : "id"))")
-                return true
-            }
-        }
-
-        // Rule: Show replies to followed users (normalize replied-to username)
-        if post.inReplyToUsername != nil {
-            let repliedToID = UserID(value: normalizedInReply, platform: post.platform)
-            let isRepliedToFollowed = followedAccounts.contains(repliedToID)
-            print("   Replied-to followed: \(isRepliedToFollowed)")
-            if isRepliedToFollowed {
-                print("   ✅ Showing reply to followed user")
-                return true
-            }
-        }
-
-        // Rule: For other replies, check thread participants
-        do {
-            let participants = try await getParticipants(for: post)
-
-            // Check if at least two participants are in the followed accounts list
-            let followedInThread = participants.filter { followedAccounts.contains($0) }
-
-            // Log for debugging
-            if followedInThread.count < 2 {
-                print(
-                    "🚫 Filtered out reply from \(post.authorUsername) - insufficient followed participants in thread (\(followedInThread.count))"
-                )
-                return false
-            }
-
-            return true
-        } catch {
-            // Fail-safe: if we can't resolve the thread, show the post
-            print(
-                "⚠️ PostFeedFilter: Error resolving thread participants for post \(post.id): \(error.localizedDescription)"
-            )
+        if authorID.matches(replyTargetID) && isAuthorFollowed {
+            DebugLog.verbose("✅ Including self-reply from followed user: \(post.id)")
             return true
         }
-    }
 
-    private func getParticipants(for post: Post) async throws -> Set<UserID> {
-        let cacheKey = post.stableId
-
-        // Check cache
-        if let cached = getCachedParticipants(for: cacheKey) {
-            return cached
+        // Rule: Show replies to followed users
+        let isReplyTargetFollowed = followedAccounts.contains { $0.matches(replyTargetID) }
+        if isReplyTargetFollowed {
+            DebugLog.verbose("✅ Including reply to followed user: \(post.id)")
+            return true
         }
 
-        // Resolve based on platform
-        let participants: Set<UserID>
-        switch post.platform {
-        case .mastodon:
-            guard let resolver = mastodonResolver else { return [] }
-            participants = try await resolver.getThreadParticipants(for: post)
-        case .bluesky:
-            guard let resolver = blueskyResolver else { return [] }
-            participants = try await resolver.getThreadParticipants(for: post)
-        }
-
-        // Update cache
-        updateCache(for: cacheKey, participants: participants)
-
-        return participants
+        // Rule: Exclude all other replies
+        DebugLog.verbose("🚫 Filtered out reply \(post.id) - reply target not followed")
+        return false
     }
 
     public func clearCache() {
-        cacheLock.lock()
-        participantCache.removeAll()
-        cacheLock.unlock()
+        if let unifiedResolver = replyTargetResolver as? UnifiedReplyTargetResolver {
+            unifiedResolver.clearCache()
+        }
     }
 }

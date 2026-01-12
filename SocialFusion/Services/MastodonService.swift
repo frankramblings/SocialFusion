@@ -888,8 +888,6 @@ public final class MastodonService: @unchecked Sendable {
                     underlying: NSError(domain: "HTTP", code: 0, userInfo: nil))
             }
 
-            print("🔍 MASTODON: HTTP Status Code: \(httpResponse.statusCode)")
-            print("🔍 MASTODON: Response Headers: \(httpResponse.allHeaderFields)")
 
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 print("❌ MASTODON: Authentication failed - token may be expired")
@@ -914,17 +912,6 @@ public final class MastodonService: @unchecked Sendable {
                 }
 
                 logger.error("❌ MASTODON: Rate limited - retry after: \(retrySeconds) seconds")
-                print("❌ MASTODON: Rate limited - retry after: \(retrySeconds) seconds")
-
-                // Log rate limit headers for debugging
-                if let remaining = httpResponse.value(forHTTPHeaderField: "x-ratelimit-remaining") {
-                    logger.info("🔍 MASTODON: Rate limit remaining: \(remaining)")
-                    print("🔍 MASTODON: Rate limit remaining: \(remaining)")
-                }
-                if let limit = httpResponse.value(forHTTPHeaderField: "x-ratelimit-limit") {
-                    logger.info("🔍 MASTODON: Rate limit limit: \(limit)")
-                    print("🔍 MASTODON: Rate limit limit: \(limit)")
-                }
 
                 throw ServiceError.rateLimitError(
                     reason: "Too many requests to Mastodon server",
@@ -936,7 +923,6 @@ public final class MastodonService: @unchecked Sendable {
                 // Log response body for debugging
                 if let responseString = String(data: data, encoding: .utf8) {
                     logger.error("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
-                    print("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
                 }
                 throw ServiceError.apiError(
                     "Server returned status code \(httpResponse.statusCode)")
@@ -945,17 +931,11 @@ public final class MastodonService: @unchecked Sendable {
             // Check if we got empty data
             if data.isEmpty {
                 logger.warning("⚠️ MASTODON: Received empty response data")
-                print("⚠️ MASTODON: Received empty response data")
                 return TimelineResult(posts: [], pagination: PaginationInfo.empty)
             }
 
-            // Log response data for debugging
-            logger.info("🔍 MASTODON: Response data length: \(data.count) bytes")
+            // Check if response looks like HTML instead of JSON
             if let responseString = String(data: data, encoding: .utf8) {
-                logger.info("🔍 MASTODON: Response preview: \(String(responseString.prefix(500)))")
-                print("🔍 MASTODON: Response preview: \(String(responseString.prefix(500)))")
-
-                // Check if response looks like HTML instead of JSON
                 if responseString.lowercased().contains("<html")
                     || responseString.lowercased().contains("<!doctype")
                 {
@@ -994,7 +974,6 @@ public final class MastodonService: @unchecked Sendable {
             posts = await enrichPostsWithRelationships(posts, account: account)
 
             logger.info("✅ MASTODON: Successfully fetched \(posts.count) posts")
-            print("✅ MASTODON: Successfully fetched \(posts.count) posts")
 
             // Determine pagination info - Mastodon has more pages if we get the full limit
             let hasNextPage = posts.count >= limit
@@ -1282,7 +1261,6 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         logger.info("🔍 MASTODON: Request URL: \(urlString)")
-        print("🔍 MASTODON: Request URL: \(urlString)")
 
         guard let url = URL(string: urlString) else {
             logger.error("❌ MASTODON: Invalid URL: \(urlString)")
@@ -1300,7 +1278,6 @@ public final class MastodonService: @unchecked Sendable {
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 logger.error("❌ MASTODON: Invalid HTTP response")
-                print("❌ MASTODON: Invalid HTTP response")
                 throw NSError(
                     domain: "MastodonService",
                     code: 0,
@@ -1308,7 +1285,6 @@ public final class MastodonService: @unchecked Sendable {
             }
 
             logger.info("🔍 MASTODON: HTTP Status Code: \(httpResponse.statusCode)")
-            print("🔍 MASTODON: HTTP Status Code: \(httpResponse.statusCode)")
 
             if httpResponse.statusCode != 200 {
                 // Try to decode error response
@@ -1321,12 +1297,10 @@ public final class MastodonService: @unchecked Sendable {
                 // Log response body for debugging
                 if let responseString = String(data: data, encoding: .utf8) {
                     logger.error("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
-                    print("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
                 }
 
                 let errorMessage = "Failed to fetch user timeline: HTTP \(httpResponse.statusCode)"
                 logger.error("❌ MASTODON: \(errorMessage)")
-                print("❌ MASTODON: \(errorMessage)")
                 throw NSError(
                     domain: "MastodonService",
                     code: httpResponse.statusCode,
@@ -1336,13 +1310,11 @@ public final class MastodonService: @unchecked Sendable {
             // Check if response is empty
             if data.isEmpty {
                 logger.info("✅ MASTODON: Empty response - user has no posts")
-                print("✅ MASTODON: Empty response - user has no posts")
                 return []
             }
 
             let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
             logger.info("✅ MASTODON: Successfully fetched \(statuses.count) statuses")
-            print("✅ MASTODON: Successfully fetched \(statuses.count) statuses")
 
             // Convert to our app's Post model and enrich with relationship data
             var posts = statuses.map { convertMastodonStatusToPost($0, account: account) }
@@ -1583,38 +1555,18 @@ public final class MastodonService: @unchecked Sendable {
             }
         }
 
-        print(
-            "[Mastodon] Attempting to like post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
-        )
-        print("[Mastodon] Using statusId: \(statusId)")
-
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/favourite") else {
-            print(
-                "[Mastodon] Failed to create URL: \(serverUrl)/api/v1/statuses/\(statusId)/favourite"
-            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
         }
 
-        print("[Mastodon] Like URL: \(url.absoluteString)")
-
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
 
-        if let httpResponse = response as? HTTPURLResponse {
-            print("[Mastodon] Like response status: \(httpResponse.statusCode)")
-            if httpResponse.statusCode != 200 {
-                if let responseBody = String(data: data, encoding: .utf8) {
-                    print("[Mastodon] Like error response: \(responseBody)")
-                }
-            }
-        }
-
         guard let httpResponse = response as? HTTPURLResponse else {
-            print("[Mastodon] Invalid HTTP response received")
             throw NSError(
                 domain: "MastodonService",
                 code: 0,
@@ -1622,11 +1574,8 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            print("[Mastodon] HTTP error status: \(httpResponse.statusCode)")
-
             // Try to decode server error response
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                print("[Mastodon] Server error: \(errorResponse.error)")
                 throw NSError(
                     domain: "MastodonService",
                     code: httpResponse.statusCode,
@@ -1635,7 +1584,6 @@ public final class MastodonService: @unchecked Sendable {
 
             // If we can't decode the error, provide a generic message
             let errorMessage = "Failed to like post (HTTP \(httpResponse.statusCode))"
-            print("[Mastodon] \(errorMessage)")
             throw NSError(
                 domain: "MastodonService",
                 code: httpResponse.statusCode,
@@ -1645,13 +1593,8 @@ public final class MastodonService: @unchecked Sendable {
         // Try to decode the successful response
         do {
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-            print("[Mastodon] Successfully liked post: \(status.id)")
             return self.convertMastodonStatusToPost(status, account: account)
         } catch {
-            print("[Mastodon] Failed to decode like response: \(error)")
-            if let responseBody = String(data: data, encoding: .utf8) {
-                print("[Mastodon] Response body: \(responseBody)")
-            }
             throw NSError(
                 domain: "MastodonService",
                 code: 500,
@@ -1682,38 +1625,18 @@ public final class MastodonService: @unchecked Sendable {
             }
         }
 
-        print(
-            "[Mastodon] Attempting to unlike post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
-        )
-        print("[Mastodon] Using statusId: \(statusId)")
-
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/unfavourite") else {
-            print(
-                "[Mastodon] Failed to create URL: \(serverUrl)/api/v1/statuses/\(statusId)/unfavourite"
-            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or post ID"])
         }
 
-        print("[Mastodon] Unlike URL: \(url.absoluteString)")
-
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
 
-        if let httpResponse = response as? HTTPURLResponse {
-            print("[Mastodon] Unlike response status: \(httpResponse.statusCode)")
-            if httpResponse.statusCode != 200 {
-                if let responseBody = String(data: data, encoding: .utf8) {
-                    print("[Mastodon] Unlike error response: \(responseBody)")
-                }
-            }
-        }
-
         guard let httpResponse = response as? HTTPURLResponse else {
-            print("[Mastodon] Invalid HTTP response received for unlike")
             throw NSError(
                 domain: "MastodonService",
                 code: 0,
@@ -1721,11 +1644,8 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         guard httpResponse.statusCode == 200 else {
-            print("[Mastodon] HTTP error status for unlike: \(httpResponse.statusCode)")
-
             // Try to decode server error response
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                print("[Mastodon] Server error for unlike: \(errorResponse.error)")
                 throw NSError(
                     domain: "MastodonService",
                     code: httpResponse.statusCode,
@@ -1734,7 +1654,6 @@ public final class MastodonService: @unchecked Sendable {
 
             // If we can't decode the error, provide a generic message
             let errorMessage = "Failed to unlike post (HTTP \(httpResponse.statusCode))"
-            print("[Mastodon] \(errorMessage)")
             throw NSError(
                 domain: "MastodonService",
                 code: httpResponse.statusCode,
@@ -1744,13 +1663,8 @@ public final class MastodonService: @unchecked Sendable {
         // Try to decode the successful response
         do {
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
-            print("[Mastodon] Successfully unliked post: \(status.id)")
             return self.convertMastodonStatusToPost(status, account: account)
         } catch {
-            print("[Mastodon] Failed to decode unlike response: \(error)")
-            if let responseBody = String(data: data, encoding: .utf8) {
-                print("[Mastodon] Response body: \(responseBody)")
-            }
             throw NSError(
                 domain: "MastodonService",
                 code: 500,
@@ -1781,15 +1695,7 @@ public final class MastodonService: @unchecked Sendable {
             }
         }
 
-        print(
-            "[Mastodon] Attempting to repost post: id=\(targetPost.id), platformSpecificId=\(targetPost.platformSpecificId), originalURL=\(targetPost.originalURL)"
-        )
-        print("[Mastodon] Using statusId: \(statusId)")
-
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/reblog") else {
-            print(
-                "[Mastodon] Failed to create reblog URL: \(serverUrl)/api/v1/statuses/\(statusId)/reblog"
-            )
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1799,15 +1705,6 @@ public final class MastodonService: @unchecked Sendable {
         let request = try await createAuthenticatedRequest(
             url: url, method: "POST", account: account)
         let (data, response) = try await session.data(for: request)
-
-        if let httpResponse = response as? HTTPURLResponse {
-            print("[Mastodon] Repost response status: \(httpResponse.statusCode)")
-            if httpResponse.statusCode != 200 {
-                if let responseBody = String(data: data, encoding: .utf8) {
-                    print("[Mastodon] Repost error response: \(responseBody)")
-                }
-            }
-        }
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
@@ -2436,11 +2333,8 @@ public final class MastodonService: @unchecked Sendable {
     /// Converts a Mastodon status to a generic Post
     /// Extracts custom emoji from a MastodonStatus into a dictionary mapping shortcode to URL
     private func extractEmojiMap(from status: MastodonStatus) -> [String: String]? {
-        print("🔍 [Emoji] extractEmojiMap called for status \(status.id.prefix(10)), emojis array count: \(status.emojis.count)")
         guard !status.emojis.isEmpty else {
-            print("📝 [Emoji] No emojis found in status \(status.id.prefix(10))")
             if let htmlMap = extractEmojiMap(fromHTML: status.content), !htmlMap.isEmpty {
-                print("✅ [Emoji] Extracted \(htmlMap.count) emoji from status HTML for \(status.id.prefix(10))")
                 return htmlMap
             }
             return nil
@@ -2449,19 +2343,9 @@ public final class MastodonService: @unchecked Sendable {
         for emoji in status.emojis {
             // Use staticUrl if available (smaller, faster), otherwise fall back to url
             let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
-            print("   📎 [Emoji] Processing :\(emoji.shortcode): -> staticUrl='\(emoji.staticUrl.prefix(50))...', url='\(emoji.url.prefix(50))...', using='\(emojiURL.prefix(50))...'")
             if !emojiURL.isEmpty {
                 emojiMap[emoji.shortcode] = emojiURL
-            } else {
-                print("   ⚠️ [Emoji] SKIPPED :\(emoji.shortcode): - both URLs empty!")
             }
-        }
-        if !emojiMap.isEmpty {
-            print(
-                "✅ [Emoji] Extracted \(emojiMap.count) emoji from status \(status.id.prefix(10)): \(Array(emojiMap.keys).prefix(5))"
-            )
-        } else {
-            print("⚠️ [Emoji] Status \(status.id.prefix(10)) had \(status.emojis.count) emojis but none had valid URLs")
         }
         return emojiMap.isEmpty ? nil : emojiMap
     }
@@ -2533,11 +2417,6 @@ public final class MastodonService: @unchecked Sendable {
                 emojiMap[emoji.shortcode] = emojiURL
             }
         }
-        if !emojiMap.isEmpty {
-            print(
-                "✅ [Emoji] Extracted \(emojiMap.count) account emoji from @\(account.acct): \(Array(emojiMap.keys).prefix(5))"
-            )
-        }
         return emojiMap.isEmpty ? nil : emojiMap
     }
     
@@ -2559,11 +2438,6 @@ public final class MastodonService: @unchecked Sendable {
             if !emojiURL.isEmpty {
                 emojiMap[emoji.shortcode] = emojiURL
             }
-        }
-        if !emojiMap.isEmpty {
-            print(
-                "✅ [Emoji] Extracted \(emojiMap.count) emoji from reblog: \(Array(emojiMap.keys).prefix(5))"
-            )
         }
         return emojiMap.isEmpty ? nil : emojiMap
     }
@@ -2903,9 +2777,7 @@ public final class MastodonService: @unchecked Sendable {
             case "image":
                 // Check if image is actually a GIF file
                 let isGIF = URLService.shared.isGIFURL(url)
-                print("[Mastodon] Processing image attachment: url=\(media.url), isGIF=\(isGIF)")
                 if isGIF {
-                    print("[Mastodon] ✅ Detected GIF image: \(url)")
                     attachmentType = .animatedGIF
                 } else {
                     attachmentType = .image
@@ -2915,15 +2787,11 @@ public final class MastodonService: @unchecked Sendable {
             case "gifv":
                 // For gifv attachments, check if remoteUrl exists and is a GIF file
                 // Mastodon stores the original GIF in remoteUrl and the video version in url
-                print(
-                    "[Mastodon] Processing gifv attachment: url=\(media.url), remoteUrl=\(media.remoteUrl ?? "nil")"
-                )
                 if let remoteUrlString = media.remoteUrl, !remoteUrlString.isEmpty,
                     let remoteURL = URL(string: remoteUrlString),
                     URLService.shared.isGIFURL(remoteURL)
                 {
                     // Use the original GIF file instead of the video
-                    print("[Mastodon] ✅ Using remoteUrl GIF: \(remoteUrlString)")
                     return Post.Attachment(
                         url: remoteUrlString,
                         type: .animatedGIF,
@@ -2932,7 +2800,6 @@ public final class MastodonService: @unchecked Sendable {
                 } else {
                     // For .gifv type, always use video version (will loop automatically at normal speed)
                     // Don't check if main URL is a GIF - .gifv URLs are always videos
-                    print("[Mastodon] ⚠️ Using gifv video (no GIF remoteUrl): \(url)")
                     attachmentType = .gifv
                 }
             case "audio":

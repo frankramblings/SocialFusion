@@ -24,6 +24,7 @@ struct PostMenu: View {
             menuButton(for: .openInBrowser)
             menuButton(for: .copyLink)
             menuButton(for: .shareSheet)
+            menuButton(for: .shareAsImage)
 
             Divider()
 

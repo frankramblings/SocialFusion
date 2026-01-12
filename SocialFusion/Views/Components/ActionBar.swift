@@ -140,6 +140,7 @@ struct ActionBar: View {
                 menuButton(for: .openInBrowser)
                 menuButton(for: .copyLink)
                 menuButton(for: .shareSheet)
+                menuButton(for: .shareAsImage)
 
                 Divider()
 
@@ -277,6 +278,7 @@ struct ActionBarV2: View {
                 menuButton(for: .openInBrowser)
                 menuButton(for: .copyLink)
                 menuButton(for: .shareSheet)
+                menuButton(for: .shareAsImage)
 
                 Divider()
 

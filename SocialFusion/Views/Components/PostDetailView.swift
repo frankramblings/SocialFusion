@@ -40,6 +40,8 @@ struct PostDetailView: View {
     @State private var replyingToPost: Post? = nil
     @State private var quotingToPost: Post? = nil
     @State private var inlineReplyText: String = ""
+    @State private var shareAsImageViewModel: ShareAsImageViewModel? = nil
+    @State private var showShareAsImageSheet = false
     @State private var isSendingQuickReply: Bool = false
     @State private var quickReplyErrorMessage: String?
     @State private var showQuickReplyError: Bool = false
@@ -208,6 +210,11 @@ struct PostDetailView: View {
         .sheet(item: $quotingToPost) { post in
             ComposeView(quotingTo: post)
                 .environmentObject(serviceManager)
+        }
+        .sheet(isPresented: $showShareAsImageSheet) {
+            if let viewModel = shareAsImageViewModel {
+                ShareAsImageSheet(viewModel: viewModel)
+            }
         }
         .onAppear {
             if focusReplyComposer && !isQuickReplyActive {
@@ -575,6 +582,10 @@ struct PostDetailView: View {
         Button(action: { handleAction(.shareSheet) }) {
             Label("Share", systemImage: "square.and.arrow.up")
         }
+        
+        Button(action: { handleAction(.shareAsImage) }) {
+            Label("Share as Image…", systemImage: "photo")
+        }
 
         Divider()
 
@@ -630,6 +641,10 @@ struct PostDetailView: View {
             }
         case .share:
             sharePost(targetPost)
+        case .shareAsImage:
+            Task {
+                await handleShareAsImage(for: targetPost)
+            }
         case .quote:
             quotingToPost = targetPost
         case .follow:
@@ -664,6 +679,28 @@ struct PostDetailView: View {
 
     private func sharePost(_ post: Post) {
         post.presentShareSheet()
+    }
+    
+    private func handleShareAsImage(for post: Post) async {
+        do {
+            // Fetch thread context if available
+            let threadContext = try? await serviceManager.fetchThreadContext(for: post)
+            
+            // Determine if this is a reply
+            let isReply = post.inReplyToID != nil
+            
+            await MainActor.run {
+                // Create view model with post and context
+                shareAsImageViewModel = ShareAsImageViewModel(
+                    post: post,
+                    threadContext: threadContext,
+                    isReply: isReply
+                )
+                showShareAsImageSheet = true
+            }
+        } catch {
+            NSLog("Failed to build share image view model: %@", error.localizedDescription)
+        }
     }
 
     // MARK: - Reply Composer Helpers

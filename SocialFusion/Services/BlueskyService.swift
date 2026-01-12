@@ -228,16 +228,9 @@ public final class BlueskyService: Sendable {
             throw NetworkError.requestFailed(error)
         }
 
-        print("🔍 [BlueskyAuth] Making authentication request to: \(url.absoluteString)")
-        print("🔍 [BlueskyAuth] Using username: \(username)")
-
         do {
             // 4. Send request using session data method
             let (data, response) = try await session.data(for: request)
-
-            print(
-                "🔍 [BlueskyAuth] Response status: \((response as? HTTPURLResponse)?.statusCode ?? 0)"
-            )
 
             // 5. Parse the response
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -251,8 +244,6 @@ public final class BlueskyService: Sendable {
                     let errorMsg = errorJson["error"] as? String,
                     let message = errorJson["message"] as? String
                 {
-                    print("❌ [BlueskyAuth] API error: \(errorMsg): \(message)")
-
                     // Provide more helpful error messages
                     let userMessage: String
                     if errorMsg.contains("InvalidCredentials")
@@ -273,16 +264,8 @@ public final class BlueskyService: Sendable {
                     )
                 }
 
-                // Print raw response for debugging
-                if let responseString = String(data: data, encoding: .utf8) {
-                    print("❌ [BlueskyAuth] Raw response: \(responseString)")
-                }
-
-                print("❌ [BlueskyAuth] Failed to decode authentication response")
                 throw NetworkError.decodingError
             }
-
-            print("✅ [BlueskyAuth] Successfully authenticated user: \(handle)")
 
             // 6. Create and return account with stable ID
             // Use handle + server as stable ID instead of DID which can change
@@ -297,9 +280,6 @@ public final class BlueskyService: Sendable {
                 serverHostname = cleanedServer.components(separatedBy: "/").first ?? "bsky.social"
             }
             let stableId = "bluesky-\(handle)-\(serverHostname)"
-
-            print("🔄 [BlueskyAuth] Generated stable account ID: \(stableId)")
-            print("🔄 [BlueskyAuth] DID will be stored as platformSpecificId: \(did)")
 
             let account = SocialAccount(
                 id: stableId,
@@ -1162,7 +1142,6 @@ public final class BlueskyService: Sendable {
     func processTimelineResponse(_ feedItems: [[String: Any]], account: SocialAccount)
         async throws -> [Post]
     {
-        print("🔍 [QUOTE_DEBUG] Starting to process \(feedItems.count) feed items")
         var posts: [Post] = []
 
         for item in feedItems {
@@ -1201,10 +1180,6 @@ public final class BlueskyService: Sendable {
             var repostCount = 0
             var replyCount = 0
 
-            // DEBUG: Print entire post structure to understand API response
-            print("🔍 [BlueskyService] Post structure for \(uri.suffix(20)):")
-            print("🔍 [BlueskyService] Top-level keys: \(post.keys.sorted())")
-
             // Method 1: Direct count fields (most common in AT Protocol)
             if let likes = post["likeCount"] as? Int {
                 likeCount = likes
@@ -1218,7 +1193,6 @@ public final class BlueskyService: Sendable {
 
             // Method 2: Check in metrics object
             if let metrics = post["metrics"] as? [String: Any] {
-                print("📊 [BlueskyService] Found metrics object: \(metrics)")
                 likeCount = metrics["likeCount"] as? Int ?? likeCount
                 repostCount = metrics["repostCount"] as? Int ?? repostCount
                 replyCount = metrics["replyCount"] as? Int ?? replyCount
@@ -1226,7 +1200,6 @@ public final class BlueskyService: Sendable {
 
             // Method 3: Check in engagement/stats object
             if let stats = post["stats"] as? [String: Any] {
-                print("📊 [BlueskyService] Found stats object: \(stats)")
                 likeCount = stats["likeCount"] as? Int ?? likeCount
                 repostCount = stats["repostCount"] as? Int ?? repostCount
                 replyCount = stats["replyCount"] as? Int ?? replyCount
@@ -1238,7 +1211,6 @@ public final class BlueskyService: Sendable {
             ]
             for field in countFields {
                 if let value = post[field] as? Int {
-                    print("📊 [BlueskyService] Found \(field): \(value)")
                     if field.contains("like") {
                         likeCount = max(likeCount, value)
                     } else if field.contains("repost") {
@@ -1248,10 +1220,6 @@ public final class BlueskyService: Sendable {
                     }
                 }
             }
-
-            print(
-                "📊 [BlueskyService] FINAL counts for \(uri.suffix(20)) - likes: \(likeCount), reposts: \(repostCount), replies: \(replyCount)"
-            )
 
             // Check if this is a reply to another post
             var inReplyToID: String? = nil
@@ -1264,7 +1232,6 @@ public final class BlueskyService: Sendable {
             {
                 inReplyToID = parentUri
                 logger.info("Found reply post with parent: \(parentUri)")
-                print("[Bluesky] 🔍 Found reply - parentUri: \(parentUri)")
 
                 // Try to extract username from parent
                 if let parentAuthor = parent["author"] as? [String: Any],
@@ -1272,7 +1239,6 @@ public final class BlueskyService: Sendable {
                 {
                     inReplyToUsername = parentHandle
                     logger.info("[Bluesky] Setting inReplyToUsername to: \(parentHandle)")
-                    print("[Bluesky] ✅ Setting inReplyToUsername to: \(parentHandle)")
 
                     // If we have sufficient information, create a simple parent post
                     if let parentDisplayName = parentAuthor["displayName"] as? String,
@@ -1709,13 +1675,7 @@ public final class BlueskyService: Sendable {
                     "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
                 )
 
-                // Debug: Log the full embed structure
-                print("[Bluesky] 🔍 Full embed structure for post \(uri):")
-                if let embedData = try? JSONSerialization.data(withJSONObject: embed),
-                    let embedString = String(data: embedData, encoding: .utf8)
-                {
-                    print("[Bluesky] 🔍 Embed JSON: \(String(embedString.prefix(500)))")
-                }
+                // Embed data processed silently
 
                 // Extract external URLs from embeds for link preview
                 if let embedType = embed["$type"] as? String,

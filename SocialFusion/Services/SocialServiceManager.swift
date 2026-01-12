@@ -185,19 +185,18 @@ public final class SocialServiceManager: ObservableObject {
     // Automatic token refresh service
     public var automaticTokenRefreshService: AutomaticTokenRefreshService?
 
-    // Reply filtering
+    // Reply filtering with strict reply target resolution
     private lazy var postFeedFilter: PostFeedFilter = {
         let manager = self
-        let mastodonResolver = MastodonThreadResolver(service: mastodonService) { [weak manager] in
-            guard let manager = manager else { return nil }
-            return await MainActor.run { manager.mastodonAccounts.first }
-        }
-        let blueskyResolver = BlueskyThreadResolver(service: blueskyService) { [weak manager] in
-            guard let manager = manager else { return nil }
-            return await MainActor.run { manager.blueskyAccounts.first }
-        }
-        let filter = PostFeedFilter(
-            mastodonResolver: mastodonResolver, blueskyResolver: blueskyResolver)
+        let replyTargetResolver = UnifiedReplyTargetResolver(
+            mastodonService: mastodonService,
+            blueskyService: blueskyService,
+            accountProvider: { [weak manager] in
+                guard let manager = manager else { return [] }
+                return await MainActor.run { manager.accounts }
+            }
+        )
+        let filter = PostFeedFilter(replyTargetResolver: replyTargetResolver)
         // Sync initial state from feature flag
         filter.isReplyFilteringEnabled = FeatureFlagManager.isEnabled(.replyFiltering)
 
@@ -1295,9 +1294,30 @@ public final class SocialServiceManager: ObservableObject {
         return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
     }
 
-    /// Get all followed accounts across all platforms
-    private func getFollowedAccounts() async -> Set<UserID> {
-        var followedAccounts = Set<UserID>()
+    /// Convert UserID to CanonicalUserID, detecting stable IDs (DIDs) vs handles
+    private func canonicalID(from userID: UserID) -> CanonicalUserID {
+        let normalizedHandle = CanonicalUserID.normalizeHandle(userID.value, platform: userID.platform)
+        
+        // Check if the value is a DID (Bluesky) or account ID (Mastodon)
+        let stableID: String?
+        if userID.value.hasPrefix("did:") {
+            // Bluesky DID
+            stableID = userID.value
+        } else if userID.platform == .mastodon {
+            // For Mastodon, we don't have account ID in UserID, so use nil
+            // The handle will be used for matching
+            stableID = nil
+        } else {
+            // Bluesky handle - no stable ID from UserID alone
+            stableID = nil
+        }
+        
+        return CanonicalUserID(platform: userID.platform, stableID: stableID, normalizedHandle: normalizedHandle)
+    }
+    
+    /// Get all followed accounts across all platforms as canonical IDs
+    private func getFollowedAccounts() async -> Set<CanonicalUserID> {
+        var followedAccounts = Set<CanonicalUserID>()
 
         await withTaskGroup(of: Set<UserID>.self) { group in
             for account in accounts {
@@ -1319,7 +1339,10 @@ public final class SocialServiceManager: ObservableObject {
             }
 
             for await accountFollows in group {
-                followedAccounts.formUnion(accountFollows)
+                // Convert UserIDs to CanonicalUserIDs
+                for userID in accountFollows {
+                    followedAccounts.insert(canonicalID(from: userID))
+                }
             }
         }
 
@@ -1335,12 +1358,18 @@ public final class SocialServiceManager: ObservableObject {
                 } else {
                     handle = account.username
                 }
-                followedAccounts.insert(UserID(value: handle, platform: .mastodon))
+                let normalizedHandle = CanonicalUserID.normalizeHandle(handle, platform: .mastodon)
+                // Use platformSpecificId as stable ID if available
+                let stableID = account.platformSpecificId.isEmpty ? nil : account.platformSpecificId
+                followedAccounts.insert(CanonicalUserID(platform: .mastodon, stableID: stableID, normalizedHandle: normalizedHandle))
             case .bluesky:
-                followedAccounts.insert(UserID(value: account.username, platform: .bluesky))
-                if !account.platformSpecificId.isEmpty {
-                    followedAccounts.insert(
-                        UserID(value: account.platformSpecificId, platform: .bluesky))
+                let normalizedHandle = CanonicalUserID.normalizeHandle(account.username, platform: .bluesky)
+                // Use platformSpecificId (DID) as stable ID
+                let stableID = account.platformSpecificId.isEmpty ? nil : account.platformSpecificId
+                followedAccounts.insert(CanonicalUserID(platform: .bluesky, stableID: stableID, normalizedHandle: normalizedHandle))
+                // Also add handle as a separate entry if we have a DID
+                if !account.platformSpecificId.isEmpty && account.platformSpecificId.hasPrefix("did:") {
+                    followedAccounts.insert(CanonicalUserID(platform: .bluesky, stableID: account.platformSpecificId, normalizedHandle: normalizedHandle))
                 }
             }
         }
@@ -3887,14 +3916,21 @@ public final class SocialServiceManager: ObservableObject {
     func mergeBufferedPosts(_ posts: [Post]) {
         guard !posts.isEmpty else { return }
         DebugLog.verbose("🔄 SocialServiceManager: Merging \(posts.count) buffered posts into unified timeline")
-        let sourceContext = TimelineSourceContext(source: .buffer)
-        canonicalPostStore.processIncomingPosts(
-            posts,
-            timelineID: canonicalUnifiedTimelineID,
-            sourceContext: sourceContext
-        )
-        let mergedPosts = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
-        safelyUpdateTimeline(mergedPosts)
+        
+        // Apply filtering to buffered posts before merging (critical: must go through choke point)
+        Task {
+            let filteredPosts = await filterRepliesInTimeline(posts)
+            await MainActor.run {
+                let sourceContext = TimelineSourceContext(source: .buffer)
+                canonicalPostStore.processIncomingPosts(
+                    filteredPosts,
+                    timelineID: canonicalUnifiedTimelineID,
+                    sourceContext: sourceContext
+                )
+                let mergedPosts = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+                safelyUpdateTimeline(mergedPosts)
+            }
+        }
     }
 
 #if DEBUG

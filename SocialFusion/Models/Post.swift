@@ -18,6 +18,7 @@ public enum PostAction: Hashable {
     case openInBrowser
     case copyLink
     case shareSheet
+    case shareAsImage
     case report
 }
 
@@ -39,6 +40,8 @@ extension PostAction {
             return "Copy Link"
         case .shareSheet:
             return "Share"
+        case .shareAsImage:
+            return "Share as Image…"
         case .report:
             return "Report"
         case .reply:
@@ -85,6 +88,8 @@ extension PostAction {
             return "link"
         case .shareSheet:
             return "square.and.arrow.up"
+        case .shareAsImage:
+            return "photo"
         case .report:
             return "exclamationmark.triangle"
         case .reply:
@@ -374,6 +379,16 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             return "\(platform.rawValue)-repost-\(authorUsername)-\(original.platformSpecificId)"
         }
         return "\(platform.rawValue)-\(platformSpecificId)"
+    }
+    
+    /// Determines if this post is a reply (has reply indicators)
+    public var isReply: Bool {
+        return inReplyToID != nil || parent != nil
+    }
+    
+    /// Get canonical identity for the post author
+    public var authorCanonicalID: CanonicalUserID {
+        return CanonicalUserID.from(post: self)
     }
 
     public struct Attachment: Identifiable, Codable {
@@ -1344,7 +1359,7 @@ extension Post: Hashable {
 // MARK: - Thread Context
 
 /// Represents a post's thread context with ancestors (parent posts) and descendants (replies)
-struct ThreadContext {
+public struct ThreadContext {
     /// The main post that was the target of the thread request
     let mainPost: Post?
 

@@ -337,28 +337,18 @@ extension Post {
         guard let emojiMap = customEmojiMap, !emojiMap.isEmpty else {
             // For boosted/reposted posts, check the original post
             if let original = originalPost {
-                let originalEmoji = original.customEmoji
-                if originalEmoji != nil {
-                    print("🔍 [Post.customEmoji] Post \(id.prefix(8)) has no emoji, but originalPost has \(originalEmoji?.count ?? 0) emoji")
-                }
-                return originalEmoji
+                return original.customEmoji
             }
-            print("🔍 [Post.customEmoji] Post \(id.prefix(8)) has NO customEmojiMap (nil or empty)")
             return nil
         }
-        
-        print("🔍 [Post.customEmoji] Post \(id.prefix(8)) has \(emojiMap.count) emoji in customEmojiMap: \(Array(emojiMap.keys).prefix(5))")
         
         // Convert [String: String] to [String: URL]
         var result: [String: URL] = [:]
         for (shortcode, urlString) in emojiMap {
             if let url = URL(string: urlString) {
                 result[shortcode] = url
-            } else {
-                print("⚠️ [Post.customEmoji] Invalid URL for :\(shortcode):: \(urlString)")
             }
         }
-        print("🔍 [Post.customEmoji] Converted to \(result.count) valid URLs")
         return result.isEmpty ? nil : result
     }
 }

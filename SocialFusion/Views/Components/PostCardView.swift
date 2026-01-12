@@ -53,6 +53,8 @@ struct PostCardView: View {
     @State private var isReplyBannerExpanded = false
     @State private var bannerWasTapped = false
     @State private var showListSelection = false
+    @State private var shareAsImageViewModel: ShareAsImageViewModel? = nil
+    @State private var showShareAsImageSheet = false
 
     // Cached values to prevent AttributeGraph cycles from accessing nested @ObservedObject properties
     @State private var cachedDisplayPost: Post?
@@ -271,89 +273,6 @@ struct PostCardView: View {
         }
     }
 
-    // CRITICAL FIX: Defer logging to prevent AttributeGraph cycles from accessing post.originalPost
-    private func logReplyInfo() {
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-            // CRITICAL: Capture references once to avoid multiple synchronous accesses
-            let originalPostRef = post.originalPost
-            let displayPostRef = cachedDisplayPost ?? post
-            let displayUsername = displayPostRef.inReplyToUsername
-            let displayReplyID = displayPostRef.inReplyToID
-            let logData: [String: Any] = [
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "E",
-                "location": "PostCardView.swift:84",
-                "message": "replyInfo check",
-                "data": [
-                    "postId": post.id,
-                    "displayPostId": displayPostRef.id,
-                    "displayUsername": displayUsername ?? "nil",
-                    "displayReplyID": displayReplyID ?? "nil",
-                    "postUsername": post.inReplyToUsername ?? "nil",
-                    "postReplyID": post.inReplyToID ?? "nil",
-                    "hasOriginalPost": originalPostRef != nil,
-                ],
-                "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
-            ]
-        let logPath = "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
-        if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
-            let jsonString = String(data: jsonData, encoding: .utf8)
-        {
-            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write((jsonString + "\n").data(using: .utf8)!)
-                try? fileHandle.close()
-            } else {
-                FileManager.default.createFile(atPath: logPath, contents: nil, attributes: nil)
-                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                    fileHandle.write((jsonString + "\n").data(using: .utf8)!)
-                    try? fileHandle.close()
-                    }
-                }
-            }
-        }
-    }
-
-    // Helper to log boost banner info
-    private func logBoostBanner(
-        boostHandle: String?, postBoostedBy: String?, finalBoostedBy: String?
-    ) {
-        let logData: [String: Any] = [
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "F",
-            "location": "PostCardView.swift:197",
-            "message": "boost banner check",
-            "data": [
-                "postId": post.id,
-                "boostedBy": boostedBy ?? "nil",
-                "postBoostedBy": postBoostedBy ?? "nil",
-                "finalBoostedBy": finalBoostedBy ?? "nil",
-                "boostHandle": boostHandle ?? "nil",
-                "hasOriginalPost": cachedDisplayPost != nil && cachedDisplayPost?.id != post.id,
-                "authorUsername": post.authorUsername,
-            ],
-            "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
-        ]
-        let logPath = "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
-        if let jsonData = try? JSONSerialization.data(withJSONObject: logData),
-            let jsonString = String(data: jsonData, encoding: .utf8)
-        {
-            if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write((jsonString + "\n").data(using: .utf8)!)
-                try? fileHandle.close()
-            } else {
-                FileManager.default.createFile(atPath: logPath, contents: nil, attributes: nil)
-                if let fileHandle = FileHandle(forWritingAtPath: logPath) {
-                    fileHandle.write((jsonString + "\n").data(using: .utf8)!)
-                    try? fileHandle.close()
-                }
-            }
-        }
-    }
 
     // Convenience initializer for TimelineEntry
     init(
@@ -646,7 +565,6 @@ struct PostCardView: View {
                 Task { @MainActor in
                     try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
                     DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
-                    logReplyInfo()
                 }
             }
         }
@@ -846,6 +764,11 @@ struct PostCardView: View {
         .accessibilityAction(named: "Like") {
             onLike()
         }
+        .sheet(isPresented: $showShareAsImageSheet) {
+            if let viewModel = shareAsImageViewModel {
+                ShareAsImageSheet(viewModel: viewModel)
+            }
+        }
         .accessibilityAction(named: "Share") {
             onShare()
         }
@@ -900,6 +823,10 @@ struct PostCardView: View {
                         onCopyLink()
                     case .shareSheet:
                         onShare()
+                    case .shareAsImage:
+                        Task {
+                            await handleShareAsImage(for: displayPost)
+                        }
                     case .report:
                         onReport()
                     @unknown default:
@@ -947,6 +874,10 @@ struct PostCardView: View {
                         onCopyLink()
                     case .shareSheet:
                         onShare()
+                    case .shareAsImage:
+                        Task {
+                            await handleShareAsImage(for: displayPost)
+                        }
                     case .report:
                         onReport()
                     @unknown default:
@@ -1031,6 +962,30 @@ struct PostCardView: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.dateTimeStyle = .named
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+    
+    // MARK: - Share as Image
+    
+    private func handleShareAsImage(for post: Post) async {
+        do {
+            // For feed posts, we may not have thread context, so fetch it optionally
+            let threadContext = try? await serviceManager.fetchThreadContext(for: post)
+            
+            // Determine if this is a reply
+            let isReply = post.inReplyToID != nil
+            
+            await MainActor.run {
+                // Create view model with post and context
+                shareAsImageViewModel = ShareAsImageViewModel(
+                    post: post,
+                    threadContext: threadContext,
+                    isReply: isReply
+                )
+                showShareAsImageSheet = true
+            }
+        } catch {
+            NSLog("Failed to build share image view model: %@", error.localizedDescription)
+        }
     }
 }
 
