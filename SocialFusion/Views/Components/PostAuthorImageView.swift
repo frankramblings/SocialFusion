@@ -27,32 +27,39 @@ struct PostAuthorImageView: View {
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            // Always show initials as background layer
-            initialsBackground
-                .frame(width: size, height: size)
-                .clipShape(Circle())
-
             // Overlay actual profile image when available
             if let stableImageURL = stableImageURL {
                 CachedAsyncImage(url: stableImageURL, priority: .high) { image in
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: size, height: size)
-                        .clipShape(Circle())
-                        .transition(.opacity)
+                    // Render image on neutral backing to prevent bleed-through for transparent PNGs
+                    ZStack {
+                        Circle()
+                            .fill(Color(.secondarySystemFill))
+                        
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: size, height: size)
+                            .clipShape(Circle())
+                            .transition(.opacity)
+                    }
                 } placeholder: {
-                    // Subtle loading indicator over initials (no background, just spinner)
-                    Circle()
-                        .fill(Color.clear)
-                        .frame(width: size, height: size)
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(0.6)
-                                .progressViewStyle(
-                                    CircularProgressViewStyle(tint: .white.opacity(0.8)))
-                        )
+                    // Show initials + spinner while loading or on failure
+                    ZStack {
+                        initialsBackground
+                            .frame(width: size, height: size)
+                            .clipShape(Circle())
+                        
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .progressViewStyle(
+                                CircularProgressViewStyle(tint: .white.opacity(0.8)))
+                    }
                 }
+            } else {
+                // Fallback for missing URL
+                initialsBackground
+                    .frame(width: size, height: size)
+                    .clipShape(Circle())
             }
 
             // Border overlay
