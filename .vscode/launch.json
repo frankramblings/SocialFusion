@@ -4,6 +4,19 @@
         {
             "type": "sweetpad-lldb",
             "request": "launch",
+            "name": "Build and Launch (SweetPad)",
+            "preLaunchTask": "sweetpad: launch",
+            "stopAll": true
+        },
+        {
+            "type": "sweetpad-lldb",
+            "request": "attach",
+            "name": "Attach to Running App (SweetPad)",
+            "description": "Use this if the app is already running to avoid rebuild"
+        },
+        {
+            "type": "sweetpad-lldb",
+            "request": "launch",
             "name": "Attach to running app (SweetPad)",
             "preLaunchTask": "sweetpad: launch"
         },

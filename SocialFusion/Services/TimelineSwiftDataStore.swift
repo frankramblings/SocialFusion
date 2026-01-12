@@ -39,8 +39,13 @@ actor TimelineSwiftDataStore {
         // Clear old cache
         try? context.delete(model: CachedPost.self)
         
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        
         // Add new posts
         for post in posts.prefix(100) { // Cache top 100 posts for offline reading
+            let postData = try? encoder.encode(post)
+            
             let cached = CachedPost(
                 id: post.id,
                 content: post.content,
@@ -53,7 +58,8 @@ actor TimelineSwiftDataStore {
                 replyCount: post.replyCount,
                 repostCount: post.repostCount,
                 likeCount: post.likeCount,
-                attachmentURLs: post.attachments.map { $0.url }
+                attachmentURLs: post.attachments.map { $0.url },
+                postData: postData
             )
             context.insert(cached)
         }
@@ -68,8 +74,19 @@ actor TimelineSwiftDataStore {
         
         do {
             let cachedPosts = try context.fetch(descriptor)
-            return cachedPosts.map { cached in
-                Post(
+            
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            
+            return cachedPosts.compactMap { cached in
+                // Try to decode full post data first
+                if let postData = cached.postData,
+                   let decodedPost = try? decoder.decode(Post.self, from: postData) {
+                    return decodedPost
+                }
+                
+                // Fallback to manual reconstruction for older cache entries
+                return Post(
                     id: cached.id,
                     content: cached.content,
                     authorName: cached.authorName,

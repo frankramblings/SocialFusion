@@ -21,6 +21,17 @@ class UnifiedTimelineController: ObservableObject {
     @Published private(set) var bufferSources: Set<SocialPlatform> = []
     @Published private(set) var isNearTop: Bool = true
     @Published private(set) var isDeepHistory: Bool = false
+    @Published private(set) var restorationAnchor: String?
+
+    // MARK: - Scroll Policy
+
+    enum ScrollPolicy {
+        case preserveViewport
+        case jumpToNow
+    }
+
+    var scrollPolicy: ScrollPolicy = .preserveViewport
+    private var currentAnchorId: String?
 
     // MARK: - Private Properties
 
@@ -169,6 +180,15 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Update posts with proper state management
     private func updatePosts(_ newPosts: [Post]) {
+        // Anchor & Compensate: Capture anchor before update
+        if scrollPolicy == .preserveViewport {
+            self.restorationAnchor = currentAnchorId
+        } else {
+            self.restorationAnchor = nil
+            // Reset policy to default after explicit jump
+            scrollPolicy = .preserveViewport
+        }
+
         self.posts = newPosts
         if FeatureFlagManager.isEnabled(.postActionsV2) {
             newPosts.forEach { post in
@@ -184,6 +204,10 @@ class UnifiedTimelineController: ObservableObject {
     }
 
     // MARK: - Public Interface
+
+    func updateCurrentAnchor(_ id: String?) {
+        self.currentAnchorId = id
+    }
 
     /// Refresh timeline - proper async/await pattern
     func refreshTimeline() {

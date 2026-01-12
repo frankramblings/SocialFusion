@@ -45,6 +45,9 @@ struct PostCardView: View {
 
     // Optional PostViewModel for state updates
     let viewModel: PostViewModel?
+    
+    // Optional layout snapshot for stable layout (prevents reflow)
+    let layoutSnapshot: PostLayoutSnapshot?
 
     // State for expanding reply banner - properly keyed to prevent view reuse issues
     @State private var isReplyBannerExpanded = false
@@ -358,6 +361,7 @@ struct PostCardView: View {
         viewModel: PostViewModel? = nil,
         postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil,
+        layoutSnapshot: PostLayoutSnapshot? = nil,
         onPostTap: @escaping () -> Void = {},
         onParentPostTap: @escaping (Post) -> Void = { _ in },
         onAuthorTap: @escaping () -> Void = {},
@@ -392,6 +396,7 @@ struct PostCardView: View {
         self.viewModel = viewModel
         self.postActionStore = postActionStore
         self.postActionCoordinator = postActionCoordinator
+        self.layoutSnapshot = layoutSnapshot
 
         // Extract boost information from TimelineEntry
         // CRITICAL: Always preserve boostedBy from both TimelineEntry and post
@@ -524,6 +529,7 @@ struct PostCardView: View {
         self.boostedBy = post.boostedBy
         self.postActionStore = postActionStore
         self.postActionCoordinator = postActionCoordinator
+        self.layoutSnapshot = nil  // Original initializer doesn't use snapshots
         
         // CRITICAL FIX: Initialize cache synchronously to prevent accessing post.originalPost during rendering
         // For boost posts, initialize to originalPost so content appears immediately
@@ -734,24 +740,42 @@ struct PostCardView: View {
         // CRITICAL FIX: Only use cached attachments to prevent accessing displayPost.attachments synchronously
         // This prevents AttributeGraph cycles when displayPost is originalPost
         let attachmentsToShow = cachedAttachments
-            if !attachmentsToShow.isEmpty {
-                let hasGIF = attachmentsToShow.contains { $0.type == .animatedGIF }
-                let mediaMaxHeight = hasGIF ? min(UIScreen.main.bounds.height * 0.7, 800) : 600
-
+        
+        if !attachmentsToShow.isEmpty {
+            let hasGIF = attachmentsToShow.contains { $0.type == .animatedGIF }
+            let mediaMaxHeight = hasGIF ? min(UIScreen.main.bounds.height * 0.7, 800) : 600
+            
+            // Use stable media container if snapshot is available
+            if let snapshot = layoutSnapshot, !snapshot.mediaBlocks.isEmpty {
+                MediaGridContainerView(
+                    attachments: attachmentsToShow,
+                    mediaBlocks: snapshot.mediaBlocks,
+                    maxHeight: mediaMaxHeight,
+                    onMediaTap: { attachment in
+                        onMediaTap(attachment)
+                    }
+                )
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 4)
+                .padding(.top, 4)
+                .clipped()
+            } else {
+                // Fallback to existing implementation
                 UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: mediaMaxHeight)
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 4)
                     .padding(.top, 4)
                     .clipped()
                     .onAppear {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                        DebugLog.verbose("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
-                        for (index, att) in attachmentsToShow.enumerated() {
-                            DebugLog.verbose("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 200_000_000)
+                            DebugLog.verbose("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
+                            for (index, att) in attachmentsToShow.enumerated() {
+                                DebugLog.verbose("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
+                            }
                         }
                     }
-                }
+            }
         }
     }
     

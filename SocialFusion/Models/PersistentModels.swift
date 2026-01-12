@@ -16,10 +16,13 @@ final class CachedPost {
     var repostCount: Int
     var likeCount: Int
     
-    // Simplified attachments for caching
+    // Full post data as JSON for complete restoration
+    var postData: Data?
+    
+    // Simplified attachments for caching (fallback)
     var attachmentURLs: [String] = []
     
-    init(id: String, content: String, authorName: String, authorUsername: String, authorProfilePictureURL: String, createdAt: Date, platform: SocialPlatform, originalURL: String, replyCount: Int, repostCount: Int, likeCount: Int, attachmentURLs: [String]) {
+    init(id: String, content: String, authorName: String, authorUsername: String, authorProfilePictureURL: String, createdAt: Date, platform: SocialPlatform, originalURL: String, replyCount: Int, repostCount: Int, likeCount: Int, attachmentURLs: [String], postData: Data? = nil) {
         self.id = id
         self.content = content
         self.authorName = authorName
@@ -32,6 +35,7 @@ final class CachedPost {
         self.repostCount = repostCount
         self.likeCount = likeCount
         self.attachmentURLs = attachmentURLs
+        self.postData = postData
     }
 }
 

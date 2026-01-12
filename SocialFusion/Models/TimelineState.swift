@@ -40,9 +40,9 @@ struct EnhancedTimelineEntry: Identifiable, Equatable {
 
     /// Convert to TimelineEntry for compatibility with existing components
     var asTimelineEntry: TimelineEntry {
-        // Determine the kind based on post properties (same logic as SocialServiceManager.makeTimelineEntries)
+        // Determine the kind based on post properties
         let kind: TimelineEntryKind
-        if let original = post.originalPost {
+        if post.originalPost != nil || post.boostedBy != nil {
             // This is a boost/repost - use boostedBy if available, otherwise fall back to authorUsername
             let boostedByHandle = post.boostedBy ?? post.authorUsername
             kind = .boost(boostedBy: boostedByHandle)

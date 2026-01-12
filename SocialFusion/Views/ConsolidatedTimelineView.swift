@@ -139,6 +139,12 @@ struct ConsolidatedTimelineView: View {
     @StateObject private var timelineState = TimelineState()
     @StateObject private var feedPickerViewModel: TimelineFeedPickerViewModel
     private let config = TimelineConfiguration.shared
+    
+    // Layout snapshot system for stable media layout
+    @State private var postSnapshots: [String: PostLayoutSnapshot] = [:]
+    private let snapshotBuilder = PostLayoutSnapshotBuilder()
+    private let prefetcher = MediaPrefetcher.shared
+    @StateObject private var updateCoordinator = FeedUpdateCoordinator()
 
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
@@ -202,6 +208,8 @@ struct ConsolidatedTimelineView: View {
                     logAnchorState("initial queue")
                     restorePendingAnchorIfPossible()
                 }
+                // Prefetch dimensions for initial posts
+                await prefetchInitialPosts()
             }
             .onAppear {
                 serviceManager.markUnifiedTimelinePresented()
@@ -227,9 +235,19 @@ struct ConsolidatedTimelineView: View {
                     logAnchorState("loading started")
                 }
             }
-            .onChange(of: controller.posts) { _ in
+            .onChange(of: controller.posts) { newPosts in
+                // Anchor + Compensate: Use the anchor captured by the controller
+                if let restorationId = controller.restorationAnchor {
+                    pendingAnchorRestoreId = restorationId
+                }
                 logAnchorState("posts updated")
                 restorePendingAnchorIfPossible()
+                
+                // Build snapshots for new posts and prefetch dimensions
+                Task {
+                    await buildSnapshotsForPosts(newPosts)
+                    prefetcher.prefetchDimensions(for: newPosts)
+                }
             }
             .onChange(of: serviceManager.currentTimelineScope) { _ in
                 controller.refreshTimeline()
@@ -258,8 +276,8 @@ struct ConsolidatedTimelineView: View {
                     Text("Unknown error")
                 }
             }
-            .onChange(of: controller.error?.localizedDescription) { errorDescription in
-                if let errorDescription = errorDescription, let error = controller.error {
+            .onChange(of: controller.error?.localizedDescription) { _ in
+                if let error = controller.error {
                     ErrorHandler.shared.handleError(error) {
                         controller.refreshTimeline()
                     }
@@ -559,6 +577,7 @@ struct ConsolidatedTimelineView: View {
                     if visibleAnchorId != nextId {
                         visibleAnchorId = nextId
                         persistedAnchorId = nextId
+                        controller.updateCurrentAnchor(nextId)
                         logAnchorState("visible anchor -> \(nextId)")
                     }
                     let topId = controller.posts.first.map(scrollIdentifier(for:))
@@ -590,6 +609,7 @@ struct ConsolidatedTimelineView: View {
                 .scrollPosition(id: $scrollAnchorId)
                 .onChange(of: scrollAnchorId) { newValue in
                     controller.recordVisibleInteraction()
+                    controller.updateCurrentAnchor(newValue)
                     logAnchorState("scrollAnchorId changed -> \(newValue ?? "nil")")
                 }
                 .refreshable {
@@ -751,14 +771,14 @@ struct ConsolidatedTimelineView: View {
 
     private func handleMergeTap(proxy: ScrollViewProxy) {
         if controller.isNearTop {
-            prepareMergeAnchorRestore()
+            controller.scrollPolicy = .jumpToNow
             controller.mergeBufferedPosts()
             return
         }
         scrollToTop(using: proxy)
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 350_000_000)
-            prepareMergeAnchorRestore()
+            controller.scrollPolicy = .jumpToNow
             controller.mergeBufferedPosts()
         }
     }
@@ -814,17 +834,12 @@ struct ConsolidatedTimelineView: View {
 
     private func postCard(for post: Post) -> some View {
         // Determine the correct TimelineEntry kind based on post properties
-        // CRITICAL FIX: Check for originalPost first to catch all boosts
-        // CRITICAL: Never modify post properties during view rendering - causes AttributeGraph cycles
+        // CRITICAL FIX: Check for originalPost OR boostedBy metadata to catch all boosts
+        // This is important because the canonical store may return the original post with boostedBy set
         let entryKind: TimelineEntryKind
-        if post.originalPost != nil {
+        if post.originalPost != nil || post.boostedBy != nil {
             // This is a boost - use boostedBy if available, otherwise use authorUsername
-            // CRITICAL: Do NOT modify post.boostedBy here - it causes "Publishing changes from within view updates"
-            // If boostedBy is missing, use authorUsername as fallback without modifying the post
             let boostedByHandle = post.boostedBy ?? post.authorUsername
-            if boostedByHandle.isEmpty {
-                print("⚠️ [ConsolidatedTimelineView] Boost detected but no boostedBy handle for post \(post.id)")
-            }
             entryKind = .boost(boostedBy: boostedByHandle)
         } else if let parentId = post.inReplyToID {
             entryKind = .reply(parentId: parentId)
@@ -840,10 +855,13 @@ struct ConsolidatedTimelineView: View {
         )
 
         // CRITICAL FIX: Use the entry initializer to ensure boostedBy is properly passed
+        // Use snapshot if available for stable layout
+        let snapshot = postSnapshots[post.id]
         return PostCardView(
             entry: entry,
             postActionStore: controller.postActionStore,
             postActionCoordinator: controller.postActionCoordinator,
+            layoutSnapshot: snapshot,
             onPostTap: { navigationEnvironment.navigateToPost(post) },
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
@@ -959,6 +977,52 @@ struct ConsolidatedTimelineView: View {
     // CRITICAL FIX: Removed handleScrollChange function
     // It was causing AttributeGraph cycles and scrollVelocity was never actually used
     // Removing this eliminates the crash without affecting functionality
+    
+    // MARK: - Layout Snapshot Management
+    
+    /// Build snapshots for posts (async, uses cache when available)
+    private func buildSnapshotsForPosts(_ posts: [Post]) async {
+        await withTaskGroup(of: (String, PostLayoutSnapshot).self) { group in
+            for post in posts {
+                group.addTask {
+                    let snapshot = await snapshotBuilder.buildSnapshot(for: post)
+                    return (post.id, snapshot)
+                }
+            }
+            
+            var newSnapshots: [String: PostLayoutSnapshot] = [:]
+            for await (postId, snapshot) in group {
+                newSnapshots[postId] = snapshot
+            }
+            
+            // Update snapshots on main thread
+            await MainActor.run {
+                // Only update if snapshot changed (prevents unnecessary view updates)
+                for (postId, snapshot) in newSnapshots {
+                    if postSnapshots[postId] != snapshot {
+                        postSnapshots[postId] = snapshot
+                    }
+                }
+            }
+        }
+    }
+    
+    /// Prefetch dimensions for initial posts
+    private func prefetchInitialPosts() async {
+        let posts = controller.posts
+        prefetcher.prefetchDimensions(for: posts)
+        
+        // Build initial snapshots synchronously (using cache only)
+        var initialSnapshots: [String: PostLayoutSnapshot] = [:]
+        for post in posts {
+            let snapshot = snapshotBuilder.buildSnapshotSync(for: post)
+            initialSnapshots[post.id] = snapshot
+        }
+        postSnapshots = initialSnapshots
+        
+        // Then build full snapshots async (with dimension fetching)
+        await buildSnapshotsForPosts(posts)
+    }
 }
 
 /// PreferenceKey for scroll offset detection
