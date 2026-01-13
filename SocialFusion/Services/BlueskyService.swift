@@ -2802,7 +2802,8 @@ public final class BlueskyService: Sendable {
         mediaAttachments: [Data] = [],
         mediaAltTexts: [String] = [],
         replyTo: String? = nil,
-        account: SocialAccount
+        account: SocialAccount,
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         let accessToken = try await account.getValidAccessToken()
         let rawServerURL = account.serverURL?.absoluteString ?? "bsky.social"
@@ -2836,11 +2837,53 @@ public final class BlueskyService: Sendable {
             ]
         }
 
+        // Compile entities from composerTextModel if provided (for mentions/facets)
+        var finalContent = content
+        var facets: [[String: Any]]? = nil
+        if let model = composerTextModel {
+            finalContent = model.toPlainText()
+            let blueskyEntities = model.toBlueskyEntities()
+            if !blueskyEntities.isEmpty {
+                facets = blueskyEntities.map { facet in
+                    [
+                        "index": [
+                            "byteStart": facet.index.byteStart,
+                            "byteEnd": facet.index.byteEnd
+                        ],
+                        "features": facet.features.map { feature in
+                            switch feature {
+                            case .mention(let did):
+                                return [
+                                    "$type": "app.bsky.richtext.facet#mention",
+                                    "did": did
+                                ]
+                            case .link(let uri):
+                                return [
+                                    "$type": "app.bsky.richtext.facet#link",
+                                    "uri": uri
+                                ]
+                            case .hashtag(let tag):
+                                return [
+                                    "$type": "app.bsky.richtext.facet#tag",
+                                    "tag": tag
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        
         var record: [String: Any] = [
             "$type": "app.bsky.feed.post",
-            "text": content,
+            "text": finalContent,
             "createdAt": ISO8601DateFormatter().string(from: Date()),
         ]
+        
+        // Add facets if present
+        if let facets = facets, !facets.isEmpty {
+            record["facets"] = facets
+        }
 
         if let embed = embed {
             record["embed"] = embed
@@ -3503,7 +3546,8 @@ public final class BlueskyService: Sendable {
         content: String,
         mediaAttachments: [Data] = [],
         mediaAltTexts: [String] = [],
-        account: SocialAccount
+        account: SocialAccount,
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         guard let accessToken = account.getAccessToken() else {
             throw NSError(
@@ -3537,9 +3581,46 @@ public final class BlueskyService: Sendable {
             ]
         }
 
-        let record: [String: Any] = [
+        // Compile entities from composerTextModel if provided
+        var finalContent = content
+        var facets: [[String: Any]]? = nil
+        if let model = composerTextModel {
+            finalContent = model.toPlainText()
+            let blueskyEntities = model.toBlueskyEntities()
+            if !blueskyEntities.isEmpty {
+                facets = blueskyEntities.map { facet in
+                    [
+                        "index": [
+                            "byteStart": facet.index.byteStart,
+                            "byteEnd": facet.index.byteEnd
+                        ],
+                        "features": facet.features.map { feature in
+                            switch feature {
+                            case .mention(let did):
+                                return [
+                                    "$type": "app.bsky.richtext.facet#mention",
+                                    "did": did
+                                ]
+                            case .link(let uri):
+                                return [
+                                    "$type": "app.bsky.richtext.facet#link",
+                                    "uri": uri
+                                ]
+                            case .hashtag(let tag):
+                                return [
+                                    "$type": "app.bsky.richtext.facet#tag",
+                                    "tag": tag
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        
+        var record: [String: Any] = [
             "$type": "app.bsky.feed.post",
-            "text": content,
+            "text": finalContent,
             "createdAt": ISO8601DateFormatter().string(from: Date()),
             "reply": [
                 "root": [
@@ -3554,6 +3635,11 @@ public final class BlueskyService: Sendable {
                 ],
             ],
         ]
+        
+        // Add facets if present
+        if let facets = facets, !facets.isEmpty {
+            record["facets"] = facets
+        }
 
         var finalRecord = record
         if let embed = embed {

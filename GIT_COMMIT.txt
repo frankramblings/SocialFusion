@@ -1,55 +1,31 @@
-feat: Implement no-reflow media layout system for stable feed scrolling
+feat(composer): implement muscle memory composer features and fixes
 
-Implements a comprehensive stable media layout contract that prevents
-jerky scrolling and layout reflow in the feed. Feed rows maintain stable
-heights after first appearance, preventing jumps when images load,
-banners appear/disappear, or content updates.
+Implement comprehensive power-user composer features including entity
+compilation, platform conflict detection, keyboard shortcuts, smart paste,
+emoji fetching, and cache persistence. Fix critical entity range maintenance
+and undo/redo integration issues.
 
-Core Components:
-- PostLayoutSnapshot: Value type capturing all layout-affecting properties
-- PostLayoutSnapshotBuilder: Builds stable snapshots from Post objects
-- MediaDimensionCache: Memory + disk cache with TTL and LRU eviction
-- ImageSizeFetcher: Async dimension fetching via HTTP Range requests
-- MediaPrefetcher: Prefetches dimensions for upcoming posts
-- MediaContainerView: SwiftUI container with fixed aspect ratio
-- FeedUpdateCoordinator: Batches updates with anchor preservation
+Features:
+- Entity parsing from plain text (mentions, hashtags, URLs)
+- Entity range maintenance via applyEdit() callback
+- Undo/redo integration for entity state sync
+- Smart paste detection with automatic entity creation
+- Platform conflict detection with automatic updates
+- Keyboard shortcuts (Cmd+Enter, Cmd+K, Cmd+L, Cmd+.)
+- Full AutocompleteCache persistence to UserDefaults
+- Mastodon custom emoji fetching + system emoji fallback
 
-Integration:
-- ConsolidatedTimelineView: Builds snapshots and prefetches dimensions
-- PostCardView: Uses stable media container when snapshot provided
+Build fixes:
+- Fix keyboard shortcut API (onKeyPress for iOS 17+)
+- Fix type-checking complexity
+- Fix String indexing errors
+- Fix parameter order issues
 
-Key Features:
-✅ Stable row heights after first appearance
-✅ Media uses fixed aspect ratios (no layout changes on image load)
-✅ Banner stability with fixed heights
-✅ Anchor preservation for layout-affecting updates
-✅ Aggressive prefetching to minimize missing dimensions
-✅ Backward compatible (graceful fallback if no snapshot)
+Files modified:
+- ComposerTextModel.swift: Add entity parsing
+- ComposeView.swift: Wire up callbacks, add paste detection
+- ComposeViewLifecycleModifier.swift: Fix keyboard shortcuts
+- AutocompleteCache.swift: Full persistence implementation
+- EmojiService.swift: Mastodon API + system emoji
 
-Files Added:
-- SocialFusion/Models/PostLayoutSnapshot.swift
-- SocialFusion/Utilities/MediaDimensionCache.swift
-- SocialFusion/Utilities/ImageSizeFetcher.swift
-- SocialFusion/Utilities/MediaPrefetcher.swift
-- SocialFusion/Utilities/PostLayoutSnapshotBuilder.swift
-- SocialFusion/Utilities/FeedUpdateCoordinator.swift
-- SocialFusion/Views/Components/MediaContainerView.swift
-- SocialFusionTests/PostLayoutSnapshotBuilderTests.swift
-- STABLE_MEDIA_LAYOUT_IMPLEMENTATION.md
-
-Files Modified:
-- SocialFusion/Views/Components/PostCardView.swift
-- SocialFusion/Views/ConsolidatedTimelineView.swift
-
-Testing:
-- Unit tests for PostLayoutSnapshotBuilder
-- Test cases for posts with/without media, boosts, replies
-- Snapshot stability verification
-
-Performance:
-- Dimension fetching uses Range requests (minimal data transfer)
-- Aggressive caching reduces redundant fetches
-- Prefetching happens before posts appear
-- Batch updates prevent excessive view updates
-
-Compatibility: iOS 16+, forward compatible with iOS 17+, no deprecated APIs
+Build verified for iPhone 17 Pro simulator.

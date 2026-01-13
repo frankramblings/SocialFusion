@@ -19,13 +19,22 @@ public class DraftStore: ObservableObject {
         let draftPosts = posts.map { post in
             ThreadPostDraft(
                 text: post.text,
-                mediaData: post.images.compactMap { $0.jpegData(compressionQuality: 0.8) }
+                mediaData: post.images.compactMap { $0.jpegData(compressionQuality: 0.8) },
+                cwEnabled: post.cwEnabled,
+                cwText: post.cwText,
+                attachmentAltTexts: post.imageAltTexts,
+                attachmentSensitiveFlags: post.attachmentSensitiveFlags
             )
         }
+        
+        // Use first post's CW for legacy support
+        let firstPost = posts.first ?? ThreadPost()
         let draft = DraftPost(
             posts: draftPosts,
             selectedPlatforms: platforms,
-            replyingToId: replyingToId
+            replyingToId: replyingToId,
+            cwEnabled: firstPost.cwEnabled,
+            cwText: firstPost.cwText
         )
         drafts.insert(draft, at: 0)
         persist()

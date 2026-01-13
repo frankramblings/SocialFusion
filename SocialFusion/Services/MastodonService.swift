@@ -1793,7 +1793,10 @@ public final class MastodonService: @unchecked Sendable {
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
         visibility: String = "public",
-        account: SocialAccount
+        account: SocialAccount,
+        spoilerText: String? = nil,
+        sensitive: Bool = false,
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
@@ -1874,14 +1877,32 @@ public final class MastodonService: @unchecked Sendable {
             mediaIds.append(mediaId)
         }
 
+        // Compile entities from composerTextModel if provided (for mentions/hashtags)
+        var finalContent = content
+        if let model = composerTextModel {
+            finalContent = model.toPlainText()
+            // Mastodon API accepts mentions/hashtags as plain text in status
+            // Entities are parsed server-side
+        }
+        
         var parameters: [String: Any] = [
-            "status": content,
+            "status": finalContent,
             "in_reply_to_id": statusId,
             "visibility": visibility,
         ]
 
         if !mediaIds.isEmpty {
             parameters["media_ids"] = mediaIds
+        }
+        
+        // Handle content warning
+        if let spoilerText = spoilerText, !spoilerText.isEmpty {
+            parameters["spoiler_text"] = spoilerText
+        }
+        
+        // Handle sensitive flag
+        if sensitive {
+            parameters["sensitive"] = true
         }
 
         if !pollOptions.isEmpty {
@@ -2983,7 +3004,10 @@ public final class MastodonService: @unchecked Sendable {
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
         visibility: String = "public",
-        account: SocialAccount
+        account: SocialAccount,
+        spoilerText: String? = nil,
+        sensitive: Bool = false,
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         let serverUrl = formatServerURL(
             account.serverURL?.absoluteString ?? "")
@@ -3006,13 +3030,32 @@ public final class MastodonService: @unchecked Sendable {
                 userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"])
         }
 
+        // Compile entities from composerTextModel if provided (for mentions/hashtags)
+        var finalContent = content
+        if let model = composerTextModel {
+            finalContent = model.toPlainText()
+            // Mastodon API accepts mentions/hashtags as plain text in status
+            // Entities are parsed server-side, but we can include them for clarity
+            // Note: Mastodon doesn't require explicit entity ranges in the API
+        }
+        
         var parameters: [String: Any] = [
-            "status": content,
+            "status": finalContent,
             "visibility": visibility,
         ]
 
         if !mediaIds.isEmpty {
             parameters["media_ids"] = mediaIds
+        }
+        
+        // Handle content warning
+        if let spoilerText = spoilerText, !spoilerText.isEmpty {
+            parameters["spoiler_text"] = spoilerText
+        }
+        
+        // Handle sensitive flag (CW enabled OR any attachment marked sensitive)
+        if sensitive {
+            parameters["sensitive"] = true
         }
 
         // Handle poll

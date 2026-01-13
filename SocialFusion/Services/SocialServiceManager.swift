@@ -2438,7 +2438,11 @@ public final class SocialServiceManager: ObservableObject {
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
         visibility: String = "public",
-        accountOverride: SocialAccount? = nil
+        accountOverride: SocialAccount? = nil,
+        cwText: String? = nil,
+        cwEnabled: Bool = false,
+        attachmentSensitiveFlags: [Bool] = [],
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         switch post.platform {
         case .mastodon:
@@ -2446,6 +2450,9 @@ public final class SocialServiceManager: ObservableObject {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
             do {
+                // Calculate sensitive flag
+                let sensitive = cwEnabled || attachmentSensitiveFlags.contains(true)
+                
                 return try await mastodonService.replyToPost(
                     post,
                     content: content,
@@ -2454,7 +2461,10 @@ public final class SocialServiceManager: ObservableObject {
                     pollOptions: pollOptions,
                     pollExpiresIn: pollExpiresIn,
                     visibility: visibility,
-                    account: account
+                    account: account,
+                    spoilerText: cwText,
+                    sensitive: sensitive,
+                    composerTextModel: composerTextModel
                 )
             } catch {
                 // Enhanced error messages for common Mastodon failures
@@ -2494,12 +2504,19 @@ public final class SocialServiceManager: ObservableObject {
             guard let account = accountOverride ?? blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
+            // Compile entities from composerTextModel if provided
+            var finalContent = content
+            if let model = composerTextModel {
+                finalContent = model.toPlainText()
+            }
+            
             return try await blueskyService.replyToPost(
                 post,
-                content: content,
+                content: finalContent,
                 mediaAttachments: mediaAttachments,
                 mediaAltTexts: mediaAltTexts,
-                account: account
+                account: account,
+                composerTextModel: composerTextModel
             )
         }
     }
@@ -3784,7 +3801,11 @@ public final class SocialServiceManager: ObservableObject {
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
         visibility: String = "public",
-        accountOverrides: [SocialPlatform: SocialAccount] = [:]
+        accountOverrides: [SocialPlatform: SocialAccount] = [:],
+        cwText: String? = nil,
+        cwEnabled: Bool = false,
+        attachmentSensitiveFlags: [Bool] = [],
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> [Post] {
         guard !platforms.isEmpty else {
             throw ServiceError.noPlatformsSelected
@@ -3808,7 +3829,11 @@ public final class SocialServiceManager: ObservableObject {
                     pollOptions: pollOptions,
                     pollExpiresIn: pollExpiresIn,
                     visibility: visibility,
-                    accountOverride: accountOverrides[platform]
+                    accountOverride: accountOverrides[platform],
+                    cwText: cwText,
+                    cwEnabled: cwEnabled,
+                    attachmentSensitiveFlags: attachmentSensitiveFlags,
+                    composerTextModel: composerTextModel
                 )
                 createdPosts.append(post)
             } catch {
@@ -3842,32 +3867,58 @@ public final class SocialServiceManager: ObservableObject {
         pollOptions: [String] = [],
         pollExpiresIn: Int? = nil,
         visibility: String = "public",
-        accountOverride: SocialAccount? = nil
+        accountOverride: SocialAccount? = nil,
+        cwText: String? = nil,
+        cwEnabled: Bool = false,
+        attachmentSensitiveFlags: [Bool] = [],
+        composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         switch platform {
         case .mastodon:
             guard let account = accountOverride ?? mastodonAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Mastodon account available")
             }
+            // Calculate sensitive flag: cwEnabled OR any attachment marked sensitive
+            let sensitive = cwEnabled || attachmentSensitiveFlags.contains(true)
+            
+            // Compile entities from composerTextModel if provided (for mentions/hashtags)
+            var finalContent = content
+            if let model = composerTextModel {
+                finalContent = model.toPlainText()
+                // Entities will be compiled in MastodonService.createPost if needed
+            }
+            
             return try await mastodonService.createPost(
-                content: content,
+                content: finalContent,
                 mediaAttachments: mediaAttachments,
                 mediaAltTexts: mediaAltTexts,
                 pollOptions: pollOptions,
                 pollExpiresIn: pollExpiresIn,
                 visibility: visibility,
-                account: account
+                account: account,
+                spoilerText: cwText,
+                sensitive: sensitive,
+                composerTextModel: composerTextModel
             )
         case .bluesky:
             guard let account = accountOverride ?? blueskyAccounts.first else {
                 throw ServiceError.invalidAccount(reason: "No Bluesky account available")
             }
             // Bluesky doesn't support polls via the standard post API yet
+            // Compile entities from composerTextModel if provided
+            var finalContent = content
+            if let model = composerTextModel {
+                // Use plain text (entities are metadata for API)
+                finalContent = model.toPlainText()
+                // Entities will be compiled in BlueskyService.createPost if needed
+            }
+            
             return try await blueskyService.createPost(
-                content: content,
+                content: finalContent,
                 mediaAttachments: mediaAttachments,
                 mediaAltTexts: mediaAltTexts,
-                account: account
+                account: account,
+                composerTextModel: composerTextModel
             )
         }
     }

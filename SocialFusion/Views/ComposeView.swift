@@ -11,6 +11,14 @@ public struct ThreadPost: Identifiable {
     public var imageAltTexts: [String] = []
     public var pollOptions: [String] = []
     public var showPoll: Bool = false
+    public var cwEnabled: Bool = false
+    public var cwText: String = ""
+    public var attachmentSensitiveFlags: [Bool] = []
+    
+    /// Computed property for draft sensitive flag
+    public var draftSensitive: Bool {
+        return cwEnabled || attachmentSensitiveFlags.contains(true)
+    }
 }
 
 /// A view that shows context for what post is being replied to
@@ -135,16 +143,23 @@ struct ReplyContextHeader: View {
     }
 }
 
-/// A UIViewRepresentable wrapper for UITextView with better focus control
+/// A UIViewRepresentable wrapper for UITextView with better focus control and autocomplete support
 struct FocusableTextEditor: UIViewRepresentable {
     @Binding var text: String
     let placeholder: String
     let shouldAutoFocus: Bool
     let onFocusChange: (Bool) -> Void
+    var onAutocompleteToken: ((AutocompleteToken?) -> Void)? = nil // Callback for autocomplete token detection
+    var documentRevision: Int = 0 // Current document revision for stale-result rejection
+    var activeDestinations: [String] = [] // Active destinations for autocomplete scope
+    var onUndoRedo: ((String, [TextEntity]) -> Void)? = nil // Callback for undo/redo to sync entity state
+    var onTextEdit: ((NSRange, String) -> Void)? = nil // Callback for text edits to apply to composerTextModel
+    var onPasteDetected: ((String, NSRange) -> [TextEntity])? = nil // Callback for paste detection to create entities
 
     func makeUIView(context: Context) -> UITextView {
         let textView = UITextView()
         textView.delegate = context.coordinator
+        context.coordinator.setTextView(textView)
         textView.font = UIFont.preferredFont(forTextStyle: .body)
         textView.backgroundColor = UIColor.systemBackground
         textView.textColor = UIColor.label
@@ -196,6 +211,13 @@ struct FocusableTextEditor: UIViewRepresentable {
     class Coordinator: NSObject, UITextViewDelegate {
         var parent: FocusableTextEditor?
         private var isUpdating = false
+        private var lastToken: AutocompleteToken?
+        weak var textView: UITextView?
+        private var lastKnownText: String = ""
+        private var lastKnownEntities: [TextEntity] = []
+        private var previousText: String = "" // Track previous text for edit range computation
+        private var pendingPasteEntities: [TextEntity] = [] // Entities from paste detection
+        private var pendingPasteRange: NSRange? // Range where paste occurred
 
         init(_ parent: FocusableTextEditor) {
             self.parent = parent
@@ -204,6 +226,10 @@ struct FocusableTextEditor: UIViewRepresentable {
 
         deinit {
             parent = nil
+        }
+        
+        func setTextView(_ textView: UITextView) {
+            self.textView = textView
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
@@ -214,6 +240,10 @@ struct FocusableTextEditor: UIViewRepresentable {
                 textView.text = ""
                 textView.textColor = UIColor.label
             }
+            
+            // Initialize previous text tracking
+            previousText = textView.text ?? ""
+            
             parent.onFocusChange(true)
 
             isUpdating = false
@@ -228,10 +258,42 @@ struct FocusableTextEditor: UIViewRepresentable {
                 textView.textColor = UIColor.placeholderText
             }
             parent.onFocusChange(false)
+            
+            // Dismiss autocomplete when editing ends
+            parent.onAutocompleteToken?(nil)
 
             isUpdating = false
         }
 
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            // This is called BEFORE the text changes, giving us the exact edit range
+            // We'll apply the edit to composerTextModel here via the parent callback
+            guard let parent = parent, !isUpdating else { return true }
+            
+            // Detect paste events: large text replacement or check pasteboard
+            let isPaste = text.count > 10 || (range.length == 0 && text.count > 0 && UIPasteboard.general.hasStrings)
+            
+            if isPaste, let onPasteDetected = parent.onPasteDetected {
+                // Parse pasted text for URLs and handles, create entities
+                let entities = onPasteDetected(text, range)
+                
+                // Store entities to be inserted after text change
+                // We'll handle this in textViewDidChange since we need the new text ranges
+                pendingPasteEntities = entities
+                pendingPasteRange = range
+            } else {
+                pendingPasteEntities = []
+                pendingPasteRange = nil
+            }
+            
+            // Notify parent to apply edit to composerTextModel
+            // The parent will call applyEdit() on the model
+            parent.onTextEdit?(range, text)
+            
+            // Allow the text change to proceed
+            return true
+        }
+        
         func textViewDidChange(_ textView: UITextView) {
             guard let parent = parent,
                 !isUpdating,
@@ -239,8 +301,171 @@ struct FocusableTextEditor: UIViewRepresentable {
             else { return }
 
             isUpdating = true
-            parent.text = textView.text
+            let newText = textView.text ?? ""
+            
+            // Compute edit range by comparing previous and new text
+            // This handles cases where shouldChangeTextIn wasn't called (e.g., programmatic changes)
+            if newText != previousText {
+                // Find the edit range by comparing texts
+                let editRange = computeEditRange(oldText: previousText, newText: newText)
+                
+                // Extract replacement text using NSString for safe range access
+                let nsString = newText as NSString
+                let replacementStart = min(editRange.location, nsString.length)
+                let replacementLength = min(editRange.length, nsString.length - replacementStart)
+                let replacementRange = NSRange(location: replacementStart, length: replacementLength)
+                let replacementText = nsString.substring(with: replacementRange)
+                
+                // Notify parent to apply edit (if we have a callback)
+                if let onTextEdit = parent.onTextEdit {
+                    onTextEdit(editRange, replacementText)
+                } else {
+                    // Fallback: notify undo/redo callback
+                    parent.onUndoRedo?(newText, [])
+                }
+                
+                previousText = newText
+            }
+            
+            // Handle paste entities if we detected a paste
+            if let pasteRange = pendingPasteRange, !pendingPasteEntities.isEmpty {
+                // Adjust entity ranges to account for the paste location
+                // The paste happened at pasteRange.location in the OLD text
+                // Entities have ranges relative to the PASTED text (0-based)
+                // We need to adjust them to be relative to the NEW text at pasteRange.location
+                var adjustedEntities: [TextEntity] = []
+                
+                for var entity in pendingPasteEntities {
+                    // Adjust range: paste location + entity's position in pasted text
+                    entity.range = NSRange(
+                        location: pasteRange.location + entity.range.location,
+                        length: entity.range.length
+                    )
+                    adjustedEntities.append(entity)
+                }
+                
+                // Notify parent to add these entities
+                // Use onUndoRedo callback which will merge entities
+                if let onUndoRedo = parent.onUndoRedo {
+                    // Pass new text and entities to merge
+                    onUndoRedo(newText, adjustedEntities)
+                }
+                
+                // Clear pending paste
+                pendingPasteEntities = []
+                pendingPasteRange = nil
+            }
+            
+            // Check if this change was from undo/redo (text changed but we didn't trigger it)
+            // Sync entity state on any text change (including undo/redo)
+            if newText != lastKnownText {
+                // Notify parent to sync entity state (may be undo/redo)
+                parent.onUndoRedo?(newText, [])
+                lastKnownText = newText
+            }
+            
+            parent.text = newText
+            
+            // Check for autocomplete triggers (only if not in IME composition)
+            checkForAutocompleteTrigger(textView: textView)
+            
             isUpdating = false
+        }
+        
+        /// Compute edit range by comparing old and new text
+        private func computeEditRange(oldText: String, newText: String) -> NSRange {
+            let oldNS = oldText as NSString
+            let newNS = newText as NSString
+            
+            // Find common prefix
+            var prefixLength = 0
+            let minLength = min(oldNS.length, newNS.length)
+            while prefixLength < minLength && oldNS.character(at: prefixLength) == newNS.character(at: prefixLength) {
+                prefixLength += 1
+            }
+            
+            // Find common suffix
+            var suffixLength = 0
+            while suffixLength < minLength - prefixLength &&
+                  oldNS.character(at: oldNS.length - suffixLength - 1) == newNS.character(at: newNS.length - suffixLength - 1) {
+                suffixLength += 1
+            }
+            
+            // Compute edit range in old text
+            let editLocation = prefixLength
+            let editLength = oldNS.length - prefixLength - suffixLength
+            
+            // Compute replacement text
+            let replacementStart = prefixLength
+            let replacementLength = newNS.length - prefixLength - suffixLength
+            
+            return NSRange(location: editLocation, length: editLength)
+        }
+        
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            guard let parent = parent, !isUpdating else { return }
+            
+            // Dismiss autocomplete if caret moved away from token
+            if let lastToken = lastToken {
+                let selectedRange = textView.selectedRange
+                let tokenEnd = lastToken.replaceRange.location + lastToken.replaceRange.length
+                if selectedRange.location != tokenEnd {
+                    // Caret moved away from token end - dismiss
+                    self.lastToken = nil
+                    parent.onAutocompleteToken?(nil)
+                }
+            }
+            
+            // Check for autocomplete trigger after selection change (IME composition commit)
+            checkForAutocompleteTrigger(textView: textView)
+        }
+        
+        /// Check for autocomplete triggers (@/#/:)
+        private func checkForAutocompleteTrigger(textView: UITextView) {
+            guard let parent = parent else { return }
+            
+            // IME Guardrail: Do NOT trigger autocomplete when marked text is active
+            if textView.markedTextRange != nil {
+                // Dismiss overlay when marked text begins (to avoid stale UI)
+                lastToken = nil
+                parent.onAutocompleteToken?(nil)
+                return
+            }
+            
+            let selectedRange = textView.selectedRange
+            let text = textView.text ?? ""
+            let caretLocation = selectedRange.location
+            
+            // Check for triggers before caret
+            let triggers = ["@", "#", ":"]
+            for prefix in triggers {
+                if let token = TokenExtractor.extractToken(
+                    text: text,
+                    caretLocation: caretLocation,
+                    prefix: prefix,
+                    scope: parent.activeDestinations,
+                    documentRevision: parent.documentRevision,
+                    caretRect: getCaretRect(textView: textView, location: caretLocation)
+                ) {
+                    lastToken = token
+                    parent.onAutocompleteToken?(token)
+                    return
+                }
+            }
+            
+            // No valid token found - dismiss autocomplete
+            if lastToken != nil {
+                lastToken = nil
+                parent.onAutocompleteToken?(nil)
+            }
+        }
+        
+        /// Get caret rectangle for overlay positioning
+        private func getCaretRect(textView: UITextView, location: Int) -> CGRect {
+            guard let position = textView.position(from: textView.beginningOfDocument, offset: location) else {
+                return .zero
+            }
+            return textView.caretRect(for: position)
         }
     }
 }
@@ -334,6 +559,15 @@ struct ComposeView: View {
     let quotingTo: Post?
     @State private var isTextFieldFocused: Bool = false
     
+    // Autocomplete state
+    @State private var composerTextModel = ComposerTextModel()
+    @State private var currentAutocompleteToken: AutocompleteToken?
+    @State private var autocompleteSuggestions: [AutocompleteSuggestion] = []
+    @State private var autocompleteService: AutocompleteService?
+    
+    // Conflict detection
+    @State private var platformConflicts: [PlatformConflict] = []
+    
     init(replyingTo: Post? = nil, quotingTo: Post? = nil) {
         self.replyingTo = replyingTo
         self.quotingTo = quotingTo
@@ -354,7 +588,7 @@ struct ComposeView: View {
 
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 
-    private var postVisibilityOptions = ["Public", "Unlisted", "Followers Only"]
+    private var postVisibilityOptions = ["Public", "Unlisted", "Followers Only", "Direct"]
     @State private var selectedVisibility: Int
 
     // Character limits
@@ -491,335 +725,497 @@ struct ComposeView: View {
     }
 
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Reply context header (only shown for replies)
-                if let replyingTo = replyingTo {
-                    ReplyContextHeader(post: replyingTo)
-                        .environmentObject(navigationEnvironment)
-                }
-
-                // Platform selection (hidden for replies since platform is predetermined)
-                if replyingTo == nil {
-                    HStack(spacing: 16) {
-                        ForEach(SocialPlatform.allCases, id: \.self) { platform in
-                            PlatformToggleButton(
-                                platform: platform,
-                                isSelected: selectedPlatforms.contains(platform),
-                                action: {
-                                    togglePlatform(platform)
-                                }
-                            )
-                        }
-
-                        Spacer()
-
-                        // Visibility picker
-                        Menu {
-                            Picker("Visibility", selection: $selectedVisibility) {
-                                ForEach(0..<postVisibilityOptions.count, id: \.self) { index in
-                                    Text(postVisibilityOptions[index]).tag(index)
-                                }
-                            }
-                        } label: {
-                            Image(systemName: "eye")
-                                .foregroundColor(.secondary)
-                                .padding(8)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .clipShape(Circle())
-                        }
-                    }
-                    .padding(.horizontal)
-                    .padding(.vertical, 12)
-                    .background(Color(UIColor.systemBackground))
-                    .overlay(
-                        Divider(),
-                        alignment: .bottom
-                    )
-                }
-
-                if !selectedPlatforms.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(
-                                Array(selectedPlatforms).sorted(by: { $0.rawValue < $1.rawValue }),
-                                id: \.self
-                            ) { platform in
-                                accountSelector(for: platform)
-                            }
-                        }
-                        .padding(.horizontal)
-                        .padding(.bottom, replyingTo == nil ? 8 : 12)
-                    }
-                }
-
-                platformStatusBar()
-
-                // Text editor
-                ZStack(alignment: .topLeading) {
-                    FocusableTextEditor(
-                        text: $threadPosts[activePostIndex].text,
-                        placeholder: placeholderText,
-                        shouldAutoFocus: true,
-                        onFocusChange: { isFocused in
-                            isTextFieldFocused = isFocused
+    @ViewBuilder
+    private var replyContextHeader: some View {
+        if let replyingTo = replyingTo {
+            ReplyContextHeader(post: replyingTo)
+                .environmentObject(navigationEnvironment)
+        }
+    }
+    
+    @ViewBuilder
+    private var platformSelectionBar: some View {
+        if replyingTo == nil {
+            HStack(spacing: 16) {
+                ForEach(SocialPlatform.allCases, id: \.self) { platform in
+                    PlatformToggleButton(
+                        platform: platform,
+                        isSelected: selectedPlatforms.contains(platform),
+                        action: {
+                            togglePlatform(platform)
                         }
                     )
                 }
-                .frame(maxHeight: .infinity)
-                .padding(.horizontal, 8)
-                .padding(.top, 8)
 
-                // Thread pagination / navigation if multiple posts
-                if threadPosts.count > 1 {
+                Spacer()
+
+                // Visibility picker
+                Menu {
+                    Picker("Visibility", selection: $selectedVisibility) {
+                        ForEach(0..<postVisibilityOptions.count, id: \.self) { index in
+                            Text(postVisibilityOptions[index]).tag(index)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "eye")
+                        .foregroundColor(.secondary)
+                        .padding(8)
+                        .background(Color(UIColor.secondarySystemBackground))
+                        .clipShape(Circle())
+                }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 12)
+            .background(Color(UIColor.systemBackground))
+            .overlay(
+                Divider(),
+                alignment: .bottom
+            )
+        }
+    }
+    
+    @ViewBuilder
+    private var accountSelectorBar: some View {
+        if !selectedPlatforms.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(
+                        Array(selectedPlatforms).sorted(by: { $0.rawValue < $1.rawValue }),
+                        id: \.self
+                    ) { platform in
+                        accountSelector(for: platform)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom, replyingTo == nil ? 8 : 12)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private var platformConflictBanners: some View {
+        if !platformConflicts.isEmpty {
+            PlatformConflictBanner(conflicts: platformConflicts) {
+                // Show details sheet
+                showAlert = true
+                alertTitle = "Platform Conflicts"
+                alertMessage = platformConflicts.map { $0.message }.joined(separator: "\n")
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 4)
+        }
+    }
+    
+    @ViewBuilder
+    private var textEditorSection: some View {
+        ZStack(alignment: .topLeading) {
+            FocusableTextEditor(
+                text: $threadPosts[activePostIndex].text,
+                placeholder: placeholderText,
+                shouldAutoFocus: true,
+                onFocusChange: { isFocused in
+                    isTextFieldFocused = isFocused
+                },
+                onAutocompleteToken: { token in
+                    handleAutocompleteToken(token)
+                },
+                documentRevision: composerTextModel.documentRevision,
+                activeDestinations: makeActiveDestinations(),
+                onUndoRedo: { newText, newEntities in
+                    // Sync entity state when undo/redo occurs
+                    // Note: newEntities may be empty if undo/redo didn't preserve entity state
+                    // In that case, we'll rebuild entities naturally as user interacts
+                    composerTextModel.text = newText
+                    if !newEntities.isEmpty {
+                        // Merge new entities with existing ones (for paste)
+                        var allEntities = composerTextModel.entities
+                        for newEntity in newEntities {
+                            // Remove any overlapping entities
+                            allEntities.removeAll { existingEntity in
+                                NSIntersectionRange(existingEntity.range, newEntity.range).length > 0
+                            }
+                            allEntities.append(newEntity)
+                        }
+                        // Sort by location
+                        allEntities.sort { $0.range.location < $1.range.location }
+                        composerTextModel.entities = allEntities
+                    } else {
+                        // Clear entities on undo/redo - they'll be rebuilt naturally
+                        composerTextModel.entities = []
+                    }
+                    composerTextModel.documentRevision += 1
+                    // Sync text back to thread post
+                    threadPosts[activePostIndex].text = newText
+                },
+                onTextEdit: { range, replacementText in
+                    // CRITICAL: Apply edit to composerTextModel to maintain entity ranges
+                    composerTextModel.applyEdit(replacementRange: range, replacementText: replacementText)
+                    // Sync text back to thread post (applyEdit updates composerTextModel.text)
+                    threadPosts[activePostIndex].text = composerTextModel.text
+                },
+                onPasteDetected: { pastedText, range in
+                    // Parse pasted text for URLs and @handles, create entities
+                    return parsePastedText(pastedText, insertionRange: range)
+                }
+            )
+            
+            // Autocomplete overlay
+            if let token = currentAutocompleteToken {
+                if !autocompleteSuggestions.isEmpty {
+                    AutocompleteOverlay(
+                        suggestions: autocompleteSuggestions,
+                        token: token,
+                        onSelect: { suggestion in
+                            acceptSuggestion(suggestion, token: token)
+                        },
+                        onDismiss: {
+                            currentAutocompleteToken = nil
+                            autocompleteSuggestions = []
+                        }
+                    )
+                    .zIndex(1000)
+                } else if let error = autocompleteService?.networkError {
+                    // Show network error state
+                    VStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundColor(.orange)
+                        Text("Network unavailable")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Text("Showing recent suggestions only")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(12)
+                    .background(Color(UIColor.secondarySystemBackground))
+                    .cornerRadius(8)
+                    .position(
+                        x: token.caretRect.midX,
+                        y: token.caretRect.maxY + 40
+                    )
+                    .zIndex(1000)
+                }
+            }
+        }
+        .frame(maxHeight: .infinity)
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+    }
+    
+    @ViewBuilder
+    private var threadPaginationSection: some View {
+        if threadPosts.count > 1 {
+            HStack {
+                ForEach(0..<threadPosts.count, id: \.self) { index in
+                    Circle()
+                        .fill(
+                            index == activePostIndex
+                                ? platformColor : Color.gray.opacity(0.3)
+                        )
+                        .frame(width: 8, height: 8)
+                        .onTapGesture {
+                            activePostIndex = index
+                        }
+                }
+
+                Spacer()
+
+                Button(action: {
+                    threadPosts.remove(at: activePostIndex)
+                    activePostIndex = max(0, activePostIndex - 1)
+                }) {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+    }
+    
+    @ViewBuilder
+    private var pollCreationSection: some View {
+        if threadPosts[activePostIndex].showPoll {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Poll")
+                        .font(.headline)
+                    Spacer()
+                    Button(action: {
+                        threadPosts[activePostIndex].showPoll = false
+                        threadPosts[activePostIndex].pollOptions = []
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) {
+                    index in
                     HStack {
-                        ForEach(0..<threadPosts.count, id: \.self) { index in
-                            Circle()
-                                .fill(
-                                    index == activePostIndex
-                                        ? platformColor : Color.gray.opacity(0.3)
-                                )
-                                .frame(width: 8, height: 8)
-                                .onTapGesture {
-                                    activePostIndex = index
-                                }
-                        }
+                        TextField(
+                            "Option \(index + 1)",
+                            text: $threadPosts[activePostIndex].pollOptions[index]
+                        )
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
 
-                        Spacer()
-
-                        Button(action: {
-                            threadPosts.remove(at: activePostIndex)
-                            activePostIndex = max(0, activePostIndex - 1)
-                        }) {
-                            Image(systemName: "trash")
-                                .foregroundColor(.red)
+                        if threadPosts[activePostIndex].pollOptions.count > 2 {
+                            Button(action: {
+                                threadPosts[activePostIndex].pollOptions.remove(at: index)
+                            }) {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundColor(.red)
+                            }
                         }
                     }
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
                 }
 
-                // Poll creation section
-                if threadPosts[activePostIndex].showPoll {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Poll")
-                                .font(.headline)
-                            Spacer()
+                if threadPosts[activePostIndex].pollOptions.count < 4 {
+                    Button(action: {
+                        threadPosts[activePostIndex].pollOptions.append("")
+                    }) {
+                        Label("Add Option", systemImage: "plus.circle")
+                            .font(.subheadline)
+                    }
+                }
+            }
+            .padding()
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(12)
+            .padding(.horizontal)
+            .padding(.bottom, 8)
+        }
+    }
+    
+    @ViewBuilder
+    private var selectedImagesPreview: some View {
+        if !threadPosts[activePostIndex].images.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(0..<threadPosts[activePostIndex].images.count, id: \.self) {
+                        index in
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: threadPosts[activePostIndex].images[index])
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 100, height: 100)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .shadow(
+                                    color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+
                             Button(action: {
-                                threadPosts[activePostIndex].showPoll = false
-                                threadPosts[activePostIndex].pollOptions = []
+                                threadPosts[activePostIndex].images.remove(at: index)
+                                if index < threadPosts[activePostIndex].imageAltTexts.count
+                                {
+                                    threadPosts[activePostIndex].imageAltTexts.remove(
+                                        at: index)
+                                }
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.white)
+                                    .background(Color.black.opacity(0.6))
+                                    .clipShape(Circle())
                             }
-                        }
+                            .padding(6)
 
-                        ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) {
-                            index in
-                            HStack {
-                                TextField(
-                                    "Option \(index + 1)",
-                                    text: $threadPosts[activePostIndex].pollOptions[index]
-                                )
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
-
-                                if threadPosts[activePostIndex].pollOptions.count > 2 {
-                                    Button(action: {
-                                        threadPosts[activePostIndex].pollOptions.remove(at: index)
-                                    }) {
-                                        Image(systemName: "minus.circle.fill")
-                                            .foregroundColor(.red)
-                                    }
-                                }
-                            }
-                        }
-
-                        if threadPosts[activePostIndex].pollOptions.count < 4 {
+                            // Alt Text Button with completion state
                             Button(action: {
-                                threadPosts[activePostIndex].pollOptions.append("")
-                            }) {
-                                Label("Add Option", systemImage: "plus.circle")
-                                    .font(.subheadline)
-                            }
-                        }
-                    }
-                    .padding()
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(12)
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
-                }
-
-                // Selected images preview
-                if !threadPosts[activePostIndex].images.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 10) {
-                            ForEach(0..<threadPosts[activePostIndex].images.count, id: \.self) {
-                                index in
-                                ZStack(alignment: .topTrailing) {
-                                    Image(uiImage: threadPosts[activePostIndex].images[index])
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 100, height: 100)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                                        .shadow(
-                                            color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
-
-                                    Button(action: {
-                                        threadPosts[activePostIndex].images.remove(at: index)
-                                        if index < threadPosts[activePostIndex].imageAltTexts.count
-                                        {
-                                            threadPosts[activePostIndex].imageAltTexts.remove(
-                                                at: index)
-                                        }
-                                    }) {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.system(size: 18))
-                                            .foregroundColor(.white)
-                                            .background(Color.black.opacity(0.6))
-                                            .clipShape(Circle())
-                                    }
-                                    .padding(6)
-
-                                    // Alt Text Button
-                                    Button(action: {
-                                        selectedImageIndexForAltText = index
-                                        currentAltText =
-                                            index < threadPosts[activePostIndex].imageAltTexts.count
-                                            ? threadPosts[activePostIndex].imageAltTexts[index] : ""
-                                        showAltTextSheet = true
-                                    }) {
-                                        Text("ALT")
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundColor(.white)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 4)
-                                            .background(
-                                                index
-                                                    < threadPosts[activePostIndex].imageAltTexts
-                                                    .count
-                                                    && !threadPosts[activePostIndex].imageAltTexts[
-                                                        index
-                                                    ].isEmpty
-                                                    ? Color.blue : Color.black.opacity(0.6)
-                                            )
-                                            .cornerRadius(4)
-                                    }
-                                    .padding(6)
-                                    .frame(
-                                        maxWidth: .infinity, maxHeight: .infinity,
-                                        alignment: .bottomLeading)
+                                selectedImageIndexForAltText = index
+                                // Ensure array is large enough
+                                while threadPosts[activePostIndex].imageAltTexts.count <= index {
+                                    threadPosts[activePostIndex].imageAltTexts.append("")
                                 }
+                                currentAltText = threadPosts[activePostIndex].imageAltTexts[index]
+                                showAltTextSheet = true
+                            }) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: index < threadPosts[activePostIndex].imageAltTexts.count && !threadPosts[activePostIndex].imageAltTexts[index].isEmpty ? "checkmark.circle.fill" : "text.bubble")
+                                        .font(.system(size: 10))
+                                    Text("ALT")
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 4)
+                                .background(
+                                    index < threadPosts[activePostIndex].imageAltTexts.count
+                                    && !threadPosts[activePostIndex].imageAltTexts[index].isEmpty
+                                        ? Color.blue : Color.black.opacity(0.6)
+                                )
+                                .cornerRadius(4)
                             }
+                            .padding(6)
+                            .frame(
+                                maxWidth: .infinity, maxHeight: .infinity,
+                                alignment: .bottomLeading)
                         }
-                        .padding(.horizontal)
                     }
-                    .frame(height: 120)
+                }
+                .padding(.horizontal)
+            }
+            .frame(height: 120)
+            .padding(.vertical, 10)
+            .background(Color(UIColor.systemBackground))
+            .overlay(
+                Divider(),
+                alignment: .bottom
+            )
+        }
+    }
+    
+    @ViewBuilder
+    private var contentWarningEditorSection: some View {
+        if threadPosts[activePostIndex].cwEnabled {
+            ContentWarningEditor(
+                cwEnabled: $threadPosts[activePostIndex].cwEnabled,
+                cwText: $threadPosts[activePostIndex].cwText
+            )
+            .padding(.horizontal)
+        }
+    }
+    
+    @ViewBuilder
+    private var bottomToolbar: some View {
+        HStack {
+            // Add image button
+            Button(action: {
+                showImagePicker = true
+            }) {
+                Image(systemName: "photo")
+                    .font(.system(size: 20))
+                    .foregroundColor(.secondary)
+                    .padding(8)
+                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                    .clipShape(Circle())
+            }
+            
+            // CW toggle button
+            Button(action: {
+                threadPosts[activePostIndex].cwEnabled.toggle()
+                if !threadPosts[activePostIndex].cwEnabled {
+                    threadPosts[activePostIndex].cwText = ""
+                }
+            }) {
+                Image(systemName: threadPosts[activePostIndex].cwEnabled ? "eye.slash.fill" : "eye.slash")
+                    .font(.system(size: 20))
+                    .foregroundColor(threadPosts[activePostIndex].cwEnabled ? .blue : .secondary)
+                    .padding(8)
+                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                    .clipShape(Circle())
+            }
+            .contextMenu {
+                // Long-press presets
+                ForEach(["Spoilers", "Politics", "NSFW", "Violence"], id: \.self) { preset in
+                    Button(action: {
+                        threadPosts[activePostIndex].cwEnabled = true
+                        threadPosts[activePostIndex].cwText = preset
+                    }) {
+                        Text(preset)
+                    }
+                }
+            }
+            
+            // Add post to thread button
+            Button(action: {
+                let newPost = ThreadPost()
+                threadPosts.append(newPost)
+                activePostIndex = threadPosts.count - 1
+            }) {
+                Image(systemName: "plus.circle")
+                    .font(.system(size: 20))
+                    .foregroundColor(.secondary)
+                    .padding(8)
+                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                    .clipShape(Circle())
+            }
+
+            // Add poll button
+            Button(action: {
+                if !threadPosts[activePostIndex].showPoll {
+                    threadPosts[activePostIndex].showPoll = true
+                    threadPosts[activePostIndex].pollOptions = ["", ""]
+                }
+            }) {
+                Image(systemName: "chart.bar")
+                    .font(.system(size: 20))
+                    .foregroundColor(.secondary)
+                    .padding(8)
+                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
+                    .clipShape(Circle())
+            }
+            .disabled(threadPosts[activePostIndex].showPoll)
+
+            Spacer()
+
+            // Character counter with feedback
+            HStack(spacing: 4) {
+                if isOverLimit {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+
+                Text("\(remainingChars)")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(
+                        isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
+                    )
+            }
+            .padding(.horizontal, 10)
+            .onTapGesture {
+                if isOverLimit {
+                    alertTitle = "Character Limit Exceeded"
+                    alertMessage =
+                        "You are over the character limit for \(overLimitPlatformsString)."
+                    showAlert = true
+                }
+            }
+
+            // Post button - Enhanced with platform color
+            Button(action: {
+                postContent()
+            }) {
+                Text(buttonText)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
                     .padding(.vertical, 10)
-                    .background(Color(UIColor.systemBackground))
-                    .overlay(
-                        Divider(),
-                        alignment: .bottom
-                    )
-                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(canPost ? platformColor : Color.gray.opacity(0.3))
+            )
+            .disabled(!canPost)
+            .animation(.easeInOut(duration: 0.2), value: canPost)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(Color(UIColor.systemBackground))
+        .overlay(
+            Divider(),
+            alignment: .top
+        )
+    }
 
-                // Bottom toolbar - this will stay above keyboard
-                HStack {
-                    // Add image button
-                    Button(action: {
-                        showImagePicker = true
-                    }) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 20))
-                            .foregroundColor(.secondary)
-                            .padding(8)
-                            .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                            .clipShape(Circle())
-                    }
+    var body: some View {
+        let lifecycleModifier = makeLifecycleModifier()
+        
+        return NavigationStack {
+            VStack(spacing: 0) {
+                replyContextHeader
+                platformSelectionBar
+                accountSelectorBar
+                platformStatusBar()
+                platformConflictBanners
 
-                    // Add post to thread button
-                    Button(action: {
-                        let newPost = ThreadPost()
-                        threadPosts.append(newPost)
-                        activePostIndex = threadPosts.count - 1
-                    }) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 20))
-                            .foregroundColor(.secondary)
-                            .padding(8)
-                            .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                            .clipShape(Circle())
-                    }
-
-                    // Add poll button
-                    Button(action: {
-                        if !threadPosts[activePostIndex].showPoll {
-                            threadPosts[activePostIndex].showPoll = true
-                            threadPosts[activePostIndex].pollOptions = ["", ""]
-                        }
-                    }) {
-                        Image(systemName: "chart.bar")
-                            .font(.system(size: 20))
-                            .foregroundColor(.secondary)
-                            .padding(8)
-                            .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                            .clipShape(Circle())
-                    }
-                    .disabled(threadPosts[activePostIndex].showPoll)
-
-                    Spacer()
-
-                    // Character counter with feedback
-                    HStack(spacing: 4) {
-                        if isOverLimit {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .font(.caption)
-                                .foregroundColor(.red)
-                        }
-
-                        Text("\(remainingChars)")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(
-                                isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
-                            )
-                    }
-                    .padding(.horizontal, 10)
-                    .onTapGesture {
-                        if isOverLimit {
-                            alertTitle = "Character Limit Exceeded"
-                            alertMessage =
-                                "You are over the character limit for \(overLimitPlatformsString)."
-                            showAlert = true
-                        }
-                    }
-
-                    // Post button - Enhanced with platform color
-                    Button(action: {
-                        postContent()
-                    }) {
-                        Text(buttonText)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 10)
-                    }
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(canPost ? platformColor : Color.gray.opacity(0.3))
-                    )
-                    .disabled(!canPost)
-                    .animation(.easeInOut(duration: 0.2), value: canPost)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(Color(UIColor.systemBackground))
-                .overlay(
-                    Divider(),
-                    alignment: .top
-                )
+                textEditorSection
+                threadPaginationSection
+                pollCreationSection
+                selectedImagesPreview
+                contentWarningEditorSection
+                bottomToolbar
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
@@ -892,6 +1288,27 @@ struct ComposeView: View {
             } message: {
                 Text("What would you like to do with this post?")
             }
+            .onAppear {
+                // Initialize composerTextModel with current thread post text
+                if composerTextModel.text != threadPosts[activePostIndex].text {
+                    composerTextModel.text = threadPosts[activePostIndex].text
+                    composerTextModel.entities = []
+                    composerTextModel.documentRevision = 0
+                }
+            }
+            .onChange(of: activePostIndex) { newIndex in
+                // Sync composerTextModel when switching between thread posts
+                if composerTextModel.text != threadPosts[newIndex].text {
+                    composerTextModel.text = threadPosts[newIndex].text
+                    composerTextModel.entities = []
+                    composerTextModel.documentRevision += 1
+                }
+            }
+            .onChange(of: selectedPlatforms) { _ in
+                // Update platform conflicts when platforms change
+                updatePlatformConflicts()
+            }
+            .modifier(lifecycleModifier)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .sheet(isPresented: $showImagePicker) {
@@ -935,21 +1352,11 @@ struct ComposeView: View {
                         }
                         ToolbarItem(placement: .navigationBarTrailing) {
                             Button("Done") {
-                                // Ensure imageAltTexts array is large enough
-                                while threadPosts[activePostIndex].imageAltTexts.count
-                                    < threadPosts[activePostIndex].images.count
-                                {
-                                    threadPosts[activePostIndex].imageAltTexts.append("")
-                                }
-                                threadPosts[activePostIndex].imageAltTexts[
-                                    selectedImageIndexForAltText] = currentAltText
                                 showAltTextSheet = false
                             }
-                            .fontWeight(.bold)
                         }
                     }
                 }
-                .presentationDetents([.medium, .large])
             }
             .alert(isPresented: $showAlert) {
                 if let partial = partialSuccessInfo {
@@ -1003,15 +1410,6 @@ struct ComposeView: View {
                     }
                 }
             )
-            .onAppear {
-                hydrateAccountSelection()
-            }
-        }
-        .onAppear {
-            socialServiceManager.isComposing = true
-        }
-        .onDisappear {
-            socialServiceManager.isComposing = false
         }
     }
 
@@ -1254,6 +1652,15 @@ struct ComposeView: View {
                     let pollOptions = threadPost.pollOptions.filter { !$0.isEmpty }
 
                     if previousPostsByPlatform.isEmpty && replyingTo == nil {
+                        // Sync composer text model with current text
+                        if composerTextModel.text != threadPost.text {
+                            composerTextModel.text = threadPost.text
+                        }
+                        
+                        // CRITICAL: Parse entities from text before posting
+                        // This ensures manually typed mentions/hashtags/links are converted to entities
+                        composerTextModel.parseEntitiesFromText(activeDestinations: makeActiveDestinations())
+                        
                         let createdPosts = try await socialServiceManager.createPost(
                             content: threadPost.text,
                             platforms: selectedPlatforms,
@@ -1262,7 +1669,11 @@ struct ComposeView: View {
                             pollOptions: pollOptions,
                             pollExpiresIn: 86400,  // 24 hours
                             visibility: visibilityString,
-                            accountOverrides: selectedAccountOverrides()
+                            accountOverrides: selectedAccountOverrides(),
+                            cwText: threadPost.cwText.isEmpty ? nil : threadPost.cwText,
+                            cwEnabled: threadPost.cwEnabled,
+                            attachmentSensitiveFlags: threadPost.attachmentSensitiveFlags,
+                            composerTextModel: composerTextModel
                         )
                         for post in createdPosts {
                             previousPostsByPlatform[post.platform] = post
@@ -1275,6 +1686,15 @@ struct ComposeView: View {
                             guard selectedPlatforms.contains(platform) else { continue }
 
                             do {
+                                // Sync composer text model
+                                if composerTextModel.text != threadPost.text {
+                                    composerTextModel.text = threadPost.text
+                                }
+                                
+                                // CRITICAL: Parse entities from text before posting
+                                // This ensures manually typed mentions/hashtags/links are converted to entities
+                                composerTextModel.parseEntitiesFromText(activeDestinations: makeActiveDestinations())
+                                
                                 let reply = try await socialServiceManager.replyToPost(
                                     parentPost,
                                     content: threadPost.text,
@@ -1283,7 +1703,11 @@ struct ComposeView: View {
                                     pollOptions: pollOptions,
                                     pollExpiresIn: 86400,
                                     visibility: visibilityString,
-                                    accountOverride: selectedAccount(for: platform)
+                                    accountOverride: selectedAccount(for: platform),
+                                    cwText: threadPost.cwText.isEmpty ? nil : threadPost.cwText,
+                                    cwEnabled: threadPost.cwEnabled,
+                                    attachmentSensitiveFlags: threadPost.attachmentSensitiveFlags,
+                                    composerTextModel: composerTextModel
                                 )
                                 updatedPrevious[platform] = reply
 
@@ -1396,6 +1820,392 @@ struct ComposeView: View {
 
     private var selectedPlatformsString: String {
         selectedPlatforms.map { $0.rawValue }.joined(separator: " and ")
+    }
+    
+    // MARK: - Text Edit Utilities
+    
+    /// Compute edit range by comparing old and new text
+    private func computeEditRange(oldText: String, newText: String) -> NSRange {
+        let oldNS = oldText as NSString
+        let newNS = newText as NSString
+        
+        // Find common prefix
+        var prefixLength = 0
+        let minLength = min(oldNS.length, newNS.length)
+        while prefixLength < minLength && oldNS.character(at: prefixLength) == newNS.character(at: prefixLength) {
+            prefixLength += 1
+        }
+        
+        // Find common suffix
+        var suffixLength = 0
+        while suffixLength < minLength - prefixLength &&
+              oldNS.character(at: oldNS.length - suffixLength - 1) == newNS.character(at: newNS.length - suffixLength - 1) {
+            suffixLength += 1
+        }
+        
+        // Compute edit range in old text
+        let editLocation = prefixLength
+        let editLength = oldNS.length - prefixLength - suffixLength
+        
+        return NSRange(location: editLocation, length: editLength)
+    }
+    
+    // MARK: - Platform Conflict Detection
+    
+    /// Create lifecycle modifier with all required parameters
+    private func makeLifecycleModifier() -> ComposeViewLifecycleModifier {
+        ComposeViewLifecycleModifier(
+            hydrateAccountSelection: hydrateAccountSelection,
+            updatePlatformConflicts: updatePlatformConflicts,
+            autocompleteService: $autocompleteService,
+            socialServiceManager: socialServiceManager,
+            selectedPlatforms: selectedPlatforms,
+            selectedAccount: selectedAccount(for:),
+            canPost: canPost,
+            postContent: postContent,
+            currentAutocompleteToken: $currentAutocompleteToken,
+            autocompleteSuggestions: $autocompleteSuggestions,
+            selectedVisibility: $selectedVisibility,
+            threadPosts: $threadPosts,
+            activePostIndex: activePostIndex,
+            toggleCW: toggleCW,
+            toggleLabels: toggleLabels,
+            insertLink: insertLink
+        )
+    }
+    
+    /// Toggle content warning
+    private func toggleCW() {
+        threadPosts[activePostIndex].cwEnabled.toggle()
+        if !threadPosts[activePostIndex].cwEnabled {
+            threadPosts[activePostIndex].cwText = ""
+        }
+    }
+    
+    /// Toggle Bluesky labels (opens picker)
+    private func toggleLabels() {
+        // Labels picker is already shown conditionally in bottomToolbar
+        // This method exists for keyboard shortcut compatibility
+        // In a future enhancement, this could open a dedicated labels sheet
+    }
+    
+    /// Insert link (placeholder for Cmd+K shortcut)
+    private func insertLink() {
+        // Future enhancement: Insert link placeholder or open link dialog
+        // For now, this is a placeholder to satisfy the modifier requirements
+    }
+    
+    /// Update platform conflicts based on current state
+    private func updatePlatformConflicts() {
+        var conflicts: [PlatformConflict] = []
+        
+        // Check CW conflicts (Bluesky doesn't support CW)
+        if threadPosts[activePostIndex].cwEnabled && selectedPlatforms.contains(.bluesky) {
+            conflicts.append(PlatformConflict(
+                feature: "Content Warning",
+                platforms: [.bluesky]
+            ))
+        }
+        
+        
+        platformConflicts = conflicts
+    }
+    
+    // MARK: - Paste Detection
+    
+    /// Parse pasted text for URLs and @handles, create entities
+    private func parsePastedText(_ text: String, insertionRange: NSRange) -> [TextEntity] {
+        var entities: [TextEntity] = []
+        let nsString = text as NSString
+        let textLength = nsString.length
+        let activeDestinations = makeActiveDestinations()
+        
+        // Parse URLs: http:// or https://
+        let urlPattern = "https?://[A-Za-z0-9./?=_%-]+"
+        if let urlRegex = try? NSRegularExpression(pattern: urlPattern, options: []) {
+            let matches = urlRegex.matches(in: text, options: [], range: NSRange(location: 0, length: textLength))
+            for match in matches {
+                var range = match.range
+                var urlText = nsString.substring(with: range)
+                // Clean trailing punctuation
+                while let last = urlText.last, ".,!?;:".contains(last) {
+                    urlText = String(urlText.dropLast())
+                    range = NSRange(location: range.location, length: range.length - 1)
+                }
+                
+                guard let url = URL(string: urlText) else { continue }
+                
+                // Create payloads for active destinations
+                var payloads: [String: EntityPayload] = [:]
+                for destinationID in activeDestinations {
+                    let components = destinationID.split(separator: ":")
+                    guard components.count >= 2,
+                          let platformStr = components.first,
+                          let platform = SocialPlatform(rawValue: String(platformStr)) else {
+                        continue
+                    }
+                    
+                    switch platform {
+                    case .mastodon:
+                        payloads[destinationID] = EntityPayload(
+                            platform: .mastodon,
+                            data: ["url": urlText]
+                        )
+                    case .bluesky:
+                        payloads[destinationID] = EntityPayload(
+                            platform: .bluesky,
+                            data: ["uri": urlText]
+                        )
+                    }
+                }
+                
+                let entity = TextEntity(
+                    kind: .link,
+                    range: range, // Range relative to pasted text (will be adjusted in Coordinator)
+                    displayText: urlText,
+                    payloadByDestination: payloads,
+                    data: .link(LinkData(url: urlText))
+                )
+                entities.append(entity)
+            }
+        }
+        
+        // Parse @handles: @username or @username@domain
+        let mentionPattern = "@([A-Za-z0-9_]+)(@[A-Za-z0-9_.-]+)?"
+        if let mentionRegex = try? NSRegularExpression(pattern: mentionPattern, options: []) {
+            let matches = mentionRegex.matches(in: text, options: [], range: NSRange(location: 0, length: textLength))
+            for match in matches {
+                let range = match.range
+                let usernameRange = match.range(at: 1)
+                let username = nsString.substring(with: usernameRange)
+                var domain: String? = nil
+                if match.numberOfRanges > 2 && match.range(at: 2).location != NSNotFound {
+                    let domainRange = match.range(at: 2)
+                    domain = nsString.substring(with: domainRange)
+                }
+                
+                let displayText = nsString.substring(with: range)
+                let acct = domain != nil ? "\(username)\(domain!)" : username
+                
+                // Create payloads for active destinations
+                var payloads: [String: EntityPayload] = [:]
+                for destinationID in activeDestinations {
+                    let components = destinationID.split(separator: ":")
+                    guard components.count >= 2,
+                          let platformStr = components.first,
+                          let platform = SocialPlatform(rawValue: String(platformStr)) else {
+                        continue
+                    }
+                    
+                    switch platform {
+                    case .mastodon:
+                        payloads[destinationID] = EntityPayload(
+                            platform: .mastodon,
+                            data: [
+                                "acct": acct,
+                                "username": username
+                            ]
+                        )
+                    case .bluesky:
+                        // For Bluesky, we'd need DID lookup - for now, store handle
+                        payloads[destinationID] = EntityPayload(
+                            platform: .bluesky,
+                            data: [
+                                "handle": username,
+                                "did": "" // Would need to resolve via search
+                            ]
+                        )
+                    }
+                }
+                
+                let entity = TextEntity(
+                    kind: .mention,
+                    range: range, // Range relative to pasted text (will be adjusted in Coordinator)
+                    displayText: displayText,
+                    payloadByDestination: payloads,
+                    data: .mention(MentionData(
+                        acct: acct,
+                        handle: username
+                    ))
+                )
+                entities.append(entity)
+            }
+        }
+        
+        return entities
+    }
+    
+    // MARK: - Autocomplete Helpers
+    
+    /// Make active destinations list for autocomplete scope
+    private func makeActiveDestinations() -> [String] {
+        var destinations: [String] = []
+        for platform in selectedPlatforms {
+            if let account = selectedAccount(for: platform) {
+                destinations.append(makeDestinationID(platform: platform, accountId: account.id))
+            }
+        }
+        return destinations
+    }
+    
+    /// Handle autocomplete token detection
+    private func handleAutocompleteToken(_ token: AutocompleteToken?) {
+        guard let token = token else {
+            currentAutocompleteToken = nil
+            autocompleteSuggestions = []
+            autocompleteService?.cancelSearch()
+            return
+        }
+        
+        // Validate document revision matches
+        guard token.documentRevision == composerTextModel.documentRevision else {
+            // Stale token - ignore
+            return
+        }
+        
+        currentAutocompleteToken = token
+        
+        // Update autocomplete service with current accounts if needed
+        if autocompleteService == nil {
+            autocompleteService = AutocompleteService(
+                cache: AutocompleteCache.shared,
+                mastodonService: socialServiceManager.mastodonService,
+                blueskyService: socialServiceManager.blueskyService,
+                accounts: selectedPlatforms.compactMap { selectedAccount(for: $0) }
+            )
+        }
+        
+        // Update service accounts
+        autocompleteService = AutocompleteService(
+            cache: AutocompleteCache.shared,
+            mastodonService: socialServiceManager.mastodonService,
+            blueskyService: socialServiceManager.blueskyService,
+            accounts: selectedPlatforms.compactMap { selectedAccount(for: $0) }
+        )
+        
+        Task { @MainActor in
+            guard let service = autocompleteService else { return }
+            
+            let suggestions = await service.searchRequest(token: token)
+            
+            // Only apply if token is still current
+            if currentAutocompleteToken?.requestID == token.requestID {
+                autocompleteSuggestions = suggestions
+            }
+        }
+    }
+    
+    /// Accept an autocomplete suggestion
+    private func acceptSuggestion(_ suggestion: AutocompleteSuggestion, token: AutocompleteToken) {
+        // Build entity from suggestion
+        let entity: TextEntity
+        switch token.prefix {
+        case "@":
+            // Create mention entity
+            let mentionData: MentionData
+            if suggestion.entityPayload.platform == .bluesky {
+                mentionData = MentionData(
+                    accountId: nil,
+                    acct: nil,
+                    displayName: suggestion.entityPayload.data["displayName"] as? String,
+                    did: suggestion.entityPayload.data["did"] as? String,
+                    handle: suggestion.entityPayload.data["handle"] as? String
+                )
+            } else {
+                mentionData = MentionData(
+                    accountId: suggestion.entityPayload.data["accountId"] as? String,
+                    acct: suggestion.entityPayload.data["acct"] as? String,
+                    displayName: suggestion.entityPayload.data["displayName"] as? String,
+                    did: nil,
+                    handle: nil
+                )
+            }
+            
+            // Build payload by destination (only for active destinations)
+            var payloadByDestination: [String: EntityPayload] = [:]
+            for destinationID in token.scope {
+                payloadByDestination[destinationID] = suggestion.entityPayload
+            }
+            
+            entity = TextEntity(
+                kind: .mention,
+                range: token.replaceRange,
+                displayText: suggestion.displayText,
+                payloadByDestination: payloadByDestination,
+                data: .mention(mentionData)
+            )
+        case "#":
+            // Create hashtag entity
+            let normalizedTag = suggestion.displayText.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+            let hashtagData = HashtagData(normalizedTag: normalizedTag)
+            
+            var payloadByDestination: [String: EntityPayload] = [:]
+            for destinationID in token.scope {
+                payloadByDestination[destinationID] = EntityPayload(platform: suggestion.platforms.first ?? .mastodon, data: ["tag": normalizedTag])
+            }
+            
+            entity = TextEntity(
+                kind: .hashtag,
+                range: token.replaceRange,
+                displayText: suggestion.displayText,
+                payloadByDestination: payloadByDestination,
+                data: .hashtag(hashtagData)
+            )
+        case ":":
+            // Emoji entity
+            let emojiData = EmojiData(
+                shortcode: suggestion.displayText.trimmingCharacters(in: CharacterSet(charactersIn: ":")),
+                emojiURL: suggestion.avatarURL,
+                unicodeEmoji: nil
+            )
+            
+            var payloadByDestination: [String: EntityPayload] = [:]
+            for destinationID in token.scope {
+                payloadByDestination[destinationID] = suggestion.entityPayload
+            }
+            
+            entity = TextEntity(
+                kind: .emoji,
+                range: token.replaceRange,
+                displayText: suggestion.displayText,
+                payloadByDestination: payloadByDestination,
+                data: .emoji(emojiData)
+            )
+        default:
+            return
+        }
+        
+        // Get the original text and entities for undo
+        let originalText = composerTextModel.text
+        let originalEntities = composerTextModel.entities
+        
+        // Apply atomic replace
+        composerTextModel.replace(range: token.replaceRange, with: suggestion.displayText, entities: [entity])
+        
+        // Update text in thread post (this will trigger UITextView update via binding)
+        let newText = composerTextModel.toPlainText()
+        threadPosts[activePostIndex].text = newText
+        
+        // Also sync composer model text
+        composerTextModel.text = newText
+        
+        // Register undo action for entity state
+        // UITextView will handle text undo automatically via its undo manager
+        // We sync entities when text changes (including undo/redo) via onUndoRedo callback
+        // This ensures entity state stays in sync with text state
+        
+        // Dismiss autocomplete
+        currentAutocompleteToken = nil
+        autocompleteSuggestions = []
+        
+        // Update cache
+        if token.prefix == "@" {
+            AutocompleteCache.shared.addRecentMention(suggestion, accountId: token.scope.first?.split(separator: ":").last.map(String.init) ?? "")
+        } else if token.prefix == "#" {
+            AutocompleteCache.shared.addRecentHashtag(suggestion, accountId: token.scope.first?.split(separator: ":").last.map(String.init) ?? "")
+        } else if token.prefix == ":" {
+            EmojiService(mastodonService: socialServiceManager.mastodonService).addRecentlyUsed(suggestion.displayText.trimmingCharacters(in: CharacterSet(charactersIn: ":")))
+        }
     }
 }
 

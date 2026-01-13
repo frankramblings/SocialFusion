@@ -1,64 +1,102 @@
-Fix unified search to show results from both Mastodon and Bluesky
+# Git Commit Message
 
-Previously, search results were limited to one network per scope:
-- Posts and Tags: only Mastodon (Bluesky decoding failures)
-- Users: only Bluesky (Mastodon 500 errors)
+```
+feat(composer): implement muscle memory composer features and fixes
 
-Root Causes:
-1. Bluesky search failed when posts had malformed embeds (recordWithMedia,
-   nested structures, or missing fields). Decoder expected strict formats.
-2. Mastodon user search returned 500 errors on some instances that don't
-   support the accounts search type parameter.
+Implement comprehensive power-user composer features including entity
+compilation, platform conflict detection, keyboard shortcuts, smart paste,
+emoji fetching, and cache persistence. Fix critical entity range maintenance
+and undo/redo integration issues.
 
-Solutions:
+## Features Implemented
 
-Bluesky Search Decoding Resilience:
-- Made BlueskyEmbed.record decode gracefully with try? and custom init(from:)
-- Added flexible BlueskyEmbedRecord decoding to handle:
-  * Direct BlueskyStrongRef
-  * Nested record.record structures
-  * Dictionary formats with uri/cid
-- Made BlueskySearchPostsResponse decode posts individually, skipping failures
-- Enhanced BlueskyExternal to handle thumb as string or BlueskyImageRef
-- Made BlueskyImage.image optional, supporting fullsize/thumb direct strings
-- Added error recovery in BlueskyService.searchPosts to decode from raw JSON
-  when array decoding fails, ensuring partial results are returned
+### Entity Management
+- Add entity parsing from plain text (mentions, hashtags, URLs)
+- Fix entity range maintenance via applyEdit() callback wiring
+- Implement undo/redo integration for entity state sync
+- Add smart paste detection with automatic entity creation
+- Parse entities before posting to ensure proper compilation
 
-Mastodon User Search Fallbacks:
-- Enhanced MastodonService.search to parse responses even on 500 errors
-- Added multi-layer fallback in MastodonSearchProvider.searchUsers:
-  1. Try search with type=accounts (standard)
-  2. If 500, try without type parameter
-  3. If 0 accounts, extract users from post search results
-  4. Search posts matching query, extract unique account info from authors
-- Made search methods return empty results instead of throwing when one
-  provider fails, so the other provider's results still display
+### Platform Integration
+- Wire up platform conflict detection with automatic updates
+- Add onChange handlers for cwEnabled, blueskyLabels, selectedPlatforms
+- Apply ComposeViewLifecycleModifier for lifecycle management
 
-Files Modified:
-- SocialFusion/Models/BlueskyModels.swift
-  * Made BlueskyEmbed decode gracefully with custom init(from:)
-  * Made BlueskyEmbedRecord handle multiple record formats
-  * Made BlueskySearchPostsResponse decode posts individually
-  * Made BlueskyExternal.thumb handle string or BlueskyImageRef
-  * Made BlueskyImage.image optional, support fullsize/thumb strings
-- SocialFusion/Services/BlueskyService.swift
-  * Enhanced searchPosts error handling and logging
-  * Improved external embed thumb extraction
-- SocialFusion/Services/Search/MastodonSearchProvider.swift
-  * Added multi-layer fallback for user search
-  * Return empty results instead of throwing on errors
-- SocialFusion/Services/Search/BlueskySearchProvider.swift
-  * Return empty results instead of throwing on tag search errors
-- SocialFusion/Services/Search/UnifiedSearchProvider.swift
-  * Improved error handling to prevent one provider failure from blocking all results
+### Keyboard Shortcuts
+- Fix keyboard shortcut API usage (onKeyPress for iOS 17+, fallback for iOS 16)
+- Implement Cmd+Enter (send post)
+- Implement Cmd+Shift+Enter (send silently/unlisted)
+- Implement Cmd+K (insert link)
+- Implement Cmd+L (toggle labels/CW)
+- Implement Cmd+. (dismiss autocomplete)
 
-Result:
-- Posts scope: Shows results from both Mastodon and Bluesky
-- Users scope: Shows results from both networks (Bluesky directly, Mastodon via fallback)
-- Tags scope: Shows results from both networks
-- Individual post decoding failures don't break entire searches
-- Mastodon instances without user search support still return users via post extraction
+### Autocomplete & Caching
+- Implement full AutocompleteCache persistence to UserDefaults
+- Add SerializableSuggestion wrapper for Codable support
+- Add frequently used tracking with usage counts
+- Persist recent mentions, hashtags, and usage statistics
 
-The implementation maintains backward compatibility and follows existing
-architecture patterns (protocol-driven design, ObservableObject stores,
-service injection).
+### Emoji Support
+- Implement Mastodon custom emoji fetching from /api/v1/custom_emojis
+- Add system emoji fallback with curated database (100+ emoji)
+- Integrate system emoji into autocomplete search results
+- Handle 404 gracefully for older Mastodon instances
+
+### Smart Paste
+- Detect paste events via large text replacement heuristic
+- Parse pasted URLs and @handles into entities
+- Merge pasted entities with existing entities (remove overlaps)
+- Adjust entity ranges to insertion location
+
+## Build Fixes
+
+- Fix keyboard shortcut API errors (switch to onKeyPress)
+- Fix type-checking complexity (extract lifecycle modifier helper)
+- Fix String indexing errors (use NSString for safe ranges)
+- Fix FocusableTextEditor parameter order
+- Remove duplicate code sections
+- Fix entity range maintenance callback wiring
+
+## Files Modified
+
+- SocialFusion/Models/ComposerTextModel.swift
+  - Add parseEntitiesFromText() method
+  - Improve entity range management
+
+- SocialFusion/Views/ComposeView.swift
+  - Wire up onTextEdit callback for applyEdit()
+  - Wire up onUndoRedo callback for entity sync
+  - Add parsePastedText() for smart paste
+  - Add entity compilation before posting
+  - Apply ComposeViewLifecycleModifier
+  - Add initialization logic for composerTextModel
+
+- SocialFusion/Views/ComposeViewLifecycleModifier.swift
+  - Fix keyboard shortcut implementation
+  - Add platform conflict detection triggers
+
+- SocialFusion/Stores/AutocompleteCache.swift
+  - Implement full persistence with SerializableSuggestion
+  - Add frequently used tracking
+  - Add usage count persistence
+
+- SocialFusion/Services/EmojiService.swift
+  - Implement Mastodon API emoji fetching
+  - Add system emoji search database
+  - Integrate system emoji into results
+
+## Verification
+
+- Verified Bluesky self-labels implementation
+- Verified search methods via AutocompleteService
+- Verified caret movement dismissal behavior
+- Build succeeds for iPhone 17 Pro simulator
+
+## Related
+
+Implements features from muscle_memory_composer_features plan.
+Fixes critical entity range maintenance issues.
+Completes autocomplete, emoji, and paste detection features.
+
+Co-authored-by: AI Assistant
+```
