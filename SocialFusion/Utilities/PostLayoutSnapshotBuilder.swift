@@ -8,11 +8,20 @@ class PostLayoutSnapshotBuilder {
   private let prefetcher: MediaPrefetcher
   
   init(
-    dimensionCache: MediaDimensionCache = .shared,
-    prefetcher: MediaPrefetcher = .shared
+    dimensionCache: MediaDimensionCache,
+    prefetcher: MediaPrefetcher
   ) {
     self.dimensionCache = dimensionCache
     self.prefetcher = prefetcher
+  }
+  
+  /// Convenience initializer that uses shared instances
+  /// Must be called from MainActor context
+  convenience init() {
+    self.init(
+      dimensionCache: MediaDimensionCache.shared,
+      prefetcher: MediaPrefetcher.shared
+    )
   }
   
   /// Build snapshot for a post

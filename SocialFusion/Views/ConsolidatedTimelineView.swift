@@ -143,7 +143,10 @@ struct ConsolidatedTimelineView: View {
     // Layout snapshot system for stable media layout
     @State private var postSnapshots: [String: PostLayoutSnapshot] = [:]
     private let snapshotBuilder = PostLayoutSnapshotBuilder()
-    private let prefetcher = MediaPrefetcher.shared
+    // Computed property to access actor-isolated shared instance from MainActor context
+    private var prefetcher: MediaPrefetcher {
+      MediaPrefetcher.shared
+    }
     @StateObject private var updateCoordinator = FeedUpdateCoordinator()
     
     // Read state tracking
@@ -244,11 +247,23 @@ struct ConsolidatedTimelineView: View {
             }
             .onChange(of: controller.posts) { newPosts in
                 // Anchor + Compensate: Use the anchor captured by the controller
-                if let restorationId = controller.restorationAnchor {
+                // For pull-to-refresh, prefer the pendingAnchorRestoreId we set before refresh
+                // Otherwise use the controller's restoration anchor
+                if pendingAnchorRestoreId == nil, let restorationId = controller.restorationAnchor {
                     pendingAnchorRestoreId = restorationId
                 }
-                logAnchorState("posts updated")
-                restorePendingAnchorIfPossible()
+                logAnchorState("posts updated count=\(newPosts.count) isRefreshing=\(isRefreshing)")
+                
+                // During refresh, don't let scrollPosition binding reset - maintain the anchor
+                if isRefreshing, let anchorId = pendingAnchorRestoreId {
+                    // Keep the scrollAnchorId set to prevent SwiftUI from resetting to top
+                    if scrollAnchorId != anchorId {
+                        scrollAnchorId = anchorId
+                    }
+                } else if !isRefreshing {
+                    // Not refreshing, restore normally
+                    restorePendingAnchorIfPossible()
+                }
                 
                 // Update last read post ID and visibility
                 lastReadPostId = ViewTracker.shared.getLastReadPostId()
@@ -619,16 +634,53 @@ struct ConsolidatedTimelineView: View {
                 }
                 .scrollPosition(id: $scrollAnchorId)
                 .onChange(of: scrollAnchorId) { newValue in
+                    // During refresh, prevent scrollPosition from resetting to top
+                    if isRefreshing, let pendingId = pendingAnchorRestoreId {
+                        // If scrollPosition is trying to change to the top post during refresh, prevent it
+                        let topId = controller.posts.first.map(scrollIdentifier(for:))
+                        if newValue == topId && newValue != pendingId {
+                            // It's trying to jump to top - prevent it silently
+                            // Don't log to avoid spam, just restore
+                            scrollAnchorId = pendingId
+                            return
+                        }
+                    }
                     controller.recordVisibleInteraction()
                     controller.updateCurrentAnchor(newValue)
                     logAnchorState("scrollAnchorId changed -> \(newValue ?? "nil")")
                     updateJumpToLastReadVisibility()
                 }
                 .refreshable {
-                    // Preserve current anchor during refresh; restoration happens on posts update
-                    pendingAnchorRestoreId = visibleAnchorId ?? scrollAnchorId ?? persistedAnchorId
-                    logAnchorState("refresh start")
+                    // Preserve current anchor during refresh
+                    // Capture the anchor BEFORE refresh starts
+                    let anchorBeforeRefresh = visibleAnchorId ?? scrollAnchorId ?? persistedAnchorId
+                    pendingAnchorRestoreId = anchorBeforeRefresh
+                    isRefreshing = true
+                    // Lock anchor restoration to prevent interference
+                    anchorLockUntil = Date().addingTimeInterval(1.5)
+                    logAnchorState("refresh start anchor=\(anchorBeforeRefresh ?? "nil")")
+                    
+                    // Perform the refresh
                     await refreshTimeline()
+                    
+                    // After refresh completes, wait for SwiftUI to finish updating
+                    // Then restore scroll position smoothly using scrollPosition binding
+                    try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
+                    
+                    // Restore using scrollPosition binding (smoother than proxy.scrollTo)
+                    if let anchorId = anchorBeforeRefresh,
+                       controller.posts.contains(where: { scrollIdentifier(for: $0) == anchorId }) {
+                        logAnchorState("restoring scroll to anchor=\(anchorId)")
+                        await MainActor.run {
+                            // Use scrollPosition binding for smooth, non-jumpy restoration
+                            scrollAnchorId = anchorId
+                            persistedAnchorId = anchorId
+                        }
+                    }
+                    
+                    // Give it a moment to settle before allowing normal scroll behavior
+                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                    isRefreshing = false
                     logAnchorState("refresh end")
                 }
                 .simultaneousGesture(
@@ -704,7 +756,12 @@ struct ConsolidatedTimelineView: View {
                     }
                     .padding(.top, mergeOffsetCompensation)
                 }
-                .refreshable { await refreshTimeline() }
+                .refreshable {
+                    // For iOS 16, capture current scroll position before refresh
+                    // Note: iOS 16 doesn't have scrollPosition API, so we rely on ScrollViewReader
+                    // The restoration will happen via onAppear if persistedAnchorId is set
+                    await refreshTimeline()
+                }
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { _ in
@@ -1011,27 +1068,36 @@ struct ConsolidatedTimelineView: View {
     private func restorePendingAnchorIfPossible() {
         guard #available(iOS 17.0, *) else { return }
         guard !controller.posts.isEmpty else { return }
+        // Don't restore if anchor is locked (e.g., during refresh)
+        if let lockUntil = anchorLockUntil, Date() < lockUntil {
+            logAnchorState("restore skipped - locked")
+            return
+        }
         guard let id = pendingAnchorRestoreId else {
             hasRestoredInitialAnchor = true
             return
         }
-        logAnchorState("restore attempt")
-        if controller.posts.contains(where: { scrollIdentifier(for: $0) == id }) {
-            var t = Transaction()
-            t.disablesAnimations = true
-            if scrollAnchorId == id {
-                withTransaction(t) { scrollAnchorId = nil }
-                DispatchQueue.main.async {
-                    var t = Transaction()
-                    t.disablesAnimations = true
-                    withTransaction(t) { scrollAnchorId = id }
-                }
-            } else {
-                withTransaction(t) { scrollAnchorId = id }
-            }
-            persistedAnchorId = id
-            anchorLockUntil = Date().addingTimeInterval(0.6)
+        logAnchorState("restore attempt id=\(id)")
+        
+        // Find the post with this identifier
+        let matchingPost = controller.posts.first(where: { scrollIdentifier(for: $0) == id })
+        guard matchingPost != nil else {
+            // Anchor post not found - might have been filtered out or doesn't exist
+            logAnchorState("restore failed - anchor not found")
+            pendingAnchorRestoreId = nil
+            hasRestoredInitialAnchor = true
+            return
         }
+        
+        // Restore the anchor position
+        var t = Transaction()
+        t.disablesAnimations = true
+        withTransaction(t) {
+            scrollAnchorId = id
+        }
+        persistedAnchorId = id
+        // Lock anchor for a bit to prevent interference
+        anchorLockUntil = Date().addingTimeInterval(0.8)
         pendingAnchorRestoreId = nil
         hasRestoredInitialAnchor = true
         logAnchorState("restore done")
@@ -1057,6 +1123,16 @@ struct ConsolidatedTimelineView: View {
 
     private func syncAnchorToTopIfNeeded(topId: String?, isAtTop: Bool) {
         guard #available(iOS 17.0, *), isAtTop, let topId = topId else { return }
+        // Don't sync to top if we're in the middle of restoring an anchor (e.g., after pull-to-refresh)
+        if let lockUntil = anchorLockUntil, Date() < lockUntil {
+            logAnchorState("sync to top skipped - anchor locked")
+            return
+        }
+        // Don't sync to top if we have a pending anchor restore (user was scrolled down)
+        if pendingAnchorRestoreId != nil {
+            logAnchorState("sync to top skipped - pending restore")
+            return
+        }
         if scrollAnchorId != topId {
             var t = Transaction()
             t.disablesAnimations = true

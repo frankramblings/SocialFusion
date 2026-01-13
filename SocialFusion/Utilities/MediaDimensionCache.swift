@@ -6,9 +6,8 @@ import UIKit
 class MediaDimensionCache {
   static let shared = MediaDimensionCache()
   
-  // Memory cache (fast access)
+  // Memory cache (fast access) - actor-isolated, no need for DispatchQueue
   private var memoryCache: [String: CachedDimension] = [:]
-  private let memoryCacheQueue = DispatchQueue(label: "com.socialfusion.mediaDimensionCache.memory", attributes: .concurrent)
   
   // Disk cache directory
   private let cacheDirectory: URL
@@ -46,25 +45,22 @@ class MediaDimensionCache {
   func getDimension(for url: String) -> CGSize? {
     let key = cacheKey(for: url)
     
-    // Check memory cache first
-    return memoryCacheQueue.sync {
-      if let cached = memoryCache[key], !cached.isExpired {
-        return CGSize(width: cached.width, height: cached.height)
-      }
-      return nil
+    // Check memory cache - actor-isolated, safe to access directly
+    if let cached = memoryCache[key], !cached.isExpired {
+      return CGSize(width: cached.width, height: cached.height)
     }
+    return nil
   }
   
   /// Get cached aspect ratio for a URL
   func getAspectRatio(for url: String) -> CGFloat? {
     let key = cacheKey(for: url)
     
-    return memoryCacheQueue.sync {
-      if let cached = memoryCache[key], !cached.isExpired {
-        return cached.aspectRatio
-      }
-      return nil
+    // Check memory cache - actor-isolated, safe to access directly
+    if let cached = memoryCache[key], !cached.isExpired {
+      return cached.aspectRatio
     }
+    return nil
   }
   
   /// Store dimension in cache
@@ -77,52 +73,48 @@ class MediaDimensionCache {
       cachedAt: Date()
     )
     
-    // Store in memory
-    memoryCacheQueue.async(flags: .barrier) { [weak self] in
-      guard let self = self else { return }
-      
-      // LRU eviction: remove oldest if at capacity
-      if self.memoryCache.count >= self.maxMemoryEntries {
-        let sorted = self.memoryCache.sorted { $0.value.cachedAt < $1.value.cachedAt }
-        if let oldest = sorted.first {
-          self.memoryCache.removeValue(forKey: oldest.key)
-        }
+    // Store in memory - actor-isolated, safe to mutate directly
+    // LRU eviction: remove oldest if at capacity
+    if memoryCache.count >= maxMemoryEntries {
+      let sorted = memoryCache.sorted { $0.value.cachedAt < $1.value.cachedAt }
+      if let oldest = sorted.first {
+        memoryCache.removeValue(forKey: oldest.key)
       }
-      
-      self.memoryCache[key] = cached
     }
     
-    // Store on disk (async)
+    memoryCache[key] = cached
+    
+    // Store on disk (async, nonisolated - filesystem access doesn't need MainActor)
+    let directory = cacheDirectory
     diskCacheQueue.async { [weak self] in
       guard let self = self else { return }
-      self.saveToDisk(key: key, dimension: cached)
+      self.saveToDisk(key: key, dimension: cached, cacheDirectory: directory)
     }
   }
   
   /// Clear expired entries
   func clearExpired() {
-    memoryCacheQueue.async(flags: .barrier) { [weak self] in
-      guard let self = self else { return }
-      self.memoryCache = self.memoryCache.filter { !$0.value.isExpired }
-    }
+    // Clear memory cache - actor-isolated, safe to mutate directly
+    memoryCache = memoryCache.filter { !$0.value.isExpired }
     
+    // Clear disk cache (async, nonisolated - filesystem access doesn't need MainActor)
+    let directory = cacheDirectory
     diskCacheQueue.async { [weak self] in
       guard let self = self else { return }
-      self.clearExpiredFromDisk()
+      self.clearExpiredFromDisk(cacheDirectory: directory)
     }
   }
   
   /// Clear all cache
   func clearAll() {
-    memoryCacheQueue.async(flags: .barrier) { [weak self] in
-      guard let self = self else { return }
-      self.memoryCache.removeAll()
-    }
+    // Clear memory cache - actor-isolated, safe to mutate directly
+    memoryCache.removeAll()
     
-    diskCacheQueue.async { [weak self] in
-      guard let self = self else { return }
-      try? FileManager.default.removeItem(at: self.cacheDirectory)
-      try? FileManager.default.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
+    // Clear disk cache (async, nonisolated)
+    let directory = cacheDirectory
+    diskCacheQueue.async {
+      try? FileManager.default.removeItem(at: directory)
+      try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
   }
   
@@ -164,23 +156,33 @@ class MediaDimensionCache {
         }
       }
       
-      // Merge into memory cache
-      self.memoryCacheQueue.async(flags: .barrier) { [weak self] in
+      // Merge into memory cache - must be on MainActor
+      Task { @MainActor [weak self] in
         guard let self = self else { return }
         self.memoryCache.merge(loaded) { _, new in new }
       }
     }
   }
   
-  private func saveToDisk(key: String, dimension: CachedDimension) {
-    let fileURL = fileURL(for: key)
+  nonisolated private func saveToDisk(key: String, dimension: CachedDimension, cacheDirectory: URL) {
+    let fileURL = fileURL(for: key, cacheDirectory: cacheDirectory)
     
     if let data = try? JSONEncoder().encode(dimension) {
       try? data.write(to: fileURL)
     }
   }
   
-  private func clearExpiredFromDisk() {
+  nonisolated private func fileURL(for key: String, cacheDirectory: URL) -> URL {
+    // Sanitize key for filesystem
+    let sanitized = key
+      .replacingOccurrences(of: "/", with: "_")
+      .replacingOccurrences(of: ":", with: "_")
+      .replacingOccurrences(of: "?", with: "_")
+      .replacingOccurrences(of: "&", with: "_")
+    return cacheDirectory.appendingPathComponent("\(sanitized).json")
+  }
+  
+  nonisolated private func clearExpiredFromDisk(cacheDirectory: URL) {
     guard let files = try? FileManager.default.contentsOfDirectory(at: cacheDirectory, includingPropertiesForKeys: nil) else {
       return
     }

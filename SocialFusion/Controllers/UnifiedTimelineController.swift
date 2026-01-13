@@ -253,6 +253,10 @@ class UnifiedTimelineController: ObservableObject {
     func refreshTimelineAsync() async {
         // Remove the guard - pull-to-refresh should always be allowed
         // The service manager will handle preventing duplicate refreshes properly
+        
+        // Ensure we preserve viewport position during pull-to-refresh
+        // This allows new posts to appear above the user's current position
+        scrollPolicy = .preserveViewport
 
         await refreshCoordinator.manualRefresh(intent: .manualRefresh)
     }

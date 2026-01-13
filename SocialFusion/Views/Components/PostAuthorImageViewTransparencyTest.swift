@@ -4,7 +4,7 @@ import SwiftUI
 // the transparent avatar bleed-through fix.
 // It sets up specific scenarios to ensure the monogram doesn't show through.
 
-struct PostAuthorImageView_TransparencyTest: View {
+struct PostAuthorImageViewTransparencyTest: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 30) {
@@ -98,8 +98,8 @@ struct PostAuthorImageView_TransparencyTest: View {
     }
 }
 
-struct PostAuthorImageView_TransparencyTest_Previews: PreviewProvider {
+struct PostAuthorImageViewTransparencyTest_Previews: PreviewProvider {
     static var previews: some View {
-        PostAuthorImageView_TransparencyTest()
+        PostAuthorImageViewTransparencyTest()
     }
 }
