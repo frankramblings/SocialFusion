@@ -283,10 +283,41 @@ struct NotificationsView: View {
     
     private func fetchNotifications() async {
         isLoading = true
+        let previousNotifications = notifications
+        let previousCount = notifications.count
+        
         do {
-            notifications = try await serviceManager.fetchNotifications()
+            let fetchedNotifications = try await serviceManager.fetchNotifications()
+            let fetchedCount = fetchedNotifications.count
+            
+            print("📬 NotificationsView: Fetched \(fetchedCount) notifications (had \(previousCount) before)")
+            
+            // Only update if we got results, or if both are empty (to show empty state when there really are none)
+            // This prevents clearing existing notifications if fetch returns empty due to cancellation
+            if !fetchedNotifications.isEmpty {
+                // Got new results, update
+                notifications = fetchedNotifications
+            } else if previousNotifications.isEmpty {
+                // Both are empty, show empty state
+                notifications = fetchedNotifications
+            } else {
+                // Fetch returned empty but we had notifications - likely cancelled, preserve existing
+                print("⚠️ NotificationsView: Fetch returned empty but had \(previousCount) notifications - preserving existing (likely cancelled)")
+                notifications = previousNotifications
+            }
         } catch {
-            print("Failed to fetch notifications: \(error)")
+            // Check if this is a cancellation error
+            let isCancellation = (error as NSError).domain == NSURLErrorDomain && 
+                                (error as NSError).code == NSURLErrorCancelled
+            
+            if isCancellation {
+                print("⚠️ NotificationsView: Request was cancelled - preserving \(previousCount) existing notifications")
+            } else {
+                print("❌ NotificationsView: Failed to fetch notifications: \(error)")
+            }
+            
+            // Preserve existing notifications on error to prevent blank screen
+            notifications = previousNotifications
         }
         isLoading = false
     }

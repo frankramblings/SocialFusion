@@ -172,15 +172,59 @@ public struct BlueskyEmbed: Codable {
     public enum CodingKeys: String, CodingKey {
         case images, external, record
     }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Decode optional fields - these can fail gracefully
+        images = try? container.decodeIfPresent([BlueskyImage].self, forKey: .images)
+        external = try? container.decodeIfPresent(BlueskyExternal.self, forKey: .external)
+        
+        // Try to decode record - handle cases where the structure might be different
+        // (e.g., recordWithMedia or malformed record)
+        record = try? container.decodeIfPresent(BlueskyEmbedRecord.self, forKey: .record)
+    }
 }
 
 // Image
 public struct BlueskyImage: Codable {
     public let alt: String
-    public let image: BlueskyImageRef
+    public let image: BlueskyImageRef?
+    
+    // Sometimes the API returns fullsize/thumb directly instead of image object
+    public let fullsize: String?
+    public let thumb: String?
 
     public enum CodingKeys: String, CodingKey {
-        case alt, image
+        case alt, image, fullsize, thumb
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
+        
+        // Try decoding image as BlueskyImageRef first
+        if let imageRef = try? container.decode(BlueskyImageRef.self, forKey: .image) {
+            image = imageRef
+            fullsize = nil
+            thumb = nil
+        } else {
+            // If image is missing, try fullsize/thumb strings
+            image = nil
+            fullsize = try container.decodeIfPresent(String.self, forKey: .fullsize)
+            thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(alt, forKey: .alt)
+        if let image = image {
+            try container.encode(image, forKey: .image)
+        } else if let fullsize = fullsize {
+            try container.encode(fullsize, forKey: .fullsize)
+        }
+        try container.encodeIfPresent(thumb, forKey: .thumb)
     }
 }
 
@@ -203,9 +247,45 @@ public struct BlueskyExternal: Codable {
     public let title: String?
     public let description: String?
     public let thumb: BlueskyImageRef?
+    
+    // Sometimes thumb is a plain string URL instead of BlueskyImageRef
+    public let thumbURL: String?
 
     public enum CodingKeys: String, CodingKey {
         case uri, title, description, thumb
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        uri = try container.decode(String.self, forKey: .uri)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+        
+        // Try decoding thumb as BlueskyImageRef first, then as String
+        if let thumbRef = try? container.decode(BlueskyImageRef.self, forKey: .thumb) {
+            thumb = thumbRef
+            thumbURL = nil
+        } else if let thumbString = try? container.decode(String.self, forKey: .thumb) {
+            thumb = nil
+            thumbURL = thumbString
+        } else {
+            thumb = nil
+            thumbURL = nil
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(uri, forKey: .uri)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(description, forKey: .description)
+        // Encode thumbURL as thumb if thumb is nil (for dictionary conversion)
+        if let thumb = thumb {
+            try container.encode(thumb, forKey: .thumb)
+        } else if let thumbURL = thumbURL {
+            // When encoding, if we have thumbURL but no thumb object, encode as string
+            try container.encode(thumbURL, forKey: .thumb)
+        }
     }
 }
 
@@ -215,6 +295,34 @@ public struct BlueskyEmbedRecord: Codable {
 
     public enum CodingKeys: String, CodingKey {
         case record
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Try to decode record as BlueskyStrongRef directly
+        if let strongRef = try? container.decode(BlueskyStrongRef.self, forKey: .record) {
+            record = strongRef
+        } else {
+            // If that fails, try to decode as a nested structure
+            // Some embeds have record.record structure
+            if let nestedContainer = try? container.nestedContainer(keyedBy: CodingKeys.self, forKey: .record),
+               let nestedRecord = try? nestedContainer.decode(BlueskyStrongRef.self, forKey: .record) {
+                record = nestedRecord
+            } else {
+                // Last resort: try to decode from a dictionary
+                if let recordDict = try? container.decode([String: String].self, forKey: .record),
+                   let uri = recordDict["uri"],
+                   let cid = recordDict["cid"] {
+                    record = BlueskyStrongRef(uri: uri, cid: cid)
+                } else {
+                    throw DecodingError.keyNotFound(CodingKeys.record, DecodingError.Context(
+                        codingPath: decoder.codingPath,
+                        debugDescription: "Could not decode BlueskyEmbedRecord - record field missing or malformed"
+                    ))
+                }
+            }
+        }
     }
 }
 
@@ -242,6 +350,21 @@ public struct BlueskySearchPostsResponse: Codable {
     public init(posts: [BlueskyPostDTO], cursor: String?) {
         self.posts = posts
         self.cursor = cursor
+    }
+    
+    // Custom decoding to handle missing fields gracefully
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        cursor = try container.decodeIfPresent(String.self, forKey: .cursor)
+        
+        // Decode posts array - if it fails, return empty array
+        // (individual post decoding errors are handled by making embed.record optional)
+        posts = (try? container.decodeIfPresent([BlueskyPostDTO].self, forKey: .posts)) ?? []
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case posts
+        case cursor
     }
 }
 

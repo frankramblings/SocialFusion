@@ -1,0 +1,1 @@
+Fix unified search to show results from both Mastodon and Bluesky

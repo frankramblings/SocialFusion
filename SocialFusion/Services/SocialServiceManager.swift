@@ -131,6 +131,7 @@ public final class SocialServiceManager: ObservableObject {
     @Published var timelineError: Error?
     @Published var isComposing: Bool = false
     private var lastTimelineUpdate: Date = Date.distantPast
+    private var shouldMergeOnRefresh: Bool = false  // Track if current refresh should merge (pull-to-refresh at top)
 
     // Strong refresh control with circuit breaker pattern
     private var isRefreshInProgress: Bool = false
@@ -1051,6 +1052,7 @@ public final class SocialServiceManager: ObservableObject {
 
         defer {
             Self.globalRefreshLock = false
+            shouldMergeOnRefresh = false  // Reset after refresh completes
         }
 
         // Circuit breaker: if too many failures, temporarily stop automatic requests
@@ -1115,6 +1117,9 @@ public final class SocialServiceManager: ObservableObject {
 
         defer { isRefreshInProgress = false }
 
+        // For pull-to-refresh (manualRefresh), use merge mode for smooth experience
+        shouldMergeOnRefresh = (intent == .manualRefresh)
+        
         do {
             try await fetchTimeline(force: isUserInitiated)
             // Reset failure count on success
@@ -1236,9 +1241,9 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Refresh timeline from the specified accounts and return all posts
-    func refreshTimeline(accounts: [SocialAccount]) async throws -> [Post] {
+    func refreshTimeline(accounts: [SocialAccount], shouldMerge: Bool = false) async throws -> [Post] {
         DebugLog.verbose(
-            "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts"
+            "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts, shouldMerge: \(shouldMerge)"
         )
 
         // Drastically reduce logging spam
@@ -1293,16 +1298,18 @@ public final class SocialServiceManager: ObservableObject {
 
         let filteredPosts = await filterRepliesInTimeline(collectedPosts)
         let sourceContext = TimelineSourceContext(source: .refresh)
-        if FeatureFlagManager.isEnabled(.replyFiltering) {
-            canonicalPostStore.replaceTimeline(
-                timelineID: canonicalUnifiedTimelineID,
-                posts: filteredPosts,
-                sourceContext: sourceContext
-            )
-        } else {
+        // When shouldMerge is true (pull-to-refresh at top), always use processIncomingPosts for smooth merging
+        // Otherwise, use replaceTimeline when replyFiltering is enabled to ensure clean state
+        if shouldMerge || !FeatureFlagManager.isEnabled(.replyFiltering) {
             canonicalPostStore.processIncomingPosts(
                 filteredPosts,
                 timelineID: canonicalUnifiedTimelineID,
+                sourceContext: sourceContext
+            )
+        } else {
+            canonicalPostStore.replaceTimeline(
+                timelineID: canonicalUnifiedTimelineID,
+                posts: filteredPosts,
                 sourceContext: sourceContext
             )
         }
@@ -1543,7 +1550,7 @@ public final class SocialServiceManager: ObservableObject {
     private func refreshTimeline(plan: TimelineFetchPlan) async throws -> [Post] {
         switch plan {
         case .unified(let accounts):
-            return try await refreshTimeline(accounts: accounts)
+            return try await refreshTimeline(accounts: accounts, shouldMerge: shouldMergeOnRefresh)
         case .mastodon(let account, let feed):
             let result = try await fetchMastodonTimeline(account: account, feed: feed, maxId: nil)
             updatePaginationTokens(
@@ -1552,7 +1559,7 @@ public final class SocialServiceManager: ObservableObject {
                 pagination: result.pagination
             )
             hasNextPage = result.pagination.hasNextPage
-            return await applyTimelinePosts(result.posts, source: .refresh)
+            return await applyTimelinePosts(result.posts, source: .refresh, shouldMerge: shouldMergeOnRefresh)
         case .bluesky(let account, let feed):
             let result = try await fetchBlueskyTimeline(account: account, feed: feed, cursor: nil)
             updatePaginationTokens(
@@ -1561,23 +1568,25 @@ public final class SocialServiceManager: ObservableObject {
                 pagination: result.pagination
             )
             hasNextPage = result.pagination.hasNextPage
-            return await applyTimelinePosts(result.posts, source: .refresh)
+            return await applyTimelinePosts(result.posts, source: .refresh, shouldMerge: shouldMergeOnRefresh)
         }
     }
 
-    private func applyTimelinePosts(_ posts: [Post], source: TimelineSource) async -> [Post] {
+    private func applyTimelinePosts(_ posts: [Post], source: TimelineSource, shouldMerge: Bool = false) async -> [Post] {
         let filteredPosts = await filterRepliesInTimeline(posts)
         let sourceContext = TimelineSourceContext(source: source)
-        if FeatureFlagManager.isEnabled(.replyFiltering) {
-            canonicalPostStore.replaceTimeline(
-                timelineID: canonicalUnifiedTimelineID,
-                posts: filteredPosts,
-                sourceContext: sourceContext
-            )
-        } else {
+        // When shouldMerge is true (pull-to-refresh at top), always use processIncomingPosts for smooth merging
+        // Otherwise, use replaceTimeline when replyFiltering is enabled to ensure clean state
+        if shouldMerge || !FeatureFlagManager.isEnabled(.replyFiltering) {
             canonicalPostStore.processIncomingPosts(
                 filteredPosts,
                 timelineID: canonicalUnifiedTimelineID,
+                sourceContext: sourceContext
+            )
+        } else {
+            canonicalPostStore.replaceTimeline(
+                timelineID: canonicalUnifiedTimelineID,
+                posts: filteredPosts,
                 sourceContext: sourceContext
             )
         }
@@ -1780,7 +1789,21 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Fetch notifications across all platforms
     public func fetchNotifications() async throws -> [AppNotification] {
-        let accountsToFetch = getAccountsToFetch()
+        var accountsToFetch = getAccountsToFetch()
+        
+        // If no accounts are selected, default to all accounts for notifications
+        // This ensures notifications always work even if account selection isn't set up
+        if accountsToFetch.isEmpty && !accounts.isEmpty {
+            DebugLog.verbose("📬 SocialServiceManager: No accounts selected for notifications, using all accounts")
+            accountsToFetch = accounts
+        }
+        
+        // If still no accounts, return empty array
+        guard !accountsToFetch.isEmpty else {
+            DebugLog.verbose("📬 SocialServiceManager: No accounts available for notifications")
+            return []
+        }
+        
         var allNotifications: [AppNotification] = []
 
         await withTaskGroup(of: [AppNotification].self) { group in
@@ -1853,8 +1876,18 @@ public final class SocialServiceManager: ObservableObject {
                             return mappedNotifs
                         }
                     } catch {
-                        ErrorHandler.shared.handleError(error)
-                        DebugLog.verbose("Failed to fetch notifications for \(account.username): \(error)")
+                        // Check if this is a cancellation error - if so, don't log as error
+                        let nsError = error as NSError
+                        let isCancellation = nsError.domain == NSURLErrorDomain && 
+                                            nsError.code == NSURLErrorCancelled
+                        
+                        if isCancellation {
+                            DebugLog.verbose("⚠️ Notifications fetch cancelled for \(account.username)")
+                        } else {
+                            ErrorHandler.shared.handleError(error)
+                            DebugLog.verbose("Failed to fetch notifications for \(account.username): \(error)")
+                        }
+                        // Return empty array - caller will handle preserving existing notifications
                         return []
                     }
                 }

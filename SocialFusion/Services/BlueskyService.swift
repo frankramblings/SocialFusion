@@ -792,11 +792,66 @@ public final class BlueskyService: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NetworkError.apiError("Search posts failed")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.apiError("Invalid response")
         }
-
-        return try JSONDecoder().decode(BlueskySearchPostsResponse.self, from: data)
+        
+        guard httpResponse.statusCode == 200 else {
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("⚠️ [BlueskyService] Search posts failed with status \(httpResponse.statusCode): \(errorMessage)")
+            throw NetworkError.apiError("Search posts failed with status \(httpResponse.statusCode)")
+        }
+        
+        // Log raw response for debugging
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🔍 [BlueskyService] Raw search posts response: \(responseString.prefix(500))")
+        }
+        
+        do {
+            return try JSONDecoder().decode(BlueskySearchPostsResponse.self, from: data)
+        } catch let decodingError as DecodingError {
+            print("⚠️ [BlueskyService] Failed to decode search posts response: \(decodingError)")
+            
+            // Try to salvage posts from the response by decoding manually
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let postsArray = json["posts"] as? [[String: Any]] {
+                print("🔍 [BlueskyService] Attempting to decode \(postsArray.count) posts individually")
+                var decodedPosts: [BlueskyPostDTO] = []
+                let decoder = JSONDecoder()
+                
+                for (index, postDict) in postsArray.enumerated() {
+                    if let postData = try? JSONSerialization.data(withJSONObject: postDict) {
+                        if let post = try? decoder.decode(BlueskyPostDTO.self, from: postData) {
+                            decodedPosts.append(post)
+                        } else {
+                            print("⚠️ [BlueskyService] Failed to decode post at index \(index), skipping")
+                        }
+                    }
+                }
+                
+                let cursor = json["cursor"] as? String
+                print("🔍 [BlueskyService] Successfully decoded \(decodedPosts.count) out of \(postsArray.count) posts")
+                return BlueskySearchPostsResponse(posts: decodedPosts, cursor: cursor)
+            }
+            
+            // If we can't salvage, check if it's an error response
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("🔍 [BlueskyService] Response keys: \(json.keys.joined(separator: ", "))")
+                if let errorMsg = json["error"] as? String, let message = json["message"] as? String {
+                    throw NetworkError.apiError("\(errorMsg): \(message)")
+                }
+            }
+            throw decodingError
+        } catch {
+            print("⚠️ [BlueskyService] Failed to decode search posts response: \(error)")
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("🔍 [BlueskyService] Response keys: \(json.keys.joined(separator: ", "))")
+                if let errorMsg = json["error"] as? String, let message = json["message"] as? String {
+                    throw NetworkError.apiError("\(errorMsg): \(message)")
+                }
+            }
+            throw error
+        }
     }
 
     /// Search for actors (users) on Bluesky
@@ -2482,7 +2537,16 @@ public final class BlueskyService: Sendable {
                         externalEmbedURL = uri
                         externalEmbedTitle = external["title"] as? String
                         externalEmbedDescription = external["description"] as? String
-                        externalEmbedThumb = external["thumb"] as? String
+                        // Handle thumb as either string or BlueskyImageRef object
+                        if let thumbString = external["thumb"] as? String {
+                            externalEmbedThumb = thumbString
+                        } else if let thumbDict = external["thumb"] as? [String: Any],
+                                  let ref = thumbDict["ref"] as? [String: String],
+                                  let link = ref["link"] {
+                            externalEmbedThumb = link
+                        } else {
+                            externalEmbedThumb = nil
+                        }
                     }
                 }
             }

@@ -54,6 +54,28 @@ class PostNavigationEnvironment: ObservableObject {
         }
     }
 
+    /// Navigate to a user's profile from a SearchUser
+    func navigateToUser(from user: SearchUser) {
+        print("🧭 [PostNavigationEnvironment] Navigating to user profile: \(user.username) on \(user.platform)")
+        
+        // Defer state updates to prevent AttributeGraph cycles
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            selectedUser = user
+        }
+    }
+    
+    /// Navigate to a tag timeline
+    func navigateToTag(_ tag: SearchTag) {
+        print("🧭 [PostNavigationEnvironment] Navigating to tag: \(tag.name) on \(tag.platform)")
+        
+        // Defer state updates to prevent AttributeGraph cycles
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            selectedTag = tag
+        }
+    }
+    
     /// Clear navigation state
     func clearNavigation() {
         // Defer state updates to prevent AttributeGraph cycles

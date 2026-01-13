@@ -128,8 +128,20 @@ final class TimelineRefreshCoordinator: ObservableObject {
 
     func manualRefresh(intent: TimelineRefreshIntent) async {
         log("🔄 [Refresh:\(timelineID)] Manual refresh (\(intent.rawValue))")
+        
+        // When at top, merge buffered items first for smooth experience
+        if isNearTop && bufferCount > 0 {
+            log("✨ [Refresh:\(timelineID)] At top with buffered items - merging first")
+            mergeBufferedPostsIfNeeded()
+            // Small delay to let merge settle before fetching new content
+            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        }
+        
+        // Fetch new content and merge it smoothly (refreshVisibleTimeline uses processIncomingPosts when not replacing)
         await refreshVisibleTimeline(intent)
         markManualRefresh()
+        
+        // Clear buffer after refresh completes - new content has been merged
         updateSnapshot(buffer.clear(), reason: "manual refresh")
     }
 

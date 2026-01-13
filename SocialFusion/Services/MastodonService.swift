@@ -1354,16 +1354,37 @@ public final class MastodonService: @unchecked Sendable {
             url: url, method: "GET", account: account)
         let (data, response) = try await session.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw ServiceError.apiError(
-                "Search failed with status \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw ServiceError.apiError("Invalid response")
         }
-
+        
         // Debug: Log the raw response
         if let responseString = String(data: data, encoding: .utf8) {
             print("🔍 [Search] Raw response: \(responseString.prefix(500))")
         }
-        print("🔍 [Search] Response data size: \(data.count) bytes")
+        print("🔍 [Search] Response data size: \(data.count) bytes, status: \(httpResponse.statusCode)")
+
+        // Some instances return 500 but still include valid JSON data
+        // Try to decode even on non-200 status codes if we have data
+        if httpResponse.statusCode != 200 {
+            // Check if the response body contains valid JSON that might be parseable
+            if data.isEmpty {
+                throw ServiceError.apiError(
+                    "Search failed with status \(httpResponse.statusCode)")
+            }
+            
+            // Try to decode anyway - some servers return 500 with valid data
+            do {
+                let decoder = JSONDecoder()
+                let result = try decoder.decode(MastodonSearchResult.self, from: data)
+                print("⚠️ [Search] Successfully decoded response despite status \(httpResponse.statusCode)")
+                return result
+            } catch {
+                // If decoding fails, throw the original status error
+                throw ServiceError.apiError(
+                    "Search failed with status \(httpResponse.statusCode)")
+            }
+        }
 
         // Note: Do NOT use .convertFromSnakeCase here as MastodonStatus/MastodonSearchResult
         // already have explicit CodingKeys that handle snake_case conversion.

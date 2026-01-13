@@ -240,9 +240,14 @@ class UnifiedTimelineController: ObservableObject {
     }
 
     /// Refresh timeline - proper async/await pattern
+    /// Use this for scope changes or other non-user-initiated refreshes
     func refreshTimeline() {
         // Prevent multiple concurrent refreshes
         guard !isLoading else { return }
+
+        // For scope changes, don't use merge mode - do a full refresh
+        // This ensures clean state when switching between different timelines
+        scrollPolicy = .preserveViewport  // Preserve position if possible, but don't merge
 
         Task {
             await refreshCoordinator.manualRefresh(intent: .manualRefresh)
