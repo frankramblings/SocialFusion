@@ -12,6 +12,9 @@ struct UserDetailView: View {
     @State private var cursor: String? = nil
     @State private var canLoadMore = true
     
+    // Relationship management
+    @State private var relationshipViewModel: RelationshipViewModel?
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -76,8 +79,33 @@ struct UserDetailView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 20)
                 .background(Color(.secondarySystemBackground))
+                
+                // Relationship Bar
+                if let viewModel = relationshipViewModel {
+                    RelationshipBarView(viewModel: viewModel)
+                        .padding(.vertical, 8)
+                        .background(Color(.systemBackground))
+                }
 
                 // Posts Feed
+                if let viewModel = relationshipViewModel, viewModel.state.isBlocking {
+                    // Blocked state: show placeholder
+                    VStack(spacing: 12) {
+                        Image(systemName: "hand.raised.fill")
+                            .font(.system(size: 48))
+                            .foregroundColor(.secondary)
+                        Text("You blocked this account")
+                            .font(.headline)
+                            .foregroundColor(.secondary)
+                        Text("You won't see their posts in your timeline.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 60)
+                } else {
                 if isLoading && posts.isEmpty {
                     ProgressView()
                         .padding(.top, 40)
@@ -138,6 +166,7 @@ struct UserDetailView: View {
                         }
                     }
                 }
+                }
             }
         }
         .navigationDestination(
@@ -154,6 +183,30 @@ struct UserDetailView: View {
         .navigationTitle(user.displayName ?? user.username)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // Initialize relationship view model with proper account and service
+            if relationshipViewModel == nil {
+                let actorID = ActorID(from: user)
+                if let account = serviceManager.accounts.first(where: { $0.platform == user.platform }) {
+                    let graphService = serviceManager.graphService(for: user.platform)
+                    let store = serviceManager.relationshipStore
+                    
+                    // Create new view model with correct dependencies
+                    let newViewModel = RelationshipViewModel(
+                        actorID: actorID,
+                        account: account,
+                        graphService: graphService,
+                        relationshipStore: store
+                    )
+                    
+                    relationshipViewModel = newViewModel
+                    
+                    // Load relationship state
+                    Task {
+                        await newViewModel.loadState()
+                    }
+                }
+            }
+            
             if posts.isEmpty {
                 Task {
                     await fetchData()

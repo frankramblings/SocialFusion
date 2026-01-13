@@ -390,6 +390,23 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     public var authorCanonicalID: CanonicalUserID {
         return CanonicalUserID.from(post: self)
     }
+    
+    /// Get all actor IDs involved in this post (for filtering blocked/muted content)
+    /// Includes: author, boosted author (if boost), quoted author (if quote)
+    public var actorIDsInvolved: [ActorID] {
+        var ids: [ActorID] = []
+        // Add author
+        ids.append(authorCanonicalID.toActorID())
+        // Add boosted author if boost
+        if let original = originalPost {
+            ids.append(original.authorCanonicalID.toActorID())
+        }
+        // Add quoted author if quote
+        if let quoted = quotedPost {
+            ids.append(quoted.authorCanonicalID.toActorID())
+        }
+        return ids
+    }
 
     public struct Attachment: Identifiable, Codable {
         public var id: String { url }  // Use URL as unique identifier

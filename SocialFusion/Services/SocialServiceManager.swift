@@ -170,6 +170,21 @@ public final class SocialServiceManager: ObservableObject {
         store: postActionStore, service: self)
     private let canonicalPostStore = CanonicalPostStore()
     private let canonicalUnifiedTimelineID = CanonicalPostStore.unifiedTimelineID
+    
+    // Relationship management
+    public let relationshipStore = RelationshipStore()
+    private lazy var mastodonGraphService = MastodonGraphService(mastodonService: mastodonService)
+    private lazy var blueskyGraphService = BlueskyGraphService(blueskyService: blueskyService)
+    
+    /// Get the appropriate graph service for a platform
+    public func graphService(for platform: SocialPlatform) -> SocialGraphService {
+        switch platform {
+        case .mastodon:
+            return mastodonGraphService
+        case .bluesky:
+            return blueskyGraphService
+        }
+    }
 
     // Edge case handling - temporarily disabled
     // private let edgeCase = EdgeCaseHandler.shared
@@ -2909,68 +2924,120 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Mute a user
     public func muteUser(_ post: Post) async throws {
-        switch post.platform {
-        case .mastodon:
-            guard let account = mastodonAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+        let actorID = ActorID(from: post)
+        
+        // Optimistic update
+        relationshipStore.setMuted(actorID, true)
+        
+        do {
+            switch post.platform {
+            case .mastodon:
+                guard let account = mastodonAccounts.first else {
+                    relationshipStore.setMuted(actorID, false)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+                }
+                _ = try await mastodonService.muteAccount(userId: post.authorUsername, account: account)
+            case .bluesky:
+                guard let account = blueskyAccounts.first else {
+                    relationshipStore.setMuted(actorID, false)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+                }
+                try await blueskyService.muteActor(did: post.authorUsername, account: account)
             }
-            _ = try await mastodonService.muteAccount(userId: post.authorUsername, account: account)
-        case .bluesky:
-            guard let account = blueskyAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
-            }
-            try await blueskyService.muteActor(did: post.authorUsername, account: account)
+        } catch {
+            // Revert optimistic update on failure
+            relationshipStore.setMuted(actorID, false)
+            throw error
         }
     }
 
     /// Block a user
     public func blockUser(_ post: Post) async throws {
-        switch post.platform {
-        case .mastodon:
-            guard let account = mastodonAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+        let actorID = ActorID(from: post)
+        
+        // Optimistic update
+        relationshipStore.setBlocked(actorID, true)
+        
+        do {
+            switch post.platform {
+            case .mastodon:
+                guard let account = mastodonAccounts.first else {
+                    relationshipStore.setBlocked(actorID, false)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+                }
+                _ = try await mastodonService.blockAccount(
+                    userId: post.authorUsername, account: account)
+            case .bluesky:
+                guard let account = blueskyAccounts.first else {
+                    relationshipStore.setBlocked(actorID, false)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+                }
+                _ = try await blueskyService.blockUser(did: post.authorUsername, account: account)
             }
-            _ = try await mastodonService.blockAccount(
-                userId: post.authorUsername, account: account)
-        case .bluesky:
-            guard let account = blueskyAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
-            }
-            _ = try await blueskyService.blockUser(did: post.authorUsername, account: account)
+        } catch {
+            // Revert optimistic update on failure
+            relationshipStore.setBlocked(actorID, false)
+            throw error
         }
     }
 
     /// Unmute a user
     public func unmuteUser(_ post: Post) async throws {
-        switch post.platform {
-        case .mastodon:
-            guard let account = mastodonAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+        let actorID = ActorID(from: post)
+        
+        // Optimistic update
+        relationshipStore.setMuted(actorID, false)
+        
+        do {
+            switch post.platform {
+            case .mastodon:
+                guard let account = mastodonAccounts.first else {
+                    relationshipStore.setMuted(actorID, true)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+                }
+                _ = try await mastodonService.unmuteAccount(
+                    userId: post.authorUsername, account: account)
+            case .bluesky:
+                guard let account = blueskyAccounts.first else {
+                    relationshipStore.setMuted(actorID, true)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+                }
+                try await blueskyService.unmuteActor(did: post.authorUsername, account: account)
             }
-            _ = try await mastodonService.unmuteAccount(
-                userId: post.authorUsername, account: account)
-        case .bluesky:
-            guard let account = blueskyAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
-            }
-            try await blueskyService.unmuteActor(did: post.authorUsername, account: account)
+        } catch {
+            // Revert optimistic update on failure
+            relationshipStore.setMuted(actorID, true)
+            throw error
         }
     }
 
     /// Unblock a user
     public func unblockUser(_ post: Post) async throws {
-        switch post.platform {
-        case .mastodon:
-            guard let account = mastodonAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+        let actorID = ActorID(from: post)
+        
+        // Optimistic update
+        relationshipStore.setBlocked(actorID, false)
+        
+        do {
+            switch post.platform {
+            case .mastodon:
+                guard let account = mastodonAccounts.first else {
+                    relationshipStore.setBlocked(actorID, true)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Mastodon account available")
+                }
+                _ = try await mastodonService.unblockAccount(
+                    userId: post.authorUsername, account: account)
+            case .bluesky:
+                guard let account = blueskyAccounts.first else {
+                    relationshipStore.setBlocked(actorID, true)  // Revert on error
+                    throw ServiceError.invalidAccount(reason: "No Bluesky account available")
+                }
+                try await blueskyService.unblockUser(did: post.authorUsername, account: account)
             }
-            _ = try await mastodonService.unblockAccount(
-                userId: post.authorUsername, account: account)
-        case .bluesky:
-            guard let account = blueskyAccounts.first else {
-                throw ServiceError.invalidAccount(reason: "No Bluesky account available")
-            }
-            try await blueskyService.unblockUser(did: post.authorUsername, account: account)
+        } catch {
+            // Revert optimistic update on failure
+            relationshipStore.setBlocked(actorID, true)
+            throw error
         }
     }
 

@@ -3541,10 +3541,17 @@ public final class BlueskyService: Sendable {
     /// Follow a user on Bluesky
     func followUser(did: String, account: SocialAccount) async throws -> String {
         let accessToken = try await account.getValidAccessToken()
-        let url = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.createRecord"
-        )!
+        
+        // Properly construct server URL (same pattern as other Bluesky methods)
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+        
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
 
         let parameters: [String: Any] = [
             "repo": account.platformSpecificId,
@@ -3563,11 +3570,24 @@ public final class BlueskyService: Sendable {
         request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
 
         let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw ServiceError.apiError("Failed to follow user on Bluesky")
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("❌ [BlueskyService] Follow failed: Invalid response")
+            throw ServiceError.apiError("Failed to follow user on Bluesky: Invalid response")
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            // Try to get error message from response
+            let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode response"
+            print("❌ [BlueskyService] Follow failed: HTTP \(httpResponse.statusCode), response: \(responseString)")
+            
+            if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let error = errorJson["error"] as? String {
+                throw ServiceError.apiError("Failed to follow user on Bluesky: \(error)")
+            }
+            throw ServiceError.apiError("Failed to follow user on Bluesky: HTTP \(httpResponse.statusCode)")
         }
 
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
             let uri = json["uri"] as? String
         else {
             throw ServiceError.apiError("Failed to parse follow response")
@@ -3579,10 +3599,17 @@ public final class BlueskyService: Sendable {
     /// Unfollow a user on Bluesky
     func unfollowUser(followUri: String, account: SocialAccount) async throws {
         let accessToken = try await account.getValidAccessToken()
-        let url = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.deleteRecord"
-        )!
+        
+        // Properly construct server URL (same pattern as other Bluesky methods)
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+        
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.deleteRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
 
         let rkey = String(followUri.split(separator: "/").last ?? "")
         let parameters: [String: Any] = [
@@ -3606,10 +3633,17 @@ public final class BlueskyService: Sendable {
     /// Mute a user on Bluesky
     func muteActor(did: String, account: SocialAccount) async throws {
         let accessToken = try await account.getValidAccessToken()
-        let url = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.muteActor"
-        )!
+        
+        // Properly construct server URL (same pattern as other Bluesky methods)
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+        
+        let apiURL = "https://\(serverURLString)/xrpc/app.bsky.graph.muteActor"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
 
         let parameters: [String: Any] = ["actor": did]
         var request = URLRequest(url: url)
@@ -3627,10 +3661,17 @@ public final class BlueskyService: Sendable {
     /// Unmute a user on Bluesky
     func unmuteActor(did: String, account: SocialAccount) async throws {
         let accessToken = try await account.getValidAccessToken()
-        let url = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.unmuteActor"
-        )!
+        
+        // Properly construct server URL (same pattern as other Bluesky methods)
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+        
+        let apiURL = "https://\(serverURLString)/xrpc/app.bsky.graph.unmuteActor"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
 
         let parameters: [String: Any] = ["actor": did]
         var request = URLRequest(url: url)
@@ -3648,10 +3689,17 @@ public final class BlueskyService: Sendable {
     /// Block a user on Bluesky
     func blockUser(did: String, account: SocialAccount) async throws -> String {
         let accessToken = try await account.getValidAccessToken()
-        let url = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.createRecord"
-        )!
+        
+        // Properly construct server URL (same pattern as other Bluesky methods)
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+        
+        let apiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.createRecord"
+        guard let url = URL(string: apiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
 
         let parameters: [String: Any] = [
             "repo": account.platformSpecificId,
@@ -3687,12 +3735,18 @@ public final class BlueskyService: Sendable {
     func unblockUser(did: String, account: SocialAccount) async throws {
         let accessToken = try await account.getValidAccessToken()
 
+        // Properly construct server URL (same pattern as other Bluesky methods)
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
         // 1. We need to find the block record URI to delete it
         // app.bsky.graph.getBlocks returns blocked users
-        let getBlocksUrl = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.graph.getBlocks"
-        )!
+        let getBlocksApiURL = "https://\(serverURLString)/xrpc/app.bsky.graph.getBlocks"
+        guard let getBlocksUrl = URL(string: getBlocksApiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
         var getBlocksRequest = URLRequest(url: getBlocksUrl)
         getBlocksRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -3712,10 +3766,10 @@ public final class BlueskyService: Sendable {
         }
 
         // 2. Delete the record
-        let deleteUrl = URL(
-            string:
-                "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.deleteRecord"
-        )!
+        let deleteApiURL = "https://\(serverURLString)/xrpc/com.atproto.repo.deleteRecord"
+        guard let deleteUrl = URL(string: deleteApiURL) else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
         var deleteRequest = URLRequest(url: deleteUrl)
         deleteRequest.httpMethod = "POST"
         deleteRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")

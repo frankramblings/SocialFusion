@@ -145,6 +145,10 @@ struct ConsolidatedTimelineView: View {
     private let snapshotBuilder = PostLayoutSnapshotBuilder()
     private let prefetcher = MediaPrefetcher.shared
     @StateObject private var updateCoordinator = FeedUpdateCoordinator()
+    
+    // Read state tracking
+    @State private var showJumpToLastRead = false
+    @State private var lastReadPostId: String? = nil
 
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
@@ -210,6 +214,9 @@ struct ConsolidatedTimelineView: View {
                 }
                 // Prefetch dimensions for initial posts
                 await prefetchInitialPosts()
+                // Load last read post ID
+                lastReadPostId = ViewTracker.shared.getLastReadPostId()
+                updateJumpToLastReadVisibility()
             }
             .onAppear {
                 serviceManager.markUnifiedTimelinePresented()
@@ -242,6 +249,10 @@ struct ConsolidatedTimelineView: View {
                 }
                 logAnchorState("posts updated")
                 restorePendingAnchorIfPossible()
+                
+                // Update last read post ID and visibility
+                lastReadPostId = ViewTracker.shared.getLastReadPostId()
+                updateJumpToLastReadVisibility()
                 
                 // Build snapshots for new posts and prefetch dimensions
                 Task {
@@ -611,6 +622,7 @@ struct ConsolidatedTimelineView: View {
                     controller.recordVisibleInteraction()
                     controller.updateCurrentAnchor(newValue)
                     logAnchorState("scrollAnchorId changed -> \(newValue ?? "nil")")
+                    updateJumpToLastReadVisibility()
                 }
                 .refreshable {
                     // Preserve current anchor during refresh; restoration happens on posts update
@@ -632,7 +644,10 @@ struct ConsolidatedTimelineView: View {
                         }
                 )
                 .overlay(alignment: .top) {
-                    mergePill(proxy: proxy)
+                    VStack(spacing: 8) {
+                        mergePill(proxy: proxy)
+                        jumpToLastReadButton(proxy: proxy)
+                    }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
                 { _ in
@@ -703,13 +718,19 @@ struct ConsolidatedTimelineView: View {
                         }
                 )
                 .overlay(alignment: .top) {
-                    mergePill(proxy: proxy)
+                    VStack(spacing: 8) {
+                        mergePill(proxy: proxy)
+                        jumpToLastReadButton(proxy: proxy)
+                    }
                 }
                 .onAppear {
                     // Best-effort restoration if we have a persisted ID (may be nil on first run)
                     if let id = persistedAnchorId {
                         withAnimation(.none) { proxy.scrollTo(id, anchor: .top) }
                     }
+                    // Load last read post ID
+                    lastReadPostId = ViewTracker.shared.getLastReadPostId()
+                    updateJumpToLastReadVisibility()
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Timeline")
@@ -766,6 +787,98 @@ struct ConsolidatedTimelineView: View {
             .padding(.top, 8)
             .accessibilityLabel("\(controller.bufferCount) new posts")
             .accessibilityHint("Tap to merge new posts into the timeline")
+        }
+    }
+    
+    @ViewBuilder
+    private func jumpToLastReadButton(proxy: ScrollViewProxy) -> some View {
+        if showJumpToLastRead, let lastReadId = lastReadPostId {
+            Button(action: { handleJumpToLastRead(proxy: proxy, postId: lastReadId) }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.caption)
+                    Text("Jump to Last Read")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+            }
+            .accessibilityIdentifier("JumpToLastReadButton")
+            .accessibilityLabel("Jump to Last Read")
+            .accessibilityHint("Tap to scroll to the last post you read")
+        }
+    }
+    
+    private func handleJumpToLastRead(proxy: ScrollViewProxy, postId: String) {
+        guard let post = controller.posts.first(where: { $0.id == postId }) else { return }
+        let identifier = scrollIdentifier(for: post)
+        
+        if #available(iOS 17.0, *) {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) {
+                scrollAnchorId = identifier
+            }
+        } else {
+            withAnimation(.none) {
+                proxy.scrollTo(identifier, anchor: .top)
+            }
+        }
+        
+        // Update visibility after scroll
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 300_000_000) // Wait for scroll to complete
+            updateJumpToLastReadVisibility()
+        }
+    }
+    
+    private func updateJumpToLastReadVisibility() {
+        guard let lastReadId = lastReadPostId else {
+            showJumpToLastRead = false
+            return
+        }
+        
+        // Check if last read post exists in current posts
+        guard controller.posts.contains(where: { $0.id == lastReadId }) else {
+            showJumpToLastRead = false
+            return
+        }
+        
+        // Don't show if merge pill is showing (to avoid clutter)
+        if controller.bufferCount > 0 {
+            showJumpToLastRead = false
+            return
+        }
+        
+        // Check if we're at the top (don't show if at top)
+        if #available(iOS 17.0, *) {
+            let topId = controller.posts.first.map(scrollIdentifier(for:))
+            if let topId = topId, scrollAnchorId == topId {
+                showJumpToLastRead = false
+                return
+            }
+        }
+        
+        // Check if current position is below last read
+        if let currentAnchorId = scrollAnchorId,
+           let currentIndex = controller.posts.firstIndex(where: { scrollIdentifier(for: $0) == currentAnchorId }),
+           let lastReadIndex = controller.posts.firstIndex(where: { $0.id == lastReadId }),
+           currentIndex > lastReadIndex {
+            showJumpToLastRead = true
+        } else {
+            // Also show if we don't have a current anchor but have posts and last read
+            if scrollAnchorId == nil && !controller.posts.isEmpty {
+                showJumpToLastRead = true
+            } else {
+                showJumpToLastRead = false
+            }
         }
     }
 

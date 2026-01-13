@@ -39,3 +39,16 @@ final class CachedPost {
     }
 }
 
+@available(iOS 17.0, *)
+@Model
+final class ReadPost {
+    @Attribute(.unique) var postId: String
+    var readAt: Date
+    var stableId: String
+    
+    init(postId: String, readAt: Date, stableId: String) {
+        self.postId = postId
+        self.readAt = readAt
+        self.stableId = stableId
+    }
+}

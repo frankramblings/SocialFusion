@@ -98,6 +98,11 @@ public struct CanonicalUserID: Hashable, Codable, Sendable {
         // Fall back to normalized handle matching
         return normalizedHandle == other.normalizedHandle
     }
+    
+    /// Convert to ActorID for relationship operations
+    public func toActorID() -> ActorID {
+        return ActorID(from: self)
+    }
 }
 
 /// Abstract interface for resolving thread participants

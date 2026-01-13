@@ -38,6 +38,7 @@ class UnifiedTimelineController: ObservableObject {
     private let serviceManager: SocialServiceManager
     private let actionStore: PostActionStore
     private let actionCoordinator: PostActionCoordinator
+    private let relationshipStore: RelationshipStore
     private lazy var refreshCoordinator: TimelineRefreshCoordinator = {
         TimelineRefreshCoordinator(
             timelineID: "unified",
@@ -88,6 +89,7 @@ class UnifiedTimelineController: ObservableObject {
         self.serviceManager = serviceManager
         self.actionStore = serviceManager.postActionStore
         self.actionCoordinator = serviceManager.postActionCoordinator
+        self.relationshipStore = serviceManager.relationshipStore
         setupBindings()
     }
 
@@ -176,6 +178,15 @@ class UnifiedTimelineController: ObservableObject {
                 self?.isDeepHistory = isDeepHistory
             }
             .store(in: &cancellables)
+        
+        // Subscribe to relationship store changes for instant filtering
+        relationshipStore.$blocked
+            .combineLatest(relationshipStore.$muted)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] (_: Set<ActorID>, _: Set<ActorID>) in
+                self?.recomputeVisiblePosts()
+            }
+            .store(in: &cancellables)
     }
 
     /// Update posts with proper state management
@@ -189,17 +200,36 @@ class UnifiedTimelineController: ObservableObject {
             scrollPolicy = .preserveViewport
         }
 
-        self.posts = newPosts
+        // Filter posts based on blocked/muted actors
+        let filteredPosts = filterPosts(newPosts)
+
+        self.posts = filteredPosts
         if FeatureFlagManager.isEnabled(.postActionsV2) {
-            newPosts.forEach { post in
+            filteredPosts.forEach { post in
                 actionStore.ensureState(for: post)
             }
         }
         self.lastRefreshDate = Date()
-        refreshCoordinator.handleVisibleTimelineUpdate(newPosts)
+        refreshCoordinator.handleVisibleTimelineUpdate(filteredPosts)
 
         if !isInitialized {
             isInitialized = true
+        }
+    }
+    
+    /// Filter posts based on blocked/muted actors
+    private func filterPosts(_ posts: [Post]) -> [Post] {
+        return posts.filter { post in
+            !relationshipStore.shouldFilter(post)
+        }
+    }
+    
+    /// Recompute visible posts when relationship store changes
+    private func recomputeVisiblePosts() {
+        // Re-filter current posts
+        let filtered = filterPosts(posts)
+        if filtered.count != posts.count {
+            self.posts = filtered
         }
     }
 

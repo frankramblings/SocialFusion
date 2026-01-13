@@ -55,6 +55,10 @@ struct PostCardView: View {
     @State private var showListSelection = false
     @State private var shareAsImageViewModel: ShareAsImageViewModel? = nil
     @State private var showShareAsImageSheet = false
+    
+    // Read state tracking
+    @State private var isRead: Bool = false
+    @State private var hasCheckedReadState: Bool = false
 
     // Cached values to prevent AttributeGraph cycles from accessing nested @ObservedObject properties
     @State private var cachedDisplayPost: Post?
@@ -726,6 +730,21 @@ struct PostCardView: View {
                 try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 seconds delay - longer to ensure outside cycle
                 guard !isUpdatingCache else { return }
                 updateCachedValues()
+                
+                // Read state tracking (non-blocking, uses in-memory cache)
+                if !hasCheckedReadState {
+                    isRead = ViewTracker.shared.isRead(postId: post.id)
+                    hasCheckedReadState = true
+                    
+                    // Mark as read asynchronously (non-blocking)
+                    Task {
+                        await ViewTracker.shared.markAsRead(postId: post.id, stableId: post.stableId)
+                        // Update UI state after marking as read
+                        await MainActor.run {
+                            isRead = true
+                        }
+                    }
+                }
             }
         }
         .onChange(of: post.id) { _ in
@@ -777,6 +796,22 @@ struct PostCardView: View {
                 ListSelectionView(accountToLink: post.authorId, platformAccount: account)
                     .environmentObject(serviceManager)
             }
+        }
+        .overlay(alignment: .topTrailing) {
+            unreadIndicator
+        }
+    }
+    
+    // MARK: - Unread Indicator
+    
+    @ViewBuilder
+    private var unreadIndicator: some View {
+        if !isRead {
+            Circle()
+                .fill(Color.blue.opacity(0.8))
+                .frame(width: 8, height: 8)
+                .shadow(color: Color.black.opacity(0.15), radius: 2, x: 0, y: 1)
+                .offset(x: -4, y: 4)
         }
     }
 

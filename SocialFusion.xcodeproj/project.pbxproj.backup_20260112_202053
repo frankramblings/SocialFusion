@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		00320D899129D416BEE0B6E6 /* RelationshipState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70510AAB5666CC8872303FFA /* RelationshipState.swift */; };
 		00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C438E212556823CBF6F53A /* ConnectionManager.swift */; };
 		00E1D91752CF9E7CC13EE9FD /* PostTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673869366E4615124FBBD3E3 /* PostTimestamp.swift */; };
 		078A6A8DCA608DAF262E62C8 /* YouTubeExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BE37AAC1F0E00EA31F0F1E0 /* YouTubeExtractor.swift */; };
@@ -79,14 +78,6 @@
 		4E0B56C339D1505F16CDDC9D /* ReliableScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E830AABA8DABB97C4E623C /* ReliableScrollView.swift */; };
 		506FC1AFF1FDF3BBB8F01973 /* TimelineBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4864BD80A9CD5146570FD054 /* TimelineBufferTests.swift */; };
 		50739CD42F15CDAE00A086BA /* ViewTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CD32F15CDAE00A086BA /* ViewTracker.swift */; };
-		50739CD62F15DAC200A086BA /* RelationshipState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CD52F15DAC200A086BA /* RelationshipState.swift */; };
-		50739CD82F15DAE900A086BA /* RelationshipStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CD72F15DAE900A086BA /* RelationshipStore.swift */; };
-		50739CDC2F15DB1C00A086BA /* MastodonGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CDA2F15DB1C00A086BA /* MastodonGraphService.swift */; };
-		50739CDD2F15DB1C00A086BA /* SocialGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CDB2F15DB1C00A086BA /* SocialGraphService.swift */; };
-		50739CDE2F15DB1C00A086BA /* BlueskyGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CD92F15DB1C00A086BA /* BlueskyGraphService.swift */; };
-		50739CE02F15DB4800A086BA /* RelationshipViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CDF2F15DB4800A086BA /* RelationshipViewModel.swift */; };
-		50739CE32F15DB7900A086BA /* RelationshipBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CE22F15DB7900A086BA /* RelationshipBarView.swift */; };
-		50739CE42F15DB7900A086BA /* FollowsYouBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50739CE12F15DB7900A086BA /* FollowsYouBadge.swift */; };
 		50AD35DB2F1591FF000D4B6A /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 50AD35CF2F1591FF000D4B6A /* README.md */; };
 		50AD35DC2F1591FF000D4B6A /* ShareImagePreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AD35D32F1591FF000D4B6A /* ShareImagePreloader.swift */; };
 		50AD35DD2F1591FF000D4B6A /* ShareImageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50AD35D42F1591FF000D4B6A /* ShareImageRenderer.swift */; };
@@ -135,11 +126,9 @@
 		7A331CD75A314559EBA081B0 /* ProfileImageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8666C8162ED89B555D689B9F /* ProfileImageView.swift */; };
 		7A9F46A075A6DE929623F59B /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 022CFA9F095E5B027A26BCE5 /* KeychainManager.swift */; };
 		7B7C6A8649D80404C26F4502 /* GIFUnfurlContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9174B189FF99326AFF6539AD /* GIFUnfurlContainer.swift */; };
-		7D7F5579219349C0EAA59774 /* MastodonGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E8A251CFB626BE601C221D4 /* MastodonGraphService.swift */; };
 		7E4155789C5E894B1D0549F7 /* BoostBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3473A00930E15E5E41079A5 /* BoostBanner.swift */; };
 		82E5E4E0120399F29041AF49 /* TimelineFeedSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70A4C54AB5F5195027BF3562 /* TimelineFeedSelection.swift */; };
 		847578673A14BEC2A7A5EBE5 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D71CA3ECEDDF31E65ED2F3D /* AudioPlayerView.swift */; };
-		84DAAA0E5BDCFE0E51C3B0B7 /* SocialGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 445C8EA65F0459783FEF2B57 /* SocialGraphService.swift */; };
 		852008D8C2D23E171ED8DF24 /* NotificationName+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C6877E827AA4A781CFFB180 /* NotificationName+Extensions.swift */; };
 		8680F9173B336EB01F41F59F /* PostDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8567AAAC79DB5C4A4B5C7B8 /* PostDetailView.swift */; };
 		86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */; };
@@ -186,12 +175,12 @@
 		B3051EF0EA0F51BD2684D8BF /* EnhancedEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */; };
 		B395D459AAFE04B469589D52 /* TagDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */; };
 		B414131FB84A554CBC8BE66F /* LiquidGlassConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C76C2B4E620B5BCCE5D71307 /* LiquidGlassConfiguration.swift */; };
+		B42CC1E4414B3C1434597FDF /* RelationshipState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0D38594FB063E394AEDF488 /* RelationshipState.swift */; };
 		B51046EC4A59DA5D89ACF020 /* TimelineFeedPickerPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28045235113B5D10AA971BD9 /* TimelineFeedPickerPopover.swift */; };
 		B57D3EE0F7729F354E70019E /* ConsolidatedTimelineView.swift.backup in Resources */ = {isa = PBXBuildFile; fileRef = 3D703FF04BA51D8929A92E5F /* ConsolidatedTimelineView.swift.backup */; };
 		B5CABD29745A1FF549735548 /* MigrationControlPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2D5262296CBE424119169BF /* MigrationControlPanel.swift */; };
 		B64E8B0D47DA02D42EA2E88B /* FullscreenMediaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91B0D02DC87780BA9667D76A /* FullscreenMediaView.swift */; };
 		B70243BCF2992F13F38144AB /* TimelineRefreshIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3183F7DF900513D32BBED8FE /* TimelineRefreshIntent.swift */; };
-		BB1FB418A228B07950755134 /* ActorID.swift in Sources */ = {isa = PBXBuildFile; fileRef = F392054B8F21A7DA99E4854F /* ActorID.swift */; };
 		BBB534342132A9D816BDE940 /* QuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D469B3E0B4B4763498E1224A /* QuotePostView.swift */; };
 		BBF9A9C3A80B9774931A39DF /* BlueskyPost.swift in Sources */ = {isa = PBXBuildFile; fileRef = 842002BDF43C77771C2516F3 /* BlueskyPost.swift */; };
 		BF9232370B901A0FFEB7868E /* PostActionBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A3C88EBD267A6FFDD144DC /* PostActionBar.swift */; };
@@ -248,7 +237,6 @@
 		FB93246D0582BCA77DD5112E /* PostMenuCapabilityGatingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10E2261F8703E0FDFBF1592E /* PostMenuCapabilityGatingTests.swift */; };
 		FC5FCAEC64897932A13570EC /* MediaPerformanceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0882B2596E6F96CFE8A6D8CA /* MediaPerformanceMonitor.swift */; };
 		FDB4435670702C877875D7E9 /* SimpleEdgeCaseHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */; };
-		FE3FE8F1CABCBB9CD97033D9 /* BlueskyGraphService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C9229794091F39BDECBCDE /* BlueskyGraphService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -324,7 +312,6 @@
 		4324AFCC8D6F6D64BA55D111 /* TestPlayground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestPlayground.swift; sourceTree = "<group>"; };
 		4366FC833A6E1A4DFD472205 /* ExpandingReplyBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandingReplyBanner.swift; sourceTree = "<group>"; };
 		4413493C1891D722617907EB /* PostActionState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionState.swift; sourceTree = "<group>"; };
-		445C8EA65F0459783FEF2B57 /* SocialGraphService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SocialGraphService.swift; sourceTree = "<group>"; };
 		457F70C4F810DDAAE1FA2524 /* DataFlow.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DataFlow.md; sourceTree = "<group>"; };
 		458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagDetailView.swift; sourceTree = "<group>"; };
 		45A0A7DAA0C9D0C2EBB04EE8 /* MediaPrefetcher.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaPrefetcher.swift; sourceTree = "<group>"; };
@@ -341,14 +328,6 @@
 		4DE1E098CCAD95C754E026A8 /* AsyncLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncLoader.swift; sourceTree = "<group>"; };
 		5009EE1EAECC7E012285EC8C /* SocialFusionTimelineDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionTimelineDebug.swift; sourceTree = "<group>"; };
 		50739CD32F15CDAE00A086BA /* ViewTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewTracker.swift; sourceTree = "<group>"; };
-		50739CD52F15DAC200A086BA /* RelationshipState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipState.swift; sourceTree = "<group>"; };
-		50739CD72F15DAE900A086BA /* RelationshipStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipStore.swift; sourceTree = "<group>"; };
-		50739CD92F15DB1C00A086BA /* BlueskyGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyGraphService.swift; sourceTree = "<group>"; };
-		50739CDA2F15DB1C00A086BA /* MastodonGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonGraphService.swift; sourceTree = "<group>"; };
-		50739CDB2F15DB1C00A086BA /* SocialGraphService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialGraphService.swift; sourceTree = "<group>"; };
-		50739CDF2F15DB4800A086BA /* RelationshipViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipViewModel.swift; sourceTree = "<group>"; };
-		50739CE12F15DB7900A086BA /* FollowsYouBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowsYouBadge.swift; sourceTree = "<group>"; };
-		50739CE22F15DB7900A086BA /* RelationshipBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipBarView.swift; sourceTree = "<group>"; };
 		50AD35CD2F1591FF000D4B6A /* UnifiedAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedAdapter.swift; sourceTree = "<group>"; };
 		50AD35CF2F1591FF000D4B6A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		50AD35D02F1591FF000D4B6A /* ShareAsImageCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareAsImageCoordinator.swift; sourceTree = "<group>"; };
@@ -386,7 +365,6 @@
 		6CB0A1D8B3FFDEFF89E8534C /* TimelineState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineState.swift; sourceTree = "<group>"; };
 		6D18F362E54A72DCDE6D8A2F /* PostLayoutSnapshot.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PostLayoutSnapshot.swift; sourceTree = "<group>"; };
 		6F97A18E7B0EBE12A434E395 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
-		70510AAB5666CC8872303FFA /* RelationshipState.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RelationshipState.swift; sourceTree = "<group>"; };
 		7055B55E746C4955762F714E /* MediaContainerView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaContainerView.swift; sourceTree = "<group>"; };
 		70A4C54AB5F5195027BF3562 /* TimelineFeedSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFeedSelection.swift; sourceTree = "<group>"; };
 		70E6D2767C0907460A25BDD6 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
@@ -409,7 +387,6 @@
 		8666C8162ED89B555D689B9F /* ProfileImageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileImageView.swift; sourceTree = "<group>"; };
 		89CB1916907991EF4A109883 /* SocialAccount.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialAccount.swift; sourceTree = "<group>"; };
 		8C3FD8A132ADB5260F338F48 /* ActionBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionBar.swift; sourceTree = "<group>"; };
-		8E8A251CFB626BE601C221D4 /* MastodonGraphService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MastodonGraphService.swift; sourceTree = "<group>"; };
 		8FBE482DEAC3E500F24FACB8 /* ShareAvatarPlaceholderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareAvatarPlaceholderTests.swift; sourceTree = "<group>"; };
 		9136A78FEB578FA5E6A06798 /* SmartPositionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPositionManager.swift; sourceTree = "<group>"; };
 		9174B189FF99326AFF6539AD /* GIFUnfurlContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GIFUnfurlContainer.swift; sourceTree = "<group>"; };
@@ -502,10 +479,9 @@
 		EC99876AEDC3988BB0F10156 /* PlatformDot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDot.swift; sourceTree = "<group>"; };
 		EDBF4B50F55E308329F45732 /* DirectTokenEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectTokenEntryView.swift; sourceTree = "<group>"; };
 		F0A00336DF382ACD3D3339D5 /* ThreadSlicerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThreadSlicerTests.swift; sourceTree = "<group>"; };
+		F0D38594FB063E394AEDF488 /* RelationshipState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationshipState.swift; sourceTree = "<group>"; };
 		F13ED5A8803FA4E558DB14DE /* CustomEmojiCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomEmojiCache.swift; sourceTree = "<group>"; };
 		F31A69F88143E7CC7B5BBB19 /* GradualMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GradualMigrationManager.swift; sourceTree = "<group>"; };
-		F392054B8F21A7DA99E4854F /* ActorID.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ActorID.swift; sourceTree = "<group>"; };
-		F3C9229794091F39BDECBCDE /* BlueskyGraphService.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BlueskyGraphService.swift; sourceTree = "<group>"; };
 		F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostActionCoordinatorTests.swift; sourceTree = "<group>"; };
 		F9A4904D8102015C9E925FD4 /* AccountTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountTimelineView.swift; sourceTree = "<group>"; };
 		FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatters.swift; sourceTree = "<group>"; };
@@ -528,7 +504,6 @@
 			children = (
 				A1888888858E76320C038D17 /* FullscreenMediaCoordinator.swift */,
 				D1361C49DB68F7EC3C6FDD2C /* PostViewModel.swift */,
-				50739CDF2F15DB4800A086BA /* RelationshipViewModel.swift */,
 				96854ABAFE6185E7CC37C677 /* TimelineFeedPickerViewModel.swift */,
 				6F97A18E7B0EBE12A434E395 /* TimelineViewModel.swift */,
 			);
@@ -757,7 +732,6 @@
 				4042894BCB021D7EA32D968E /* PostActionCoordinator.swift */,
 				B84059FF1CBD2EFA769730BD /* PostActionStore.swift */,
 				2AB52206B26658AB75187524 /* UnifiedPostStore.swift */,
-				50739CD72F15DAE900A086BA /* RelationshipStore.swift */,
 			);
 			path = Stores;
 			sourceTree = "<group>";
@@ -775,9 +749,6 @@
 			isa = PBXGroup;
 			children = (
 				A3AE3DBDF1CBBF3BED24E136 /* AccountAccessor.swift */,
-				50739CD92F15DB1C00A086BA /* BlueskyGraphService.swift */,
-				50739CDA2F15DB1C00A086BA /* MastodonGraphService.swift */,
-				50739CDB2F15DB1C00A086BA /* SocialGraphService.swift */,
 				37E0D8326AF57D67916ECE43 /* AccountManager.swift */,
 				E96497E08946ECFC06C2620E /* AccountService.swift */,
 				DD36F8842EB39685F442E732 /* AuthenticatedVideoAssetLoader.swift */,
@@ -800,9 +771,6 @@
 				73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */,
 				50739CD32F15CDAE00A086BA /* ViewTracker.swift */,
 				4930A3036E639A6B4378AC0A /* TimelineSwiftDataStore.swift */,
-				445C8EA65F0459783FEF2B57 /* SocialGraphService.swift */,
-				8E8A251CFB626BE601C221D4 /* MastodonGraphService.swift */,
-				F3C9229794091F39BDECBCDE /* BlueskyGraphService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -832,7 +800,6 @@
 		EBD592315432A61E41FB3ED9 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				50739CD52F15DAC200A086BA /* RelationshipState.swift */,
 				B838B741234EAE29B1817EBB /* BlueskyModels.swift */,
 				842002BDF43C77771C2516F3 /* BlueskyPost.swift */,
 				0D80D8E657DE7507D5B1D411 /* CanonicalPost.swift */,
@@ -847,6 +814,7 @@
 				4413493C1891D722617907EB /* PostActionState.swift */,
 				9CC68033DFF03E617388048E /* PostNormalizer.swift */,
 				286DCA502BBF006A19FB31F3 /* PreviewLinkSelection.swift */,
+				F0D38594FB063E394AEDF488 /* RelationshipState.swift */,
 				89CB1916907991EF4A109883 /* SocialAccount.swift */,
 				18DEC81D31244F475B9C02A9 /* SocialModels.swift */,
 				A44B59B6037ADBC6C87E7AD6 /* SocialPlatform.swift */,
@@ -855,8 +823,6 @@
 				3183F7DF900513D32BBED8FE /* TimelineRefreshIntent.swift */,
 				6CB0A1D8B3FFDEFF89E8534C /* TimelineState.swift */,
 				6D18F362E54A72DCDE6D8A2F /* PostLayoutSnapshot.swift */,
-				F392054B8F21A7DA99E4854F /* ActorID.swift */,
-				70510AAB5666CC8872303FFA /* RelationshipState.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -865,8 +831,6 @@
 			isa = PBXGroup;
 			children = (
 				8C3FD8A132ADB5260F338F48 /* ActionBar.swift */,
-				50739CE12F15DB7900A086BA /* FollowsYouBadge.swift */,
-				50739CE22F15DB7900A086BA /* RelationshipBarView.swift */,
 				DCDF5F076D9F306C7516F540 /* AnimatedGIFView.swift */,
 				4D71CA3ECEDDF31E65ED2F3D /* AudioPlayerView.swift */,
 				C3473A00930E15E5E41079A5 /* BoostBanner.swift */,
@@ -1064,7 +1028,6 @@
 				3718121995C700A764CDD34C /* AccountTimelineController.swift in Sources */,
 				995DA6752CA59999A34AD54B /* AccountTimelineView.swift in Sources */,
 				C707093DC30F2A021B42DF23 /* AccountsView.swift in Sources */,
-				50739CE02F15DB4800A086BA /* RelationshipViewModel.swift in Sources */,
 				69FC12A066615DEAE708D63D /* ActionBar.swift in Sources */,
 				2ECEF0DD8AE41DE5FB4CFD05 /* AddAccountView.swift in Sources */,
 				A53B8BBBEC52C727BE4FEE8D /* AnimatedGIFView.swift in Sources */,
@@ -1090,7 +1053,6 @@
 				C65481E13024F427F66E6C28 /* Color+Theme.swift in Sources */,
 				8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */,
 				00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */,
-				50739CD62F15DAC200A086BA /* RelationshipState.swift in Sources */,
 				0ED9321E76B98C2F47082788 /* ConsolidatedTimelineView.swift in Sources */,
 				F0FEE97841E1BFE76F092DCF /* ContentView.swift in Sources */,
 				CA2404985B6DC8C51B633EB3 /* CustomEmojiCache.swift in Sources */,
@@ -1105,9 +1067,6 @@
 				9DC0E9C85139ACAD081B4C06 /* ErrorHandler.swift in Sources */,
 				18433AA28213333773A6F02F /* ExpandingReplyBanner.swift in Sources */,
 				C4A2D34E624F6670BBBB20BA /* FeatureFlagManager.swift in Sources */,
-				50739CDC2F15DB1C00A086BA /* MastodonGraphService.swift in Sources */,
-				50739CDD2F15DB1C00A086BA /* SocialGraphService.swift in Sources */,
-				50739CDE2F15DB1C00A086BA /* BlueskyGraphService.swift in Sources */,
 				C70762226155550644A11F3B /* FeatureFlags.swift in Sources */,
 				A674B11B90B126CD8500909D /* FetchQuotePostView.swift in Sources */,
 				C97917B926876FC3057258AA /* FullscreenMediaCoordinator.swift in Sources */,
@@ -1125,8 +1084,6 @@
 				9F9546B65000770237CE379C /* LinkPreview.swift in Sources */,
 				5E980D705BDF703AC9720CE1 /* LinkPreviewCache.swift in Sources */,
 				A3B9790936CF88303F95E0A7 /* LinkPreviewSelector.swift in Sources */,
-				50739CE32F15DB7900A086BA /* RelationshipBarView.swift in Sources */,
-				50739CE42F15DB7900A086BA /* FollowsYouBadge.swift in Sources */,
 				17188502D96A2C56E6BF0F32 /* LiquidGlassComponents.swift in Sources */,
 				B414131FB84A554CBC8BE66F /* LiquidGlassConfiguration.swift in Sources */,
 				666E358ED9EDF4B75032AB96 /* LoadingState.swift in Sources */,
@@ -1193,13 +1150,13 @@
 				7A331CD75A314559EBA081B0 /* ProfileImageView.swift in Sources */,
 				36FE7936BE088D2E0BCE3F81 /* ProfileView.swift in Sources */,
 				BBB534342132A9D816BDE940 /* QuotePostView.swift in Sources */,
+				B42CC1E4414B3C1434597FDF /* RelationshipState.swift in Sources */,
 				4E0B56C339D1505F16CDDC9D /* ReliableScrollView.swift in Sources */,
 				A997FD4E9533448CC30A62B0 /* RobotsTxtChecker.swift in Sources */,
 				C12E278F89C75E0FB3426126 /* SearchView.swift in Sources */,
 				86C2D9BA5403ACBD8062F2F1 /* SettingsView.swift in Sources */,
 				67F3D4FC0F35780B4AF8DAA5 /* ShareSheetWrapper.swift in Sources */,
 				FDB4435670702C877875D7E9 /* SimpleEdgeCaseHandling.swift in Sources */,
-				50739CD82F15DAE900A086BA /* RelationshipStore.swift in Sources */,
 				A190D269231035C1B9234C27 /* SmartMediaView.swift in Sources */,
 				6F78B36882A13286D6C75FAC /* SmartPositionManager.swift in Sources */,
 				8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */,
@@ -1265,11 +1222,6 @@
 				732BFF6F5E693EB88E1BC78A /* PostLayoutSnapshotBuilder.swift in Sources */,
 				A6F1E8404275863DAE92DF11 /* FeedUpdateCoordinator.swift in Sources */,
 				713D2B6D90DD6FBD5892A687 /* MediaContainerView.swift in Sources */,
-				BB1FB418A228B07950755134 /* ActorID.swift in Sources */,
-				00320D899129D416BEE0B6E6 /* RelationshipState.swift in Sources */,
-				84DAAA0E5BDCFE0E51C3B0B7 /* SocialGraphService.swift in Sources */,
-				7D7F5579219349C0EAA59774 /* MastodonGraphService.swift in Sources */,
-				FE3FE8F1CABCBB9CD97033D9 /* BlueskyGraphService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
