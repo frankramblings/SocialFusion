@@ -41,9 +41,14 @@ struct UserDetailView: View {
                     }
 
                     VStack(spacing: 4) {
-                        Text(user.displayName ?? user.username)
-                            .font(.title2)
-                            .fontWeight(.bold)
+                        EmojiDisplayNameText(
+                            user.displayName ?? user.username,
+                            emojiMap: user.displayNameEmojiMap,
+                            font: .title2,
+                            fontWeight: .bold,
+                            foregroundColor: .primary,
+                            lineLimit: 1
+                        )
 
                         Text("@\(user.username)")
                             .font(.subheadline)
@@ -180,7 +185,18 @@ struct UserDetailView: View {
                     .environmentObject(serviceManager)
             }
         }
-        .navigationTitle(user.displayName ?? user.username)
+        .navigationTitle({
+            // Extract plain text for navigation title (navigation titles don't support emoji rendering well)
+            let displayName = user.displayName ?? user.username
+            // Remove emoji shortcodes for navigation title
+            var plainText = displayName
+            if let emojiMap = user.displayNameEmojiMap {
+                for shortcode in emojiMap.keys {
+                    plainText = plainText.replacingOccurrences(of: ":\(shortcode):", with: "")
+                }
+            }
+            return plainText.trimmingCharacters(in: .whitespaces)
+        }() as String)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             // Initialize relationship view model with proper account and service

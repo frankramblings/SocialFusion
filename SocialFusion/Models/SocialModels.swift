@@ -276,16 +276,18 @@ public struct SearchUser: Identifiable, Sendable {
     public let displayName: String?
     public let avatarURL: String?
     public let platform: SocialPlatform
+    public let displayNameEmojiMap: [String: String]?
 
     public init(
         id: String, username: String, displayName: String? = nil, avatarURL: String? = nil,
-        platform: SocialPlatform
+        platform: SocialPlatform, displayNameEmojiMap: [String: String]? = nil
     ) {
         self.id = id
         self.username = username
         self.displayName = displayName
         self.avatarURL = avatarURL
         self.platform = platform
+        self.displayNameEmojiMap = displayNameEmojiMap
     }
 }
 

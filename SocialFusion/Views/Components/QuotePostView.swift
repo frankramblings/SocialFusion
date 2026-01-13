@@ -105,10 +105,14 @@ public struct QuotePostView: View {
             Button(action: {
                 navigationEnvironment.navigateToUser(from: post)
             }) {
-                Text(post.authorName)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
+                EmojiDisplayNameText(
+                    post.authorName,
+                    emojiMap: post.authorEmojiMap,
+                    font: .subheadline,
+                    fontWeight: .semibold,
+                    foregroundColor: .primary,
+                    lineLimit: 1
+                )
             }
             .buttonStyle(PlainButtonStyle())
 

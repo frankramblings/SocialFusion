@@ -35,9 +35,14 @@ struct ProfileView: View {
                             )
 
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(account.displayName ?? account.username)
-                                .font(.title2)
-                                .fontWeight(.bold)
+                            EmojiDisplayNameText(
+                                account.displayName ?? account.username,
+                                emojiMap: account.displayNameEmojiMap,
+                                font: .title2,
+                                fontWeight: .bold,
+                                foregroundColor: .primary,
+                                lineLimit: 1
+                            )
 
                             Text("@\(account.username)")
                                 .font(.subheadline)
@@ -154,7 +159,18 @@ struct ProfileView: View {
                 }
             }
         }
-        .navigationTitle(account.displayName ?? account.username)
+        .navigationTitle({
+            // Extract plain text for navigation title (navigation titles don't support emoji rendering well)
+            let displayName = account.displayName ?? account.username
+            // Remove emoji shortcodes for navigation title
+            var plainText = displayName
+            if let emojiMap = account.displayNameEmojiMap {
+                for shortcode in emojiMap.keys {
+                    plainText = plainText.replacingOccurrences(of: ":\(shortcode):", with: "")
+                }
+            }
+            return plainText.trimmingCharacters(in: .whitespaces)
+        }() as String)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(
             isPresented: Binding(

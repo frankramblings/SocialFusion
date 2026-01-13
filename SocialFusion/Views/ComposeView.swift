@@ -686,6 +686,7 @@ struct ComposeView: View {
         let platform: SocialPlatform
         let remaining: Int
         let accountLabel: String
+        let accountEmojiMap: [String: String]?
         var isOverLimit: Bool { remaining < 0 }
     }
 
@@ -693,14 +694,16 @@ struct ComposeView: View {
         selectedPlatforms.sorted(by: { $0.rawValue < $1.rawValue }).map { platform in
             let limit = platform == .mastodon ? mastodonCharLimit : blueskyCharLimit
             let remaining = limit - threadPosts[activePostIndex].text.count
+            let account = selectedAccount(for: platform)
             let accountLabel =
-                selectedAccount(for: platform)?.displayName
-                ?? selectedAccount(for: platform)?.username
+                account?.displayName
+                ?? account?.username
                 ?? "Account"
             return PlatformLimitStatus(
                 platform: platform,
                 remaining: remaining,
-                accountLabel: accountLabel
+                accountLabel: accountLabel,
+                accountEmojiMap: account?.displayNameEmojiMap
             )
         }
     }
@@ -1486,9 +1489,14 @@ struct ComposeView: View {
                                 .frame(width: 14, height: 14)
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(status.accountLabel)
-                                    .font(.caption)
-                                    .lineLimit(1)
+                                EmojiDisplayNameText(
+                                    status.accountLabel,
+                                    emojiMap: status.accountEmojiMap,
+                                    font: .caption,
+                                    fontWeight: .regular,
+                                    foregroundColor: .primary,
+                                    lineLimit: 1
+                                )
                                 Text("\(status.remaining) left")
                                     .font(.caption2.weight(.semibold))
                                     .foregroundColor(
@@ -1537,7 +1545,14 @@ struct ComposeView: View {
                         selectedAccounts[platform] = account.id
                     } label: {
                         HStack {
-                            Text(account.displayName ?? account.username)
+                            EmojiDisplayNameText(
+                                account.displayName ?? account.username,
+                                emojiMap: account.displayNameEmojiMap,
+                                font: .body,
+                                fontWeight: .regular,
+                                foregroundColor: .primary,
+                                lineLimit: 1
+                            )
                             if selectedAccounts[platform] == account.id {
                                 Spacer()
                                 Image(systemName: "checkmark")
@@ -1552,12 +1567,20 @@ struct ComposeView: View {
                         .scaledToFit()
                         .frame(width: 14, height: 14)
 
-                    Text(
-                        selectedAccount(for: platform)?.displayName
-                            ?? selectedAccount(for: platform)?.username ?? "Select account"
-                    )
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    if let account = selectedAccount(for: platform) {
+                        EmojiDisplayNameText(
+                            account.displayName ?? account.username,
+                            emojiMap: account.displayNameEmojiMap,
+                            font: .subheadline,
+                            fontWeight: .medium,
+                            foregroundColor: .primary,
+                            lineLimit: 1
+                        )
+                    } else {
+                        Text("Select account")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

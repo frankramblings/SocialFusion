@@ -86,7 +86,8 @@ public class MastodonSearchProvider: SearchProviding {
           username: account.acct,
           displayName: account.displayName,
           avatarURL: account.avatar,
-          platform: .mastodon
+          platform: .mastodon,
+          displayNameEmojiMap: extractAccountEmojiMap(from: account)
         )
       }
       
@@ -125,7 +126,8 @@ public class MastodonSearchProvider: SearchProviding {
                 username: account.acct,
                 displayName: account.displayName,
                 avatarURL: account.avatar,
-                platform: .mastodon
+                platform: .mastodon,
+                displayNameEmojiMap: extractAccountEmojiMap(from: account)
               )
             }
             
@@ -177,7 +179,8 @@ public class MastodonSearchProvider: SearchProviding {
                   username: status.account.acct,
                   displayName: status.account.displayName,
                   avatarURL: status.account.avatar,
-                  platform: .mastodon
+                  platform: .mastodon,
+                  displayNameEmojiMap: extractAccountEmojiMap(from: status.account)
                 ))
               }
             }
@@ -239,6 +242,22 @@ public class MastodonSearchProvider: SearchProviding {
     return SearchPage(items: items, nextPageTokens: [:], hasMore: false)
   }
   
+  /// Extracts custom emoji from a MastodonAccount (for display name emoji)
+  private func extractAccountEmojiMap(from account: MastodonAccount) -> [String: String]? {
+    guard let emojis = account.emojis, !emojis.isEmpty else {
+      return nil
+    }
+    var emojiMap: [String: String] = [:]
+    for emoji in emojis {
+      // Use staticUrl if available (smaller, faster), otherwise fall back to url
+      let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+      if !emojiURL.isEmpty {
+        emojiMap[emoji.shortcode] = emojiURL
+      }
+    }
+    return emojiMap.isEmpty ? nil : emojiMap
+  }
+  
   public func resolveDirectOpen(input: String) async throws -> DirectOpenTarget? {
     // Check for Mastodon handle: @user@instance
     if input.hasPrefix("@") && input.contains("@") && !input.hasPrefix("@@") {
@@ -259,7 +278,8 @@ public class MastodonSearchProvider: SearchProviding {
             username: account.acct,
             displayName: account.displayName,
             avatarURL: account.avatar,
-            platform: .mastodon
+            platform: .mastodon,
+            displayNameEmojiMap: extractAccountEmojiMap(from: account)
           )
           return .profile(user)
         }
@@ -283,7 +303,8 @@ public class MastodonSearchProvider: SearchProviding {
             username: account.acct,
             displayName: account.displayName,
             avatarURL: account.avatar,
-            platform: .mastodon
+            platform: .mastodon,
+            displayNameEmojiMap: extractAccountEmojiMap(from: account)
           )
           return .profile(user)
         }

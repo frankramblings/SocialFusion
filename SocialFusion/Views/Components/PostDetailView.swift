@@ -524,8 +524,14 @@ struct PostDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 14, height: 14)
-                Text(account.displayName ?? account.username)
-                    .font(.caption.weight(.semibold))
+                EmojiDisplayNameText(
+                    account.displayName ?? account.username,
+                    emojiMap: account.displayNameEmojiMap,
+                    font: .caption,
+                    fontWeight: .semibold,
+                    foregroundColor: .primary,
+                    lineLimit: 1
+                )
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -538,7 +544,14 @@ struct PostDetailView: View {
                         selectedReplyAccountId = account.id
                     } label: {
                         HStack {
-                            Text(account.displayName ?? account.username)
+                            EmojiDisplayNameText(
+                                account.displayName ?? account.username,
+                                emojiMap: account.displayNameEmojiMap,
+                                font: .body,
+                                fontWeight: .regular,
+                                foregroundColor: .primary,
+                                lineLimit: 1
+                            )
                             if selectedReplyAccountId == account.id {
                                 Spacer()
                                 Image(systemName: "checkmark")
@@ -552,9 +565,20 @@ struct PostDetailView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 14, height: 14)
-                    Text(currentLabel)
-                        .font(.caption.weight(.semibold))
-                        .lineLimit(1)
+                    if let account = selectedReplyAccount(for: platform) {
+                        EmojiDisplayNameText(
+                            account.displayName ?? account.username,
+                            emojiMap: account.displayNameEmojiMap,
+                            font: .caption,
+                            fontWeight: .semibold,
+                            foregroundColor: .primary,
+                            lineLimit: 1
+                        )
+                    } else {
+                        Text("Select account")
+                            .font(.caption.weight(.semibold))
+                            .lineLimit(1)
+                    }
                     Image(systemName: "chevron.up.chevron.down")
                         .font(.caption2)
                         .foregroundColor(.secondary)
@@ -1023,11 +1047,14 @@ struct SelectedPostView: View {
 
                 // Column 2: Content Column
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.authorName)
-                        .font(.headline)
-                        .fontWeight(.bold)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
+                    EmojiDisplayNameText(
+                        post.authorName,
+                        emojiMap: post.authorEmojiMap,
+                        font: .headline,
+                        fontWeight: .bold,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
 
                     Text("@\(post.authorUsername)")
                         .font(.subheadline)

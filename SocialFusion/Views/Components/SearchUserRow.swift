@@ -37,10 +37,14 @@ struct SearchUserRow: View {
         
         // User info
         VStack(alignment: .leading, spacing: 2) {
-          Text(user.displayName ?? user.username)
-            .font(.headline)
-            .foregroundColor(.primary)
-            .lineLimit(1)
+          EmojiDisplayNameText(
+            user.displayName ?? user.username,
+            emojiMap: user.displayNameEmojiMap,
+            font: .headline,
+            fontWeight: .regular,
+            foregroundColor: .primary,
+            lineLimit: 1
+          )
           
           Text("@\(user.username)")
             .font(.subheadline)

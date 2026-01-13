@@ -268,8 +268,14 @@ struct AccountSwitcherSheet: View {
                             )
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(account.displayName ?? account.username)
-                                    .font(.headline)
+                                EmojiDisplayNameText(
+                                    account.displayName ?? account.username,
+                                    emojiMap: account.displayNameEmojiMap,
+                                    font: .headline,
+                                    fontWeight: .regular,
+                                    foregroundColor: .primary,
+                                    lineLimit: 1
+                                )
 
                                 Text("@\(account.username)")
                                     .font(.caption)

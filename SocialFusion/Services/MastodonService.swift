@@ -2361,6 +2361,10 @@ public final class MastodonService: @unchecked Sendable {
         if let url = URL(string: mastodonAccount.avatar) {
             account.profileImageURL = url
         }
+        
+        // Update emoji maps for display name and bio
+        account.displayNameEmojiMap = extractAccountEmojiMap(from: mastodonAccount)
+        // Note: bioEmojiMap would need to be extracted from note HTML if needed
 
         return account
     }
@@ -2633,10 +2637,36 @@ public final class MastodonService: @unchecked Sendable {
             let reblogTags = (reblog.tags ?? []).compactMap { $0.name }
             let reblogPoll = convertPoll(reblog.poll)
 
+            // Extract author emoji map from reblog
+            // Try to extract from display name HTML first, then match from reblog.emojis array
+            let authorDisplayName = reblog.account?.displayName ?? reblog.account?.acct ?? ""
+            let authorEmojiMap: [String: String]? = {
+                // First try extracting from display name HTML if it contains emoji tags
+                if let htmlMap = extractEmojiMap(fromHTML: authorDisplayName), !htmlMap.isEmpty {
+                    return htmlMap
+                }
+                // Otherwise, try matching shortcodes from reblog.emojis array that appear in display name
+                if let reblogEmojis = reblog.emojis, !reblogEmojis.isEmpty {
+                    var emojiMap: [String: String] = [:]
+                    for emoji in reblogEmojis {
+                        // Check if this shortcode appears in the display name
+                        let shortcodePattern = ":\(emoji.shortcode):"
+                        if authorDisplayName.contains(shortcodePattern) {
+                            let emojiURL = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+                            if !emojiURL.isEmpty {
+                                emojiMap[emoji.shortcode] = emojiURL
+                            }
+                        }
+                    }
+                    return emojiMap.isEmpty ? nil : emojiMap
+                }
+                return nil
+            }()
+            
             var originalPost = Post(
                 id: reblog.id ?? "",
                 content: reblog.content ?? "",
-                authorName: reblog.account?.displayName ?? reblog.account?.acct ?? "",
+                authorName: authorDisplayName,
                 authorUsername: reblog.account?.acct ?? "",
                 authorId: reblog.account?.id ?? "",
                 authorProfilePictureURL: reblog.account?.avatar ?? "",
@@ -2661,8 +2691,7 @@ public final class MastodonService: @unchecked Sendable {
                 blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
                 blueskyRepostRecordURI: nil,
                 customEmojiMap: extractEmojiMap(from: reblog),
-                // Note: MastodonReblog uses MastodonPost.MastodonAccount which doesn't include emoji data
-                // authorEmojiMap will be nil here, but when the post is hydrated, it will get proper emoji
+                authorEmojiMap: authorEmojiMap,  // Extract emoji from display name HTML or reblog.emojis
                 clientName: nil  // MastodonReblog doesn't have application field - client name comes from wrapper status
             )
 
@@ -2721,7 +2750,8 @@ public final class MastodonService: @unchecked Sendable {
                                 primaryLinkThumbnailURL: hydrated.primaryLinkThumbnailURL,
                                 blueskyLikeRecordURI: hydrated.blueskyLikeRecordURI,
                                 blueskyRepostRecordURI: hydrated.blueskyRepostRecordURI,
-                                customEmojiMap: hydrated.customEmojiMap
+                                customEmojiMap: hydrated.customEmojiMap,
+                                authorEmojiMap: hydrated.authorEmojiMap  // Preserve author emoji map
                             )
                             originalPost = preservedHydrated
                             logger.info(
@@ -3263,6 +3293,10 @@ public final class MastodonService: @unchecked Sendable {
         // Store credentials
         account.saveAccessToken(accessToken)
         account.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))  // 30 days
+        
+        // Set emoji maps for display name and bio
+        account.displayNameEmojiMap = extractAccountEmojiMap(from: userInfo)
+        // Note: bioEmojiMap would need to be extracted from note HTML if needed
 
         // Try to fetch the actual profile image
         if let avatarURL = URL(string: userInfo.avatar) {

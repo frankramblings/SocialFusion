@@ -690,10 +690,14 @@ struct SimpleAccountDropdown: View {
                             .clipShape(Circle())
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(account.displayName ?? account.username)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
+                            EmojiDisplayNameText(
+                                account.displayName ?? account.username,
+                                emojiMap: account.displayNameEmojiMap,
+                                font: .system(size: 15, weight: .medium),
+                                fontWeight: .medium,
+                                foregroundColor: .primary,
+                                lineLimit: 1
+                            )
 
                             Text("@\(account.username)")
                                 .font(.system(size: 13))
@@ -857,10 +861,14 @@ struct AccountDropdownView: View {
                                     .clipShape(Circle())
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(account.displayName ?? account.username)
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(.primary)
-                                        .lineLimit(1)
+                                    EmojiDisplayNameText(
+                                        account.displayName ?? account.username,
+                                        emojiMap: account.displayNameEmojiMap,
+                                        font: .system(size: 15, weight: .medium),
+                                        fontWeight: .medium,
+                                        foregroundColor: .primary,
+                                        lineLimit: 1
+                                    )
 
                                     Text("@\(account.username)")
                                         .font(.system(size: 13))
@@ -1042,8 +1050,14 @@ struct AccountPickerSheet: View {
                                     .frame(width: 40, height: 40)
 
                                 VStack(alignment: .leading) {
-                                    Text(account.displayName ?? "")
-                                        .font(.headline)
+                                    EmojiDisplayNameText(
+                                        account.displayName ?? account.username,
+                                        emojiMap: account.displayNameEmojiMap,
+                                        font: .headline,
+                                        fontWeight: .regular,
+                                        foregroundColor: .primary,
+                                        lineLimit: 1
+                                    )
                                     Text("@\(account.username)")
                                         .font(.subheadline)
                                         .foregroundColor(.gray)
@@ -1070,8 +1084,14 @@ struct AccountPickerSheet: View {
                                     .frame(width: 40, height: 40)
 
                                 VStack(alignment: .leading) {
-                                    Text(account.displayName ?? "")
-                                        .font(.headline)
+                                    EmojiDisplayNameText(
+                                        account.displayName ?? account.username,
+                                        emojiMap: account.displayNameEmojiMap,
+                                        font: .headline,
+                                        fontWeight: .regular,
+                                        foregroundColor: .primary,
+                                        lineLimit: 1
+                                    )
                                     Text("@\(account.username)")
                                         .font(.subheadline)
                                         .foregroundColor(.gray)

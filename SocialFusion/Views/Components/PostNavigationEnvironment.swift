@@ -48,7 +48,8 @@ class PostNavigationEnvironment: ObservableObject {
                 username: targetPost.authorUsername,
                 displayName: targetPost.authorName,
                 avatarURL: targetPost.authorProfilePictureURL.isEmpty ? nil : targetPost.authorProfilePictureURL,
-                platform: targetPost.platform
+                platform: targetPost.platform,
+                displayNameEmojiMap: targetPost.authorEmojiMap
             )
             selectedUser = user
         }
