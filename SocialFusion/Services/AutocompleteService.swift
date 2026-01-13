@@ -1,6 +1,7 @@
 import Foundation
 
 /// Coordinates autocomplete search across networks with stale-result rejection and caching
+/// Uses composable suggestion providers for extensibility and testability
 @MainActor
 public class AutocompleteService: ObservableObject {
   /// Tracks active search request ID
@@ -15,13 +16,22 @@ public class AutocompleteService: ObservableObject {
   /// Cache for autocomplete results
   private let cache: AutocompleteCache
   
-  /// Mastodon service for account/hashtag search
+  /// Suggestion providers (in priority order)
+  private let suggestionProviders: [SuggestionProvider]
+  
+  /// Timeline context provider (optional, for timeline-aware ranking)
+  private let timelineContextProvider: TimelineContextProvider?
+  
+  /// Timeline scope for context queries
+  private let timelineScope: AutocompleteTimelineScope
+  
+  /// Mastodon service for account/hashtag search (kept for backward compatibility)
   private let mastodonService: MastodonService?
   
-  /// Bluesky service for actor search
+  /// Bluesky service for actor search (kept for backward compatibility)
   private let blueskyService: BlueskyService?
   
-  /// Available accounts for searching
+  /// Available accounts for searching (kept for backward compatibility)
   private let accounts: [SocialAccount]
   
   /// Network error state
@@ -34,12 +44,32 @@ public class AutocompleteService: ObservableObject {
     cache: AutocompleteCache = AutocompleteCache.shared,
     mastodonService: MastodonService? = nil,
     blueskyService: BlueskyService? = nil,
-    accounts: [SocialAccount] = []
+    accounts: [SocialAccount] = [],
+    suggestionProviders: [SuggestionProvider]? = nil,
+    timelineContextProvider: TimelineContextProvider? = nil,
+    timelineScope: AutocompleteTimelineScope = .unified
   ) {
     self.cache = cache
     self.mastodonService = mastodonService
     self.blueskyService = blueskyService
     self.accounts = accounts
+    self.timelineContextProvider = timelineContextProvider
+    self.timelineScope = timelineScope
+    
+    // Use provided providers or create default ones for backward compatibility
+    if let providers = suggestionProviders {
+      self.suggestionProviders = providers.sorted { $0.priority < $1.priority }
+    } else {
+      // Default providers: LocalHistoryProvider + NetworkSuggestionProvider
+      var defaultProviders: [SuggestionProvider] = []
+      defaultProviders.append(LocalHistoryProvider(cache: cache))
+      defaultProviders.append(NetworkSuggestionProvider(
+        mastodonService: mastodonService,
+        blueskyService: blueskyService,
+        accounts: accounts
+      ))
+      self.suggestionProviders = defaultProviders.sorted { $0.priority < $1.priority }
+    }
   }
   
   /// Search for autocomplete suggestions with debouncing
@@ -54,17 +84,30 @@ public class AutocompleteService: ObservableObject {
     activeSearchTask?.cancel()
     activeSearchTask = nil
     
-    // Check minimum query length (immediate fetch on first char)
-    let minLength = 0 // Allow empty query for recent results
-      guard token.query.count >= minLength else {
-      // Return recent results for empty query (immediate, no debounce)
+    // For empty queries, return cached/recent results only (no network calls)
+    if token.query.isEmpty {
       isSearching = false
-      if token.prefix == "@" {
-        return cache.getRecentMentions(accountId: token.scope.first?.split(separator: ":").last.map(String.init) ?? "", queryPrefix: "")
-      } else if token.prefix == "#" {
-        return cache.getRecentHashtags(accountId: token.scope.first?.split(separator: ":").last.map(String.init) ?? "", queryPrefix: "")
+      var suggestions: [AutocompleteSuggestion] = []
+      
+      // Query local history provider only (no network calls)
+      let localProviders = self.suggestionProviders.filter { provider in
+        provider.canHandle(prefix: token.prefix) && provider.priority == 1 // LocalHistoryProvider
       }
-      return []
+      
+      for provider in localProviders {
+        let providerSuggestions = await provider.suggestions(for: token)
+        suggestions.append(contentsOf: providerSuggestions)
+      }
+      
+      // Get timeline context if available
+      let contextSnapshot = self.timelineContextProvider?.snapshot(for: self.timelineScope)
+      
+      // Rank and deduplicate
+      suggestions = AutocompleteRanker.rank(suggestions, context: contextSnapshot)
+      suggestions = self.deduplicateSuggestions(suggestions)
+      
+      lastAppliedRequestID = requestID
+      return suggestions
     }
     
     // Check cache first (immediate, no debounce)
@@ -102,54 +145,23 @@ public class AutocompleteService: ObservableObject {
         return []
       }
       
-      // Perform search
+      // Perform search using providers
       var suggestions: [AutocompleteSuggestion] = []
       
-      // Get account ID from token scope (for frequently used lookup)
-      let accountId = token.scope.first?.split(separator: ":").last.map(String.init) ?? ""
+      // Query all providers in parallel (only those that can handle this prefix)
+      let relevantProviders = self.suggestionProviders.filter { $0.canHandle(prefix: token.prefix) }
       
-      // Add frequently used suggestions matching query
-      if !token.query.isEmpty {
-        let frequentlyUsedSuggestions = cache.getFrequentlyUsed(accountId: accountId, queryPrefix: token.query.lowercased())
-        suggestions.append(contentsOf: frequentlyUsedSuggestions)
-      }
-      
-      // Search across active destinations
-      for destinationID in token.scope {
-        let components = destinationID.split(separator: ":")
-        guard components.count == 2,
-              let platform = SocialPlatform(rawValue: String(components[0])),
-              let account = self.accounts.first(where: { $0.id == String(components[1]) && $0.platform == platform }) else {
-          continue
-        }
-        
-        // Check if request is still current
-        guard self.currentRequestID == requestID, !Task.isCancelled else {
-          self.isSearching = false
-          return [] // Stale request, return empty
-        }
-        
-        // Search based on prefix with error handling
-        do {
-          switch token.prefix {
-          case "@":
-            let userSuggestions = try await self.searchUsersWithError(query: token.query, account: account, platform: platform)
-            suggestions.append(contentsOf: userSuggestions)
-          case "#":
-            let tagSuggestions = try await self.searchHashtagsWithError(query: token.query, account: account, platform: platform)
-            suggestions.append(contentsOf: tagSuggestions)
-          case ":":
-            // Emoji search (local, no network error)
-            let emojiService = EmojiService(mastodonService: self.mastodonService, accounts: [account])
-            let emojiSuggestions = await emojiService.searchEmoji(query: token.query, account: account)
-            suggestions.append(contentsOf: emojiSuggestions)
-          default:
-            break
+      // Query providers concurrently
+      await withTaskGroup(of: [AutocompleteSuggestion].self) { group in
+        for provider in relevantProviders {
+          group.addTask {
+            await provider.suggestions(for: token)
           }
-        } catch {
-          // Network error - set error state but continue to other destinations
-          self.networkError = error.localizedDescription
-          // Still return cached/recent results if available
+        }
+        
+        // Collect results from all providers
+        for await providerSuggestions in group {
+          suggestions.append(contentsOf: providerSuggestions)
         }
       }
       
@@ -159,16 +171,11 @@ public class AutocompleteService: ObservableObject {
         return [] // Stale request, return empty
       }
       
-      // Set error state if network failed (but still return cached/partial results)
-      if self.networkError != nil && suggestions.isEmpty {
-        // No results and network error - show error state
-      } else if self.networkError != nil {
-        // Partial results despite error - clear error if we have results
-        self.networkError = nil
-      }
+      // Get timeline context snapshot for ranking
+      let contextSnapshot = self.timelineContextProvider?.snapshot(for: self.timelineScope)
       
-      // Rank results: recents → frequently used → followed → server results
-      suggestions = self.rankSuggestions(suggestions)
+      // Rank suggestions using AutocompleteRanker
+      suggestions = AutocompleteRanker.rank(suggestions, context: contextSnapshot)
       
       // Deduplicate (default to separate rows, merge only with confirmed mapping)
       suggestions = self.deduplicateSuggestions(suggestions)
@@ -193,99 +200,8 @@ public class AutocompleteService: ObservableObject {
     return await searchTask.value
   }
   
-  /// Search for users (mentions) - internal method without error throwing
-  private func searchUsers(query: String, account: SocialAccount, platform: SocialPlatform) async -> [AutocompleteSuggestion] {
-    do {
-      return try await searchUsersWithError(query: query, account: account, platform: platform)
-    } catch {
-      return []
-    }
-  }
-  
-  /// Search for users (mentions) with error handling
-  private func searchUsersWithError(query: String, account: SocialAccount, platform: SocialPlatform) async throws -> [AutocompleteSuggestion] {
-    switch platform {
-    case .mastodon:
-      guard let service = mastodonService else { return [] }
-      let result = try await service.search(query: query, account: account, type: "accounts", limit: 20)
-      return result.accounts.map { account in
-        let searchUser = SearchUser(
-          id: account.id,
-          username: account.acct,
-          displayName: account.displayName,
-          avatarURL: account.avatar,
-          platform: .mastodon
-        )
-        return AutocompleteSuggestion.from(searchUser: searchUser)
-      }
-    case .bluesky:
-      guard let service = blueskyService else { return [] }
-      let result = try await service.searchActors(query: query, account: account, limit: 20)
-      return result.actors.map { actor in
-        let searchUser = SearchUser(
-          id: actor.did,
-          username: actor.handle,
-          displayName: actor.displayName,
-          avatarURL: actor.avatar,
-          platform: .bluesky
-        )
-        return AutocompleteSuggestion.from(searchUser: searchUser)
-      }
-    }
-  }
-  
-  /// Search for hashtags - internal method without error throwing
-  private func searchHashtags(query: String, account: SocialAccount, platform: SocialPlatform) async -> [AutocompleteSuggestion] {
-    do {
-      return try await searchHashtagsWithError(query: query, account: account, platform: platform)
-    } catch {
-      return []
-    }
-  }
-  
-  /// Search for hashtags with error handling
-  private func searchHashtagsWithError(query: String, account: SocialAccount, platform: SocialPlatform) async throws -> [AutocompleteSuggestion] {
-    switch platform {
-    case .mastodon:
-      guard let service = mastodonService else { return [] }
-      let result = try await service.search(query: query, account: account, type: "hashtags", limit: 20)
-      return result.hashtags.map { tag in
-        let searchTag = SearchTag(id: tag.name, name: tag.name, platform: .mastodon)
-        return AutocompleteSuggestion.from(searchTag: searchTag)
-      }
-    case .bluesky:
-      // Bluesky lacks first-class hashtag search - fallback to local cache (no error)
-      return cache.getRecentHashtags(accountId: account.id, queryPrefix: query.lowercased())
-    }
-  }
-  
-  /// Rank suggestions: recents → frequently used → followed → server results
-  private func rankSuggestions(_ suggestions: [AutocompleteSuggestion]) -> [AutocompleteSuggestion] {
-    // Deduplicate by ID first (keep first occurrence)
-    var seenIds = Set<String>()
-    var deduplicated: [AutocompleteSuggestion] = []
-    for suggestion in suggestions {
-      if !seenIds.contains(suggestion.id) {
-        seenIds.insert(suggestion.id)
-        deduplicated.append(suggestion)
-      }
-    }
-    
-    return deduplicated.sorted { lhs, rhs in
-      // Recents first
-      if lhs.isRecent != rhs.isRecent {
-        return lhs.isRecent
-      }
-      // Frequently used next (if both are frequently used, keep original order)
-      // Note: Frequently used are already sorted by usage count in cache
-      // Followed next
-      if lhs.isFollowed != rhs.isFollowed {
-        return lhs.isFollowed
-      }
-      // Then by display text
-      return lhs.displayText < rhs.displayText
-    }
-  }
+  // Note: Old search methods removed - now handled by NetworkSuggestionProvider
+  // Keeping rankSuggestions as fallback for backward compatibility, but AutocompleteRanker is preferred
   
   /// Deduplicate suggestions (default to separate rows)
   private func deduplicateSuggestions(_ suggestions: [AutocompleteSuggestion]) -> [AutocompleteSuggestion] {

@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 /// Utility for extracting autocomplete tokens (@mentions, #hashtags, :emoji) from text
 /// Handles exact character constraints, stop conditions, and Unicode edge cases
@@ -20,7 +21,13 @@ public struct TokenExtractor {
     documentRevision: Int = 0,
     caretRect: CGRect = .zero
   ) -> AutocompleteToken? {
-    guard caretLocation > 0 && caretLocation <= text.utf16.count else {
+    // Allow caretLocation == 0 for empty text (will be handled below)
+    guard caretLocation >= 0 && caretLocation <= text.utf16.count else {
+      return nil
+    }
+    
+    // Handle empty text case - if text is empty or caret is at start, can't have a token
+    if text.isEmpty || caretLocation == 0 {
       return nil
     }
     
@@ -95,10 +102,9 @@ public struct TokenExtractor {
       }
     }
     
-    // Must have at least one character after trigger (or trigger itself for @)
-    if query.isEmpty && prefix != "@" {
-      return nil
-    }
+    // Allow empty query for all triggers when caret is immediately after trigger
+    // This enables immediate autocomplete display when user types @, #, or :
+    // Empty query will trigger recent/cached suggestions
     
     // Build replace range (from trigger to current position)
     let replaceRange = NSRange(location: triggerLocation, length: queryEndLocation - triggerLocation)

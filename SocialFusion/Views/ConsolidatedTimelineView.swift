@@ -197,11 +197,17 @@ struct ConsolidatedTimelineView: View {
                 }
             }
             .sheet(item: $replyingToPost) { post in
-                ComposeView(replyingTo: post)
+                ComposeView(
+                    replyingTo: post,
+                    timelineContextProvider: controller.autocompleteTimelineContextProvider
+                )
                     .environmentObject(serviceManager)
             }
             .sheet(item: $quotingToPost) { post in
-                ComposeView(quotingTo: post)
+                ComposeView(
+                    quotingTo: post,
+                    timelineContextProvider: controller.autocompleteTimelineContextProvider
+                )
                     .environmentObject(serviceManager)
             }
             .sheet(isPresented: $showAddAccountView) {

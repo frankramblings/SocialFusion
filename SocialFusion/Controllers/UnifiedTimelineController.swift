@@ -39,6 +39,7 @@ class UnifiedTimelineController: ObservableObject {
     private let actionStore: PostActionStore
     private let actionCoordinator: PostActionCoordinator
     private let relationshipStore: RelationshipStore
+    private let timelineContextProvider: UnifiedTimelineContextProvider
     private lazy var refreshCoordinator: TimelineRefreshCoordinator = {
         TimelineRefreshCoordinator(
             timelineID: "unified",
@@ -82,6 +83,7 @@ class UnifiedTimelineController: ObservableObject {
 
     var postActionStore: PostActionStore { actionStore }
     var postActionCoordinator: PostActionCoordinator { actionCoordinator }
+    var autocompleteTimelineContextProvider: TimelineContextProvider { timelineContextProvider }
 
     // MARK: - Initialization
 
@@ -90,6 +92,8 @@ class UnifiedTimelineController: ObservableObject {
         self.actionStore = serviceManager.postActionStore
         self.actionCoordinator = serviceManager.postActionCoordinator
         self.relationshipStore = serviceManager.relationshipStore
+        // Use shared provider from service manager
+        self.timelineContextProvider = serviceManager.timelineContextProvider
         setupBindings()
     }
 
@@ -211,6 +215,9 @@ class UnifiedTimelineController: ObservableObject {
         }
         self.lastRefreshDate = Date()
         refreshCoordinator.handleVisibleTimelineUpdate(filteredPosts)
+        
+        // Update timeline context provider for autocomplete
+        timelineContextProvider.updateSnapshot(posts: filteredPosts, scope: .unified)
 
         if !isInitialized {
             isInitialized = true

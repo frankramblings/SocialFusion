@@ -10,17 +10,42 @@ struct AutocompleteOverlay: View {
   @State private var selectedIndex: Int = 0
   @FocusState private var isFocused: Bool
   
+  // Constants for height management
+  private let maxVisibleItems: CGFloat = 5.5  // Show ~5.5 items before scrolling
+  private let rowHeight: CGFloat = 48  // Approximate height per row (padding + content)
+  private var maxHeight: CGFloat {
+    maxVisibleItems * rowHeight
+  }
+  private var contentHeight: CGFloat {
+    CGFloat(suggestions.count) * rowHeight
+  }
+  private var overlayHeight: CGFloat {
+    min(contentHeight, maxHeight)
+  }
+  
   var body: some View {
     GeometryReader { geometry in
       if !suggestions.isEmpty {
-        VStack(alignment: .leading, spacing: 0) {
-          ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
-            AutocompleteSuggestionRow(
-              suggestion: suggestion,
-              isSelected: index == selectedIndex
-            )
-            .onTapGesture {
-              onSelect(suggestion)
+        ScrollViewReader { proxy in
+          ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+              ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                AutocompleteSuggestionRow(
+                  suggestion: suggestion,
+                  isSelected: index == selectedIndex
+                )
+                .id(index)
+                .onTapGesture {
+                  onSelect(suggestion)
+                }
+              }
+            }
+          }
+          .frame(height: overlayHeight)
+          .onChange(of: selectedIndex) { newIndex in
+            // Scroll selected item into view when navigating with keyboard
+            withAnimation(.easeInOut(duration: 0.2)) {
+              proxy.scrollTo(newIndex, anchor: .center)
             }
           }
         }
@@ -33,7 +58,7 @@ struct AutocompleteOverlay: View {
         .position(
           x: max(150, min(geometry.size.width - 150, token.caretRect.midX)),
           y: min(
-            token.caretRect.maxY + 8 + CGFloat(min(suggestions.count, 5)) * 44 / 2,
+            token.caretRect.maxY + 8 + overlayHeight / 2,
             geometry.size.height - 100 // Keep above keyboard
           )
         )
@@ -104,29 +129,21 @@ struct AutocompleteSuggestionRow: View {
       // Platform badges
       HStack(spacing: 4) {
         ForEach(Array(suggestion.platforms), id: \.self) { platform in
-          Text(platform == .mastodon ? "M" : "B")
-            .font(.caption2)
-            .fontWeight(.bold)
-            .foregroundColor(.white)
-            .padding(.horizontal, 4)
-            .padding(.vertical, 2)
-            .background(
-              Capsule()
-                .fill(platform == .mastodon ? Color(red: 99/255, green: 100/255, blue: 255/255) : Color(red: 0, green: 133/255, blue: 255/255))
-            )
+          Image(platform.icon)
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(platform == .mastodon 
+              ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+              : Color(red: 0, green: 133 / 255, blue: 255 / 255))  // #0085FF
+            .frame(width: 12, height: 12)
         }
       }
       
-      // Recent/Followed indicators
+      // Recent indicator
       if suggestion.isRecent {
         Image(systemName: "clock.fill")
           .font(.caption2)
           .foregroundColor(.secondary)
-      }
-      if suggestion.isFollowed {
-        Image(systemName: "checkmark.circle.fill")
-          .font(.caption2)
-          .foregroundColor(.blue)
       }
     }
     .padding(.horizontal, 12)

@@ -358,7 +358,10 @@ struct ContentView: View {
                 showValidationView = true
             }
             .sheet(isPresented: $showComposeView) {
-                ComposeView().environmentObject(serviceManager)
+                ComposeView(
+                    timelineContextProvider: serviceManager.timelineContextProvider
+                )
+                .environmentObject(serviceManager)
             }
             .sheet(isPresented: $showValidationView) {
                 TimelineValidationDebugView(serviceManager: serviceManager)

@@ -25,37 +25,50 @@ public struct ComposerTextModel {
   /// - Returns: Delta (positive = insertion, negative = deletion)
   @discardableResult
   public mutating func applyEdit(replacementRange: NSRange, replacementText: String) -> Int {
-    // Delta computation
-    let delta = replacementText.utf16.count - replacementRange.length
+    // Validate and clamp range to prevent out-of-bounds crashes
+    let textLength = text.utf16.count
+    guard replacementRange.location >= 0 else {
+      // Invalid range - skip edit
+      return 0
+    }
+    
+    // Clamp range to valid bounds
+    let clampedLocation = min(replacementRange.location, textLength)
+    let maxLength = textLength - clampedLocation
+    let clampedLength = min(replacementRange.length, maxLength)
+    let clampedRange = NSRange(location: clampedLocation, length: clampedLength)
+    
+    // Delta computation (using clamped range)
+    let delta = replacementText.utf16.count - clampedRange.length
     
     // Update text
     let nsString = text as NSString
-    text = nsString.replacingCharacters(in: replacementRange, with: replacementText)
+    text = nsString.replacingCharacters(in: clampedRange, with: replacementText)
     
-    // Update entity ranges
+    // Update entity ranges (using clamped range)
     var updatedEntities: [TextEntity] = []
     for var entity in entities {
       // Check if edit intersects entity range OR touches its interior
-      let intersection = NSIntersectionRange(replacementRange, entity.range)
+      let intersection = NSIntersectionRange(clampedRange, entity.range)
       if intersection.length > 0 {
         // Drop entity if edit intersects or touches interior
         continue
       }
       
       // Deletion at entity start (deleting trigger @/#/:)
-      if replacementRange.location == entity.range.location && replacementRange.length > 0 {
+      if clampedRange.location == entity.range.location && clampedRange.length > 0 {
         // Drop entity
         continue
       }
       
       // If edit is exactly at end boundary and is insertion (typing after entity)
-      if replacementRange.location == entity.range.location + entity.range.length && delta > 0 {
+      if clampedRange.location == entity.range.location + entity.range.length && delta > 0 {
         // Preserve entity, no range shift needed (insertion is after entity)
         // Entity range stays the same
-      } else if replacementRange.location + replacementRange.length <= entity.range.location {
+      } else if clampedRange.location + clampedRange.length <= entity.range.location {
         // If edit is before entity: shift range by delta
         entity.range = NSRange(location: entity.range.location + delta, length: entity.range.length)
-      } else if replacementRange.location >= entity.range.location + entity.range.length {
+      } else if clampedRange.location >= entity.range.location + entity.range.length {
         // If edit is after entity: no change needed
         // Entity range stays the same
       }

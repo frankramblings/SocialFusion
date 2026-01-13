@@ -177,6 +177,9 @@ public final class SocialServiceManager: ObservableObject {
     private lazy var mastodonGraphService = MastodonGraphService(mastodonService: mastodonService)
     private lazy var blueskyGraphService = BlueskyGraphService(blueskyService: blueskyService)
     
+    // Timeline context provider for autocomplete (shared instance)
+    public lazy var timelineContextProvider: UnifiedTimelineContextProvider = UnifiedTimelineContextProvider()
+    
     /// Get the appropriate graph service for a platform
     public func graphService(for platform: SocialPlatform) -> SocialGraphService {
         switch platform {
