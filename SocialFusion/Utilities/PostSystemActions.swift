@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 enum PostSystemActions {
     static func openInBrowser(_ post: Post, openURL: OpenURLAction? = nil) {
@@ -64,5 +65,74 @@ enum PostSystemActions {
     private static func lightHaptic() {
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
+    }
+}
+
+// MARK: - Custom Activity Item Sources for Media Sharing
+
+/// Custom activity item source that properly exposes media types to iOS share sheet
+public class MediaActivityItemSource: NSObject, UIActivityItemSource {
+    let mediaURL: URL
+    let mediaType: Post.Attachment.AttachmentType
+    
+    public init(mediaURL: URL, mediaType: Post.Attachment.AttachmentType) {
+        self.mediaURL = mediaURL
+        self.mediaType = mediaType
+        super.init()
+    }
+    
+    public func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        // Return placeholder - iOS will use this to determine available activities
+        return mediaURL
+    }
+    
+    public func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        // Return the actual item to share
+        return mediaURL
+    }
+    
+    public func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+        // Return proper UTI so iOS recognizes the media type
+        switch mediaType {
+        case .image:
+            return UTType.image.identifier
+        case .animatedGIF:
+            return UTType.gif.identifier
+        case .video, .gifv:
+            return UTType.movie.identifier
+        case .audio:
+            return UTType.audio.identifier
+        }
+    }
+    
+    public func activityViewController(_ activityViewController: UIActivityViewController, subjectForActivityType activityType: UIActivity.ActivityType?) -> String {
+        return "Shared Media"
+    }
+}
+
+/// Custom activity item source for UIImage objects
+/// This ensures "Save to Photos" appears in the share sheet
+public class ImageActivityItemSource: NSObject, UIActivityItemSource {
+    let image: UIImage
+    
+    public init(image: UIImage) {
+        self.image = image
+        super.init()
+    }
+    
+    public func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        // Return UIImage directly as placeholder
+        return image
+    }
+    
+    public func activityViewController(_ activityViewController: UIActivityViewController, itemForActivityType activityType: UIActivity.ActivityType?) -> Any? {
+        // For "Save to Photos" (saveToCameraRoll), return the UIImage directly
+        // For other activities, also return UIImage
+        return image
+    }
+    
+    public func activityViewController(_ activityViewController: UIActivityViewController, dataTypeIdentifierForActivityType activityType: UIActivity.ActivityType?) -> String {
+        // Return image UTI - this is what enables "Save to Photos"
+        return UTType.image.identifier
     }
 }

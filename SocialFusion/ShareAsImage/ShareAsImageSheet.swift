@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
+import Photos
 
 /// Sheet that presents share-as-image configuration and preview
 public struct ShareAsImageSheet: View {
@@ -7,7 +9,9 @@ public struct ShareAsImageSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingShareSheet = false
     @State private var shareImage: UIImage?
-    @State private var shareURL: URL?
+    @State private var isSavingToPhotos = false
+    @State private var saveToPhotosError: String?
+    @State private var saveToPhotosSuccess = false
     
     public init(viewModel: ShareAsImageViewModel) {
         self.viewModel = viewModel
@@ -34,18 +38,51 @@ public struct ShareAsImageSheet: View {
                     }
                 }
                 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Share") {
-                        Task {
-                            await handleShare()
+                ToolbarItem(placement: .primaryAction) {
+                    HStack(spacing: 12) {
+                        Button(action: {
+                            Task {
+                                await handleSaveToPhotos()
+                            }
+                        }) {
+                            if isSavingToPhotos {
+                                ProgressView()
+                            } else {
+                                Label("Save", systemImage: "photo.badge.plus")
+                            }
                         }
+                        .disabled(viewModel.isRendering || isSavingToPhotos)
+                        
+                        Button(action: {
+                            Task {
+                                await handleShare()
+                            }
+                        }) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(viewModel.isRendering)
                     }
-                    .disabled(viewModel.isRendering)
+                }
+            }
+            .alert("Saved to Photos", isPresented: $saveToPhotosSuccess) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("The image has been saved to your photo library.")
+            }
+            .alert("Error Saving to Photos", isPresented: .constant(saveToPhotosError != nil)) {
+                Button("OK", role: .cancel) {
+                    saveToPhotosError = nil
+                }
+            } message: {
+                if let error = saveToPhotosError {
+                    Text(error)
                 }
             }
             .sheet(isPresented: $showingShareSheet) {
-                if let image = shareImage, let url = shareURL {
-                    ShareSheet(activityItems: [image, url])
+                if let image = shareImage {
+                    // Use ImageActivityItemSource - same approach as FullscreenMediaView uses for images
+                    // This ensures "Save to Photos" appears in the share sheet
+                    ShareSheet(activityItems: [ImageActivityItemSource(image: image)])
                 }
             }
         }
@@ -150,10 +187,66 @@ public struct ShareAsImageSheet: View {
         do {
             let result = try await viewModel.exportImage()
             shareImage = result.image
-            shareURL = result.url
+            // Use ImageActivityItemSource - same approach as FullscreenMediaView
+            // The temp file (result.url) will be cleaned up automatically
             showingShareSheet = true
         } catch {
             viewModel.errorMessage = error.localizedDescription
+        }
+    }
+    
+    private func handleSaveToPhotos() async {
+        // Check authorization status
+        let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        
+        // Request authorization if needed
+        if status == .notDetermined {
+            let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+            if newStatus != .authorized && newStatus != .limited {
+                await MainActor.run {
+                    saveToPhotosError = "Photo library access is required to save images. Please enable it in Settings."
+                }
+                return
+            }
+        } else if status != .authorized && status != .limited {
+            await MainActor.run {
+                saveToPhotosError = "Photo library access is required to save images. Please enable it in Settings."
+            }
+            return
+        }
+        
+        // Export the image
+        await MainActor.run {
+            isSavingToPhotos = true
+            saveToPhotosError = nil
+        }
+        
+        do {
+            let result = try await viewModel.exportImage()
+            let image = result.image
+            
+            // Save to Photos library
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetChangeRequest.creationRequestForAsset(from: image)
+            }
+            
+            // Success
+            await MainActor.run {
+                isSavingToPhotos = false
+                saveToPhotosSuccess = true
+            }
+            
+            // Provide haptic feedback
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            
+        } catch {
+            await MainActor.run {
+                isSavingToPhotos = false
+                saveToPhotosError = "Failed to save image: \(error.localizedDescription)"
+            }
+            
+            // Provide haptic feedback
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
 }
@@ -168,8 +261,15 @@ private struct ShareSheet: UIViewControllerRepresentable {
             activityItems: activityItems,
             applicationActivities: nil
         )
-        // Ensure Save to Photos appears
-        controller.excludedActivityTypes = []
+        // Match FullscreenMediaView's excluded activity types
+        // Don't exclude activity types - let iOS show all available options
+        // This enables Save to Photos, Messages, Mail, AirDrop, etc.
+        // Only exclude activity types that truly don't make sense for images
+        controller.excludedActivityTypes = [
+            .assignToContact,  // Don't assign images to contacts
+            .addToReadingList   // Reading list doesn't make sense for images
+        ]
+        
         return controller
     }
     
