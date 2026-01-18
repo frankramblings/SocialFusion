@@ -218,70 +218,193 @@ struct ExpandingReplyBanner: View {
         return isExpanded ? .morphing : .regular
     }
 
+    // MARK: - Extracted Subviews (helps type-checker)
+
+    private var bannerHeaderContent: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.turn.up.left")
+                .font(.caption)
+                .foregroundColor(platformColor)
+
+            HStack(spacing: 0) {
+                Text("Replying to ")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                EmojiDisplayNameText(
+                    displayUsername,
+                    emojiMap: displayUsernameEmojiMap,
+                    font: .caption,
+                    fontWeight: .regular,
+                    foregroundColor: .secondary,
+                    lineLimit: 1
+                )
+            }
+
+            if isLoading {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(width: 12, height: 12)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .animation(chevronAnimation, value: isExpanded)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var collapsedBackground: some View {
+        if !isExpanded {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var expandedContent: some View {
+        if let parent = parent, !parent.isPlaceholder {
+            ParentPostPreview(post: parent) {
+                onParentPostTap?(parent)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+        } else if isLoading {
+            ParentPostSkeleton()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+        } else if let error = fetchError {
+            errorContent(error: error)
+        } else if isExpanded {
+            placeholderContent
+        }
+    }
+
+    private func errorContent(error: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundColor(.orange)
+                .font(.title2)
+            Text("Unable to load parent post")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(error)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button("Retry") {
+                fetchAttempted = false
+                fetchError = nil
+                if let parentId = parentId {
+                    triggerParentFetch(parentId: parentId)
+                }
+            }
+            .font(.caption)
+            .foregroundColor(.blue)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var placeholderContent: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(Color.secondary.opacity(0.3))
+                    .frame(width: 36, height: 36)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("@\(username)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+
+                    Text("Original post")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+            }
+
+            Text("Tap to view the original post this is replying to")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let parentId = parentId {
+                triggerParentFetch(parentId: parentId)
+            }
+        }
+    }
+
+    private var cornerRadius: CGFloat {
+        isExpanded ? 20 : 12
+    }
+
+    private var containerBackground: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(
+                isExpanded
+                    ? AnyShapeStyle(Color.clear)
+                    : AnyShapeStyle(Color(.systemBackground))
+            )
+            .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
+    }
+
+    private var containerOverlay: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .stroke(
+                Color.secondary.opacity(isExpanded ? 0.12 : 0.2),
+                lineWidth: isExpanded ? 0.5 : 1
+            )
+            .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
+    }
+
+    @ViewBuilder
+    private var liquidGlassBackground: some View {
+        if isExpanded {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.clear)
+                .advancedLiquidGlass(
+                    variant: liquidGlassVariant,
+                    intensity: 0.9,
+                    morphingState: liquidGlassMorphingState
+                )
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Banner row with liquid glass effects
             Button(action: handleBannerTap) {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.turn.up.left")
-                        .font(.caption)
-                        .foregroundColor(platformColor)
-
-                    HStack(spacing: 0) {
-                        Text("Replying to ")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        EmojiDisplayNameText(
-                            displayUsername,
-                            emojiMap: displayUsernameEmojiMap,
-                            font: .caption,
-                            fontWeight: .regular,
-                            foregroundColor: .secondary,
-                            lineLimit: 1
-                        )
-                    }
-
-                    if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .frame(width: 12, height: 12)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .animation(chevronAnimation, value: isExpanded)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    // Add solid background only when collapsed to match BoostBanner visibility
-                    Group {
-                        if !isExpanded {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(.systemBackground))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                                )
-                        }
-                    }
-                )
-                .contentShape(Rectangle())
-                .scaleEffect(isPressed ? 0.98 : 1.0)
-                .animation(.easeInOut(duration: 0.1), value: isPressed)
+                bannerHeaderContent
+                    .background(collapsedBackground)
+                    .contentShape(Rectangle())
+                    .scaleEffect(isPressed ? 0.98 : 1.0)
+                    .animation(.easeInOut(duration: 0.1), value: isPressed)
             }
             .buttonStyle(PlainButtonStyle())
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    // Remove animation to prevent floating
                     isPressed = pressing
-                    // Add haptic feedback for better interaction
                     if pressing {
                         let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                         impactFeedback.impactOccurred()
@@ -289,139 +412,27 @@ struct ExpandingReplyBanner: View {
                 }, perform: {}
             )
 
-            // Parent post preview - always present, height controlled
-            Group {
-                if let parent = parent, !parent.isPlaceholder {
-                    // Real parent post content
-                    ParentPostPreview(post: parent) {
-                        onParentPostTap?(parent)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                } else if isLoading {
-                    // Skeleton loading state while fetching
-                    ParentPostSkeleton()
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                } else if let error = fetchError {
-                    // Error state with retry option
-                    VStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.orange)
-                            .font(.title2)
-                        Text("Unable to load parent post")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Text(error)
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-
-                        Button("Retry") {
-                            fetchAttempted = false
-                            fetchError = nil
-                            if let parentId = parentId {
-                                triggerParentFetch(parentId: parentId)
-                            }
-                        }
-                        .font(.caption)
-                        .foregroundColor(.blue)
-                    }
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 12)
-                    .frame(maxWidth: .infinity)
-                } else if isExpanded {
-                    // Placeholder content when expanded but no parent data available
-                    VStack(spacing: 8) {
-                        HStack(spacing: 12) {
-                            Circle()
-                                .fill(Color.secondary.opacity(0.3))
-                                .frame(width: 36, height: 36)
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("@\(username)")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.primary)
-
-                                Text("Original post")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-                        }
-
-                        Text("Tap to view the original post this is replying to")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        // Try to fetch the parent post when placeholder is tapped
-                        if let parentId = parentId {
-                            triggerParentFetch(parentId: parentId)
-                        }
-                    }
-                }
-            }
-            .opacity(showContent ? 1 : 0)
-            .scaleEffect(showContent ? 1 : 0.98, anchor: .top)
-            .frame(height: isExpanded ? nil : 0)
-            .clipped()
-            .animation(isExpanded ? expandAnimation : collapseAnimation, value: showContent)
-            .background(
-                // Simplified content background matching main container
-                Color(.systemBackground).opacity(0.01)
-            )
+            expandedContent
+                .opacity(showContent ? 1 : 0)
+                .scaleEffect(showContent ? 1 : 0.98, anchor: .top)
+                .frame(height: isExpanded ? nil : 0)
+                .clipped()
+                .animation(isExpanded ? expandAnimation : collapseAnimation, value: showContent)
+                .background(Color(.systemBackground).opacity(0.01))
         }
-        .background(
-            // Background that matches boost banner in closed state, clear for liquid glass when expanded
-            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
-                .fill(
-                    isExpanded
-                        ? AnyShapeStyle(Color.clear)  // Clear background for liquid glass when expanded
-                        : AnyShapeStyle(Color(.systemBackground))  // Solid background when collapsed
-                )
-                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
-                .stroke(
-                    Color.secondary.opacity(isExpanded ? 0.12 : 0.2),
-                    lineWidth: isExpanded ? 0.5 : 1
-                )
-                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
-        )
+        .background(containerBackground)
+        .overlay(containerOverlay)
         .shadow(
             color: isExpanded ? Color.black.opacity(0.06) : Color.black.opacity(0.02),
             radius: isExpanded ? 4 : 1,
             x: 0,
             y: isExpanded ? 2 : 0.5
         )
-        .background(
-            // Apply liquid glass effect only when expanded
-            Group {
-                if isExpanded {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.clear)
-                        .advancedLiquidGlass(
-                            variant: liquidGlassVariant,
-                            intensity: 0.9,
-                            morphingState: liquidGlassMorphingState
-                        )
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
+        .background(liquidGlassBackground)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .onAppear {
-            // Defer cache check to prevent AttributeGraph cycles
             Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 5_000_000)  // 0.005 seconds
+                try? await Task.sleep(nanoseconds: 5_000_000)
 
                 guard let parentId = parentId else { return }
 
@@ -430,7 +441,6 @@ struct ExpandingReplyBanner: View {
                     "🔍 ExpandingReplyBanner: Checking cache for parent \(parentId) with key: \(cacheKey)"
                 )
 
-                // Single cache check - no retry loop to prevent AttributeGraph cycles
                 if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
                     parent = cachedPost
                     print(
@@ -440,12 +450,10 @@ struct ExpandingReplyBanner: View {
                     print(
                         "🔍 ExpandingReplyBanner: No cached parent found for key: \(cacheKey)"
                     )
-                    // Fallback fetching will be triggered when user expands the banner
                 }
             }
         }
         .onChange(of: isExpanded) { newValue in
-            // Animate showContent state synchronization with expansion
             withAnimation(newValue ? expandAnimation : collapseAnimation) {
                 showContent = newValue
             }

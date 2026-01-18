@@ -127,12 +127,9 @@ struct ConsolidatedTimelineView: View {
     @State private var hasRestoredInitialAnchor = false
     @State private var visibleAnchorId: String?
     @State private var anchorLockUntil: Date?
-    @State private var lastVisiblePositions: [String: CGFloat] = [:]
+    @State private var lastVisiblePositions: [String: TimelineItemInfo] = [:]
     @State private var lastTopVisibleId: String?
     @State private var lastTopVisibleOffset: CGFloat = 0
-    @State private var pendingMergeAnchorId: String?
-    @State private var pendingMergeAnchorOffset: CGFloat?
-    @State private var mergeOffsetCompensation: CGFloat = 0
     @Environment(\.scenePhase) private var scenePhase
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
@@ -258,23 +255,22 @@ struct ConsolidatedTimelineView: View {
                 if pendingAnchorRestoreId == nil, let restorationId = controller.restorationAnchor {
                     pendingAnchorRestoreId = restorationId
                 }
+
+                print("📋 [PostsChanged] Posts updated - count: \(newPosts.count), isRefreshing: \(isRefreshing)")
+                print("📋 [PostsChanged] pendingAnchorRestoreId: \(pendingAnchorRestoreId ?? "nil")")
+                print("📋 [PostsChanged] Current scrollAnchorId: \(scrollAnchorId ?? "nil")")
                 logAnchorState("posts updated count=\(newPosts.count) isRefreshing=\(isRefreshing)")
-                
-                // During refresh, don't let scrollPosition binding reset - maintain the anchor
-                if isRefreshing, let anchorId = pendingAnchorRestoreId {
-                    // Keep the scrollAnchorId set to prevent SwiftUI from resetting to top
-                    if scrollAnchorId != anchorId {
-                        scrollAnchorId = anchorId
-                    }
-                } else if !isRefreshing {
-                    // Not refreshing, restore normally
+
+                // With buffer-then-merge, posts don't change during .refreshable
+                // Restoration happens via offset compensation when buffer is merged
+                if !isRefreshing {
                     restorePendingAnchorIfPossible()
                 }
-                
+
                 // Update last read post ID and visibility
                 lastReadPostId = ViewTracker.shared.getLastReadPostId()
                 updateJumpToLastReadVisibility()
-                
+
                 // Build snapshots for new posts and prefetch dimensions
                 Task {
                     await buildSnapshotsForPosts(newPosts)
@@ -438,6 +434,8 @@ struct ConsolidatedTimelineView: View {
                 .accessibilityIdentifier("EndScrollButton")
             Text("\(controller.bufferCount)")
                 .accessibilityIdentifier("TimelineBufferCount")
+            Text("\(controller.unreadAboveViewportCount)")
+                .accessibilityIdentifier("TimelineUnreadCount")
             Text(lastTopVisibleId ?? "nil")
                 .accessibilityIdentifier("TimelineTopAnchorId")
             Text(String(format: "%.2f", lastTopVisibleOffset))
@@ -561,12 +559,12 @@ struct ConsolidatedTimelineView: View {
                             postCard(for: post)
                                 .id(scrollIdentifier(for: post))
                                 .background(
-                                    GeometryReader { proxy in
+                                    GeometryReader { geom in
                                         Color.clear.preference(
                                             key: TimelineVisibleItemPreferenceKey.self,
                                             value: [
                                                 scrollIdentifier(for: post):
-                                                    proxy.frame(in: .named("timelineScroll")).minY
+                                                    TimelineItemInfo(minY: geom.frame(in: .named("timelineScroll")).minY, index: index)
                                             ]
                                         )
                                     }
@@ -593,18 +591,19 @@ struct ConsolidatedTimelineView: View {
                                 .accessibilityHint("No more posts to load")
                         }
                     }
-                    .padding(.top, mergeOffsetCompensation)
                     .scrollTargetLayout()
                 }
                 .coordinateSpace(name: "timelineScroll")
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
                     lastVisiblePositions = positions
+
+                    // Anchor tracking is gated by locks to prevent position jumping
                     guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
                     if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
                     guard let nextId = positions
-                        .filter({ $0.value >= 0 })
-                        .min(by: { $0.value < $1.value })?.key
-                        ?? positions.min(by: { abs($0.value) < abs($1.value) })?.key
+                        .filter({ $0.value.minY >= 0 })
+                        .min(by: { $0.value.minY < $1.value.minY })?.key
+                        ?? positions.min(by: { abs($0.value.minY) < abs($1.value.minY) })?.key
                     else { return }
                     if visibleAnchorId != nextId {
                         visibleAnchorId = nextId
@@ -613,88 +612,79 @@ struct ConsolidatedTimelineView: View {
                         logAnchorState("visible anchor -> \(nextId)")
                     }
                     let topId = controller.posts.first.map(scrollIdentifier(for:))
-                    let isAtTop = topId.flatMap { positions[$0] }.map { $0 >= -12 } ?? false
-                    if let topId = topId, let topOffset = positions[topId] {
+                    let isAtTop = topId.flatMap { positions[$0]?.minY }.map { $0 >= -12 } ?? false
+                    if let topId = topId, let topInfo = positions[topId] {
                         lastTopVisibleId = topId
-                        lastTopVisibleOffset = topOffset
+                        lastTopVisibleOffset = topInfo.minY
                     }
                     syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
                     let deepHistoryThreshold = UIScreen.main.bounds.height * 2.0
-                    let isDeepHistory = (topId.flatMap { positions[$0] }.map { $0 < -deepHistoryThreshold }) ?? false
+                    let isDeepHistory = (topId.flatMap { positions[$0]?.minY }.map { $0 < -deepHistoryThreshold }) ?? false
                     controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: isDeepHistory)
 
-                    if let mergeId = pendingMergeAnchorId,
-                        let mergeOffset = pendingMergeAnchorOffset,
-                        let currentOffset = positions[mergeId]
-                    {
-                        let delta = MergeOffsetCompensator.compensation(
-                            previousOffset: mergeOffset,
-                            currentOffset: currentOffset
-                        )
-                        if delta != 0 {
-                            mergeOffsetCompensation = delta
-                        }
-                        pendingMergeAnchorId = nil
-                        pendingMergeAnchorOffset = nil
+                    // Update unread count based on topmost visible post
+                    // Find the topmost visible post (smallest positive minY or closest to 0)
+                    if let topVisibleInfo = positions
+                        .filter({ $0.value.minY >= -50 }) // Posts at or near top of viewport
+                        .min(by: { $0.value.minY < $1.value.minY }) {
+                        controller.updateUnreadFromTopVisibleIndex(topVisibleInfo.value.index)
                     }
+
+                    // Mark visible posts as read in real-time (tick down pill as user scrolls)
+                    // Posts with minY >= 0 are at or below the top of the screen (visible)
+                    let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
+                    controller.markVisiblePostsAsRead(visibleIds)
                 }
                 .scrollPosition(id: $scrollAnchorId)
                 .onChange(of: scrollAnchorId) { newValue in
-                    // During refresh, prevent scrollPosition from resetting to top
-                    if isRefreshing, let pendingId = pendingAnchorRestoreId {
-                        // If scrollPosition is trying to change to the top post during refresh, prevent it
-                        let topId = controller.posts.first.map(scrollIdentifier(for:))
-                        if newValue == topId && newValue != pendingId {
-                            // It's trying to jump to top - prevent it silently
-                            // Don't log to avoid spam, just restore
-                            scrollAnchorId = pendingId
-                            return
-                        }
+                    // During refresh, ignore scroll position changes - let onChange(of: posts) handle it
+                    if isRefreshing {
+                        return
                     }
+                    // Normal scroll behavior when not refreshing
                     controller.recordVisibleInteraction()
                     controller.updateCurrentAnchor(newValue)
                     logAnchorState("scrollAnchorId changed -> \(newValue ?? "nil")")
                     updateJumpToLastReadVisibility()
                 }
                 .refreshable {
-                    // Preserve current anchor during refresh
-                    // Capture the anchor BEFORE refresh starts
-                    let anchorBeforeRefresh = visibleAnchorId ?? scrollAnchorId ?? persistedAnchorId
-                    pendingAnchorRestoreId = anchorBeforeRefresh
+                    // BUFFER-THEN-MERGE: Fetch posts to buffer during .refreshable,
+                    // then merge AFTER spinner dismisses. This prevents SwiftUI's
+                    // built-in scroll-to-top behavior since content doesn't change.
+                    //
+                    // scrollPosition(id:) binding automatically preserves position when
+                    // posts are inserted. As long as scrollAnchorId stays constant,
+                    // the user stays at the same post visually.
+
                     isRefreshing = true
-                    // Lock anchor restoration to prevent interference
-                    anchorLockUntil = Date().addingTimeInterval(1.5)
-                    logAnchorState("refresh start anchor=\(anchorBeforeRefresh ?? "nil")")
-                    
-                    // Perform the refresh
-                    await refreshTimeline()
-                    
-                    // After refresh completes, wait for SwiftUI to finish updating
-                    // Then restore scroll position smoothly using scrollPosition binding
-                    try? await Task.sleep(nanoseconds: 200_000_000) // 0.2 seconds
-                    
-                    // Restore using scrollPosition binding (smoother than proxy.scrollTo)
-                    if let anchorId = anchorBeforeRefresh,
-                       controller.posts.contains(where: { scrollIdentifier(for: $0) == anchorId }) {
-                        logAnchorState("restoring scroll to anchor=\(anchorId)")
-                        await MainActor.run {
-                            // Use scrollPosition binding for smooth, non-jumpy restoration
-                            scrollAnchorId = anchorId
-                            persistedAnchorId = anchorId
-                        }
-                    }
-                    
-                    // Give it a moment to settle before allowing normal scroll behavior
-                    try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+                    controller.prepareForRefresh(wasScrolledDown: !controller.isNearTop)
+                    logAnchorState("refresh start (buffer) anchor=\(scrollAnchorId ?? "nil")")
+
+                    // Fetch posts to buffer - timeline stays unchanged during fetch
+                    let bufferedCount = await controller.fetchToBuffer()
+
+                    logAnchorState("refresh fetch complete, buffer count=\(bufferedCount)")
+
+                    // .refreshable ends here - spinner dismisses
                     isRefreshing = false
-                    logAnchorState("refresh end")
+                    guard bufferedCount > 0 else { return }
+
+                    logAnchorState("post-refresh merge starting, buffer=\(bufferedCount)")
+
+                    // Small delay to ensure .refreshable animation is fully complete
+                    Task {
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+
+                        // Merge buffered posts - scrollPosition(id:) preserves position automatically
+                        // No offset compensation needed - just trust the binding
+                        controller.mergeBufferedPosts()
+
+                        logAnchorState("post-refresh merge complete")
+                    }
                 }
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { _ in
-                            if mergeOffsetCompensation != 0 {
-                                mergeOffsetCompensation = 0
-                            }
                             controller.scrollInteractionBegan()
                         }
                         .onEnded { _ in
@@ -703,13 +693,20 @@ struct ConsolidatedTimelineView: View {
                 )
                 .overlay(alignment: .top) {
                     VStack(spacing: 8) {
-                        mergePill(proxy: proxy)
+                        newPostsPill(proxy: proxy)
                         jumpToLastReadButton(proxy: proxy)
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
                 { _ in
+                    // Merge any buffered posts and scroll to top
+                    if controller.bufferCount > 0 {
+                        controller.scrollPolicy = .jumpToNow
+                        controller.mergeBufferedPosts()
+                    }
                     scrollToTop(using: proxy)
+                    // Clear unread since user is going to top
+                    controller.clearUnreadAboveViewport()
                     syncAnchorToTopIfNeeded(
                         topId: controller.posts.first.map(scrollIdentifier(for:)),
                         isAtTop: true
@@ -760,20 +757,33 @@ struct ConsolidatedTimelineView: View {
                                 .accessibilityHint("No more posts to load")
                         }
                     }
-                    .padding(.top, mergeOffsetCompensation)
                 }
                 .refreshable {
-                    // For iOS 16, capture current scroll position before refresh
-                    // Note: iOS 16 doesn't have scrollPosition API, so we rely on ScrollViewReader
-                    // The restoration will happen via onAppear if persistedAnchorId is set
-                    await refreshTimeline()
+                    // BUFFER-THEN-MERGE: Same approach as iOS 17+ path
+                    isRefreshing = true
+                    controller.prepareForRefresh(wasScrolledDown: true)
+                    logAnchorState("refresh start (iOS 16, buffer)")
+
+                    // Fetch posts to buffer - timeline stays unchanged
+                    let bufferedCount = await controller.fetchToBuffer()
+
+                    logAnchorState("refresh fetch complete (iOS 16), buffer count=\(bufferedCount)")
+
+                    // .refreshable ends here - spinner dismisses
+                    isRefreshing = false
+                    guard bufferedCount > 0 else { return }
+
+                    logAnchorState("post-refresh merge starting (iOS 16), buffer=\(bufferedCount)")
+
+                    Task {
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                        controller.mergeBufferedPosts()
+                        logAnchorState("post-refresh merge complete (iOS 16)")
+                    }
                 }
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { _ in
-                            if mergeOffsetCompensation != 0 {
-                                mergeOffsetCompensation = 0
-                            }
                             controller.scrollInteractionBegan()
                         }
                         .onEnded { _ in
@@ -782,7 +792,7 @@ struct ConsolidatedTimelineView: View {
                 )
                 .overlay(alignment: .top) {
                     VStack(spacing: 8) {
-                        mergePill(proxy: proxy)
+                        newPostsPill(proxy: proxy)
                         jumpToLastReadButton(proxy: proxy)
                     }
                 }
@@ -826,12 +836,25 @@ struct ConsolidatedTimelineView: View {
         }
     }
 
-    @ViewBuilder
-    private func mergePill(proxy: ScrollViewProxy) -> some View {
+    /// Count of new posts above viewport
+    /// Priority: buffer count (posts waiting to merge) > unread count (posts above viewport)
+    /// This ensures pill shows during buffered state and continues showing after merge
+    private var newPostsAboveCount: Int {
+        // If we have buffered posts waiting to merge, show that count
         if controller.bufferCount > 0 {
-            Button(action: { handleMergeTap(proxy: proxy) }) {
+            return controller.bufferCount
+        }
+        // Otherwise show the unread count (posts merged but above viewport)
+        return controller.unreadAboveViewportCount
+    }
+
+    @ViewBuilder
+    private func newPostsPill(proxy: ScrollViewProxy) -> some View {
+        let count = newPostsAboveCount
+        if count > 0 && !controller.isNearTop {
+            Button(action: { handleNewPostsTap(proxy: proxy) }) {
                 HStack(spacing: 8) {
-                    Text("\(controller.bufferCount) new posts")
+                    Text("\(count) new post\(count == 1 ? "" : "s")")
                         .font(.subheadline)
                         .fontWeight(.semibold)
                     Image(systemName: "arrow.up.to.line")
@@ -846,11 +869,25 @@ struct ConsolidatedTimelineView: View {
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
-            .accessibilityIdentifier("UnifiedMergePill")
+            .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
-            .accessibilityLabel("\(controller.bufferCount) new posts")
-            .accessibilityHint("Tap to merge new posts into the timeline")
+            .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
+            .accessibilityHint("Tap to scroll to newest posts")
         }
+    }
+    
+    private func handleNewPostsTap(proxy: ScrollViewProxy) {
+        // If there are buffered posts, merge them first
+        if controller.bufferCount > 0 {
+            controller.scrollPolicy = .jumpToNow
+            controller.mergeBufferedPosts()
+        }
+        
+        // Scroll to top
+        scrollToTop(using: proxy)
+        
+        // Clear unread tracking
+        controller.clearUnreadAboveViewport()
     }
     
     @ViewBuilder
@@ -945,20 +982,6 @@ struct ConsolidatedTimelineView: View {
         }
     }
 
-    private func handleMergeTap(proxy: ScrollViewProxy) {
-        if controller.isNearTop {
-            controller.scrollPolicy = .jumpToNow
-            controller.mergeBufferedPosts()
-            return
-        }
-        scrollToTop(using: proxy)
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            controller.scrollPolicy = .jumpToNow
-            controller.mergeBufferedPosts()
-        }
-    }
-
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first.map(scrollIdentifier(for:)) else { return }
         if #available(iOS 17.0, *) {
@@ -968,16 +991,6 @@ struct ConsolidatedTimelineView: View {
         } else {
             withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
         }
-    }
-
-    private func prepareMergeAnchorRestore() {
-        guard #available(iOS 17.0, *) else { return }
-        let anchorId = lastTopVisibleId ?? visibleAnchorId ?? scrollAnchorId ?? persistedAnchorId
-        pendingMergeAnchorId = anchorId
-        pendingMergeAnchorOffset = lastTopVisibleOffset
-        pendingAnchorRestoreId = anchorId
-        anchorLockUntil = Date().addingTimeInterval(0.6)
-        logAnchorState("merge anchor set -> \(anchorId ?? "nil")")
     }
 
     private var infiniteScrollLoadingView: some View {
@@ -1147,6 +1160,8 @@ struct ConsolidatedTimelineView: View {
         }
         persistedAnchorId = topId
         pendingAnchorRestoreId = nil
+        // Clear unread when user reaches the top - they're viewing newest content
+        controller.clearUnreadAboveViewport()
     }
 
     /// Handle infinite scroll - proper async pattern
@@ -1231,10 +1246,15 @@ struct ScrollOffsetPreferenceKey: PreferenceKey {
     }
 }
 
-private struct TimelineVisibleItemPreferenceKey: PreferenceKey {
-    static var defaultValue: [String: CGFloat] = [:]
+private struct TimelineItemInfo: Equatable {
+    let minY: CGFloat
+    let index: Int
+}
 
-    static func reduce(value: inout [String: CGFloat], nextValue: () -> [String: CGFloat]) {
+private struct TimelineVisibleItemPreferenceKey: PreferenceKey {
+    static var defaultValue: [String: TimelineItemInfo] = [:]
+
+    static func reduce(value: inout [String: TimelineItemInfo], nextValue: () -> [String: TimelineItemInfo]) {
         value.merge(nextValue(), uniquingKeysWith: { $1 })
     }
 }

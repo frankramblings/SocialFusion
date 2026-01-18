@@ -153,48 +153,78 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
         }
     }
 
+    // MARK: - Extracted Subviews (helps type-checker)
+
+    private var bannerHeaderContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "repeat")
+                .font(.caption)
+                .foregroundColor(platformColor)
+
+            OverlappingAvatarStack(users: collapsedBoosters, size: 18, overlapFraction: 0.33)
+
+            Text(collapsedText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .animation(chevronAnimation, value: isExpanded)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var collapsedBackground: some View {
+        if !isExpanded {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var expandedContent: some View {
+        if isExpanded {
+            if post.boosters == nil {
+                ProgressView()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(sortedBoosters) { booster in
+                        BoosterRowView(user: booster, viewModel: viewModel)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+        }
+    }
+
+    private var cornerRadius: CGFloat {
+        isExpanded ? 20 : 12
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: handleBannerTap) {
-                HStack(spacing: 8) {
-                    Image(systemName: "repeat")
-                        .font(.caption)
-                        .foregroundColor(platformColor)
-
-                    OverlappingAvatarStack(users: collapsedBoosters, size: 18, overlapFraction: 0.33)
-
-                    Text(collapsedText)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                        .animation(chevronAnimation, value: isExpanded)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)  // Adjust vertical density here to track ReplyBanner feel.
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    // Match ReplyBanner collapsed background styling.
-                    Group {
-                        if !isExpanded {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color(.systemBackground))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                                )
-                        }
-                    }
-                )
-                .contentShape(Rectangle())
-                .scaleEffect(isPressed ? 0.98 : 1.0)
-                .animation(.easeInOut(duration: 0.1), value: isPressed)
+                bannerHeaderContent
+                    .background(collapsedBackground)
+                    .contentShape(Rectangle())
+                    .scaleEffect(isPressed ? 0.98 : 1.0)
+                    .animation(.easeInOut(duration: 0.1), value: isPressed)
             }
             .buttonStyle(PlainButtonStyle())
             .onLongPressGesture(
@@ -210,70 +240,25 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(collapsedAccessibilityLabel)
 
-            Group {
-                if isExpanded {
-                    if post.boosters == nil {
-                        ProgressView()
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                    } else {
-                        LazyVStack(alignment: .leading, spacing: 8) {
-                            ForEach(sortedBoosters) { booster in
-                                BoosterRowView(user: booster, viewModel: viewModel)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                    }
-                }
-            }
-            .opacity(showContent ? 1 : 0)
-            .scaleEffect(showContent ? 1 : 0.98, anchor: .top)
-            .frame(height: isExpanded ? nil : 0)
-            .clipped()
-            .animation(isExpanded ? expandAnimation : collapseAnimation, value: showContent)
-            .background(Color(.systemBackground).opacity(0.01))
+            expandedContent
+                .opacity(showContent ? 1 : 0)
+                .scaleEffect(showContent ? 1 : 0.98, anchor: .top)
+                .frame(height: isExpanded ? nil : 0)
+                .clipped()
+                .animation(isExpanded ? expandAnimation : collapseAnimation, value: showContent)
+                .background(Color(.systemBackground).opacity(0.01))
         }
-        .background(
-            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
-                .fill(
-                    isExpanded
-                        ? AnyShapeStyle(Color.clear)
-                        : AnyShapeStyle(Color(.systemBackground))
-                )
-                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous)
-                .stroke(
-                    Color.secondary.opacity(isExpanded ? 0.12 : 0.2),
-                    lineWidth: isExpanded ? 0.5 : 1
-                )
-                .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
-        )
+        .background(containerBackground)
+        .overlay(containerOverlay)
         .shadow(
             color: isExpanded ? Color.black.opacity(0.06) : Color.black.opacity(0.02),
             radius: isExpanded ? 4 : 1,
             x: 0,
             y: isExpanded ? 2 : 0.5
         )
-        .background(
-            Group {
-                if isExpanded {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.clear)
-                        .advancedLiquidGlass(
-                            variant: .morphing,
-                            intensity: 0.9,
-                            morphingState: isPressed ? .pressed : .expanded
-                        )
-                }
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: isExpanded ? 20 : 12, style: .continuous))
+        .background(liquidGlassBackground)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .onChange(of: isExpanded) { newValue in
-            // Mirror ReplyBanner's expand/collapse timing.
             withAnimation(newValue ? expandAnimation : collapseAnimation) {
                 showContent = newValue
             }
@@ -284,6 +269,38 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
                     await viewModel.loadBoostersIfNeeded(for: post.id)
                 }
             }
+        }
+    }
+
+    private var containerBackground: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(
+                isExpanded
+                    ? AnyShapeStyle(Color.clear)
+                    : AnyShapeStyle(Color(.systemBackground))
+            )
+            .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
+    }
+
+    private var containerOverlay: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .stroke(
+                Color.secondary.opacity(isExpanded ? 0.12 : 0.2),
+                lineWidth: isExpanded ? 0.5 : 1
+            )
+            .animation(isExpanded ? expandAnimation : collapseAnimation, value: isExpanded)
+    }
+
+    @ViewBuilder
+    private var liquidGlassBackground: some View {
+        if isExpanded {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.clear)
+                .advancedLiquidGlass(
+                    variant: .morphing,
+                    intensity: 0.9,
+                    morphingState: isPressed ? .pressed : .expanded
+                )
         }
     }
 

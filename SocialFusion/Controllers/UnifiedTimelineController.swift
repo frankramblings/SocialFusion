@@ -23,6 +23,12 @@ class UnifiedTimelineController: ObservableObject {
     @Published private(set) var isDeepHistory: Bool = false
     @Published private(set) var restorationAnchor: String?
 
+    // MARK: - Unread Above Viewport Tracking
+    /// Count of posts that are unread and above the current viewport
+    @Published private(set) var unreadAboveViewportCount: Int = 0
+    /// IDs of posts that are above the current viewport and haven't been scrolled to yet
+    private var unreadPostIds: Set<String> = []
+
     // MARK: - Scroll Policy
 
     enum ScrollPolicy {
@@ -32,6 +38,9 @@ class UnifiedTimelineController: ObservableObject {
 
     var scrollPolicy: ScrollPolicy = .preserveViewport
     private var currentAnchorId: String?
+    /// Captures whether user was scrolled down before a refresh started
+    /// This is used to correctly track unread posts during pull-to-refresh
+    private var wasScrolledDownBeforeRefresh: Bool = false
 
     // MARK: - Private Properties
 
@@ -195,13 +204,20 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Update posts with proper state management
     private func updatePosts(_ newPosts: [Post]) {
+        // Capture state before update for unread tracking
+        let previousPostIds = Set(posts.map { $0.stableId })
+        let anchorId = currentAnchorId
+        let wasNearTop = isNearTop
+
         // Anchor & Compensate: Capture anchor before update
         if scrollPolicy == .preserveViewport {
-            self.restorationAnchor = currentAnchorId
+            self.restorationAnchor = anchorId
         } else {
             self.restorationAnchor = nil
             // Reset policy to default after explicit jump
             scrollPolicy = .preserveViewport
+            // Clear unread when jumping to top
+            clearUnreadAboveViewport()
         }
 
         // Filter posts based on blocked/muted actors
@@ -215,13 +231,67 @@ class UnifiedTimelineController: ObservableObject {
         }
         self.lastRefreshDate = Date()
         refreshCoordinator.handleVisibleTimelineUpdate(filteredPosts)
-        
+
         // Update timeline context provider for autocomplete
         timelineContextProvider.updateSnapshot(posts: filteredPosts, scope: .unified)
+
+        // Track unread posts inserted above anchor
+        // Use wasScrolledDownBeforeRefresh to handle pull-to-refresh correctly
+        // During pull gesture, isNearTop might temporarily be true even if user was scrolled down
+        let shouldTrackUnread = wasScrolledDownBeforeRefresh || (!wasNearTop && anchorId != nil)
+
+        if shouldTrackUnread, let anchorId = anchorId {
+            trackUnreadPostsAboveAnchor(
+                newPosts: filteredPosts,
+                previousPostIds: previousPostIds,
+                anchorId: anchorId
+            )
+        } else if !shouldTrackUnread && wasNearTop {
+            // User was genuinely at top (not during pull-to-refresh) - clear unread
+            // They're viewing the newest content
+            clearUnreadAboveViewport()
+        }
 
         if !isInitialized {
             isInitialized = true
         }
+    }
+
+    /// Track posts that were inserted above the anchor position
+    private func trackUnreadPostsAboveAnchor(
+        newPosts: [Post],
+        previousPostIds: Set<String>,
+        anchorId: String
+    ) {
+        // Find the anchor's position in the new list
+        guard let anchorIndex = newPosts.firstIndex(where: { scrollIdentifier(for: $0) == anchorId }) else {
+            return
+        }
+
+        // Find posts that are:
+        // 1. NEW (not in previous list)
+        // 2. Above the anchor (index < anchorIndex)
+        var newUnreadIds = Set<String>()
+        for (index, post) in newPosts.enumerated() {
+            if index >= anchorIndex {
+                break // All posts at or below anchor are not "above viewport"
+            }
+            let stableId = post.stableId
+            if !previousPostIds.contains(stableId) {
+                // This is a new post above the anchor
+                newUnreadIds.insert(scrollIdentifier(for: post))
+            }
+        }
+
+        if !newUnreadIds.isEmpty {
+            addUnreadAboveViewport(newUnreadIds)
+        }
+    }
+
+    /// Generate scroll identifier for a post (matches ConsolidatedTimelineView logic)
+    private func scrollIdentifier(for post: Post) -> String {
+        let stable = post.stableId
+        return stable.hasSuffix("-") ? post.id : stable
     }
     
     /// Filter posts based on blocked/muted actors
@@ -261,16 +331,36 @@ class UnifiedTimelineController: ObservableObject {
         }
     }
 
+    /// Called by the view BEFORE the pull-to-refresh gesture starts
+    /// This captures the logical scroll state before the gesture affects isNearTop
+    func prepareForRefresh(wasScrolledDown: Bool) {
+        wasScrolledDownBeforeRefresh = wasScrolledDown
+    }
+
     /// Refresh timeline with async/await for pull-to-refresh
     func refreshTimelineAsync() async {
         // Remove the guard - pull-to-refresh should always be allowed
         // The service manager will handle preventing duplicate refreshes properly
-        
+
         // Ensure we preserve viewport position during pull-to-refresh
         // This allows new posts to appear above the user's current position
         scrollPolicy = .preserveViewport
 
         await refreshCoordinator.manualRefresh(intent: .manualRefresh)
+
+        // Reset after refresh completes
+        wasScrolledDownBeforeRefresh = false
+    }
+
+    /// Fetch new posts to buffer WITHOUT updating visible timeline.
+    /// Used for pull-to-refresh to prevent scroll jump.
+    /// Call mergeBufferedPosts() after to apply with offset compensation.
+    /// Note: wasScrolledDownBeforeRefresh is NOT reset here - it's needed for unread tracking
+    /// when mergeBufferedPosts() is called. Reset it manually after merge if needed.
+    func fetchToBuffer() async -> Int {
+        scrollPolicy = .preserveViewport
+        return await refreshCoordinator.fetchToBuffer()
+        // Don't reset wasScrolledDownBeforeRefresh here - needed for unread tracking in merge
     }
 
     /// Like or unlike a post - proper event-driven pattern
@@ -343,6 +433,86 @@ class UnifiedTimelineController: ObservableObject {
 
     func mergeBufferedPosts() {
         refreshCoordinator.mergeBufferedPostsIfNeeded()
+    }
+
+    // MARK: - Unread Tracking
+
+    /// Mark posts as read when they become visible in the viewport
+    func markPostsAsRead(_ ids: Set<String>) {
+        guard !ids.isEmpty else { return }
+        let previousCount = unreadPostIds.count
+        unreadPostIds.subtract(ids)
+        let newCount = unreadPostIds.count
+        if newCount != previousCount {
+            unreadAboveViewportCount = newCount
+        }
+    }
+
+    /// Mark a single post as read
+    func markPostAsRead(_ id: String) {
+        guard unreadPostIds.contains(id) else { return }
+        unreadPostIds.remove(id)
+        unreadAboveViewportCount = unreadPostIds.count
+    }
+
+    /// Set posts as unread above viewport (called when posts are inserted above anchor)
+    func setUnreadAboveViewport(_ ids: Set<String>) {
+        unreadPostIds = ids
+        unreadAboveViewportCount = ids.count
+    }
+
+    /// Add posts to unread above viewport
+    func addUnreadAboveViewport(_ ids: Set<String>) {
+        let previousCount = unreadPostIds.count
+        unreadPostIds.formUnion(ids)
+        let newCount = unreadPostIds.count
+        if newCount != previousCount {
+            unreadAboveViewportCount = newCount
+        }
+    }
+
+    /// Clear all unread tracking (e.g., when user scrolls to top)
+    func clearUnreadAboveViewport() {
+        guard !unreadPostIds.isEmpty else { return }
+        unreadPostIds.removeAll()
+        unreadAboveViewportCount = 0
+    }
+
+    /// Check if a post is in the unread set
+    func isPostUnread(_ id: String) -> Bool {
+        return unreadPostIds.contains(id)
+    }
+
+    /// Update unread count based on the topmost visible post index
+    /// This is more robust than tracking individual IDs for fast scrolling
+    /// The index represents the position in the posts array (0 = newest/top)
+    func updateUnreadFromTopVisibleIndex(_ index: Int) {
+        // Posts 0 to (index-1) are above the viewport (unread)
+        // Posts at index and below have been seen
+        let newCount = max(0, index)
+
+        // Only update if the count decreased (user scrolled up to see more posts)
+        // This prevents the count from increasing when scrolling back down
+        if newCount < unreadAboveViewportCount {
+            unreadAboveViewportCount = newCount
+            // Also clear the IDs for posts we've now passed
+            // (keeps the ID set in sync if other code checks it)
+            unreadPostIds = Set(posts.prefix(newCount).map { scrollIdentifier(for: $0) })
+        }
+    }
+
+    /// Mark visible posts as read, decrementing the unread count in real-time
+    /// This is called with IDs of posts that are currently visible on screen
+    func markVisiblePostsAsRead(_ visibleIds: Set<String>) {
+        guard !unreadPostIds.isEmpty else { return }
+
+        // Find unread posts that are now visible
+        let nowRead = unreadPostIds.intersection(visibleIds)
+        guard !nowRead.isEmpty else { return }
+
+        // Remove from unread set
+        unreadPostIds.subtract(nowRead)
+        unreadAboveViewportCount = unreadPostIds.count
     }
 
     func requestInitialPrefetch() {

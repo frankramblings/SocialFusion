@@ -42,41 +42,12 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var sidebarSelection: Int? = 0
 
+    // Tab customization for sidebarAdaptable style
+    @AppStorage("tabViewCustomization") private var tabCustomization: TabViewCustomization = .init()
+
     var body: some View {
         ZStack {
-            if horizontalSizeClass == .regular {
-                NavigationSplitView {
-                    sidebar
-                        .navigationTitle("SocialFusion")
-                        .listStyle(SidebarListStyle())
-                } content: {
-                    detailView
-                } detail: {
-                    if let post = navigationEnvironment.selectedPost {
-                        PostDetailView(
-                            viewModel: PostViewModel(post: post, serviceManager: serviceManager)
-                        )
-                        .id(post.id)
-                    } else if let user = navigationEnvironment.selectedUser {
-                        UserDetailView(user: user)
-                            .id(user.id)
-                    } else if let tag = navigationEnvironment.selectedTag {
-                        TagDetailView(tag: tag)
-                            .id(tag.id)
-                    } else {
-                        VStack(spacing: 20) {
-                            Image(systemName: "hand.tap")
-                                .font(.system(size: 50))
-                                .foregroundColor(.secondary.opacity(0.3))
-                            Text("Select a post to see details")
-                                .font(.headline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-            } else {
-                tabView
-            }
+            modernTabView
 
             // Fullscreen media overlay - presented at root level to avoid clipping
             if mediaCoordinator.showFullscreen, let media = mediaCoordinator.selectedMedia {
@@ -103,208 +74,89 @@ struct ContentView: View {
         .withToastNotifications()
     }
 
-    private var sidebar: some View {
-        List(selection: $sidebarSelection) {
-            Section {
-                NavigationLink(value: 0) {
-                    Label("Home", systemImage: "house.fill")
-                }
-                NavigationLink(value: 1) {
-                    Label("Notifications", systemImage: "bell.fill")
-                }
-                NavigationLink(value: 2) {
-                    Label("Messages", systemImage: "bubble.left.and.bubble.right.fill")
-                }
-                NavigationLink(value: 3) {
-                    Label("Search", systemImage: "magnifyingglass")
-                }
-                NavigationLink(value: 4) {
-                    Label("Profile", systemImage: "person.fill")
-                }
-            }
-            .listRowBackground(Color.clear)
+    // MARK: - Modern TabView (iOS 18+ Tab API with sidebarAdaptable)
 
-            Section("Accounts") {
-                Button(action: {
-                    showAccountPicker = true
-                }) {
-                    HStack {
-                        getCurrentAccountImage()
-                            .frame(width: 28, height: 28)
-                            .clipShape(Circle())
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(
-                                selectedAccountId == nil
-                                    ? "All Accounts" : getCurrentAccount()?.displayName ?? "Account"
-                            )
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-
-                            if let account = getCurrentAccount(), selectedAccountId != nil {
-                                Text("@\(account.username)")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.up.chevron.down")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-            .listRowBackground(Color.clear)
-        }
-        .conditionalLiquidGlass(enabled: true, prominence: .thin)
-    }
-
-    @ViewBuilder
-    private var detailView: some View {
-        switch sidebarSelection {
-        case 0:
-            NavigationStack {
-                ZStack {
-                    ConsolidatedTimelineView(serviceManager: serviceManager)
-                    if showAccountDropdown {
-                        accountDropdownOverlay
-                    }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        accountButton
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        composeButton
-                    }
-                }
-            }
-        case 1:
-            NavigationStack {
-                NotificationsView(
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
-                )
-                .environmentObject(serviceManager)
-            }
-        case 2:
-            NavigationStack {
-                DirectMessagesView(
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
-                )
-                .environmentObject(serviceManager)
-            }
-        case 3:
-            NavigationStack {
-                SearchView(
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
-                )
-                .environmentObject(serviceManager)
-            }
-        case 4:
-            NavigationStack {
-                profileContent
-            }
-        default:
-            Text("Select an item")
-        }
-    }
-
-    private var tabView: some View {
+    private var modernTabView: some View {
         TabView(selection: $selectedTab) {
             // Home Tab
-            NavigationStack {
-                ZStack {
-                    ConsolidatedTimelineView(serviceManager: serviceManager)
-                    if showAccountDropdown {
-                        accountDropdownOverlay
+            Tab("Home", systemImage: "house.fill", value: 0) {
+                NavigationStack {
+                    ZStack {
+                        ConsolidatedTimelineView(serviceManager: serviceManager)
+                        if showAccountDropdown {
+                            accountDropdownOverlay
+                        }
                     }
-                }
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
-                        accountButton
-                    }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        composeButton
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            accountButton
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            composeButton
+                        }
                     }
                 }
             }
-            .tabItem {
-                Label("Home", systemImage: "house")
-            }
-            .tag(0)
+            .customizationID("com.socialfusion.home")
 
             // Notifications Tab
-            NavigationStack {
-                NotificationsView(
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
-                )
-                .environmentObject(serviceManager)
+            Tab("Notifications", systemImage: "bell.fill", value: 1) {
+                NavigationStack {
+                    NotificationsView(
+                        showAccountDropdown: $showAccountDropdown,
+                        showComposeView: $showComposeView,
+                        showValidationView: $showValidationView,
+                        selectedAccountId: $selectedAccountId,
+                        previousAccountId: $previousAccountId
+                    )
+                    .environmentObject(serviceManager)
+                }
             }
-            .tabItem {
-                Label("Notifications", systemImage: "bell")
-            }
-            .tag(1)
+            .customizationID("com.socialfusion.notifications")
 
-            // Messages Tab
-            NavigationStack {
-                DirectMessagesView(
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
-                )
-                .environmentObject(serviceManager)
+            // Search Tab with search role
+            Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
+                NavigationStack {
+                    SearchView(
+                        showAccountDropdown: $showAccountDropdown,
+                        showComposeView: $showComposeView,
+                        showValidationView: $showValidationView,
+                        selectedAccountId: $selectedAccountId,
+                        previousAccountId: $previousAccountId
+                    )
+                    .environmentObject(serviceManager)
+                }
             }
-            .tabItem {
-                Label("Messages", systemImage: "bubble.left.and.bubble.right")
-            }
-            .tag(2)
+            .customizationID("com.socialfusion.search")
 
-            // Search Tab
-            NavigationStack {
-                SearchView(
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
-                )
-                .environmentObject(serviceManager)
-            }
-            .tabItem {
-                Label("Search", systemImage: "magnifyingglass")
-            }
-            .tag(3)
+            // Messages section (grouped with Profile on iPad sidebar)
+            TabSection("Social") {
+                Tab("Messages", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
+                    NavigationStack {
+                        DirectMessagesView(
+                            showAccountDropdown: $showAccountDropdown,
+                            showComposeView: $showComposeView,
+                            showValidationView: $showValidationView,
+                            selectedAccountId: $selectedAccountId,
+                            previousAccountId: $previousAccountId
+                        )
+                        .environmentObject(serviceManager)
+                    }
+                }
+                .customizationID("com.socialfusion.messages")
 
-            // Profile Tab
-            NavigationStack {
-                profileContent
+                Tab("Profile", systemImage: "person.fill", value: 4) {
+                    NavigationStack {
+                        profileContent
+                    }
+                }
+                .customizationID("com.socialfusion.profile")
             }
-            .tabItem {
-                Label("Profile", systemImage: "person")
-            }
-            .tag(4)
+            .customizationID("com.socialfusion.social")
         }
-        .accentColor(Color("AppPrimaryColor"))
+        .tabViewStyle(.sidebarAdaptable)
+        .tabViewCustomization($tabCustomization)
+        .tint(Color("AppPrimaryColor"))
         .onAppear {
             setupTabBarDelegate()
             initializeSelection()
@@ -332,7 +184,8 @@ struct ContentView: View {
                     return .handled
                 }
                 return .systemAction
-            })
+            }
+        )
     }
 
     private var accountButton: some View {
