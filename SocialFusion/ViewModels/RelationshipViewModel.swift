@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import SwiftUI
+import UIKit
 
 /// ViewModel for managing relationship state on profile screens
 @MainActor
@@ -72,6 +73,7 @@ public final class RelationshipViewModel: ObservableObject {
       let newState = try await graphService.follow(actorID, account: account)
       print("✅ [RelationshipViewModel] Follow succeeded, new state: following=\(newState.isFollowing)")
       state = newState
+      HapticEngine.success.trigger()
     } catch {
       // Revert on failure
       print("❌ [RelationshipViewModel] Follow failed: \(error.localizedDescription)")
@@ -95,6 +97,7 @@ public final class RelationshipViewModel: ObservableObject {
     do {
       let newState = try await graphService.unfollow(actorID, account: account)
       state = newState
+      HapticEngine.success.trigger()
     } catch {
       // Revert on failure
       state = previousState
@@ -102,7 +105,7 @@ public final class RelationshipViewModel: ObservableObject {
       ErrorHandler.shared.handleError(error)
     }
   }
-  
+
   /// Mute the actor (optimistic update)
   public func mute() async {
     let previousState = state

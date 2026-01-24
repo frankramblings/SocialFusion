@@ -241,6 +241,7 @@ struct SearchView: View {
             if let store = searchStore {
                 await store.refresh()
             }
+            HapticEngine.tap.trigger()
         }
     }
     

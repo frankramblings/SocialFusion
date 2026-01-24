@@ -808,7 +808,7 @@ struct PostDetailView: View {
 
         let content = inlineReplyText.trimmingCharacters(in: .whitespacesAndNewlines)
         isSendingQuickReply = true
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        HapticEngine.tap.trigger()
 
         Task {
             do {
@@ -818,8 +818,8 @@ struct PostDetailView: View {
                     accountOverride: account
                 )
                 await MainActor.run {
-                    UINotificationFeedbackGenerator().notificationOccurred(.success)
-                    
+                    HapticEngine.success.trigger()
+
                     // Register reply success with PostActionCoordinator
                     if FeatureFlagManager.isEnabled(.postActionsV2) {
                         serviceManager.postActionCoordinator.registerReplySuccess(for: target)
@@ -835,7 +835,7 @@ struct PostDetailView: View {
                 }
             } catch {
                 await MainActor.run {
-                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    HapticEngine.error.trigger()
                     isSendingQuickReply = false
                     quickReplyErrorMessage = error.localizedDescription
                     showQuickReplyError = true

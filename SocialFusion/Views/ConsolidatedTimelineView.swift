@@ -667,6 +667,7 @@ struct ConsolidatedTimelineView: View {
 
                     // .refreshable ends here - spinner dismisses
                     isRefreshing = false
+                    HapticEngine.refreshComplete(hasNewContent: bufferedCount > 0).trigger()
                     guard bufferedCount > 0 else { return }
 
                     logAnchorState("post-refresh merge starting, buffer=\(bufferedCount)")
@@ -771,6 +772,7 @@ struct ConsolidatedTimelineView: View {
 
                     // .refreshable ends here - spinner dismisses
                     isRefreshing = false
+                    HapticEngine.refreshComplete(hasNewContent: bufferedCount > 0).trigger()
                     guard bufferedCount > 0 else { return }
 
                     logAnchorState("post-refresh merge starting (iOS 16), buffer=\(bufferedCount)")

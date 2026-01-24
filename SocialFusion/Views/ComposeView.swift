@@ -1811,7 +1811,7 @@ struct ComposeView: View {
         } else {
             postingStatus = replyingTo != nil ? "Sending reply..." : "Posting..."
         }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        HapticEngine.tap.trigger()
 
         // Convert visibility index to string
         let visibilityString: String
@@ -2006,13 +2006,13 @@ struct ComposeView: View {
                     // Check if there was partial success
                     if let partial = partialSuccessInfo {
                         // Partial success - show alert with retry option
-                        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                        HapticEngine.warning.trigger()
                         alertTitle = "Partial Success"
                         alertMessage = partial.successMessage
                         showAlert = true
                     } else {
                         // Complete success - dismiss immediately
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        HapticEngine.success.trigger()
 
                         // Reset the compose view
                         threadPosts = [ThreadPost()]
@@ -2032,7 +2032,7 @@ struct ComposeView: View {
             } catch {
                 await MainActor.run {
                     isPosting = false
-                    UINotificationFeedbackGenerator().notificationOccurred(.error)
+                    HapticEngine.error.trigger()
                     alertTitle = "Error"
                     alertMessage =
                         "Failed to \(replyingTo != nil ? "reply" : "post"): \(error.localizedDescription)"

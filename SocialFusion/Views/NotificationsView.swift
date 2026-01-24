@@ -112,6 +112,7 @@ struct NotificationsView: View {
                 }
                 .refreshable {
                     await fetchNotifications()
+                    HapticEngine.tap.trigger()
                 }
             }
         }
@@ -518,6 +519,7 @@ struct DirectMessagesView: View {
         }
         .refreshable {
             await fetchConversations()
+            HapticEngine.tap.trigger()
         }
         .alert("Error", isPresented: .constant(errorMessage != nil)) {
             Button("OK") { 
