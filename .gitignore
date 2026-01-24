@@ -30,3 +30,6 @@ temp/
 *.swiftmodule
 *.swiftdoc
 *.swiftsourceinfo
+
+# Git worktrees
+.worktrees/
