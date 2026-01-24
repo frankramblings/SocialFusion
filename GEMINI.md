@@ -105,21 +105,21 @@ SocialFusionApp (@main)
 ### Xcode GUI
 1. Open `SocialFusion.xcodeproj` in Xcode
 2. Select the "SocialFusion" scheme
-3. Choose iPhone 16 Pro Simulator (or your preferred iOS 17+ device)
+3. Choose iPhone 17 Pro Simulator (or your preferred iOS 17+ device)
 4. Build and Run (⌘R) or Test (⌘U)
 
 ### Command Line (via `xcodebuild`)
 - **Build the app**:
   ```bash
-  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 15' build
+  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17' build
   ```
 - **Run all tests**:
   ```bash
-  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 15' test
+  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17' test
   ```
 - **Run a single test**:
   ```bash
-  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 15' \
+  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17' \
     -only-testing:SocialFusionTests/AppLoggerTests/testLogLevels test
   ```
 - **Clean builds**:

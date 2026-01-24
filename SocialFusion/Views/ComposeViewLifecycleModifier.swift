@@ -97,10 +97,10 @@ struct ComposeViewLifecycleModifier: ViewModifier {
                 updatePlatformConflicts()
                 socialServiceManager.isComposing = true
             }
-            .onChange(of: threadPosts[activePostIndex].cwEnabled) { _ in
+            .onChange(of: threadPosts[activePostIndex].cwEnabled) { _, _ in
                 updatePlatformConflicts()
             }
-            .onChange(of: selectedPlatforms) { _ in
+            .onChange(of: selectedPlatforms) { _, _ in
                 updatePlatformConflicts()
             }
             .modifier(KeyboardShortcutsModifier(

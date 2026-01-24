@@ -31,26 +31,64 @@ final class PostActionStore: ObservableObject {
                     postsByAuthor[authorKey, default: []].insert(key)
                 }
             }
-            // Sync relationship state from latest server-backed post when not mid-action
+            // Sync state from latest server-backed post when not mid-action
+            // This ensures that when posts are loaded from the server (e.g., on app launch),
+            // the store state reflects the server's authoritative state for likes/reposts
             if !pendingKeys.contains(key), !inflightKeys.contains(key) {
                 let newFollow = post.isFollowingAuthor
                 let newMute = post.isMutedAuthor
                 let newBlock = post.isBlockedAuthor
+                let newLiked = post.isLiked
+                let newReposted = post.isReposted
+                let newLikeCount = post.likeCount
+                let newRepostCount = post.repostCount
+                let newReplyCount = post.replyCount
+                let newReplied = post.isReplied
+                let newQuoted = post.isQuoted
 
                 let followChanged = existing.isFollowingAuthor != newFollow
                 let muteChanged = existing.isMutedAuthor != newMute
                 let blockChanged = existing.isBlockedAuthor != newBlock
+                let likedChanged = existing.isLiked != newLiked
+                let repostedChanged = existing.isReposted != newReposted
+                let likeCountChanged = existing.likeCount != newLikeCount
+                let repostCountChanged = existing.repostCount != newRepostCount
+                let replyCountChanged = existing.replyCount != newReplyCount
+                let repliedChanged = existing.isReplied != newReplied
+                let quotedChanged = existing.isQuoted != newQuoted
 
-                if followChanged || muteChanged || blockChanged {
+                // Update if any state has changed
+                if followChanged || muteChanged || blockChanged || likedChanged || repostedChanged ||
+                    likeCountChanged || repostCountChanged || replyCountChanged || repliedChanged || quotedChanged {
                     existing.isFollowingAuthor = newFollow
                     existing.isMutedAuthor = newMute
                     existing.isBlockedAuthor = newBlock
+                    existing.isLiked = newLiked
+                    existing.isReposted = newReposted
+                    existing.likeCount = newLikeCount
+                    existing.repostCount = newRepostCount
+                    // Only update reply count if server has higher value (server is authoritative for increases)
+                    if newReplyCount > existing.replyCount {
+                        existing.replyCount = newReplyCount
+                    }
+                    // Update isReplied if server says it's true
+                    if newReplied {
+                        existing.isReplied = newReplied
+                    }
+                    // Update isQuoted if server says it's true
+                    if newQuoted {
+                        existing.isQuoted = newQuoted
+                    }
                     existing.lastUpdatedAt = Date()
                     actions[key] = existing
 
                     if followChanged { propagateFollowState(fromKey: key, shouldFollow: newFollow) }
                     if muteChanged { propagateMuteState(fromKey: key, shouldMute: newMute) }
                     if blockChanged { propagateBlockState(fromKey: key, shouldBlock: newBlock) }
+                    
+                    if likedChanged || likeCountChanged || repostedChanged || repostCountChanged {
+                        logger.debug("Synced like/repost state from server for key \(key, privacy: .public): liked=\(newLiked), reposted=\(newReposted)")
+                    }
                 }
             }
             return actions[key] ?? existing

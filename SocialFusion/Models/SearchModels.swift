@@ -97,7 +97,7 @@ public struct SearchQuery: Codable, Hashable {
 // MARK: - Search Result Item
 
 /// A single search result item (post, user, or tag)
-public enum SearchResultItem: Identifiable, Hashable {
+public enum SearchResultItem: Identifiable, Hashable, Sendable {
   case post(Post)
   case user(SearchUser)
   case tag(SearchTag)

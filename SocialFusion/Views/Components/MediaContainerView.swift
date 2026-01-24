@@ -1,71 +1,70 @@
 import SwiftUI
 
-/// Container view for media with fixed aspect ratio to prevent reflow
-/// Height is computed from width and aspect ratio, never from image size
+/// Container view for media with STABLE height to prevent layout shifts.
+/// Height is computed ONCE from the attachment's stableAspectRatio, never changed after load.
+/// This prevents reflow caused by async image/video loading.
 struct MediaContainerView: View {
   let attachment: Post.Attachment
-  let aspectRatio: CGFloat?
+  let snapshotAspectRatio: CGFloat?  // From snapshot (if available)
   let maxHeight: CGFloat
   let cornerRadius: CGFloat
   let onTap: () -> Void
-  
-  @State private var containerWidth: CGFloat = 0
-  
+
+  @Namespace private var mediaNamespace
+
+  /// Stable aspect ratio computed ONCE at init time.
+  /// Uses: snapshotAspectRatio > attachment.aspectRatio > URL inference > 3:2 default
+  private let stableAspectRatio: CGFloat
+
   init(
     attachment: Post.Attachment,
-    aspectRatio: CGFloat?,
+    aspectRatio: CGFloat?,  // This is the snapshot aspect ratio
     maxHeight: CGFloat = 600,
     cornerRadius: CGFloat = 8,
     onTap: @escaping () -> Void = {}
   ) {
     self.attachment = attachment
-    self.aspectRatio = aspectRatio
+    self.snapshotAspectRatio = aspectRatio
     self.maxHeight = maxHeight
     self.cornerRadius = cornerRadius
     self.onTap = onTap
+
+    // Compute stable aspect ratio ONCE at init time
+    // Order: snapshot > attachment dimensions > URL inference > default
+    if let snapshot = aspectRatio, snapshot > 0 {
+      self.stableAspectRatio = snapshot
+    } else {
+      self.stableAspectRatio = attachment.stableAspectRatio
+    }
   }
-  
+
   var body: some View {
     GeometryReader { geometry in
       let width = geometry.size.width
-      let effectiveAspectRatio = aspectRatio ?? MediaBlockSnapshot.defaultAspectRatio
-      let height = min(width / effectiveAspectRatio, maxHeight)
-      
-      ZStack {
-        if aspectRatio != nil {
-          // We have aspect ratio - show media
-          SmartMediaView(
-            attachment: attachment,
-            contentMode: .fit,
-            maxWidth: width,
-            maxHeight: height,
-            cornerRadius: cornerRadius,
-            heroID: "media-\(attachment.id)",
-            mediaNamespace: Namespace().wrappedValue,  // Note: For single image, namespace may not be needed
-            onTap: onTap
-          )
-          .frame(width: width, height: height)
-        } else {
-          // No aspect ratio - show placeholder with fixed height
-          RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color.gray.opacity(0.1))
-            .frame(width: width, height: MediaBlockSnapshot.placeholderHeight)
-            .overlay(
-              ProgressView()
-                .scaleEffect(0.8)
-            )
-        }
-      }
-      .onAppear {
-        containerWidth = width
-      }
-      .onChange(of: width) { newWidth in
-        containerWidth = newWidth
-      }
+      // Height is ALWAYS computed from stableAspectRatio, never from loaded image size
+      let reservedHeight = min(width / stableAspectRatio, maxHeight)
+
+      // Always render media in the reserved space (no conditional based on aspectRatio)
+      SmartMediaView(
+        attachment: attachment,
+        contentMode: .fit,
+        maxWidth: width,
+        maxHeight: reservedHeight,
+        cornerRadius: cornerRadius,
+        heroID: "media-\(attachment.id)",
+        mediaNamespace: mediaNamespace,
+        stableAspectRatio: stableAspectRatio,  // Pass stable ratio to prevent internal layout changes
+        onTap: onTap
+      )
+      .frame(width: width, height: reservedHeight)
     }
-    .frame(height: aspectRatio != nil ? nil : MediaBlockSnapshot.placeholderHeight)
-    .aspectRatio(aspectRatio, contentMode: .fit)
+    // Use fixed frame height based on stable aspect ratio
+    // This is computed using aspectRatio modifier which GeometryReader will fill
+    .aspectRatio(stableAspectRatio, contentMode: .fit)
+    .frame(maxHeight: maxHeight)
     .clipped()
+    // DEBUG: Track layout shifts for media containers
+    .trackLayoutShifts(id: "media-\(attachment.id)", componentType: "MediaContainer")
   }
 }
 
@@ -206,6 +205,7 @@ private struct StableGridImageView: View {
   var body: some View {
     ZStack(alignment: .bottomTrailing) {
       if aspectRatio != nil {
+        // Grid items have fixed size, but pass stableAspectRatio for internal rendering consistency
         SmartMediaView(
           attachment: attachment,
           contentMode: .fill,
@@ -214,6 +214,7 @@ private struct StableGridImageView: View {
           cornerRadius: 8,
           heroID: "media-\(attachment.id)",
           mediaNamespace: mediaNamespace,
+          stableAspectRatio: attachment.stableAspectRatio,
           onTap: { onTap(attachment) }
         )
         .frame(width: gridSize, height: gridSize)

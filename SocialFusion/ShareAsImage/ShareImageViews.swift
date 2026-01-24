@@ -55,7 +55,7 @@ struct ShareImageRootView: View {
             if document.showWatermark {
                 HStack {
                     Spacer()
-                    ShareWatermarkView()
+                    ShareWatermarkView(scale: scale)
                         .padding(.trailing, 12 * scale)
                         .padding(.bottom, 12 * scale)
                 }
@@ -81,56 +81,58 @@ struct SharePostContentView: View {
         VStack(alignment: .leading, spacing: 6 * scale) {
             // Boost banner
             if showBoostBanner, let boostData = post.boostBannerData {
-                HStack(spacing: 4 * scale) {
+                HStack(alignment: .top, spacing: 4 * scale) {
                     Image(systemName: "arrow.2.squarepath")
-                        .font(.caption)
+                        .font(.system(size: 11 * scale))
                         .foregroundColor(.secondary)
-                    Text("Boosted by \(boostData.boosterHandle)")
-                        .font(.caption)
+                    Text("Boosted by @\(boostData.boosterHandle)")
+                        .font(.system(size: 12 * scale))
                         .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.bottom, 4 * scale)
             }
 
             // Author info
-            HStack(spacing: 8 * scale) {
-                // Avatar (synchronous, never fails)
+            HStack(alignment: .top, spacing: 10 * scale) {
+                // Avatar
                 ShareSynchronousAvatarView(
                     url: post.authorAvatarURL,
-                    size: 40,
+                    size: 44,
                     scale: scale
                 )
 
-                VStack(alignment: .leading, spacing: 2 * scale) {
+                VStack(alignment: .leading, spacing: 3 * scale) {
+                    // Display name - prominent
                     Text(post.authorDisplayName)
-                        .font(.system(size: 15 * scale, weight: .semibold))
+                        .font(.system(size: 16 * scale, weight: .semibold))
                         .foregroundColor(.primary)
 
-                    HStack(spacing: 4 * scale) {
-                        Text("@\(post.authorHandle)")
-                            .font(.system(size: 13 * scale))
-                            .foregroundColor(.secondary)
-
-                        Text("•")
-                            .font(.system(size: 13 * scale))
-                            .foregroundColor(.secondary)
-
-                        Text(post.timestampString)
-                            .font(.system(size: 13 * scale))
-                            .foregroundColor(.secondary)
-                    }
+                    // Handle as subtle caption
+                    Text("@\(post.authorHandle)")
+                        .font(.system(size: 12 * scale))
+                        .foregroundColor(.secondary)
                 }
 
-                Spacer()
+                Spacer(minLength: 8 * scale)
 
-                // Network label
-                Text(post.networkLabel)
-                    .font(.system(size: 11 * scale, weight: .medium))
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal, 8 * scale)
-                    .padding(.vertical, 4 * scale)
-                    .background(Color.secondary.opacity(0.1))
-                    .clipShape(Capsule())
+                // Network label with platform logo
+                HStack(spacing: 5 * scale) {
+                    Image(post.platform.icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 14 * scale, height: 14 * scale)
+                        .foregroundColor(platformColor(for: post.platform))
+
+                    Text(post.networkLabel)
+                        .font(.system(size: 11 * scale, weight: .medium))
+                        .foregroundColor(.secondary)
+                }
+                .padding(.leading, 7 * scale)
+                .padding(.trailing, 10 * scale)
+                .padding(.vertical, 5 * scale)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
             }
 
             // Content
@@ -219,42 +221,42 @@ struct ShareCommentView: View {
                     Text("Replying to \(parentName)")
                         .font(.system(size: 10 * scale))
                         .foregroundColor(.secondary.opacity(0.8))
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.bottom, 1 * scale)
                 }
 
-                // Author and timestamp (compact row)
-                HStack(spacing: 5 * scale) {
-                    // Avatar (synchronous, never fails)
+                // Author and timestamp
+                HStack(alignment: .top, spacing: 6 * scale) {
+                    // Avatar
                     ShareSynchronousAvatarView(
                         url: comment.authorAvatarURL,
-                        size: 20,
+                        size: 24,
                         scale: scale
                     )
 
-                    Text(comment.authorDisplayName)
-                        .font(.system(size: 13 * scale, weight: .medium))
-                        .foregroundColor(.primary)
+                    VStack(alignment: .leading, spacing: 2 * scale) {
+                        // Display name - prominent
+                        HStack(spacing: 6 * scale) {
+                            Text(comment.authorDisplayName)
+                                .font(.system(size: 13 * scale, weight: .semibold))
+                                .foregroundColor(.primary)
 
-                    Text("@\(comment.authorHandle)")
-                        .font(.system(size: 11 * scale))
-                        .foregroundColor(.secondary)
+                            if comment.isSelected {
+                                Text("Selected")
+                                    .font(.system(size: 9 * scale, weight: .medium))
+                                    .foregroundColor(.secondary.opacity(0.5))
+                                    .padding(.horizontal, 5 * scale)
+                                    .padding(.vertical, 2 * scale)
+                                    .background(Color.secondary.opacity(0.08))
+                                    .clipShape(Capsule())
+                            }
+                        }
 
-                    Text("•")
-                        .font(.system(size: 11 * scale))
-                        .foregroundColor(.secondary)
-
-                    Text(comment.timestampString)
-                        .font(.system(size: 11 * scale))
-                        .foregroundColor(.secondary)
-
-                    if comment.isSelected {
-                        Text("Selected")
-                            .font(.system(size: 9 * scale, weight: .medium))
-                            .foregroundColor(.secondary.opacity(0.7))
-                            .padding(.leading, 4 * scale)
+                        // Handle as subtle caption
+                        Text("@\(comment.authorHandle)")
+                            .font(.system(size: 10 * scale))
+                            .foregroundColor(.secondary)
                     }
-
-                    Spacer()
                 }
 
                 // Content (tighter spacing for density)
@@ -291,8 +293,6 @@ struct ShareMediaStripView: View {
         } else {
             // For multiple images, use grid layout
             let gridColumns = min(thumbnails.count, 3)
-            let itemSize =
-                (390 - 32 - (CGFloat(gridColumns - 1) * 4)) / CGFloat(gridColumns) * scale
 
             LazyVGrid(
                 columns: Array(
@@ -432,14 +432,14 @@ struct ShareQuotePostView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8 * scale) {
-            // Author
-            HStack(spacing: 6 * scale) {
+            // Author - name prominent, handle as caption
+            VStack(alignment: .leading, spacing: 2 * scale) {
                 Text(data.authorDisplayName)
                     .font(.system(size: 13 * scale, weight: .semibold))
                     .foregroundColor(.primary)
 
                 Text("@\(data.authorHandle)")
-                    .font(.system(size: 11 * scale))
+                    .font(.system(size: 10 * scale))
                     .foregroundColor(.secondary)
             }
 
@@ -464,14 +464,37 @@ struct ShareQuotePostView: View {
 // MARK: - Watermark View
 
 struct ShareWatermarkView: View {
+    var scale: CGFloat = 1.0
+
     var body: some View {
-        Text("via SocialFusion")
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.1))
-            .clipShape(Capsule())
+        HStack(spacing: 6 * scale) {
+            // App logo
+            Image("WatermarkLogo")
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 18 * scale, height: 18 * scale)
+                .clipShape(RoundedRectangle(cornerRadius: 4 * scale, style: .continuous))
+
+            Text("SocialFusion")
+                .font(.system(size: 12 * scale, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .padding(.leading, 6 * scale)
+        .padding(.trailing, 10 * scale)
+        .padding(.vertical, 5 * scale)
+        .background(Color.secondary.opacity(0.1))
+        .clipShape(Capsule())
+    }
+}
+
+// MARK: - Platform Colors
+
+private func platformColor(for platform: SocialPlatform) -> Color {
+    switch platform {
+    case .mastodon:
+        return Color(red: 0x56/255, green: 0x3A/255, blue: 0xCC/255)  // #563ACC
+    case .bluesky:
+        return Color(red: 0x00/255, green: 0x85/255, blue: 0xFF/255)  // #0085FF
     }
 }
 

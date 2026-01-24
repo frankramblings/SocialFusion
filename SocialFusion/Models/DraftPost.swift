@@ -8,6 +8,9 @@ public struct DraftPost: Identifiable, Codable, Equatable {
     public var createdAt: Date
     public var cwEnabled: Bool // Legacy support - also stored per-post
     public var cwText: String // Legacy support - also stored per-post
+    public var name: String?
+    public var isPinned: Bool
+    public var selectedAccounts: [SocialPlatform: String] = [:] // Per-platform account overrides
     
     public init(
         id: UUID = UUID(),
@@ -25,6 +28,9 @@ public struct DraftPost: Identifiable, Codable, Equatable {
         self.createdAt = createdAt
         self.cwEnabled = cwEnabled
         self.cwText = cwText
+        self.name = nil
+        self.isPinned = false
+        self.selectedAccounts = [:]
     }
     
     public static func == (lhs: DraftPost, rhs: DraftPost) -> Bool {

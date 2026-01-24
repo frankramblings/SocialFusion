@@ -200,7 +200,7 @@ public struct ShareThreadRenderBuilder {
             )
 
             // Convert to renderables
-            replySubtree = selectedReplies.enumerated().map { _, replyPost in
+            replySubtree = selectedReplies.map { replyPost in
                 // Get parent author (the post author for top-level replies)
                 let (parentName, _) = UnifiedAdapter.anonymizeUser(
                     displayName: displayPost.authorName,

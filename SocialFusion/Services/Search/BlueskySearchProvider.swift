@@ -1,7 +1,6 @@
 import Foundation
 
 /// Search provider for Bluesky
-@MainActor
 public class BlueskySearchProvider: SearchProviding {
   private let blueskyService: BlueskyService
   private let account: SocialAccount
@@ -219,7 +218,7 @@ public class BlueskySearchProvider: SearchProviding {
         
         // Post URL: https://bsky.app/profile/handle/post/...
         if pathComponents.count >= 4 && pathComponents[3] == "post" {
-          let postId = pathComponents.last ?? ""
+          _ = pathComponents.last ?? ""
           // Try to fetch the post - would need a fetchPost method
           // For now, return nil and let it fall through to regular search
         }

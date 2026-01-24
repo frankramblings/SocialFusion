@@ -326,7 +326,7 @@ public struct ComposerTextModel {
           continue
         }
         
-        guard let url = URL(string: urlText) else { continue }
+        _ = URL(string: urlText)
         
         // Create payloads for active destinations
         var payloads: [String: EntityPayload] = [:]
@@ -493,7 +493,7 @@ public struct LinkData: Equatable {
 /// Platform-specific entity payload
 public struct EntityPayload {
   public let platform: SocialPlatform
-  public let data: [String: Any]
+  public var data: [String: Any]
   
   public init(platform: SocialPlatform, data: [String: Any]) {
     self.platform = platform

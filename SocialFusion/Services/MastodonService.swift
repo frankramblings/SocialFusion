@@ -25,6 +25,31 @@ extension Optional where Wrapped == URL {
     }
 }
 
+/// In-memory cache for Mastodon custom emoji maps keyed by account ID.
+final class EmojiCache {
+    static let shared = EmojiCache()
+
+    private var cache: [String: [String: String]] = [:]
+    private let lock = NSLock()
+
+    private init() {}
+
+    func store(accountId: String, emojiMap: [String: String]) {
+        guard !accountId.isEmpty, !emojiMap.isEmpty else { return }
+        lock.lock()
+        cache[accountId] = emojiMap
+        lock.unlock()
+    }
+
+    func get(accountId: String) -> [String: String]? {
+        guard !accountId.isEmpty else { return nil }
+        lock.lock()
+        let emojiMap = cache[accountId]
+        lock.unlock()
+        return emojiMap
+    }
+}
+
 public final class MastodonService: @unchecked Sendable {
     private let session = URLSession.shared
     private let logger = Logger(subsystem: "com.socialfusion.app", category: "MastodonService")
@@ -1289,8 +1314,8 @@ public final class MastodonService: @unchecked Sendable {
             if httpResponse.statusCode != 200 {
                 // Try to decode error response
                 if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
-                    logger.error("❌ MASTODON: API Error: \(errorResponse.error ?? "Unknown error")")
-                    print("❌ MASTODON: API Error: \(errorResponse.error ?? "Unknown error")")
+                    logger.error("❌ MASTODON: API Error: \(errorResponse.error)")
+                    print("❌ MASTODON: API Error: \(errorResponse.error)")
                     throw errorResponse
                 }
 
@@ -2280,11 +2305,23 @@ public final class MastodonService: @unchecked Sendable {
             [MastodonConversation].self, from: data)
 
         return mastodonConversations.map { mastodonConv in
+            // Extract emoji map from conversation participant
+            let participantEmojiMap: [String: String]? = {
+                guard let emojis = mastodonConv.accounts[0].emojis, !emojis.isEmpty else { return nil }
+                var map: [String: String] = [:]
+                for emoji in emojis {
+                    let url = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+                    if !url.isEmpty { map[emoji.shortcode] = url }
+                }
+                return map.isEmpty ? nil : map
+            }()
+
             let participant = NotificationAccount(
                 id: mastodonConv.accounts[0].id,
                 username: mastodonConv.accounts[0].acct,
                 displayName: mastodonConv.accounts[0].displayName,
-                avatarURL: mastodonConv.accounts[0].avatar
+                avatarURL: mastodonConv.accounts[0].avatar,
+                displayNameEmojiMap: participantEmojiMap
             )
 
             let lastMessage = DirectMessage(
@@ -2292,7 +2329,8 @@ public final class MastodonService: @unchecked Sendable {
                 sender: participant,  // Simplified for now
                 recipient: NotificationAccount(
                     id: account.id, username: account.username, displayName: account.displayName,
-                    avatarURL: account.profileImageURL?.absoluteString),
+                    avatarURL: account.profileImageURL?.absoluteString,
+                    displayNameEmojiMap: account.displayNameEmojiMap),
                 content: mastodonConv.lastStatus.content,
                 createdAt: DateParser.parse(mastodonConv.lastStatus.createdAt) ?? Date(),
                 platform: .mastodon
@@ -2455,6 +2493,7 @@ public final class MastodonService: @unchecked Sendable {
         guard let emojis = account.emojis, !emojis.isEmpty else {
             return nil
         }
+
         var emojiMap: [String: String] = [:]
         for emoji in emojis {
             // Use staticUrl if available (smaller, faster), otherwise fall back to url
@@ -2463,7 +2502,23 @@ public final class MastodonService: @unchecked Sendable {
                 emojiMap[emoji.shortcode] = emojiURL
             }
         }
-        return emojiMap.isEmpty ? nil : emojiMap
+        guard !emojiMap.isEmpty else { return nil }
+        EmojiCache.shared.store(accountId: account.id, emojiMap: emojiMap)
+        return emojiMap
+    }
+
+    private func resolveAuthorEmojiMap(
+        extracted: [String: String]?,
+        displayName: String,
+        accountId: String
+    ) -> [String: String]? {
+        if let extracted = extracted, !extracted.isEmpty {
+            return extracted
+        }
+        guard displayName.contains(":"), !accountId.isEmpty else {
+            return nil
+        }
+        return EmojiCache.shared.get(accountId: accountId)
     }
     
     /// Extracts custom emoji from a MastodonReblog into a dictionary mapping shortcode to URL
@@ -2604,7 +2659,9 @@ public final class MastodonService: @unchecked Sendable {
                             return Post.Attachment(
                                 url: remoteUrlString,
                                 type: .animatedGIF,
-                                altText: media.description ?? "Animated GIF"
+                                altText: media.description ?? "Animated GIF",
+                                width: media.bestWidth,
+                                height: media.bestHeight
                             )
                         } else {
                             // For .gifv type, always use video version (will loop automatically)
@@ -2619,7 +2676,9 @@ public final class MastodonService: @unchecked Sendable {
                     return Post.Attachment(
                         url: media.url,
                         type: attachmentType,
-                        altText: media.description
+                        altText: media.description,
+                        width: media.bestWidth,
+                        height: media.bestHeight
                     )
                 }
                 // Log attachments for debugging
@@ -2640,7 +2699,7 @@ public final class MastodonService: @unchecked Sendable {
             // Extract author emoji map from reblog
             // Try to extract from display name HTML first, then match from reblog.emojis array
             let authorDisplayName = reblog.account?.displayName ?? reblog.account?.acct ?? ""
-            let authorEmojiMap: [String: String]? = {
+            let extractedAuthorEmojiMap: [String: String]? = {
                 // First try extracting from display name HTML if it contains emoji tags
                 if let htmlMap = extractEmojiMap(fromHTML: authorDisplayName), !htmlMap.isEmpty {
                     return htmlMap
@@ -2662,6 +2721,19 @@ public final class MastodonService: @unchecked Sendable {
                 }
                 return nil
             }()
+            if let extractedAuthorEmojiMap = extractedAuthorEmojiMap,
+                let accountId = reblog.account?.id
+            {
+                EmojiCache.shared.store(
+                    accountId: accountId,
+                    emojiMap: extractedAuthorEmojiMap
+                )
+            }
+            let authorEmojiMap = resolveAuthorEmojiMap(
+                extracted: extractedAuthorEmojiMap,
+                displayName: authorDisplayName,
+                accountId: reblog.account?.id ?? ""
+            )
             
             var originalPost = Post(
                 id: reblog.id ?? "",
@@ -2867,7 +2939,9 @@ public final class MastodonService: @unchecked Sendable {
                     return Post.Attachment(
                         url: remoteUrlString,
                         type: .animatedGIF,
-                        altText: alt
+                        altText: alt,
+                        width: media.meta?.small?.width ?? media.meta?.original?.width,
+                        height: media.meta?.small?.height ?? media.meta?.original?.height
                     )
                 } else {
                     // For .gifv type, always use video version (will loop automatically at normal speed)
@@ -2885,7 +2959,9 @@ public final class MastodonService: @unchecked Sendable {
             return Post.Attachment(
                 url: media.url,
                 type: attachmentType,
-                altText: alt
+                altText: alt,
+                width: media.meta?.small?.width ?? media.meta?.original?.width,
+                height: media.meta?.small?.height ?? media.meta?.original?.height
             )
         }
 
@@ -2954,10 +3030,18 @@ public final class MastodonService: @unchecked Sendable {
             logger.debug("[Mastodon] Found card for post \(status.id): url=\(card.url), title=\(card.title)")
         }
         
+        let authorDisplayName = status.account.displayName ?? status.account.acct
+        let extractedAuthorEmojiMap = extractAccountEmojiMap(from: status.account)
+        let resolvedAuthorEmojiMap = resolveAuthorEmojiMap(
+            extracted: extractedAuthorEmojiMap,
+            displayName: authorDisplayName,
+            accountId: status.account.id
+        )
+
         let post = Post(
             id: status.id,
             content: status.content,
-            authorName: status.account.displayName ?? status.account.acct,
+            authorName: authorDisplayName,
             authorUsername: status.account.acct,
             authorId: status.account.id,
             authorProfilePictureURL: status.account.avatar,
@@ -2984,7 +3068,7 @@ public final class MastodonService: @unchecked Sendable {
             blueskyLikeRecordURI: nil,  // Mastodon doesn't use Bluesky record URIs
             blueskyRepostRecordURI: nil,
             customEmojiMap: extractEmojiMap(from: status),
-            authorEmojiMap: extractAccountEmojiMap(from: status.account),  // Emoji in author's display name
+            authorEmojiMap: resolvedAuthorEmojiMap,  // Emoji in author's display name
             clientName: status.application?.name  // Extract client/application name
         )
 
@@ -3143,7 +3227,7 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         let statuses = try JSONDecoder().decode([MastodonStatus].self, from: data)
-        let posts = await convertToGenericPosts(statuses: statuses)
+        let posts = convertToGenericPosts(statuses: statuses)
         return posts
     }
 

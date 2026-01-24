@@ -8,11 +8,11 @@ public struct ShareAsImageSheet: View {
     @ObservedObject var viewModel: ShareAsImageViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingShareSheet = false
-    @State private var shareImage: UIImage?
+    @State private var shareImages: [UIImage] = []
     @State private var isSavingToPhotos = false
     @State private var saveToPhotosError: String?
     @State private var saveToPhotosSuccess = false
-    
+
     public init(viewModel: ShareAsImageViewModel) {
         self.viewModel = viewModel
     }
@@ -79,32 +79,48 @@ public struct ShareAsImageSheet: View {
                 }
             }
             .sheet(isPresented: $showingShareSheet) {
-                if let image = shareImage {
-                    // Use ImageActivityItemSource - same approach as FullscreenMediaView uses for images
+                if !shareImages.isEmpty {
+                    // Use ImageActivityItemSource for each image
                     // This ensures "Save to Photos" appears in the share sheet
-                    ShareSheet(activityItems: [ImageActivityItemSource(image: image)])
+                    let items = shareImages.map { ImageActivityItemSource(image: $0) }
+                    ShareSheet(activityItems: items)
                 }
             }
         }
     }
     
     // MARK: - Preview Section
-    
+
     private var previewSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Preview")
-                .font(.headline)
-            
+            HStack {
+                Text("Preview")
+                    .font(.headline)
+
+                Spacer()
+
+                // Page indicator for multi-page exports
+                if viewModel.pageCount > 1 {
+                    Text("\(viewModel.pageCount) pages")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+            }
+
             ZStack {
                 // Background
                 Color(.systemGray6)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                
+
                 if viewModel.isRendering || viewModel.previewImage == nil {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.2)
-                        
+
                         if !viewModel.renderingProgress.isEmpty {
                             Text(viewModel.renderingProgress)
                                 .font(.subheadline)
@@ -118,18 +134,20 @@ public struct ShareAsImageSheet: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 400)
                 }
-                
+
                 if let image = viewModel.previewImage, !viewModel.isRendering {
                     Image(uiImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
                         .transition(.opacity.combined(with: .scale(scale: 0.98)))
                 }
             }
             .frame(height: 400)
             .animation(.easeInOut(duration: 0.2), value: viewModel.previewImage != nil)
-            
+
             if let error = viewModel.errorMessage {
                 VStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle")
@@ -182,13 +200,12 @@ public struct ShareAsImageSheet: View {
     }
     
     // MARK: - Actions
-    
+
     private func handleShare() async {
         do {
-            let result = try await viewModel.exportImage()
-            shareImage = result.image
+            let result = try await viewModel.exportImages()
+            shareImages = result.images
             // Use ImageActivityItemSource - same approach as FullscreenMediaView
-            // The temp file (result.url) will be cleaned up automatically
             showingShareSheet = true
         } catch {
             viewModel.errorMessage = error.localizedDescription
@@ -198,7 +215,7 @@ public struct ShareAsImageSheet: View {
     private func handleSaveToPhotos() async {
         // Check authorization status
         let status = PHPhotoLibrary.authorizationStatus(for: .addOnly)
-        
+
         // Request authorization if needed
         if status == .notDetermined {
             let newStatus = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
@@ -214,37 +231,38 @@ public struct ShareAsImageSheet: View {
             }
             return
         }
-        
-        // Export the image
+
+        // Export the images
         await MainActor.run {
             isSavingToPhotos = true
             saveToPhotosError = nil
         }
-        
+
         do {
-            let result = try await viewModel.exportImage()
-            let image = result.image
-            
-            // Save to Photos library
+            let result = try await viewModel.exportImages()
+
+            // Save all images to Photos library
             try await PHPhotoLibrary.shared().performChanges {
-                PHAssetChangeRequest.creationRequestForAsset(from: image)
+                for image in result.images {
+                    PHAssetChangeRequest.creationRequestForAsset(from: image)
+                }
             }
-            
+
             // Success
             await MainActor.run {
                 isSavingToPhotos = false
                 saveToPhotosSuccess = true
             }
-            
+
             // Provide haptic feedback
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            
+
         } catch {
             await MainActor.run {
                 isSavingToPhotos = false
                 saveToPhotosError = "Failed to save image: \(error.localizedDescription)"
             }
-            
+
             // Provide haptic feedback
             UINotificationFeedbackGenerator().notificationOccurred(.error)
         }

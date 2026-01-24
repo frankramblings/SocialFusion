@@ -195,7 +195,6 @@ class TimelineState: ObservableObject {
 
     /// Bridge method - converts Post array to enhanced entries
     func updateFromPosts(_ posts: [Post], preservePosition: Bool = true) {
-        let wasFirstLoad = !isInitialized
 
         let newEntries = posts.map { post in
             let isNew = isPostNew(post)

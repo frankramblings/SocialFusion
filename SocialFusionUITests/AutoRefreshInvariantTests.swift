@@ -21,7 +21,7 @@ final class AutoRefreshInvariantTests: XCTestCase {
 
         app.buttons["TriggerForegroundPrefetchButton"].tap()
 
-        let mergePill = app.buttons["UnifiedMergePill"]
+        let mergePill = app.buttons["NewPostsPill"]
         XCTAssertTrue(mergePill.waitForExistence(timeout: 2))
 
         let finalAnchor = anchorId.label
@@ -46,7 +46,7 @@ final class AutoRefreshInvariantTests: XCTestCase {
         app.buttons["EndScrollButton"].tap()
         app.buttons["TriggerIdlePrefetchButton"].tap()
 
-        let mergePill = app.buttons["UnifiedMergePill"]
+        let mergePill = app.buttons["NewPostsPill"]
         XCTAssertTrue(mergePill.waitForExistence(timeout: 2))
         XCTAssertNotEqual(bufferCount.label, "0")
     }
@@ -57,7 +57,7 @@ final class AutoRefreshInvariantTests: XCTestCase {
         seed.tap()
 
         app.buttons["TriggerForegroundPrefetchButton"].tap()
-        let mergePill = app.buttons["UnifiedMergePill"]
+        let mergePill = app.buttons["NewPostsPill"]
         XCTAssertTrue(mergePill.waitForExistence(timeout: 2))
 
         let anchorId = app.staticTexts["TimelineTopAnchorId"]

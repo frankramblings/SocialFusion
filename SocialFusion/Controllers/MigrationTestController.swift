@@ -26,7 +26,7 @@ class MigrationTestController: ObservableObject {
 
         await testTimelineController()
         await testReliableScrollView()
-        await testCompatibilityBridge()
+        _ = testCompatibilityBridge()
         await testPositionRestoration()
         await testUnreadTracking()
 
@@ -42,21 +42,12 @@ class MigrationTestController: ObservableObject {
             details: "Controller initialized successfully")
 
         // Test fetching posts
-        do {
-            await timelineController.loadTimeline()
-            let hasEntries = !timelineController.entries.isEmpty
-            addTestResult(
-                name: "Timeline Loading",
-                success: true,
-                details: "Loaded \(timelineController.entries.count) entries"
-            )
-        } catch {
-            addTestResult(
-                name: "Timeline Loading",
-                success: false,
-                details: "Failed to load timeline: \(error.localizedDescription)"
-            )
-        }
+        await timelineController.loadTimeline()
+        addTestResult(
+            name: "Timeline Loading",
+            success: true,
+            details: "Loaded \(timelineController.entries.count) entries"
+        )
 
         // Test position management
         timelineController.saveScrollPosition(0)
@@ -80,7 +71,6 @@ class MigrationTestController: ObservableObject {
 
     private func testReliableScrollView() async {
         // Test that ReliableScrollView can be instantiated
-        let scrollPosition = ScrollPosition.top
         addTestResult(
             name: "ReliableScrollView Structure",
             success: true,
@@ -90,7 +80,7 @@ class MigrationTestController: ObservableObject {
 
     /// Test compatibility bridge between new and old systems
     func testCompatibilityBridge() -> Bool {
-        let timelineController = TimelineController(serviceManager: serviceManager)
+        _ = TimelineController(serviceManager: serviceManager)
 
         // Test basic functionality without compatibility bridge for now
         // TODO: Re-implement compatibility bridge tests if needed

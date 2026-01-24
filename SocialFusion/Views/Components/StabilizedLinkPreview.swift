@@ -4,6 +4,11 @@ import UIKit
 
 /// A link preview component that maintains stable dimensions to prevent layout shifts
 /// Mirrors the nuanced behaviors of Ivory and Bluesky.
+///
+/// **Server-First Hybrid Architecture:**
+/// - Server card fields (title/description/thumbnailURL) are treated as sufficient for rich rendering
+/// - LPLinkMetadata may enhance (e.g., add icon/image) but never downgrades the view
+/// - LP timeouts/errors do not force fallback when server fields exist
 struct StabilizedLinkPreview: View {
     let url: URL
     let title: String?
@@ -18,6 +23,14 @@ struct StabilizedLinkPreview: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let maxRetries = 2
+
+    /// Whether server-provided card fields are sufficient for rich rendering
+    /// True if we have a title, description, OR thumbnail from the server card
+    private var hasServerCardFields: Bool {
+        (title != nil && !(title?.isEmpty ?? true)) ||
+        (description != nil && !(description?.isEmpty ?? true)) ||
+        thumbnailURL != nil
+    }
 
     init(
         url: URL, title: String? = nil, description: String? = nil, thumbnailURL: URL? = nil,
@@ -34,6 +47,8 @@ struct StabilizedLinkPreview: View {
         contentView
             .frame(maxWidth: .infinity)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
+            // DEBUG: Track layout shifts for link previews
+            .trackLayoutShifts(id: "linkpreview-\(url.absoluteString.hashValue)", componentType: "LinkPreview")
             .onAppear {
                 // Defer state updates to prevent AttributeGraph cycles
                 Task { @MainActor in
@@ -54,14 +69,29 @@ struct StabilizedLinkPreview: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if isLoading && retryCount == 0 {
+        // Server-First Hybrid Logic:
+        // 1. If server card fields exist, use rich view immediately (no loading state)
+        // 2. LP metadata enhances but never downgrades the view
+        // 3. Only show loading/fallback when no server fields exist
+
+        if hasServerCardFields {
+            // Server card fields are sufficient - render rich content immediately
+            // LP metadata may enhance (add icon/image) but view won't downgrade
+            StabilizedLinkRichContentView(
+                metadata: metadata,  // May be nil initially, enhances when loaded
+                url: url,
+                passedTitle: title,
+                passedDescription: description,
+                passedThumbnailURL: thumbnailURL
+            )
+        } else if isLoading && retryCount == 0 {
+            // No server fields - show loading state while fetching LP metadata
             StabilizedLinkLoadingView(height: idealHeight)
         } else if let metadata = metadata {
-            // Always prefer rich content if we have metadata, even if loadingFailed was set
+            // No server fields, but LP metadata available
             if metadata.imageProvider != nil || metadata.iconProvider != nil
-                || metadata.title != nil || thumbnailURL != nil
+                || metadata.title != nil
             {
-                // Favor Large Mode (Ivory/Bluesky style) for everything with metadata
                 StabilizedLinkRichContentView(
                     metadata: metadata,
                     url: url,
@@ -70,11 +100,11 @@ struct StabilizedLinkPreview: View {
                     passedThumbnailURL: thumbnailURL
                 )
             } else {
-                // Metadata exists but has no rich content - show fallback
+                // LP metadata exists but has no rich content - show fallback
                 StabilizedLinkFallbackView(url: url)
             }
         } else {
-            // No metadata available - show generic fallback
+            // No server fields, no LP metadata - show generic fallback
             StabilizedLinkFallbackView(url: url)
         }
     }
@@ -83,10 +113,17 @@ struct StabilizedLinkPreview: View {
         guard retryCount <= maxRetries else {
             isLoading = false
             loadingFailed = true
+            // DEBUG: Log when retries exhausted (only on actual fallback/slow scenarios)
+            #if DEBUG
+            if !hasServerCardFields {
+                print("[LinkPreview] FALLBACK: Retries exhausted for \(url.host ?? "unknown"), serverCardFields=\(hasServerCardFields)")
+            }
+            #endif
             return
         }
 
         isLoading = true
+        let serverFieldsExist = hasServerCardFields
 
         // Reduced timeout to 5 seconds - LPMetadataProvider typically completes faster
         // This prevents showing generic fallback too quickly while still being responsive
@@ -97,6 +134,12 @@ struct StabilizedLinkPreview: View {
                 // This means the metadata fetch is taking too long
                 self.isLoading = false
                 self.loadingFailed = true
+
+                // DEBUG: Log timeout with decision outcome
+                #if DEBUG
+                let decision = serverFieldsExist ? "rich_from_server" : "fallback"
+                print("[LinkPreview] TIMEOUT: LP fetch timed out for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=\(decision)")
+                #endif
             }
         }
 
@@ -105,13 +148,9 @@ struct StabilizedLinkPreview: View {
             timeoutTask.cancel()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                
-                // Log timing for debugging
+
                 let elapsed = Date().timeIntervalSince(startTime)
-                if elapsed > 3.0 {
-                    print("[LinkPreview] Metadata fetch took \(String(format: "%.2f", elapsed))s for \(self.url.host ?? "unknown")")
-                }
-                
+
                 if let error = error {
                     if self.retryCount < self.maxRetries && self.isTransientError(error) {
                         self.retryCount += 1
@@ -123,6 +162,12 @@ struct StabilizedLinkPreview: View {
                     }
                     self.isLoading = false
                     self.loadingFailed = true
+
+                    // DEBUG: Log errors with decision outcome (throttled to slow/fallback only)
+                    #if DEBUG
+                    let decision = serverFieldsExist ? "rich_from_server" : "fallback"
+                    print("[LinkPreview] ERROR: LP fetch failed for \(self.url.host ?? "unknown") in \(String(format: "%.2f", elapsed))s, serverCardFields=\(serverFieldsExist), decision=\(decision), error=\(error.localizedDescription)")
+                    #endif
                     return
                 }
 
@@ -132,10 +177,24 @@ struct StabilizedLinkPreview: View {
                     self.metadata = metadata
                     self.isLoading = false
                     self.loadingFailed = false
+
+                    // DEBUG: Log slow fetches only (> 3s threshold)
+                    #if DEBUG
+                    if elapsed > 3.0 {
+                        let decision = serverFieldsExist ? "rich_from_server" : "rich_from_lp"
+                        print("[LinkPreview] SLOW: LP fetch took \(String(format: "%.2f", elapsed))s for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=\(decision)")
+                    }
+                    #endif
                 } else {
                     // No metadata and no error - show fallback
                     self.isLoading = false
                     self.loadingFailed = true
+
+                    // DEBUG: Log empty response with decision outcome
+                    #if DEBUG
+                    let decision = serverFieldsExist ? "rich_from_server" : "fallback"
+                    print("[LinkPreview] EMPTY: LP returned nil for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=\(decision)")
+                    #endif
                 }
             }
         }
@@ -152,18 +211,23 @@ struct StabilizedLinkPreview: View {
 
 // MARK: - Supporting Views
 
-/// Loading state with shimmer effect
+/// Fixed height constant for link preview image area - used by both loading and loaded states
+/// ZERO LAYOUT SHIFT: Both states must use the same height to prevent reflow
+private let linkPreviewImageHeight: CGFloat = 180
+
+/// Loading state with shimmer effect - MUST match loaded state geometry exactly
 private struct StabilizedLinkLoadingView: View {
-    let height: CGFloat
+    let height: CGFloat  // Kept for backward compatibility, but we use linkPreviewImageHeight
     @State private var phase: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // ZERO LAYOUT SHIFT: Image area uses same height as loaded state (180pt)
             Rectangle()
                 .fill(shimmerGradient)
                 .frame(maxWidth: .infinity)
-                .frame(height: 120)
+                .frame(height: linkPreviewImageHeight)
                 .clipShape(
                     UnevenRoundedRectangle(
                         cornerRadii: .init(
@@ -175,18 +239,33 @@ private struct StabilizedLinkLoadingView: View {
                     )
                 )
 
-            VStack(alignment: .leading, spacing: 8) {
+            // Text placeholder area - matches loaded state structure
+            VStack(alignment: .leading, spacing: 4) {
+                // Title placeholder
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
-                    .frame(height: 16)
+                    .frame(height: 15)
                     .frame(maxWidth: .infinity)
                     .cornerRadius(4)
 
+                // Description placeholder
                 Rectangle()
                     .fill(Color.gray.opacity(0.15))
-                    .frame(height: 12)
-                    .frame(maxWidth: 180)
+                    .frame(height: 13)
+                    .frame(maxWidth: 200)
                     .cornerRadius(4)
+
+                // URL/domain placeholder
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(width: 10, height: 10)
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.15))
+                        .frame(width: 80, height: 12)
+                        .cornerRadius(4)
+                }
+                .padding(.top, 2)
             }
             .padding(12)
         }
@@ -222,8 +301,9 @@ private struct StabilizedLinkLoadingView: View {
 }
 
 /// Rich Large Content View (Image on top)
+/// Supports server-first hybrid rendering where metadata may be nil initially
 private struct StabilizedLinkRichContentView: View {
-    let metadata: LPLinkMetadata
+    let metadata: LPLinkMetadata?  // Optional: may be nil when rendering from server card fields only
     let url: URL
     let passedTitle: String?
     let passedDescription: String?
@@ -237,7 +317,7 @@ private struct StabilizedLinkRichContentView: View {
             UIApplication.shared.open(url)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
-                // Image Section
+                // Image Section - ZERO LAYOUT SHIFT: Always use fixed height
                 ZStack {
                     if let imageURL = imageURL ?? passedThumbnailURL {
                         AsyncImage(url: imageURL) { phase in
@@ -247,7 +327,7 @@ private struct StabilizedLinkRichContentView: View {
                                     .resizable()
                                     .aspectRatio(contentMode: .fill)
                                     .frame(maxWidth: .infinity)
-                                    .frame(maxHeight: 180)
+                                    .frame(height: linkPreviewImageHeight)
                                     .clipped()
                             default:
                                 imagePlaceholder
@@ -271,7 +351,7 @@ private struct StabilizedLinkRichContentView: View {
                                 }
                             }
                         }
-                        .frame(height: 180)
+                        .frame(height: linkPreviewImageHeight)
                     } else {
                         imagePlaceholder
                     }
@@ -289,7 +369,8 @@ private struct StabilizedLinkRichContentView: View {
 
                 // Text Section
                 VStack(alignment: .leading, spacing: 4) {
-                    let title = passedTitle ?? metadata.title
+                    // Prefer passed title (from server card), fall back to LP metadata title
+                    let title = passedTitle ?? metadata?.title
                     if let title = title, !title.isEmpty, title != url.host {
                         Text(title)
                             .font(.system(size: 15, weight: .semibold))
@@ -298,7 +379,8 @@ private struct StabilizedLinkRichContentView: View {
                             .multilineTextAlignment(.leading)
                     }
 
-                    let description = passedDescription ?? extractDescription(from: metadata)
+                    // Prefer passed description (from server card), fall back to LP metadata description
+                    let description = passedDescription ?? metadata.flatMap { extractDescription(from: $0) }
                     if let description = description, !description.isEmpty {
                         Text(description)
                             .font(.system(size: 13))
@@ -339,9 +421,10 @@ private struct StabilizedLinkRichContentView: View {
     }
 
     private var imagePlaceholder: some View {
+        // ZERO LAYOUT SHIFT: Placeholder uses same height as loaded images
         Rectangle()
             .fill(Color.gray.opacity(0.1))
-            .frame(height: 120)
+            .frame(height: linkPreviewImageHeight)
             .overlay(
                 Image(systemName: "link")
                     .font(.title)
@@ -350,8 +433,8 @@ private struct StabilizedLinkRichContentView: View {
     }
 
     private func loadMedia() {
-        // Try to load image first
-        if let imageProvider = metadata.imageProvider {
+        // Try to load image from LP metadata first (enhances server card)
+        if let imageProvider = metadata?.imageProvider {
             if let cached = LinkPreviewCache.shared.getImageURL(for: url) {
                 self.imageURL = cached
             } else {
@@ -370,8 +453,8 @@ private struct StabilizedLinkRichContentView: View {
             }
         }
 
-        // Also try to load icon as fallback
-        if let iconProvider = metadata.iconProvider {
+        // Also try to load icon as fallback from LP metadata
+        if let iconProvider = metadata?.iconProvider {
             iconProvider.loadObject(ofClass: UIImage.self) { image, _ in
                 guard let image = image as? UIImage else { return }
                 Task { @MainActor in

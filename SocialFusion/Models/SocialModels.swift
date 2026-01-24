@@ -11,6 +11,7 @@ public struct User: Identifiable, Codable, Equatable, Sendable {
     public let followsMe: Bool
     public let isBlocked: Bool
     public let boostedAt: Date?
+    public let displayNameEmojiMap: [String: String]?  // Custom emoji in display name
 
     public init(
         id: String,
@@ -20,7 +21,8 @@ public struct User: Identifiable, Codable, Equatable, Sendable {
         isFollowedByMe: Bool = false,
         followsMe: Bool = false,
         isBlocked: Bool = false,
-        boostedAt: Date? = nil
+        boostedAt: Date? = nil,
+        displayNameEmojiMap: [String: String]? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -30,6 +32,7 @@ public struct User: Identifiable, Codable, Equatable, Sendable {
         self.followsMe = followsMe
         self.isBlocked = isBlocked
         self.boostedAt = boostedAt
+        self.displayNameEmojiMap = displayNameEmojiMap
     }
 }
 
@@ -119,12 +122,27 @@ public protocol ReplyTargetResolver: Sendable {
 }
 
 /// Unified reply target resolver that works across platforms
+private actor ParentPostCache {
+    private var cache: [String: Post] = [:]
+
+    func get(_ id: String) -> Post? {
+        return cache[id]
+    }
+
+    func set(_ id: String, post: Post) {
+        cache[id] = post
+    }
+
+    func clear() {
+        cache.removeAll()
+    }
+}
+
 public final class UnifiedReplyTargetResolver: ReplyTargetResolver, @unchecked Sendable {
     private let mastodonService: MastodonService?
     private let blueskyService: BlueskyService?
     private let accountProvider: @Sendable () async -> [SocialAccount]
-    private var parentPostCache: [String: Post] = [:]  // Cache parent posts by reply ID
-    private let cacheLock = NSLock()
+    private let parentPostCache = ParentPostCache()
     
     public init(
         mastodonService: MastodonService?,
@@ -149,12 +167,9 @@ public final class UnifiedReplyTargetResolver: ReplyTargetResolver, @unchecked S
         }
         
         // Check cache first
-        cacheLock.lock()
-        if let cached = parentPostCache[inReplyToID] {
-            cacheLock.unlock()
+        if let cached = await parentPostCache.get(inReplyToID) {
             return CanonicalUserID.from(post: cached)
         }
-        cacheLock.unlock()
         
         // Fetch parent post based on platform
         let parentPost: Post?
@@ -194,17 +209,15 @@ public final class UnifiedReplyTargetResolver: ReplyTargetResolver, @unchecked S
         }
         
         // Cache for future use
-        cacheLock.lock()
-        parentPostCache[inReplyToID] = parent
-        cacheLock.unlock()
+        await parentPostCache.set(inReplyToID, post: parent)
         
         return CanonicalUserID.from(post: parent)
     }
     
     public func clearCache() {
-        cacheLock.lock()
-        parentPostCache.removeAll()
-        cacheLock.unlock()
+        Task {
+            await parentPostCache.clear()
+        }
     }
 }
 

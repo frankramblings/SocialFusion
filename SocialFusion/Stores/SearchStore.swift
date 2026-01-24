@@ -301,7 +301,6 @@ public class SearchStore: ObservableObject {
 
 // MARK: - Recent Searches Storage
 
-@MainActor
 public class RecentSearchesStorage {
   public static let shared = RecentSearchesStorage()
   

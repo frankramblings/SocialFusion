@@ -67,7 +67,7 @@ class MediaPrefetcher {
     await withTaskGroup(of: Void.self) { group in
       for attachment in attachments {
         // Skip if already cached
-        if await MediaDimensionCache.shared.getAspectRatio(for: attachment.url) != nil {
+        if MediaDimensionCache.shared.getAspectRatio(for: attachment.url) != nil {
           continue
         }
         

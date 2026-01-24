@@ -153,6 +153,35 @@ final class TimelineRefreshCoordinator: ObservableObject {
         updateSnapshot(buffer.snapshot, reason: "merge")
     }
 
+    /// Fetch posts and add to buffer WITHOUT merging into visible timeline.
+    /// Used for pull-to-refresh to decouple fetch from display.
+    /// Call mergeBufferedPostsIfNeeded() after to apply with offset compensation.
+    func fetchToBuffer() async -> Int {
+        log("🔄 [Refresh:\(timelineID)] Fetch to buffer (pull-to-refresh)")
+
+        for platform in platforms {
+            log("🔄 [Refresh:\(timelineID)] Fetch start (pull-to-refresh) \(platform.rawValue)")
+            let rawPosts = await fetchPostsForPlatform(platform)
+
+            guard !rawPosts.isEmpty else {
+                log("📭 [Refresh:\(timelineID)] No new posts from \(platform.rawValue)")
+                continue
+            }
+
+            let filteredPosts = await filterPosts(rawPosts)
+            let visiblePosts = visiblePostsProvider()
+
+            if let snapshot = buffer.append(incomingPosts: filteredPosts, visiblePosts: visiblePosts) {
+                updateSnapshot(snapshot, reason: "pull-to-refresh buffer")
+            }
+
+            log("✅ [Refresh:\(timelineID)] Buffered \(filteredPosts.count) posts from \(platform.rawValue)")
+        }
+
+        markManualRefresh()
+        return buffer.snapshot.bufferCount
+    }
+
     func requestPrefetch(trigger: RefreshTrigger) async {
         guard isTimelineVisible else { return }
         log("🔄 [Refresh:\(timelineID)] Prefetch request (\(trigger.rawValue))")

@@ -2,8 +2,7 @@ import Foundation
 
 /// Concrete implementation of TimelineContextProvider
 /// Maintains compact snapshots of timeline context for autocomplete ranking
-@MainActor
-public class UnifiedTimelineContextProvider: TimelineContextProvider {
+public final class UnifiedTimelineContextProvider: TimelineContextProvider, @unchecked Sendable {
   
   // MARK: - Configuration
   
@@ -87,7 +86,7 @@ public class UnifiedTimelineContextProvider: TimelineContextProvider {
     for reply in threadReplies {
       let authorID = reply.authorCanonicalID
       
-      if var existing = participantMap[authorID] {
+      if let existing = participantMap[authorID] {
         // Update appearance count
         participantMap[authorID] = AuthorContext(
           canonicalID: authorID,
@@ -124,7 +123,7 @@ public class UnifiedTimelineContextProvider: TimelineContextProvider {
       let canonicalID = post.authorCanonicalID
       
       // Get or create author context
-      if var context = authorMap[canonicalID] {
+      if let context = authorMap[canonicalID] {
         // Update appearance count and recency
         let newCount = context.appearanceCount + 1
         let newLastSeen = max(context.lastSeenAt, post.createdAt)
@@ -184,7 +183,7 @@ public class UnifiedTimelineContextProvider: TimelineContextProvider {
         let normalized = mention.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let handle = normalized.hasPrefix("@") ? String(normalized.dropFirst()) : normalized
         
-        if var context = mentionMap[handle] {
+        if let context = mentionMap[handle] {
           // Update appearance count and recency
           let newCount = context.appearanceCount + 1
           let newLastSeen = max(context.lastSeenAt, post.createdAt)
@@ -236,7 +235,7 @@ public class UnifiedTimelineContextProvider: TimelineContextProvider {
         let normalized = tag.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanTag = normalized.hasPrefix("#") ? String(normalized.dropFirst()) : normalized
         
-        if var context = hashtagMap[cleanTag] {
+        if let context = hashtagMap[cleanTag] {
           // Update appearance count and recency
           let newCount = context.appearanceCount + 1
           let newLastSeen = max(context.lastSeenAt, post.createdAt)

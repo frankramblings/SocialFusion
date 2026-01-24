@@ -1,7 +1,6 @@
 import Foundation
 
 /// Unified search provider that combines Mastodon and Bluesky results
-@MainActor
 public class UnifiedSearchProvider: SearchProviding {
   private let mastodonProviders: [MastodonSearchProvider]
   private let blueskyProviders: [BlueskySearchProvider]
@@ -47,7 +46,7 @@ public class UnifiedSearchProvider: SearchProviding {
     // Search all providers in parallel
     await withTaskGroup(of: (String, SearchPage).self) { group in
       for provider in mastodonProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
@@ -55,7 +54,7 @@ public class UnifiedSearchProvider: SearchProviding {
             print("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) posts")
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             print("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
@@ -63,7 +62,7 @@ public class UnifiedSearchProvider: SearchProviding {
       }
       
       for provider in blueskyProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
@@ -71,14 +70,14 @@ public class UnifiedSearchProvider: SearchProviding {
             print("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) posts")
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             print("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
       }
       
-      for await (providerId, page) in group {
+      for await (_, page) in group {
         allItems.append(contentsOf: page.items)
         nextPageTokens.merge(page.nextPageTokens) { _, new in new }
       }
@@ -104,28 +103,28 @@ public class UnifiedSearchProvider: SearchProviding {
     
     await withTaskGroup(of: (String, SearchPage).self) { group in
       for provider in mastodonProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchUsersTypeahead(text: text, page: token)
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             return (providerId, SearchPage.empty)
           }
         }
       }
       
       for provider in blueskyProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchUsersTypeahead(text: text, page: token)
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             return (providerId, SearchPage.empty)
           }
         }
@@ -159,7 +158,7 @@ public class UnifiedSearchProvider: SearchProviding {
     
     await withTaskGroup(of: (String, SearchPage).self) { group in
       for provider in mastodonProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
@@ -167,7 +166,7 @@ public class UnifiedSearchProvider: SearchProviding {
             print("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) users")
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             print("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
@@ -175,7 +174,7 @@ public class UnifiedSearchProvider: SearchProviding {
       }
       
       for provider in blueskyProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
@@ -183,7 +182,7 @@ public class UnifiedSearchProvider: SearchProviding {
             print("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) users")
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             print("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
@@ -218,7 +217,7 @@ public class UnifiedSearchProvider: SearchProviding {
     
     await withTaskGroup(of: (String, SearchPage).self) { group in
       for provider in mastodonProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
@@ -226,7 +225,7 @@ public class UnifiedSearchProvider: SearchProviding {
             print("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) tags")
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             print("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
@@ -234,7 +233,7 @@ public class UnifiedSearchProvider: SearchProviding {
       }
       
       for provider in blueskyProviders {
-        group.addTask { @MainActor in
+        group.addTask {
           do {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
@@ -242,14 +241,14 @@ public class UnifiedSearchProvider: SearchProviding {
             print("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) tags")
             return (providerId, page)
           } catch {
-            let providerId = await provider.providerId
+            let providerId = provider.providerId
             print("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
       }
       
-      for await (providerId, page) in group {
+      for await (_, page) in group {
         allItems.append(contentsOf: page.items)
         nextPageTokens.merge(page.nextPageTokens) { _, new in new }
       }

@@ -42,7 +42,7 @@ struct AutocompleteOverlay: View {
             }
           }
           .frame(height: overlayHeight)
-          .onChange(of: selectedIndex) { newIndex in
+          .onChange(of: selectedIndex) { _, newIndex in
             // Scroll selected item into view when navigating with keyboard
             withAnimation(.easeInOut(duration: 0.2)) {
               proxy.scrollTo(newIndex, anchor: .center)

@@ -422,6 +422,61 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
             return Double(w) / Double(h)
         }
 
+        /// Default aspect ratio fallback (3:2 - common photo ratio)
+        public static let defaultAspectRatio: CGFloat = 3.0 / 2.0
+
+        /// Returns a stable aspect ratio for layout purposes.
+        /// Order of precedence:
+        /// 1. Computed from width/height if available
+        /// 2. Inferred from URL query parameters (e.g., Tenor ww/hh)
+        /// 3. Default 3:2 fallback
+        /// This should be used to reserve layout height BEFORE media loads.
+        public var stableAspectRatio: CGFloat {
+            // First try computed from dimensions
+            if let ratio = aspectRatio {
+                return CGFloat(ratio)
+            }
+            // Second, try to infer from URL (e.g., Tenor uses ww/hh query params)
+            if let inferredRatio = Self.inferAspectRatioFromURL(url) {
+                return inferredRatio
+            }
+            // Default fallback - 3:2 is a safe middle ground
+            return Self.defaultAspectRatio
+        }
+
+        /// Infers aspect ratio from URL query parameters.
+        /// Supports Tenor (ww/hh), and generic width/height params.
+        private static func inferAspectRatioFromURL(_ urlString: String) -> CGFloat? {
+            guard let url = URL(string: urlString),
+                  let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
+                  let queryItems = components.queryItems,
+                  !queryItems.isEmpty else {
+                return nil
+            }
+
+            func getValue(for keys: [String]) -> CGFloat? {
+                for key in keys {
+                    if let item = queryItems.first(where: { $0.name.lowercased() == key }),
+                       let value = item.value,
+                       let numValue = Double(value),
+                       numValue > 0 {
+                        return CGFloat(numValue)
+                    }
+                }
+                return nil
+            }
+
+            let widthKeys = ["ww", "w", "width"]
+            let heightKeys = ["hh", "h", "height"]
+
+            if let w = getValue(for: widthKeys),
+               let h = getValue(for: heightKeys),
+               h > 0 {
+                return max(w / h, 0.01)
+            }
+            return nil
+        }
+
         public init(
             url: String, type: AttachmentType, altText: String? = nil, thumbnailURL: String? = nil,
             width: Int? = nil, height: Int? = nil
@@ -1437,13 +1492,20 @@ public struct NotificationAccount: Sendable, Codable {
     public let username: String
     public let displayName: String?
     public let avatarURL: String?
+    public let displayNameEmojiMap: [String: String]?  // Custom emoji in display name
 
-    public init(id: String, username: String, displayName: String? = nil, avatarURL: String? = nil)
-    {
+    public init(
+        id: String,
+        username: String,
+        displayName: String? = nil,
+        avatarURL: String? = nil,
+        displayNameEmojiMap: [String: String]? = nil
+    ) {
         self.id = id
         self.username = username
         self.displayName = displayName
         self.avatarURL = avatarURL
+        self.displayNameEmojiMap = displayNameEmojiMap
     }
 }
 

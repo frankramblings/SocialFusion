@@ -41,7 +41,7 @@ public class AutocompleteService: ObservableObject {
   @Published public var isSearching: Bool = false
   
   public init(
-    cache: AutocompleteCache = AutocompleteCache.shared,
+    cache: AutocompleteCache? = nil,
     mastodonService: MastodonService? = nil,
     blueskyService: BlueskyService? = nil,
     accounts: [SocialAccount] = [],
@@ -49,7 +49,8 @@ public class AutocompleteService: ObservableObject {
     timelineContextProvider: TimelineContextProvider? = nil,
     timelineScope: AutocompleteTimelineScope = .unified
   ) {
-    self.cache = cache
+    let resolvedCache = cache ?? AutocompleteCache.shared
+    self.cache = resolvedCache
     self.mastodonService = mastodonService
     self.blueskyService = blueskyService
     self.accounts = accounts
@@ -60,9 +61,10 @@ public class AutocompleteService: ObservableObject {
     if let providers = suggestionProviders {
       self.suggestionProviders = providers.sorted { $0.priority < $1.priority }
     } else {
-      // Default providers: LocalHistoryProvider + NetworkSuggestionProvider
+      // Default providers: LocalHistoryProvider + EmojiSuggestionProvider + NetworkSuggestionProvider
       var defaultProviders: [SuggestionProvider] = []
-      defaultProviders.append(LocalHistoryProvider(cache: cache))
+      defaultProviders.append(LocalHistoryProvider(cache: resolvedCache))
+      defaultProviders.append(EmojiSuggestionProvider(accounts: accounts))
       defaultProviders.append(NetworkSuggestionProvider(
         mastodonService: mastodonService,
         blueskyService: blueskyService,

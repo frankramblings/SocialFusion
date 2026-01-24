@@ -14,7 +14,7 @@ struct SmartMediaView: View {
     let maxHeight: CGFloat?
     let cornerRadius: CGFloat
     let onTap: (() -> Void)?
-    
+
     // For fullscreen support - optional to maintain backward compatibility
     let allMedia: [Post.Attachment]?
 
@@ -22,11 +22,16 @@ struct SmartMediaView: View {
     let heroID: String?
     let mediaNamespace: Namespace.ID?
 
+    // ZERO LAYOUT SHIFT: Stable aspect ratio passed from parent container.
+    // When set, this takes precedence over loadedAspectRatio for layout purposes.
+    // Internal rendering can use loadedAspectRatio, but container height stays fixed.
+    let stableAspectRatio: CGFloat?
+
     @State private var loadingState: LoadingState = .loading
     @State private var retryCount: Int = 0
     @State private var loadedAspectRatio: CGFloat? = nil
     @State private var isVideoVisible = false  // Track visibility for video playback
-    
+
     // Optional coordinator for fullscreen - only used if available
     @EnvironmentObject private var mediaCoordinator: FullscreenMediaCoordinator
 
@@ -73,6 +78,7 @@ struct SmartMediaView: View {
         heroID: String? = nil,
         mediaNamespace: Namespace.ID? = nil,
         allMedia: [Post.Attachment]? = nil,
+        stableAspectRatio: CGFloat? = nil,  // For zero layout shift - fixes container height
         onTap: (() -> Void)? = nil
     ) {
         self.attachment = attachment
@@ -83,14 +89,17 @@ struct SmartMediaView: View {
         self.heroID = heroID
         self.mediaNamespace = mediaNamespace
         self.allMedia = allMedia
+        self.stableAspectRatio = stableAspectRatio
         self.onTap = onTap
     }
 
     @ViewBuilder
     private var mediaContent: some View {
-        let initialRatio = CGFloat(
-            attachment.aspectRatio ?? Double(inferAspectRatio(from: attachment.url)))
-        let ratio = loadedAspectRatio ?? initialRatio
+        // ZERO LAYOUT SHIFT: Use stableAspectRatio for layout when available
+        // loadedAspectRatio only affects internal rendering (e.g., video display), not container size
+        let layoutRatio: CGFloat = stableAspectRatio ?? attachment.stableAspectRatio
+        // For internal rendering (inside the fixed container), we can use loaded ratio
+        let renderRatio = loadedAspectRatio ?? layoutRatio
 
         if attachment.type == .audio {
             // Use the comprehensive AudioPlayerView
@@ -108,19 +117,27 @@ struct SmartMediaView: View {
             VideoPlayerView(
                 url: URL(string: attachment.url),
                 isGIF: attachment.type == .gifv,
-                aspectRatio: ratio,
+                aspectRatio: renderRatio,  // Use render ratio for video internal display
                 onSizeDetected: { size in
-                    // Defer state update to prevent AttributeGraph cycles
-                    // Use a longer delay to ensure we're completely outside the view update cycle
+                    // ZERO LAYOUT SHIFT: Only update loadedAspectRatio if we don't have a stable ratio
+                    // When stableAspectRatio is set, container height is fixed - this just affects internal rendering
+                    guard stableAspectRatio == nil else {
+                        // Still track the detected size for internal use, but don't trigger layout changes
+                        Task { @MainActor in
+                            guard size.width > 0 && size.height > 0 else { return }
+                            try? await Task.sleep(nanoseconds: 33_000_000)
+                            guard !Task.isCancelled else { return }
+                            // Update without animation since it doesn't change layout
+                            loadedAspectRatio = size.width / size.height
+                        }
+                        return
+                    }
+                    // Legacy path: Update layout when no stable ratio is provided
                     Task { @MainActor in
                         guard size.width > 0 && size.height > 0 else { return }
-                        // Longer delay to ensure we're not in the middle of a view update
-                        // This prevents AttributeGraph cycles and "Modifying state during view update" warnings
-                        try? await Task.sleep(nanoseconds: 33_000_000)  // ~2 frames at 60fps
+                        try? await Task.sleep(nanoseconds: 33_000_000)
                         guard !Task.isCancelled else { return }
-                        // Double-check we're on main actor and defer the actual state update
                         await MainActor.run {
-                            // Use DispatchQueue to ensure we're outside the current update cycle
                             DispatchQueue.main.async {
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                     loadedAspectRatio = size.width / size.height
@@ -164,7 +181,6 @@ struct SmartMediaView: View {
         } else if attachment.type == .animatedGIF {
             // Flag-driven unfurling with local fallback
             let url = URL(string: attachment.url)
-            let initialRatio = attachment.aspectRatio.map { CGFloat($0) }
             // Use adaptive max height: allow taller GIFs to display fully
             // Only apply maxHeight if explicitly provided, otherwise let GIF display at natural height
             let adaptiveMaxHeight = maxHeight ?? UIScreen.main.bounds.height * 0.8
@@ -270,15 +286,21 @@ struct SmartMediaView: View {
                     url: imageURL,
                     priority: .high,
                     onImageLoad: { uiImage in
-                        // Defer state update to prevent AttributeGraph cycles
+                        // ZERO LAYOUT SHIFT: Only update loadedAspectRatio for internal use
+                        // When stableAspectRatio is set, this doesn't affect layout
                         Task { @MainActor in
-                            // Small delay to ensure we're not in the middle of a view update
-                            try? await Task.sleep(nanoseconds: 16_000_000)  // ~1 frame at 60fps
+                            try? await Task.sleep(nanoseconds: 16_000_000)
                             let size = uiImage.size
                             if size.width > 0 && size.height > 0 {
-                                await MainActor.run {
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                        loadedAspectRatio = CGFloat(size.width / size.height)
+                                // Update without animation when stable ratio is set (no layout change)
+                                if stableAspectRatio != nil {
+                                    loadedAspectRatio = CGFloat(size.width / size.height)
+                                } else {
+                                    // Legacy path: animate layout change
+                                    await MainActor.run {
+                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                            loadedAspectRatio = CGFloat(size.width / size.height)
+                                        }
                                     }
                                 }
                             }
@@ -321,8 +343,8 @@ struct SmartMediaView: View {
     }
 
     var body: some View {
-        let initialRatio = attachment.aspectRatio ?? inferAspectRatio(from: attachment.url)
-        let ratio = loadedAspectRatio ?? initialRatio
+        // ZERO LAYOUT SHIFT: Use stableAspectRatio for layout when available
+        let layoutRatio: CGFloat = stableAspectRatio ?? attachment.stableAspectRatio
 
         Group {
             if contentMode == .fill {
@@ -350,8 +372,9 @@ struct SmartMediaView: View {
                         )
                 } else {
                     // For other media types, apply aspect ratio constraint
+                    // ZERO LAYOUT SHIFT: Use layoutRatio (stable) for container sizing
                     mediaContent
-                        .aspectRatio(ratio, contentMode: .fit)
+                        .aspectRatio(layoutRatio, contentMode: .fit)
                         .frame(maxWidth: maxWidth)
                         .frame(maxHeight: maxHeight)
                         .background(
@@ -488,7 +511,7 @@ private struct VideoPlayerView: View {
                         .aspectRatio(aspectRatio, contentMode: .fill)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .onChange(of: player.isMuted) { newValue in
+                        .onChange(of: player.isMuted) { _, newValue in
                             // Sync mute state when VideoPlayer controls change it
                             // This ensures the mute button works properly
                             playerModel.isMuted = newValue
@@ -517,7 +540,7 @@ private struct VideoPlayerView: View {
                             wasPlayingBeforeDisappear = player.rate > 0
                             player.pause()
                         }
-                        .onChange(of: isVisible) { newValue in
+                        .onChange(of: isVisible) { _, newValue in
                             // Smart playback control based on visibility
                             guard let player = playerModel.player else { return }
                             
@@ -856,22 +879,20 @@ private struct VideoPlayerView: View {
                         "✅ Using authenticated video loading for \(platform.rawValue, privacy: .public)"
                     )
 
-                    // For HLS playlists (.m3u8), try using standard HTTPS scheme first
+                    // For HLS playlists (.m3u8), ALWAYS use standard HTTPS scheme with resource loader delegate
                     // CRITICAL: Custom schemes can cause issues with AVFoundation's HLS parser
-                    // AVFoundation can call resource loader with standard HTTPS URLs if we set up the delegate properly
+                    // AVFoundation calls resource loader with standard HTTPS URLs if we set up the delegate properly
                     if isHLSPlaylist {
                         logger.info(
-                            "📺 Detected HLS playlist (.m3u8) - using standard HTTPS scheme with resource loader delegate"
+                            "📺 HLS playlist - using standard HTTPS with resource loader delegate"
                         )
 
-                        // Use standard HTTPS URL but set up resource loader to intercept requests
-                        // This allows AVFoundation's HLS parser to work normally while we handle authentication
                         let asset = AVURLAsset(url: url)
                         let loader = AuthenticatedVideoAssetLoader(
                             authToken: token, originalURL: url, platform: platform)
                         asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
 
-                        // Retain the loader to prevent deallocation
+                        // Retain the loader
                         objc_setAssociatedObject(
                             asset, "loader", loader, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
 
@@ -879,7 +900,6 @@ private struct VideoPlayerView: View {
                     }
 
                     // For authenticated videos (non-HLS), download to temp file immediately
-                    // The resource loader approach is unreliable with AVFoundation for non-HLS videos
                     logger.info(
                         "📥 Downloading authenticated video to temp file for reliable playback")
                     let tempFileURL = try await AuthenticatedVideoAssetLoader.downloadToTempFile(
@@ -888,71 +908,7 @@ private struct VideoPlayerView: View {
                     // Small delay to ensure file system has synced
                     try await Task.sleep(nanoseconds: 100_000_000)  // 0.1 seconds
 
-                    // Verify file is readable before creating asset
-                    let fileManager = FileManager.default
-                    guard fileManager.fileExists(atPath: tempFileURL.path) else {
-                        throw NSError(
-                            domain: "VideoPlayerView", code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "Downloaded file does not exist"])
-                    }
-
                     let fileAsset = AVURLAsset(url: tempFileURL)
-
-                    // #region agent log
-                    let logData2: [String: Any] = [
-                        "timestamp": Int64(Date().timeIntervalSince1970 * 1000),
-                        "location": "SmartMediaView.swift:644",
-                        "message": "asset_created_from_temp_file",
-                        "data": [
-                            "tempFileURL": tempFileURL.absoluteString,
-                            "fileExists": FileManager.default.fileExists(atPath: tempFileURL.path),
-                            "thread": Thread.isMainThread ? "main" : "background",
-                        ],
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "C",
-                    ]
-                    if let logJSON2 = try? JSONSerialization.data(withJSONObject: logData2),
-                        let logString2 = String(data: logJSON2, encoding: .utf8)
-                    {
-                        if let fileHandle = FileHandle(
-                            forWritingAtPath:
-                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
-                        ) {
-                            fileHandle.seekToEndOfFile()
-                            fileHandle.write(("\n" + logString2).data(using: .utf8) ?? Data())
-                            fileHandle.closeFile()
-                        } else {
-                            try? logString2.write(
-                                toFile:
-                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                                atomically: false, encoding: .utf8)
-                        }
-                    }
-                    // #endregion
-
-                    // Load asset tracks and playable property to help AVFoundation recognize the file format
-                    logger.info(
-                        "🔍 Loading asset properties for file: \(tempFileURL.lastPathComponent, privacy: .public)"
-                    )
-                    async let tracksTask = fileAsset.loadTracks(withMediaType: .video)
-                    async let playableTask = fileAsset.load(.isPlayable)
-
-                    // Wait for both to complete
-                    let tracks = try await tracksTask
-                    let isPlayable = try await playableTask
-
-                    logger.info("✅ Asset loaded - tracks: \(tracks.count), playable: \(isPlayable)")
-
-                    if !isPlayable {
-                        throw NSError(
-                            domain: "VideoPlayerView", code: -1,
-                            userInfo: [NSLocalizedDescriptionKey: "Video file is not playable"])
-                    }
-
-                    logger.info(
-                        "✅ Playing from temporary file: \(tempFileURL.lastPathComponent, privacy: .public)"
-                    )
                     return try await createPlayerWithAsset(asset: fileAsset)
                 } catch {
                     // If token refresh fails, try with current token
@@ -961,23 +917,8 @@ private struct VideoPlayerView: View {
                             "⚠️ Using existing token (refresh failed): \(error.localizedDescription, privacy: .public)"
                         )
 
-                        // For HLS playlists, use custom scheme to ensure resource loader is called
                         if isHLSPlaylist {
-                            logger.info(
-                                "📺 Retry: Using custom scheme for HLS playlist to ensure resource loader is called"
-                            )
-                            // Use custom scheme to ensure resource loader handles all requests from the start
-                            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                            components?.scheme = "authenticated-video"
-                            guard let customSchemeURL = components?.url else {
-                                throw NSError(
-                                    domain: "VideoPlayerView", code: -1,
-                                    userInfo: [
-                                        NSLocalizedDescriptionKey: "Failed to create custom scheme URL"
-                                    ])
-                            }
-                            
-                            let asset = AVURLAsset(url: customSchemeURL)
+                            let asset = AVURLAsset(url: url)
                             let loader = AuthenticatedVideoAssetLoader(
                                 authToken: token, originalURL: url, platform: platform)
                             asset.resourceLoader.setDelegate(loader, queue: DispatchQueue.main)
@@ -1196,7 +1137,7 @@ private struct VideoPlayerView: View {
             }
 
             // Store observer for cleanup - CRITICAL: Prevents memory leaks
-            let statusObserver = playerItem.observe(\.status, options: [.new, .initial]) { [weak playerItem] item, _ in
+            let statusObserver = playerItem.observe(\.status, options: [.new, .initial]) { item, _ in
                 guard !hasResumed else {
                     // #region agent log
                     let logData5: [String: Any] = [
@@ -1256,7 +1197,7 @@ private struct VideoPlayerView: View {
                         "statusRaw": item.status.rawValue,
                         "hasError": item.error != nil,
                         "errorCode": (item.error as NSError?)?.code ?? -1,
-                        "thread": Thread.isMainThread ? "main" : "background",
+                        "thread": "unspecified",
                     ],
                     "sessionId": "debug-session",
                     "runId": "run1",
@@ -1291,7 +1232,7 @@ private struct VideoPlayerView: View {
                         "location": "SmartMediaView.swift:784",
                         "message": "continuation_resume_success",
                         "data": [
-                            "thread": Thread.isMainThread ? "main" : "background"
+                            "thread": "unspecified"
                         ],
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -1343,7 +1284,7 @@ private struct VideoPlayerView: View {
                         "data": [
                             "errorDomain": (item.error as NSError?)?.domain ?? "unknown",
                             "errorCode": (item.error as NSError?)?.code ?? -1,
-                            "thread": Thread.isMainThread ? "main" : "background",
+                            "thread": "unspecified",
                         ],
                         "sessionId": "debug-session",
                         "runId": "run1",
@@ -1379,8 +1320,8 @@ private struct VideoPlayerView: View {
             // Also check for errors periodically, even if status hasn't changed
             // CRITICAL: Use weak references to prevent retain cycles
             var errorCheckCount = 0
-            weak var weakPlayerItem = playerItem
-            weak var weakPlayer = player
+            weak var weakPlayerItem: AVPlayerItem? = playerItem
+            weak var weakPlayer: AVPlayer? = player
             let loggerRef = logger // Capture logger since self is a struct
             let errorCheckTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { timer in
                 guard let playerItem = weakPlayerItem, let player = weakPlayer else {
@@ -1390,6 +1331,8 @@ private struct VideoPlayerView: View {
                 errorCheckCount += 1
                 if hasResumed {
                     timer.invalidate()
+                    weakPlayerItem = nil
+                    weakPlayer = nil
                     return
                 }
 

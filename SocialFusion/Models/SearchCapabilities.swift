@@ -94,7 +94,6 @@ public struct SearchCapabilities: Codable {
 // MARK: - Search Capabilities Storage
 
 /// Manages persistence of search capabilities per account
-@MainActor
 public class SearchCapabilitiesStorage {
   public static let shared = SearchCapabilitiesStorage()
   

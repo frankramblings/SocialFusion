@@ -323,16 +323,24 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
     let user: User
     let viewModel: ViewModel
 
+    private var displayedName: String {
+        user.displayName?.isEmpty == false ? (user.displayName ?? "") : user.username
+    }
+
     var body: some View {
         Button(action: { viewModel.openProfile(userID: user.id) }) {
             HStack(spacing: 12) {
                 BoosterAvatarView(url: user.avatarURL, size: 32)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(user.displayName?.isEmpty == false ? (user.displayName ?? "") : user.username)
-                        .font(.subheadline)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
+                    EmojiDisplayNameText(
+                        displayedName,
+                        emojiMap: user.displayNameEmojiMap,
+                        font: .subheadline,
+                        fontWeight: .regular,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
 
                     Text("@\(user.username)")
                         .font(.caption)

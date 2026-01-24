@@ -2,8 +2,7 @@ import Foundation
 
 /// Provider for timeline-aware suggestions
 /// Converts TimelineContextSnapshot to AutocompleteSuggestion array
-@MainActor
-public class TimelineContextSuggestionProvider: SuggestionProvider {
+public final class TimelineContextSuggestionProvider: SuggestionProvider {
   
   public let priority: Int = 2 // Second priority (after local history)
   
@@ -19,7 +18,7 @@ public class TimelineContextSuggestionProvider: SuggestionProvider {
     return prefix == "@" || prefix == "#"
   }
   
-  public func suggestions(for token: AutocompleteToken) -> [AutocompleteSuggestion] {
+  public func suggestions(for token: AutocompleteToken) async -> [AutocompleteSuggestion] {
     guard canHandle(prefix: token.prefix) else {
       return []
     }

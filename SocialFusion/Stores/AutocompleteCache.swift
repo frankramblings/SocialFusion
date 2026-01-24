@@ -1,7 +1,6 @@
 import Foundation
 
 /// Per-account storage for autocomplete cache (recent mentions/hashtags)
-@MainActor
 public class AutocompleteCache {
   public static let shared = AutocompleteCache()
   

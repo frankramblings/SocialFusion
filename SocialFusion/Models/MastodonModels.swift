@@ -224,6 +224,25 @@ public class MastodonStatus: Codable {
 
 // Reblogged Status is modeled as a lightweight struct in `MastodonPost.swift`
 
+// Media Attachment Metadata - contains dimension info
+public struct MastodonMediaMeta: Codable {
+    public struct MediaMetaSize: Codable {
+        public let width: Int?
+        public let height: Int?
+        public let size: String?  // e.g. "800x600"
+        public let aspect: Double?  // Aspect ratio as a number
+    }
+
+    public let small: MediaMetaSize?
+    public let original: MediaMetaSize?
+    public let focus: MediaMetaFocus?
+
+    public struct MediaMetaFocus: Codable {
+        public let x: Double?
+        public let y: Double?
+    }
+}
+
 // Media Attachment
 public struct MastodonMediaAttachment: Codable {
     public let id: String
@@ -232,11 +251,33 @@ public struct MastodonMediaAttachment: Codable {
     public let previewUrl: String?  // Optional - some media attachments don't have preview_url
     public let remoteUrl: String?
     public let description: String?
+    public let meta: MastodonMediaMeta?  // Contains dimension info from Mastodon API
 
     public enum CodingKeys: String, CodingKey {
-        case id, type, url, description
+        case id, type, url, description, meta
         case previewUrl = "preview_url"
         case remoteUrl = "remote_url"
+    }
+
+    /// Best available width from meta.small or meta.original
+    public var bestWidth: Int? {
+        meta?.small?.width ?? meta?.original?.width
+    }
+
+    /// Best available height from meta.small or meta.original
+    public var bestHeight: Int? {
+        meta?.small?.height ?? meta?.original?.height
+    }
+
+    /// Computed aspect ratio from best available dimensions
+    public var aspectRatio: Double? {
+        // First try meta.small or meta.original aspect if directly provided
+        if let aspect = meta?.small?.aspect ?? meta?.original?.aspect, aspect > 0 {
+            return aspect
+        }
+        // Otherwise compute from dimensions
+        guard let w = bestWidth, let h = bestHeight, h > 0 else { return nil }
+        return Double(w) / Double(h)
     }
 }
 

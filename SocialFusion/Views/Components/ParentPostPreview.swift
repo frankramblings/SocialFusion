@@ -79,11 +79,14 @@ struct ParentPostPreview: View {
 
                 // Author info with refined typography
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(post.authorName)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                        .lineLimit(1)
+                    EmojiDisplayNameText(
+                        post.authorName,
+                        emojiMap: post.authorEmojiMap,
+                        font: .subheadline,
+                        fontWeight: .semibold,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
 
                     Text("@\(post.authorUsername)")
                         .font(.caption)
@@ -195,12 +198,14 @@ struct ParentPostMediaView: View {
             // Handle non-image media first (videos, GIFs, audio)
             if !nonImageAttachments.isEmpty {
                 ForEach(nonImageAttachments.prefix(2), id: \.id) { attachment in
+                    // ZERO LAYOUT SHIFT: Pass stableAspectRatio to prevent height changes after load
                     SmartMediaView(
                         attachment: attachment,
                         contentMode: .fill,
                         maxWidth: .infinity,
                         maxHeight: maxHeight,
                         cornerRadius: 8,
+                        stableAspectRatio: attachment.stableAspectRatio,
                         onTap: nil
                     )
                     .frame(maxHeight: maxHeight)

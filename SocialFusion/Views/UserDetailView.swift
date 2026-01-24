@@ -149,8 +149,8 @@ struct UserDetailView: View {
                                     Task {
                                         do {
                                             try await serviceManager.reportPost(post)
-                                        } catch {
-                                            ErrorHandler.shared.handleError(error)
+                                        } catch let e {
+                                            ErrorHandler.shared.handleError(e)
                                         }
                                     }
                                 }

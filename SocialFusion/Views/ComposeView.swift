@@ -94,11 +94,14 @@ struct ReplyContextHeader: View {
                         Button(action: {
                             navigationEnvironment.navigateToUser(from: post)
                         }) {
-                            Text(post.authorName)
-                                .font(.subheadline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-                                .lineLimit(1)
+                            EmojiDisplayNameText(
+                                post.authorName,
+                                emojiMap: post.authorEmojiMap,
+                                font: .subheadline,
+                                fontWeight: .semibold,
+                                foregroundColor: .primary,
+                                lineLimit: 1
+                            )
                         }
                         .buttonStyle(PlainButtonStyle())
 
@@ -465,10 +468,6 @@ struct FocusableTextEditor: UIViewRepresentable {
             let editLocation = prefixLength
             let editLength = oldNS.length - prefixLength - suffixLength
 
-            // Compute replacement text
-            let replacementStart = prefixLength
-            let replacementLength = newNS.length - prefixLength - suffixLength
-
             return NSRange(location: editLocation, length: editLength)
         }
 
@@ -673,6 +672,10 @@ struct ComposeView: View {
 
     // Conflict detection
     @State private var platformConflicts: [PlatformConflict] = []
+
+    // Link insertion state
+    @State private var showLinkInput = false
+    @State private var selectedRangeForLink: NSRange? = nil
 
     init(
         replyingTo: Post? = nil,
@@ -1352,7 +1355,7 @@ struct ComposeView: View {
                         isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
                     )
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 8)
             .onTapGesture {
                 if isOverLimit {
                     alertTitle = "Character Limit Exceeded"
@@ -1367,10 +1370,12 @@ struct ComposeView: View {
                 postContent()
             }) {
                 Text(buttonText)
-                    .fontWeight(.semibold)
+                    .font(.system(size: 15, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
             }
             .background(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -1405,6 +1410,11 @@ struct ComposeView: View {
                 selectedImagesPreview
                 contentWarningEditorSection
                 bottomToolbar
+            }
+            .sheet(isPresented: $showLinkInput) {
+                LinkInputDialog(isPresented: $showLinkInput) { url, displayText in
+                    insertLinkAtCursor(url: url, displayText: displayText)
+                }
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
@@ -1466,7 +1476,8 @@ struct ComposeView: View {
                     draftStore.saveDraft(
                         posts: threadPosts,
                         platforms: selectedPlatforms,
-                        replyingToId: replyingTo?.id
+                        replyingToId: replyingTo?.id,
+                        selectedAccounts: selectedAccounts
                     )
                     dismiss()
                 }
@@ -1490,7 +1501,7 @@ struct ComposeView: View {
                     updateThreadSnapshot(for: replyingTo, provider: provider)
                 }
             }
-            .onChange(of: activePostIndex) { newIndex in
+            .onChange(of: activePostIndex) { _, newIndex in
                 // Sync composerTextModel when switching between thread posts
                 if composerTextModel.text != threadPosts[newIndex].text {
                     composerTextModel.text = threadPosts[newIndex].text
@@ -1498,7 +1509,7 @@ struct ComposeView: View {
                     composerTextModel.documentRevision += 1
                 }
             }
-            .onChange(of: selectedPlatforms) { _ in
+            .onChange(of: selectedPlatforms) { _, _ in
                 // Update platform conflicts when platforms change
                 updatePlatformConflicts()
             }
@@ -1819,12 +1830,7 @@ struct ComposeView: View {
             do {
                 // Handle quote posts
                 if let quoteTarget = quotingTo {
-                    let mediaData: [Data] = threadPosts[0].images.compactMap { image in
-                        image.jpegData(compressionQuality: 0.8)
-                    }
-                    let mediaAltTexts = normalizedAltTexts(for: threadPosts[0])
-
-                    let createdPosts = try await socialServiceManager.createQuotePost(
+                    _ = try await socialServiceManager.createQuotePost(
                         content: threadPosts[0].text,
                         quotedPost: quoteTarget,
                         platforms: selectedPlatforms
@@ -1846,8 +1852,19 @@ struct ComposeView: View {
                 }
 
                 var previousPostsByPlatform: [SocialPlatform: Post] = [:]
+                var blueskyRootByPlatform: [SocialPlatform: BlueskyStrongRef] = [:]
                 if let replyTarget = replyingTo {
                     previousPostsByPlatform[replyTarget.platform] = replyTarget
+                    if replyTarget.platform == .bluesky {
+                        let cid =
+                            replyTarget.cid
+                            ?? replyTarget.platformSpecificId.components(separatedBy: "/").last
+                            ?? ""
+                        blueskyRootByPlatform[.bluesky] = BlueskyStrongRef(
+                            uri: replyTarget.platformSpecificId,
+                            cid: cid
+                        )
+                    }
                 }
 
                 for (index, threadPost) in threadPosts.enumerated() {
@@ -1893,6 +1910,16 @@ struct ComposeView: View {
                         )
                         for post in createdPosts {
                             previousPostsByPlatform[post.platform] = post
+                            if post.platform == .bluesky, blueskyRootByPlatform[.bluesky] == nil {
+                                let cid =
+                                    post.cid
+                                    ?? post.platformSpecificId.components(separatedBy: "/").last
+                                    ?? ""
+                                blueskyRootByPlatform[.bluesky] = BlueskyStrongRef(
+                                    uri: post.platformSpecificId,
+                                    cid: cid
+                                )
+                            }
                         }
                     } else {
                         var updatedPrevious: [SocialPlatform: Post] = [:]
@@ -1921,6 +1948,7 @@ struct ComposeView: View {
                                     pollExpiresIn: 86400,
                                     visibility: visibilityString,
                                     accountOverride: selectedAccount(for: platform),
+                                    blueskyRoot: blueskyRootByPlatform[platform],
                                     cwText: threadPost.cwText.isEmpty ? nil : threadPost.cwText,
                                     cwEnabled: threadPost.cwEnabled,
                                     attachmentSensitiveFlags: threadPost.attachmentSensitiveFlags,
@@ -2116,8 +2144,52 @@ struct ComposeView: View {
 
     /// Insert link (placeholder for Cmd+K shortcut)
     private func insertLink() {
-        // Future enhancement: Insert link placeholder or open link dialog
-        // For now, this is a placeholder to satisfy the modifier requirements
+        // Show link input dialog
+        showLinkInput = true
+    }
+
+    /// Insert link at current cursor position
+    private func insertLinkAtCursor(url: String, displayText: String) {
+        // We'll use the current text selection or end of text
+        // Note: Getting exact cursor position from UITextView in SwiftUI is tricky.
+        // We'll append if no range is captured, or we could improve FocusableTextEditor to track selection.
+        
+        // For now, let's use the end of the text if we don't have a reliable selection
+        let insertionRange = NSRange(location: threadPosts[activePostIndex].text.utf16.count, length: 0)
+        
+        // Create link entity
+        var payloads: [String: EntityPayload] = [:]
+        let activeDestinations = makeActiveDestinations()
+        for destinationID in activeDestinations {
+            let components = destinationID.split(separator: ":")
+            guard components.count >= 2,
+                  let platformStr = components.first,
+                  let platform = SocialPlatform(rawValue: String(platformStr)) else {
+                continue
+            }
+            
+            switch platform {
+            case .mastodon:
+                payloads[destinationID] = EntityPayload(platform: .mastodon, data: ["url": url])
+            case .bluesky:
+                payloads[destinationID] = EntityPayload(platform: .bluesky, data: ["uri": url])
+            }
+        }
+        
+        let entity = TextEntity(
+            kind: .link,
+            range: NSRange(location: insertionRange.location, length: displayText.utf16.count),
+            displayText: displayText,
+            payloadByDestination: payloads,
+            data: .link(LinkData(url: url, title: displayText))
+        )
+        
+        // Apply to model
+        composerTextModel.replace(range: insertionRange, with: displayText, entities: [entity])
+        
+        // Sync back to thread post
+        threadPosts[activePostIndex].text = composerTextModel.text
+        composerTextModel.documentRevision += 1
     }
 
     /// Update platform conflicts based on current state
@@ -2159,7 +2231,7 @@ struct ComposeView: View {
                     range = NSRange(location: range.location, length: range.length - 1)
                 }
 
-                guard let url = URL(string: urlText) else { continue }
+                _ = URL(string: urlText)
 
                 // Create payloads for active destinations
                 var payloads: [String: EntityPayload] = [:]
@@ -2236,14 +2308,28 @@ struct ComposeView: View {
                             ]
                         )
                     case .bluesky:
-                        // For Bluesky, we'd need DID lookup - for now, store handle
+                        // For Bluesky, we'd need DID lookup
                         payloads[destinationID] = EntityPayload(
                             platform: .bluesky,
                             data: [
                                 "handle": username,
-                                "did": "",  // Would need to resolve via search
+                                "did": "",  // Will be resolved in background
                             ]
                         )
+                        
+                        // Trigger background resolution
+                        if let account = selectedAccount(for: .bluesky) {
+                            Task {
+                                do {
+                                    let did = try await socialServiceManager.blueskyService.resolveHandle(handle: username, account: account)
+                                    await MainActor.run {
+                                        self.resolvePastedHandle(username, did: did)
+                                    }
+                                } catch {
+                                    print("⚠️ Failed to resolve pasted handle @\(username): \(error)")
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -2263,6 +2349,29 @@ struct ComposeView: View {
         }
 
         return entities
+    }
+
+    /// Update a previously pasted handle with its resolved DID
+    private func resolvePastedHandle(_ handle: String, did: String) {
+        // Find entities with this handle and empty DID
+        var updated = false
+        for (index, entity) in composerTextModel.entities.enumerated() {
+            if entity.kind == .mention {
+                for (destID, payload) in entity.payloadByDestination {
+                    if payload.platform == .bluesky && payload.data["handle"] as? String == handle && (payload.data["did"] as? String ?? "").isEmpty {
+                        var newPayload = payload
+                        newPayload.data["did"] = did
+                        composerTextModel.entities[index].payloadByDestination[destID] = newPayload
+                        updated = true
+                    }
+                }
+            }
+        }
+        
+        if updated {
+            composerTextModel.documentRevision += 1
+            print("✅ Resolved DID for pasted handle @\(handle): \(did)")
+        }
     }
 
     // MARK: - Thread Context Updates
@@ -2345,8 +2454,8 @@ struct ComposeView: View {
             "🔍 Autocomplete accounts: \(currentAccounts.map { "\($0.platform.rawValue):\($0.id)" }.joined(separator: ", "))"
         )
         print("🔍 Token scope: \(token.scope.joined(separator: ", "))")
-        print("🔍 Mastodon service available: \(socialServiceManager.mastodonService != nil)")
-        print("🔍 Bluesky service available: \(socialServiceManager.blueskyService != nil)")
+        print("🔍 Mastodon service available: true")
+        print("🔍 Bluesky service available: true")
 
         // Always update service to ensure it has latest accounts and services
         // This ensures both Mastodon and Bluesky are searched if accounts are available
@@ -2484,10 +2593,6 @@ struct ComposeView: View {
             return
         }
 
-        // Get the original text and entities for undo
-        let originalText = composerTextModel.text
-        let originalEntities = composerTextModel.entities
-
         // Apply atomic replace
         composerTextModel.replace(
             range: token.replaceRange, with: suggestion.displayText, entities: [entity])
@@ -2576,6 +2681,8 @@ struct DraftsListView: View {
     @EnvironmentObject var draftStore: DraftStore
     let onSelect: (DraftPost) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var draftToRename: DraftPost? = nil
+    @State private var newName: String = ""
 
     var body: some View {
         NavigationStack {
@@ -2584,11 +2691,35 @@ struct DraftsListView: View {
                     Button(action: {
                         onSelect(draft)
                     }) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            let firstPostText = draft.posts.first?.text ?? ""
-                            Text(firstPostText.isEmpty ? "(No content)" : firstPostText)
-                                .lineLimit(2)
-                                .font(.body)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                if draft.isPinned {
+                                    Image(systemName: "pin.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.orange)
+                                }
+                                
+                                if let name = draft.name {
+                                    Text(name)
+                                        .font(.headline)
+                                        .lineLimit(1)
+                                } else {
+                                    let firstPostText = draft.posts.first?.text ?? ""
+                                    Text(firstPostText.isEmpty ? "(No content)" : firstPostText)
+                                        .lineLimit(1)
+                                        .font(.headline)
+                                }
+                            }
+
+                            if draft.name != nil {
+                                let firstPostText = draft.posts.first?.text ?? ""
+                                if !firstPostText.isEmpty {
+                                    Text(firstPostText)
+                                        .lineLimit(1)
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
 
                             HStack {
                                 Text(
@@ -2619,10 +2750,50 @@ struct DraftsListView: View {
                         }
                         .padding(.vertical, 4)
                     }
-                }
-                .onDelete { indexSet in
-                    for index in indexSet {
-                        draftStore.deleteDraft(draftStore.drafts[index])
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            draftStore.togglePin(draft)
+                        } label: {
+                            Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
+                        }
+                        .tint(.orange)
+                    }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            draftStore.deleteDraft(draft)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                        
+                        Button {
+                            draftToRename = draft
+                            newName = draft.name ?? ""
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
+                    .contextMenu {
+                        Button {
+                            draftStore.togglePin(draft)
+                        } label: {
+                            Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
+                        }
+                        
+                        Button {
+                            draftToRename = draft
+                            newName = draft.name ?? ""
+                        } label: {
+                            Label("Rename", systemImage: "pencil")
+                        }
+                        
+                        Divider()
+                        
+                        Button(role: .destructive) {
+                            draftStore.deleteDraft(draft)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
                     }
                 }
             }
@@ -2636,6 +2807,18 @@ struct DraftsListView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
+                }
+            }
+            .alert("Rename Draft", isPresented: Binding(get: { draftToRename != nil }, set: { if !$0 { draftToRename = nil } })) {
+                TextField("Draft Name", text: $newName)
+                Button("Cancel", role: .cancel) {
+                    draftToRename = nil
+                }
+                Button("Rename") {
+                    if let draft = draftToRename {
+                        draftStore.renameDraft(draft, newName: newName)
+                    }
+                    draftToRename = nil
                 }
             }
         }
@@ -2696,6 +2879,66 @@ struct PhotoPicker: UIViewControllerRepresentable {
                     self.parent.selectedImages = Array(
                         self.parent.selectedImages.prefix(self.parent.maxImages))
                 }
+            }
+        }
+    }
+}
+import SwiftUI
+
+struct LinkInputDialog: View {
+    @Binding var isPresented: Bool
+    @State private var url: String = ""
+    @State private var displayText: String = ""
+    var onInsert: (String, String) -> Void
+    
+    // Auto-focus the URL field
+    @FocusState private var isUrlFocused: Bool
+    
+    init(isPresented: Binding<Bool>, initialText: String = "", onInsert: @escaping (String, String) -> Void) {
+        self._isPresented = isPresented
+        self._displayText = State(initialValue: initialText)
+        self.onInsert = onInsert
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Link Details")) {
+                    TextField("URL (https://...)", text: $url)
+                        .keyboardType(.URL)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
+                        .focused($isUrlFocused)
+                    
+                    TextField("Display Text", text: $displayText)
+                }
+            }
+            .navigationTitle("Insert Link")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Insert") {
+                        if !url.isEmpty {
+                            // Ensure URL has scheme
+                            var finalURL = url
+                            if !finalURL.lowercased().hasPrefix("http://") && !finalURL.lowercased().hasPrefix("https://") {
+                                finalURL = "https://" + finalURL
+                            }
+                            onInsert(finalURL, displayText.isEmpty ? url : displayText)
+                        }
+                        isPresented = false
+                    }
+                    .disabled(url.isEmpty)
+                    .fontWeight(.bold)
+                }
+            }
+            .onAppear {
+                isUrlFocused = true
             }
         }
     }

@@ -883,6 +883,35 @@ public final class BlueskyService: Sendable {
         return try JSONDecoder().decode(BlueskySearchActorsResponse.self, from: data)
     }
 
+    /// Resolve a handle to a DID
+    public func resolveHandle(handle: String, account: SocialAccount) async throws -> String {
+        let accessToken = try await account.getValidAccessToken()
+        
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+        
+        var components = URLComponents(string: "https://\(serverURLString)/xrpc/com.atproto.identity.resolveHandle")!
+        components.queryItems = [URLQueryItem(name: "handle", value: handle)]
+        
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NetworkError.apiError("Resolve handle failed")
+        }
+        
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let did = json["did"] as? String else {
+            throw NetworkError.decodingError
+        }
+        
+        return did
+    }
+
     /// Fetch notifications from Bluesky
     public func fetchNotifications(
         for account: SocialAccount, limit: Int = 40, cursor: String? = nil
@@ -3547,6 +3576,7 @@ public final class BlueskyService: Sendable {
         mediaAttachments: [Data] = [],
         mediaAltTexts: [String] = [],
         account: SocialAccount,
+        root: BlueskyStrongRef? = nil,
         composerTextModel: ComposerTextModel? = nil
     ) async throws -> Post {
         guard let accessToken = account.getAccessToken() else {
@@ -3618,21 +3648,28 @@ public final class BlueskyService: Sendable {
             }
         }
         
+        // If the caller provides a root reference (e.g. when creating a multi-post thread),
+        // preserve it so all replies share a stable root across the thread.
+        let parentRef: [String: Any] = [
+            "uri": post.platformSpecificId,
+            "cid": post.cid ?? post.platformSpecificId.components(separatedBy: "/").last
+                ?? "",
+        ]
+        let rootRef: [String: Any] = [
+            "uri": root?.uri ?? post.platformSpecificId,
+            "cid": root?.cid
+                ?? post.cid
+                ?? post.platformSpecificId.components(separatedBy: "/").last
+                ?? "",
+        ]
+
         var record: [String: Any] = [
             "$type": "app.bsky.feed.post",
             "text": finalContent,
             "createdAt": ISO8601DateFormatter().string(from: Date()),
             "reply": [
-                "root": [
-                    "uri": post.platformSpecificId,
-                    "cid": post.cid ?? post.platformSpecificId.components(separatedBy: "/").last
-                        ?? "",
-                ],
-                "parent": [
-                    "uri": post.platformSpecificId,
-                    "cid": post.cid ?? post.platformSpecificId.components(separatedBy: "/").last
-                        ?? "",
-                ],
+                "root": rootRef,
+                "parent": parentRef,
             ],
         ]
         

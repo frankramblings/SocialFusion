@@ -331,7 +331,7 @@ private struct SingleImageView: View {
                     )
             } else {
                 // Actual thumbnail with matchedGeometryEffect
-                // SmartMediaView handles aspect ratio and sizing internally - no redundant constraints needed
+                // ZERO LAYOUT SHIFT: Pass stableAspectRatio to prevent height changes after load
                 SmartMediaView(
                     attachment: attachment,
                     contentMode: .fit,
@@ -340,6 +340,7 @@ private struct SingleImageView: View {
                     cornerRadius: MediaConstants.CornerRadius.feed,
                     heroID: heroID,
                     mediaNamespace: mediaNamespace,
+                    stableAspectRatio: attachment.stableAspectRatio,  // Prevents layout shift
                     onTap: onTap
                 )
                 .background(
@@ -481,6 +482,7 @@ private struct GridImageView: View {
                     )
             } else {
                 // Actual thumbnail with matchedGeometryEffect
+                // Grid items have fixed size, but pass stableAspectRatio for internal rendering consistency
                 SmartMediaView(
                     attachment: attachment,
                     contentMode: SmartMediaView.ContentMode.fill,
@@ -489,6 +491,7 @@ private struct GridImageView: View {
                     cornerRadius: MediaConstants.CornerRadius.feed,
                     heroID: heroID,
                     mediaNamespace: mediaNamespace,
+                    stableAspectRatio: attachment.stableAspectRatio,
                     onTap: { onTap(attachment) }
                 )
                 .background(

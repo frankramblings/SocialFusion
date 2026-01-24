@@ -1,7 +1,6 @@
 import Foundation
 
 /// Search provider for Mastodon instances
-@MainActor
 public class MastodonSearchProvider: SearchProviding {
   private let mastodonService: MastodonService
   private let account: SocialAccount
@@ -263,8 +262,6 @@ public class MastodonSearchProvider: SearchProviding {
     if input.hasPrefix("@") && input.contains("@") && !input.hasPrefix("@@") {
       let components = input.dropFirst().split(separator: "@")
       if components.count == 2 {
-        let username = String(components[0])
-        let instance = String(components[1])
         // Search for user
         let result = try await mastodonService.search(
           query: input,

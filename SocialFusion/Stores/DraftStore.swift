@@ -15,7 +15,12 @@ public class DraftStore: ObservableObject {
         loadDrafts()
     }
     
-    public func saveDraft(posts: [ThreadPost], platforms: Set<SocialPlatform>, replyingToId: String? = nil) {
+    public func saveDraft(
+        posts: [ThreadPost], 
+        platforms: Set<SocialPlatform>, 
+        replyingToId: String? = nil,
+        selectedAccounts: [SocialPlatform: String] = [:]
+    ) {
         let draftPosts = posts.map { post in
             ThreadPostDraft(
                 text: post.text,
@@ -29,15 +34,41 @@ public class DraftStore: ObservableObject {
         
         // Use first post's CW for legacy support
         let firstPost = posts.first ?? ThreadPost()
-        let draft = DraftPost(
+        var draft = DraftPost(
             posts: draftPosts,
             selectedPlatforms: platforms,
             replyingToId: replyingToId,
             cwEnabled: firstPost.cwEnabled,
             cwText: firstPost.cwText
         )
+        draft.selectedAccounts = selectedAccounts
         drafts.insert(draft, at: 0)
+        sortDrafts()
         persist()
+    }
+    
+    public func renameDraft(_ draft: DraftPost, newName: String) {
+        if let index = drafts.firstIndex(where: { $0.id == draft.id }) {
+            drafts[index].name = newName.isEmpty ? nil : newName
+            persist()
+        }
+    }
+    
+    public func togglePin(_ draft: DraftPost) {
+        if let index = drafts.firstIndex(where: { $0.id == draft.id }) {
+            drafts[index].isPinned.toggle()
+            sortDrafts()
+            persist()
+        }
+    }
+    
+    private func sortDrafts() {
+        drafts.sort { lhs, rhs in
+            if lhs.isPinned != rhs.isPinned {
+                return lhs.isPinned && !rhs.isPinned
+            }
+            return lhs.createdAt > rhs.createdAt
+        }
     }
     
     public func deleteDraft(_ draft: DraftPost) {
@@ -66,6 +97,7 @@ public class DraftStore: ObservableObject {
         do {
             let data = try Data(contentsOf: draftsURL)
             drafts = try JSONDecoder().decode([DraftPost].self, from: data)
+            sortDrafts()
         } catch {
             print("Failed to load drafts: \(error)")
         }

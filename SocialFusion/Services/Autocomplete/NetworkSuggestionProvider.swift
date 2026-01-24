@@ -2,8 +2,7 @@ import Foundation
 
 /// Provider for network-based suggestions (Mastodon/Bluesky API calls)
 /// Wraps existing network search logic from AutocompleteService
-@MainActor
-public class NetworkSuggestionProvider: SuggestionProvider {
+public final class NetworkSuggestionProvider: SuggestionProvider, @unchecked Sendable {
   
   public let priority: Int = 3 // Lowest priority (after local history and timeline context)
   
@@ -58,7 +57,9 @@ public class NetworkSuggestionProvider: SuggestionProvider {
           
         case ":":
           // Emoji search (local, no network error)
-          let emojiService = EmojiService(mastodonService: mastodonService, accounts: [account])
+          let emojiService = await MainActor.run {
+            EmojiService(mastodonService: mastodonService, accounts: [account])
+          }
           let emojiSuggestions = await emojiService.searchEmoji(query: token.query, account: account)
           suggestions.append(contentsOf: emojiSuggestions)
           

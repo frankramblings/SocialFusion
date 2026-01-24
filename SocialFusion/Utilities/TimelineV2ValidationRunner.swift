@@ -92,10 +92,6 @@ class TimelineV2ValidationRunner: ObservableObject {
 
             // Final Assessment
             await generateFinalReport()
-
-        } catch {
-            logMessage("❌ Validation failed with error: \(error.localizedDescription)")
-            overallStatus = .failed
         }
 
         isRunning = false

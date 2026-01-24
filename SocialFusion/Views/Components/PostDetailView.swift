@@ -148,7 +148,7 @@ struct PostDetailView: View {
                             updateScrollState(offset: offset)
                         }
                     }
-                    .onChange(of: scrollTrigger) { _ in
+                    .onChange(of: scrollTrigger) { _, _ in
                         if let targetID = scrollTargetID {
                             withAnimation(.easeInOut(duration: 0.1)) {
                                 proxy.scrollTo(targetID, anchor: .top)
@@ -500,10 +500,6 @@ struct PostDetailView: View {
     @ViewBuilder
     private func quickReplyAccountMenu(for platform: SocialPlatform) -> some View {
         let accounts = replyAccounts(for: platform)
-        let currentLabel =
-            selectedReplyAccount(for: platform)?.displayName
-            ?? selectedReplyAccount(for: platform)?.username
-            ?? "Select account"
 
         if accounts.isEmpty {
             HStack(spacing: 6) {
@@ -706,24 +702,20 @@ struct PostDetailView: View {
     }
     
     private func handleShareAsImage(for post: Post) async {
-        do {
-            // Fetch thread context if available
-            let threadContext = try? await serviceManager.fetchThreadContext(for: post)
-            
-            // Determine if this is a reply
-            let isReply = post.inReplyToID != nil
-            
-            await MainActor.run {
-                // Create view model with post and context
-                shareAsImageViewModel = ShareAsImageViewModel(
-                    post: post,
-                    threadContext: threadContext,
-                    isReply: isReply
-                )
-                showShareAsImageSheet = true
-            }
-        } catch {
-            NSLog("Failed to build share image view model: %@", error.localizedDescription)
+        // Fetch thread context if available
+        let threadContext = try? await serviceManager.fetchThreadContext(for: post)
+        
+        // Determine if this is a reply
+        let isReply = post.inReplyToID != nil
+        
+        await MainActor.run {
+            // Create view model with post and context
+            shareAsImageViewModel = ShareAsImageViewModel(
+                post: post,
+                threadContext: threadContext,
+                isReply: isReply
+            )
+            showShareAsImageSheet = true
         }
     }
 
@@ -1203,10 +1195,14 @@ struct PostRow: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     HStack(spacing: 4) {
-                        Text(post.authorName)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.primary)
-                            .lineLimit(1)
+                        EmojiDisplayNameText(
+                            post.authorName,
+                            emojiMap: post.authorEmojiMap,
+                            font: .subheadline,
+                            fontWeight: .semibold,
+                            foregroundColor: .primary,
+                            lineLimit: 1
+                        )
 
                         Text("@\(post.authorUsername)")
                             .font(.caption)

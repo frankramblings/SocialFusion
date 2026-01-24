@@ -2,8 +2,7 @@ import Foundation
 
 /// Provider for local history (recent/frequently used) suggestions
 /// Wraps AutocompleteCache logic
-@MainActor
-public class LocalHistoryProvider: SuggestionProvider {
+public final class LocalHistoryProvider: SuggestionProvider, @unchecked Sendable {
   
   public let priority: Int = 1 // Highest priority
   

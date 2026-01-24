@@ -393,9 +393,14 @@ struct NotificationRow: View {
                         }
                         
                         VStack(alignment: .leading) {
-                            Text(notification.fromAccount.displayName ?? notification.fromAccount.username)
-                                .font(.subheadline)
-                                .fontWeight(.bold)
+                            EmojiDisplayNameText(
+                                notification.fromAccount.displayName ?? notification.fromAccount.username,
+                                emojiMap: notification.fromAccount.displayNameEmojiMap,
+                                font: .subheadline,
+                                fontWeight: .bold,
+                                foregroundColor: .primary,
+                                lineLimit: 1
+                            )
                             Text(notificationText)
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
@@ -674,11 +679,17 @@ struct DMConversationRow: View {
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(conversation.participant.displayName ?? conversation.participant.username)
-                        .font(.headline)
-                    
+                    EmojiDisplayNameText(
+                        conversation.participant.displayName ?? conversation.participant.username,
+                        emojiMap: conversation.participant.displayNameEmojiMap,
+                        font: .headline,
+                        fontWeight: .regular,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
+
                     Spacer()
-                    
+
                     Text(conversation.lastMessage.createdAt, style: .relative)
                         .font(.caption2)
                         .foregroundColor(.secondary)

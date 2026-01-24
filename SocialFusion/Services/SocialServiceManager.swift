@@ -1818,7 +1818,18 @@ public final class SocialServiceManager: ObservableObject {
                             let result = try await self.mastodonService.fetchNotifications(
                                 for: account)
                             return result.map { mNotif in
-                                AppNotification(
+                                // Extract emoji map from notification account
+                                let emojiMap: [String: String]? = {
+                                    guard let emojis = mNotif.account.emojis, !emojis.isEmpty else { return nil }
+                                    var map: [String: String] = [:]
+                                    for emoji in emojis {
+                                        let url = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+                                        if !url.isEmpty { map[emoji.shortcode] = url }
+                                    }
+                                    return map.isEmpty ? nil : map
+                                }()
+
+                                return AppNotification(
                                     id: mNotif.id,
                                     type: self.mapMastodonNotificationType(mNotif.type),
                                     createdAt: DateParser.parse(mNotif.createdAt) ?? Date(),
@@ -1827,7 +1838,8 @@ public final class SocialServiceManager: ObservableObject {
                                         id: mNotif.account.id,
                                         username: mNotif.account.acct,
                                         displayName: mNotif.account.displayName,
-                                        avatarURL: mNotif.account.avatar
+                                        avatarURL: mNotif.account.avatar,
+                                        displayNameEmojiMap: emojiMap
                                     ),
                                     post: mNotif.status.map {
                                         self.mastodonService.convertMastodonStatusToPost(
@@ -2053,6 +2065,18 @@ public final class SocialServiceManager: ObservableObject {
                 let relationship = relationshipLookup[acct.id]
                 let isBlocked =
                     (relationship?.blocking ?? false) || (relationship?.blockedBy ?? false)
+
+                // Extract display name emoji map
+                let emojiMap: [String: String]? = {
+                    guard let emojis = acct.emojis, !emojis.isEmpty else { return nil }
+                    var map: [String: String] = [:]
+                    for emoji in emojis {
+                        let url = emoji.staticUrl.isEmpty ? emoji.url : emoji.staticUrl
+                        if !url.isEmpty { map[emoji.shortcode] = url }
+                    }
+                    return map.isEmpty ? nil : map
+                }()
+
                 return User(
                     id: acct.id,
                     displayName: acct.displayName,
@@ -2061,7 +2085,8 @@ public final class SocialServiceManager: ObservableObject {
                     isFollowedByMe: relationship?.following ?? false,
                     followsMe: relationship?.followedBy ?? false,
                     isBlocked: isBlocked,
-                    boostedAt: nil
+                    boostedAt: nil,
+                    displayNameEmojiMap: emojiMap
                 )
             }
         case .bluesky:
@@ -2442,6 +2467,7 @@ public final class SocialServiceManager: ObservableObject {
         pollExpiresIn: Int? = nil,
         visibility: String = "public",
         accountOverride: SocialAccount? = nil,
+        blueskyRoot: BlueskyStrongRef? = nil,
         cwText: String? = nil,
         cwEnabled: Bool = false,
         attachmentSensitiveFlags: [Bool] = [],
@@ -2519,6 +2545,7 @@ public final class SocialServiceManager: ObservableObject {
                 mediaAttachments: mediaAttachments,
                 mediaAltTexts: mediaAltTexts,
                 account: account,
+                root: blueskyRoot,
                 composerTextModel: composerTextModel
             )
         }

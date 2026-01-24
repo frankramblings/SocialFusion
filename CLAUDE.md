@@ -104,7 +104,7 @@ SocialFusionApp (@main)
 
 1. Open `SocialFusion.xcodeproj` in Xcode
 2. Select the "SocialFusion" scheme
-3. Choose iPhone 16 Pro Simulator (or your preferred iOS 17+ device)
+3. Choose iPhone 17 Pro Simulator (or your preferred iOS 17+ device)
 4. Build and Run (⌘R)
 
 **Note**: Requires Xcode 15+ and iOS 17+ SDK

@@ -71,6 +71,35 @@ public struct MastodonPost: Codable, Identifiable {
         public let textUrl: String?
         public let description: String?
         public let blurhash: String?
+        public let meta: MastodonMediaMeta?  // Contains dimension info from Mastodon API
+
+        enum CodingKeys: String, CodingKey {
+            case id, type, url, description, blurhash, meta
+            case previewUrl = "preview_url"
+            case remoteUrl = "remote_url"
+            case textUrl = "text_url"
+        }
+
+        /// Best available width from meta.small or meta.original
+        public var bestWidth: Int? {
+            meta?.small?.width ?? meta?.original?.width
+        }
+
+        /// Best available height from meta.small or meta.original
+        public var bestHeight: Int? {
+            meta?.small?.height ?? meta?.original?.height
+        }
+
+        /// Computed aspect ratio from best available dimensions
+        public var aspectRatio: Double? {
+            // First try meta.small or meta.original aspect if directly provided
+            if let aspect = meta?.small?.aspect ?? meta?.original?.aspect, aspect > 0 {
+                return aspect
+            }
+            // Otherwise compute from dimensions
+            guard let w = bestWidth, let h = bestHeight, h > 0 else { return nil }
+            return Double(w) / Double(h)
+        }
     }
 
     public struct MastodonMention: Codable {

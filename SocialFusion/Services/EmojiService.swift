@@ -1,14 +1,15 @@
 import Foundation
 
 /// Fetches and caches custom emoji from Mastodon instances
-@MainActor
 public class EmojiService {
+  public static let shared = EmojiService(mastodonService: nil)
+  
   private var emojiCache: [String: [MastodonEmoji]] = [:] // Key: account ID
   private var recentlyUsed: [String] = [] // Recently used emoji shortcodes
   private let maxRecentlyUsed = 50
   
-  private let mastodonService: MastodonService?
-  private let accounts: [SocialAccount]
+  public var mastodonService: MastodonService?
+  public var accounts: [SocialAccount]
   
   public init(mastodonService: MastodonService?, accounts: [SocialAccount] = []) {
     self.mastodonService = mastodonService
@@ -16,6 +17,7 @@ public class EmojiService {
   }
   
   /// Fetch custom emoji for an account
+  @MainActor
   public func fetchEmoji(for account: SocialAccount) async throws -> [MastodonEmoji] {
     // Check cache first
     if let cached = emojiCache[account.id] {
@@ -87,6 +89,7 @@ public class EmojiService {
   }
   
   /// Search emoji by shortcode
+  @MainActor
   public func searchEmoji(query: String, account: SocialAccount) async -> [AutocompleteSuggestion] {
     let emojis = try? await fetchEmoji(for: account)
     let queryLower = query.lowercased()
@@ -96,7 +99,6 @@ public class EmojiService {
     // Search custom emoji
     if let emojis = emojis {
       for emoji in emojis where emoji.shortcode.lowercased().contains(queryLower) {
-        let emojiData = EmojiData(shortcode: ":\(emoji.shortcode):", emojiURL: emoji.url)
         let payload = EntityPayload(platform: .mastodon, data: ["shortcode": emoji.shortcode, "url": emoji.url])
         
         suggestions.append(AutocompleteSuggestion(
@@ -179,6 +181,7 @@ public class EmojiService {
       ("🤩", ["star", "struck"]),
       ("🥳", ["partying", "face", "party"]),
       ("😏", ["smirking", "face"]),
+      ("😏", ["smirking", "face"]),
       ("😒", ["unamused", "face"]),
       ("😞", ["disappointed", "face"]),
       ("😔", ["pensive", "face"]),
@@ -233,7 +236,6 @@ public class EmojiService {
       ("🤢", ["nauseated", "face"]),
       ("🤮", ["face", "vomiting"]),
       ("🤧", ["sneezing", "face"]),
-      ("🥳", ["partying", "face"]),
       ("👍", ["thumbs", "up", "like"]),
       ("👎", ["thumbs", "down", "dislike"]),
       ("👌", ["ok", "hand"]),
@@ -318,6 +320,7 @@ public class EmojiService {
   }
   
   /// Add emoji to recently used
+  @MainActor
   public func addRecentlyUsed(_ shortcode: String) {
     recentlyUsed.removeAll { $0 == shortcode }
     recentlyUsed.insert(shortcode, at: 0)
@@ -325,6 +328,7 @@ public class EmojiService {
   }
   
   /// Clear cache for account
+  @MainActor
   public func clearCache(accountId: String) {
     emojiCache.removeValue(forKey: accountId)
   }

@@ -63,11 +63,11 @@ Patterns:
 
 Xcode project (iOS app):
 - Build:
-  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 15' build
+  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
 - Test:
-  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 15' test
+  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 - Single test example:
-  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 15' \
+  xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
     -only-testing:SocialFusionTests/AppLoggerTests/testLogLevels test
 - Clean builds:
   xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion clean && \

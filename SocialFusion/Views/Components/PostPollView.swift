@@ -112,7 +112,7 @@ struct PostPollView: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color(.separator), lineWidth: 1)
         )
-        .onChange(of: poll) { updatedPoll in
+        .onChange(of: poll) { _, updatedPoll in
             hasVoted = updatedPoll.voted ?? false
             selectedOptions = Set(updatedPoll.ownVotes ?? [])
             if updatedPoll.voted ?? false {

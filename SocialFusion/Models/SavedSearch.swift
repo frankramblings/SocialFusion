@@ -48,7 +48,6 @@ public struct SavedSearch: Identifiable, Codable, Hashable {
 // MARK: - Saved Search Storage
 
 /// Manages persistence of saved searches
-@MainActor
 public class SavedSearchStorage {
   public static let shared = SavedSearchStorage()
   

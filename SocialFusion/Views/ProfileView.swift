@@ -388,7 +388,7 @@ struct EditProfileView: View {
                                 Text("Change Photo")
                                     .font(.subheadline)
                             }
-                            .onChange(of: selectedItem) { newItem in
+                            .onChange(of: selectedItem) { _, newItem in
                                 Task {
                                     if let data = try? await newItem?.loadTransferable(
                                         type: Data.self)

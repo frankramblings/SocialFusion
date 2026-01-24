@@ -11,6 +11,10 @@ public class ShareAsImageViewModel: ObservableObject {
     @Published var renderingProgress: String = ""
     @Published var errorMessage: String?
 
+    // Auto-selected preset and pagination
+    @Published var autoSelectedPreset: ShareCanvasPreset?
+    @Published var pageCount: Int = 1
+
     // Preview-driven configuration
     @Published var includeEarlier: Bool = false
     @Published var includeLater: Bool = false
@@ -95,10 +99,17 @@ public class ShareAsImageViewModel: ObservableObject {
 
             if Task.isCancelled { return }
 
-            // Render preview
+            // Render preview with auto-selected preset
             renderingProgress = "Rendering preview..."
-            if let image = ShareImageRenderer.renderPreview(document: updatedDocument) {
+            let (image, preset) = ShareImageRenderer.renderAutoPreview(document: updatedDocument)
+
+            if let image = image {
                 if !Task.isCancelled {
+                    // Update preset and page count
+                    autoSelectedPreset = preset
+                    let pages = ThreadPaginator.paginate(document: updatedDocument)
+                    pageCount = pages.count
+
                     // Use withAnimation for smooth crossfade
                     withAnimation(.easeInOut(duration: 0.2)) {
                         previewImage = image
@@ -120,7 +131,8 @@ public class ShareAsImageViewModel: ObservableObject {
 
     // MARK: - Export
 
-    public func exportImage() async throws -> (image: UIImage, url: URL) {
+    /// Export with auto-selected preset (returns all pages for multi-page exports)
+    public func exportImages() async throws -> ShareExportResult {
         isRendering = true
         errorMessage = nil
         renderingProgress = "Preparing export..."
@@ -136,7 +148,18 @@ public class ShareAsImageViewModel: ObservableObject {
         await ShareImagePreloader.preloadImages(for: document)
 
         renderingProgress = "Rendering image..."
-        let image = try ShareImageRenderer.renderExport(document: document)
+        let result = try ShareImageRenderer.renderAutoExport(document: document)
+
+        return result
+    }
+
+    /// Legacy export method for backward compatibility
+    public func exportImage() async throws -> (image: UIImage, url: URL) {
+        let result = try await exportImages()
+
+        guard let image = result.image else {
+            throw ShareImageRenderer.RenderError.failedToRender
+        }
 
         renderingProgress = "Saving..."
 
@@ -149,6 +172,22 @@ public class ShareAsImageViewModel: ObservableObject {
         let url = try ShareImageRenderer.saveToTempFile(image, filename: filename)
 
         return (image, url)
+    }
+
+    /// Export and save all pages, returning URLs
+    public func exportAndSaveAll() async throws -> (images: [UIImage], urls: [URL]) {
+        let result = try await exportImages()
+
+        renderingProgress = "Saving..."
+
+        let baseFilename = shareImageFilename(
+            context: isReply ? .reply : (includeLater ? .thread : .post),
+            authorHandle: hideUsernames ? nil : originalPost.authorUsername
+        )
+
+        let urls = try ShareImageRenderer.saveAllToTempFiles(result.images, baseFilename: baseFilename)
+
+        return (result.images, urls)
     }
 
     // MARK: - Document Building

@@ -114,7 +114,7 @@ struct LegacyFullscreenMediaView: View {
                         currentIndex = initialIndex
                         setupMedia()
                     }
-                    .onChange(of: currentIndex) { _ in
+                    .onChange(of: currentIndex) { _, _ in
                         withAnimation {
                             scale = 1.0
                             offset = .zero
@@ -122,7 +122,7 @@ struct LegacyFullscreenMediaView: View {
                         lastOffset = .zero
                         setupMedia()
                     }
-                    .onChange(of: scenePhase) { newPhase in
+                    .onChange(of: scenePhase) { _, newPhase in
                         switch newPhase {
                         case .active:
                             resumeVideoPlayback()

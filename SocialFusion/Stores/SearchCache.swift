@@ -1,7 +1,6 @@
 import Foundation
 
 /// LRU cache for search results
-@MainActor
 public class SearchCache {
   public static let shared = SearchCache()
   

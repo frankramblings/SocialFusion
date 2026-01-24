@@ -97,3 +97,30 @@ public struct ShareImageDocument {
         return result
     }
 }
+
+// MARK: - Export Result
+
+/// Result of exporting share images (supports multi-page output)
+public struct ShareExportResult {
+    /// The exported images (one per page)
+    public let images: [UIImage]
+    /// The preset used for rendering
+    public let preset: ShareCanvasPreset
+    /// Number of pages
+    public var pageCount: Int { images.count }
+    /// Whether this is a multi-page export
+    public var isMultiPage: Bool { images.count > 1 }
+
+    /// Convenience accessor for single-page exports
+    public var image: UIImage? { images.first }
+
+    public init(images: [UIImage], preset: ShareCanvasPreset) {
+        self.images = images
+        self.preset = preset
+    }
+
+    /// Create a single-image result
+    public static func single(_ image: UIImage, preset: ShareCanvasPreset) -> ShareExportResult {
+        ShareExportResult(images: [image], preset: preset)
+    }
+}

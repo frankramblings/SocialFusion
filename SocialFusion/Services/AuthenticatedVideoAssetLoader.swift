@@ -186,6 +186,23 @@ class AuthenticatedVideoAssetLoader: NSObject, AVAssetResourceLoaderDelegate {
         // Check if this is a content information-only request (no data request)
         // CRITICAL: Handle content information requests immediately to prevent AVFoundation crashes
         // AVFoundation needs content information before it can initialize the player item
+        if let contentRequest = loadingRequest.contentInformationRequest {
+            let isHLSPlaylist = actualURL.absoluteString.contains(".m3u8") || actualURL.pathExtension == "m3u8"
+            let isHLSSegment = actualURL.absoluteString.contains(".ts") || actualURL.pathExtension == "ts"
+            
+            if isHLSPlaylist || isHLSSegment {
+                logger.info("🔐 HLS content info request - providing synchronously")
+                contentRequest.contentType = isHLSPlaylist ? "application/vnd.apple.mpegurl" : "video/mp2t"
+                contentRequest.isByteRangeAccessSupported = true
+                // We don't know the exact length yet, but for HLS it often doesn't matter or will be updated
+                
+                if loadingRequest.dataRequest == nil {
+                    loadingRequest.finishLoading()
+                    return true
+                }
+            }
+        }
+
         let isContentInfoOnly =
             loadingRequest.contentInformationRequest != nil && loadingRequest.dataRequest == nil
         if isContentInfoOnly {

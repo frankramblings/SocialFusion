@@ -1,0 +1,94 @@
+WHAT TO TEST - Post-Commit 6d0b365 Build
+Changes After: Commit 6d0b365
+
+═══════════════════════════════════════════════════════════════
+
+NEW: Unified Search - Cross-Platform Results
+───────────────────────────────────────────────────────────────
+Access: Tap Search tab/icon → Search for posts, users, or tags
+
+• Search for keywords/hashtags - should show results from BOTH Mastodon AND Bluesky
+• Search for usernames - should show users from both networks
+• Search for hashtags - should show results from both networks
+• Test with posts containing images, videos, link previews, quote posts
+• Tap results from both networks - verify they open correctly
+• Test on slow network - verify graceful loading states
+
+Look for: Results from both networks appear, no crashes on malformed posts, graceful error handling
+
+═══════════════════════════════════════════════════════════════
+
+NEW: Muscle Memory Composer Features
+───────────────────────────────────────────────────────────────
+Access: Tap Compose button → Start typing
+
+• Type @username or #hashtag - verify autocomplete appears
+• Paste text with mentions/hashtags/URLs - verify entities created automatically
+• Compose with platform conflicts (e.g., polls on Mastodon) - verify warning banner appears
+• Keyboard shortcuts (Mac/iPad): Cmd+Enter to post, Cmd+K/L for links, Cmd+. for emoji
+• Type :emoji: - verify custom Mastodon emoji autocomplete appears
+• Close/reopen app - verify autocomplete history persists
+• Test undo/redo - verify entity ranges update correctly
+
+Look for: Smooth autocomplete, correct entity detection, conflict warnings, keyboard shortcuts work
+
+═══════════════════════════════════════════════════════════════
+
+IMPROVED: Custom Mastodon Emoji Rendering
+───────────────────────────────────────────────────────────────
+Access: View any post/profile with custom Mastodon emoji
+
+• View profiles with custom emoji (e.g., :paw:, :blobcatcoffee:) - verify emoji render as images (not text)
+• Check in: Profile headers, post author names, search results, quote posts, account selectors
+• Test boosted posts - verify emoji render in author names when data available
+• Test accounts without emoji - verify graceful fallback to plain text
+
+Look for: Emoji render as images (not :paw::paw: text), consistent across all UI locations
+
+═══════════════════════════════════════════════════════════════
+
+NEW: Timeline-Aware Autocomplete
+───────────────────────────────────────────────────────────────
+Access: Compose view → Type @ or # → Autocomplete appears
+
+• Type @ - verify suggestions prioritize accounts from your timeline
+• Type # - verify suggestions prioritize hashtags from your timeline
+• Reply to a post - verify thread author appears in suggestions
+• View autocomplete overlay - verify platform logos appear (not text badges)
+• Test Mastodon autocomplete with API errors - verify fallback works gracefully
+
+Look for: Relevant suggestions based on timeline context, platform logos display correctly, no crashes
+
+═══════════════════════════════════════════════════════════════
+
+GENERAL REGRESSION TESTING
+───────────────────────────────────────────────────────────────
+• Timeline: Posts load, pull-to-refresh, infinite scroll, post actions (like/boost/reply)
+• Account management: Account switching, multiple accounts, account-specific timelines
+• Media: Images, videos, GIFs, fullscreen view, correct aspect ratios
+• Posting: Compose, reply, boost, edit, delete
+• Cross-platform: Test both Mastodon and Bluesky functionality
+
+═══════════════════════════════════════════════════════════════
+
+CRITICAL ISSUES TO REPORT IMMEDIATELY
+───────────────────────────────────────────────────────────────
+• App crashes
+• Data loss
+• Posts not loading
+• Unable to post/share
+• Search completely broken
+• Autocomplete crashes or freezes
+• Navigation completely broken
+• Severe performance issues
+
+═══════════════════════════════════════════════════════════════
+
+When reporting issues, include:
+• Device model and iOS version
+• Steps to reproduce
+• Expected vs actual behavior
+• Screenshots/videos if applicable
+• Frequency (every time or intermittent)
+
+Thank you for testing SocialFusion!

@@ -9,12 +9,7 @@ public enum OffsetMapper {
   ///   - nsRange: The UTF-16 range to convert
   /// - Returns: NSRange representing UTF-8 byte offsets, or nil if conversion fails
   public static func nsRangeToUTF8ByteRange(text: String, nsRange: NSRange) -> NSRange? {
-    guard let utf16Range = Range(nsRange, in: text) else {
-      return nil
-    }
-    
-    let utf8Start = text.utf8.distance(from: text.utf8.startIndex, to: text.utf8.index(text.startIndex, offsetBy: text.distance(from: text.startIndex, to: utf16Range.lowerBound)))
-    let utf8End = text.utf8.distance(from: text.utf8.startIndex, to: text.utf8.index(text.startIndex, offsetBy: text.distance(from: text.startIndex, to: utf16Range.upperBound)))
+    _ = Range(nsRange, in: text)
     
     // More reliable conversion using NSString
     let nsString = text as NSString
