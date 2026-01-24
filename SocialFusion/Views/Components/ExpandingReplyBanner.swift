@@ -406,8 +406,7 @@ struct ExpandingReplyBanner: View {
                 pressing: { pressing in
                     isPressed = pressing
                     if pressing {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
+                        HapticEngine.tap.trigger()
                     }
                 }, perform: {}
             )
@@ -462,9 +461,7 @@ struct ExpandingReplyBanner: View {
 
     private func handleBannerTap() {
         // Provide refined haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.prepare()
-        impactFeedback.impactOccurred()
+        HapticEngine.tap.trigger()
 
         // Animate the expansion state change with streamlined animation
         withAnimation(isExpanded ? collapseAnimation : expandAnimation) {

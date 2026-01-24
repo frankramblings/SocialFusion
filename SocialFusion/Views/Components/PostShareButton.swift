@@ -11,8 +11,7 @@ struct PostShareButton: View {
     var body: some View {
         Button(action: {
             // Add haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            HapticEngine.tap.trigger()
 
             // Show brief visual confirmation
             withAnimation(.easeInOut(duration: 0.2)) {

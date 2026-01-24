@@ -140,9 +140,7 @@ struct ParentPostPreview: View {
             },
             perform: {
                 // Provide subtle haptic feedback on tap
-                let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                impactFeedback.prepare()
-                impactFeedback.impactOccurred()
+                HapticEngine.tap.trigger()
 
                 onTap?()
             })

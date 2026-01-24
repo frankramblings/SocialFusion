@@ -232,8 +232,7 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
                 pressing: { pressing in
                     isPressed = pressing
                     if pressing {
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-                        impactFeedback.impactOccurred()
+                        HapticEngine.tap.trigger()
                     }
                 }, perform: {}
             )
@@ -305,9 +304,7 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
     }
 
     private func handleBannerTap() {
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.prepare()
-        impactFeedback.impactOccurred()
+        HapticEngine.tap.trigger()
 
         withAnimation(isExpanded ? collapseAnimation : expandAnimation) {
             isExpanded.toggle()

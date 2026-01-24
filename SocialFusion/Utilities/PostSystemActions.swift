@@ -63,8 +63,7 @@ enum PostSystemActions {
     }
 
     private static func lightHaptic() {
-        let generator = UIImpactFeedbackGenerator(style: .light)
-        generator.impactOccurred()
+        HapticEngine.tap.trigger()
     }
 }
 

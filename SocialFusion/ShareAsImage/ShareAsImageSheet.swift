@@ -255,7 +255,7 @@ public struct ShareAsImageSheet: View {
             }
 
             // Provide haptic feedback
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            HapticEngine.success.trigger()
 
         } catch {
             await MainActor.run {
@@ -264,7 +264,7 @@ public struct ShareAsImageSheet: View {
             }
 
             // Provide haptic feedback
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            HapticEngine.error.trigger()
         }
     }
 }

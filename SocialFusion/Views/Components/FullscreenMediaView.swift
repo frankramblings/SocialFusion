@@ -295,7 +295,7 @@ struct FullscreenMediaView: View {
                                         withAnimation(.easeInOut(duration: 0.2)) {
                                             showAltText.toggle()
                                         }
-                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        HapticEngine.tap.trigger()
                                     }) {
                                         Text("ALT")
                                             .font(.caption2)
@@ -454,7 +454,7 @@ struct FullscreenMediaView: View {
         guard index < allMedia.count else { return }
         let attachment = allMedia[index]
         
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        HapticEngine.tap.trigger()
         isSharing = true
         
         Task {

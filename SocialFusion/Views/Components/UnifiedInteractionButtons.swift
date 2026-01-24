@@ -14,8 +14,7 @@ struct UnifiedLikeButton: View {
     var body: some View {
         Button {
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            HapticEngine.tap.trigger()
 
             Task { await onTap() }
         } label: {
@@ -97,8 +96,7 @@ struct UnifiedRepostButton: View {
     var body: some View {
         Button {
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            HapticEngine.tap.trigger()
 
             Task { await onTap() }
         } label: {
@@ -181,8 +179,7 @@ struct UnifiedReplyButton: View {
     var body: some View {
         Button {
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            HapticEngine.tap.trigger()
 
             Task { await onTap() }
         } label: {
@@ -282,8 +279,7 @@ struct UnifiedQuoteButton: View {
     var body: some View {
         Button {
             // Haptic feedback
-            let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-            impactFeedback.impactOccurred()
+            HapticEngine.tap.trigger()
 
             Task { await onTap() }
         } label: {
