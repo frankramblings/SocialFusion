@@ -275,8 +275,7 @@ struct AccountsView: View {
     // Toggle selection for an account
     private func toggleSelection(id: String) {
         // Add haptic feedback
-        let impactFeedback = UIImpactFeedbackGenerator(style: .light)
-        impactFeedback.impactOccurred()
+        HapticEngine.selection.trigger()
 
         if id == "all" {
             // If "all" is selected, clear other selections

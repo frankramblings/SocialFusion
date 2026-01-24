@@ -187,6 +187,7 @@ struct AccountTimelineView: View {
                 let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                 pendingAnchorRestoreId = anchorBefore
                 await controller.manualRefresh()
+                HapticEngine.tap.trigger()
             }
             .simultaneousGesture(
                 DragGesture()
@@ -229,7 +230,10 @@ struct AccountTimelineView: View {
                 .padding(.top, mergeOffsetCompensation)
                 .padding(.vertical)
             }
-            .refreshable { await controller.manualRefresh() }
+            .refreshable {
+                await controller.manualRefresh()
+                HapticEngine.tap.trigger()
+            }
             .simultaneousGesture(
                 DragGesture()
                     .onChanged { _ in

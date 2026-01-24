@@ -66,6 +66,7 @@
 		2F6E269E3FF982C5771A1FC6 /* MastodonSearchProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49E55C6D1D97D3E68BC6C51F /* MastodonSearchProvider.swift */; };
 		327CCF6C371ABB0974451152 /* PROFILE_IMAGE_LOADING_IMPROVEMENTS.md in Resources */ = {isa = PBXBuildFile; fileRef = 005A11BDDF8059DB64CF13D7 /* PROFILE_IMAGE_LOADING_IMPROVEMENTS.md */; };
 		345861287C5AEE4E9FBB3A3E /* HTMLString.swift in Sources */ = {isa = PBXBuildFile; fileRef = 300AA939D84D2C52B01BDE86 /* HTMLString.swift */; };
+		1A2B3C4D5E6F7A8B9C0D1E2F /* HapticEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F7A8B9C0D1E2F3A /* HapticEngine.swift */; };
 		3464BE8ABD57F31635010890 /* DebugBlueskyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A860601A91F7A04FDA6EC16 /* DebugBlueskyView.swift */; };
 		36FE7936BE088D2E0BCE3F81 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70E6D2767C0907460A25BDD6 /* ProfileView.swift */; };
 		3718121995C700A764CDD34C /* AccountTimelineController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 797F8D967E7582162A2F4286 /* AccountTimelineController.swift */; };
@@ -356,6 +357,7 @@
 		2BE37AAC1F0E00EA31F0F1E0 /* YouTubeExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = YouTubeExtractor.swift; sourceTree = "<group>"; };
 		2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialFusion.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemImagePicker.swift; sourceTree = "<group>"; };
+		2B3C4D5E6F7A8B9C0D1E2F3A /* HapticEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticEngine.swift; sourceTree = "<group>"; };
 		300AA939D84D2C52B01BDE86 /* HTMLString.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLString.swift; sourceTree = "<group>"; };
 		303CD772807EDB8C330618C0 /* TimelineContext.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineContext.swift; sourceTree = "<group>"; };
 		317FA54C052BABBA9833F6AA /* UITestHooks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestHooks.swift; sourceTree = "<group>"; };
@@ -788,6 +790,7 @@
 				1B5D154F6A71571D8E20E749 /* ErrorHandler.swift */,
 				28FC04DC95EB5E4CA73B9AFB /* FeatureFlagManager.swift */,
 				13C0747FDCFF6508AD507AA5 /* FeatureFlags.swift */,
+				2B3C4D5E6F7A8B9C0D1E2F3A /* HapticEngine.swift */,
 				C5D02A834F04566BB01A2E23 /* HTMLFormatter.swift */,
 				300AA939D84D2C52B01BDE86 /* HTMLString.swift */,
 				712CCA659FBD7CD190A2972D /* KeychainHelper.swift */,
@@ -1284,6 +1287,7 @@
 				DDD5F369188917558FCF391F /* GradualMigrationManager.swift in Sources */,
 				60312B6F738C9370E6141491 /* HTMLFormatter.swift in Sources */,
 				345861287C5AEE4E9FBB3A3E /* HTMLString.swift in Sources */,
+				1A2B3C4D5E6F7A8B9C0D1E2F /* HapticEngine.swift in Sources */,
 				4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */,
 				7A9F46A075A6DE929623F59B /* KeychainManager.swift in Sources */,
 				C9271CE90B62CA69B9D3EF2B /* KeychainService.swift in Sources */,
