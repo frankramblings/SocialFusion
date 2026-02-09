@@ -49,42 +49,46 @@ private class CodablePublished<T: Codable>: ObservableObject {
 
 // NOTE: Duplicate UserDefaults token helpers removed to avoid redeclarations. Use canonical helpers in Extensions/UserDefaults+Keychain.swift if needed.
 
-// Helper functions for TokenManager until proper imports can be set up
+// Helper functions used by SocialAccount (now backed by KeychainService)
 private func securelyStoreTokens(
     accessToken: String,
     refreshToken: String?,
     expiresAt: Date?,
     clientId: String,
     clientSecret: String,
-    accountId: String
+    accountId: String,
+    platform: String = "mastodon"
 ) {
-    // Store access token in UserDefaults for now
-    UserDefaults.standard.set(accessToken, forKey: "accessToken-\(accountId)")
+    let keychain = KeychainService.shared
+    try? keychain.saveAccessToken(accessToken, for: accountId, platform: platform)
 
-    // Store refresh token if available
     if let refreshToken = refreshToken {
-        UserDefaults.standard.set(refreshToken, forKey: "refreshToken-\(accountId)")
+        try? keychain.saveRefreshToken(refreshToken, for: accountId, platform: platform)
     }
 
-    // Store client credentials
-    UserDefaults.standard.set(clientId, forKey: "clientId-\(accountId)")
-    UserDefaults.standard.set(clientSecret, forKey: "clientSecret-\(accountId)")
+    try? keychain.saveClientCredentials(clientId: clientId, clientSecret: clientSecret, for: accountId, platform: platform)
 
-    // Store expiration date
+    // Store expiration date in UserDefaults (not a secret)
     if let expiresAt = expiresAt {
         UserDefaults.standard.set(
             expiresAt.timeIntervalSince1970, forKey: "token-expiry-\(accountId)")
     }
 }
 
-private func loadTokens(for accountId: String) -> (
+private func loadTokens(for accountId: String, platform: String = "mastodon") -> (
     accessToken: String?, refreshToken: String?, expiresAt: Date?, clientId: String?,
     clientSecret: String?
 ) {
-    let accessToken = UserDefaults.standard.string(forKey: "accessToken-\(accountId)")
-    let refreshToken = UserDefaults.standard.string(forKey: "refreshToken-\(accountId)")
-    let clientId = UserDefaults.standard.string(forKey: "clientId-\(accountId)")
-    let clientSecret = UserDefaults.standard.string(forKey: "clientSecret-\(accountId)")
+    let keychain = KeychainService.shared
+    let accessToken = try? keychain.loadAccessToken(for: accountId, platform: platform)
+    let refreshToken = try? keychain.loadRefreshToken(for: accountId, platform: platform)
+
+    var clientId: String?
+    var clientSecret: String?
+    if let creds = try? keychain.loadClientCredentials(for: accountId, platform: platform) {
+        clientId = creds.clientId
+        clientSecret = creds.clientSecret
+    }
 
     var expiresAt: Date? = nil
     if let expiryTimestamp = UserDefaults.standard.object(forKey: "token-expiry-\(accountId)")
@@ -96,11 +100,8 @@ private func loadTokens(for accountId: String) -> (
     return (accessToken, refreshToken, expiresAt, clientId, clientSecret)
 }
 
-private func deleteTokens(for accountId: String) {
-    UserDefaults.standard.removeObject(forKey: "accessToken-\(accountId)")
-    UserDefaults.standard.removeObject(forKey: "refreshToken-\(accountId)")
-    UserDefaults.standard.removeObject(forKey: "clientId-\(accountId)")
-    UserDefaults.standard.removeObject(forKey: "clientSecret-\(accountId)")
+private func deleteTokens(for accountId: String, platform: String = "mastodon") {
+    try? KeychainService.shared.deleteAllCredentials(for: accountId, platform: platform)
     UserDefaults.standard.removeObject(forKey: "token-expiry-\(accountId)")
 }
 
@@ -140,7 +141,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         _tokenExpirationDate = nil
 
         // Delete tokens from persistent storage
-        deleteTokens(for: id)
+        deleteTokens(for: id, platform: platformString)
     }
 
     // Account details from the platform
@@ -161,8 +162,11 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     public var displayNameEmojiMap: [String: String]?
     public var bioEmojiMap: [String: String]?
 
-    // TODO: Switch to KeychainService
-    // private let keychainService = KeychainService.shared
+    private let keychainService = KeychainService.shared
+
+    private var platformString: String {
+        platform.rawValue
+    }
 
     // MARK: - Codable
 
@@ -299,19 +303,15 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     public var accessToken: String? {
         get {
             if _accessToken == nil {
-                // Temporarily using UserDefaults instead of KeychainService
-                _accessToken = UserDefaults.standard.string(forKey: "accessToken-\(id)")
+                SocialAccount.migrateFromUserDefaultsIfNeeded(for: id, platform: platformString)
+                _accessToken = try? keychainService.loadAccessToken(for: id, platform: platformString)
             }
             return _accessToken
         }
         set {
             _accessToken = newValue
             if let token = newValue {
-                // Temporarily using UserDefaults instead of KeychainService
-                UserDefaults.standard.set(token, forKey: "accessToken-\(id)")
-            } else {
-                // Temporarily using UserDefaults instead of KeychainService
-                UserDefaults.standard.removeObject(forKey: "accessToken-\(id)")
+                try? keychainService.saveAccessToken(token, for: id, platform: platformString)
             }
         }
     }
@@ -320,19 +320,14 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     public var refreshToken: String? {
         get {
             if _refreshToken == nil {
-                // Temporarily using UserDefaults instead of KeychainService
-                _refreshToken = UserDefaults.standard.string(forKey: "refreshToken-\(id)")
+                _refreshToken = try? keychainService.loadRefreshToken(for: id, platform: platformString)
             }
             return _refreshToken
         }
         set {
             _refreshToken = newValue
             if let token = newValue {
-                // Temporarily using UserDefaults instead of KeychainService
-                UserDefaults.standard.set(token, forKey: "refreshToken-\(id)")
-            } else {
-                // Temporarily using UserDefaults instead of KeychainService
-                UserDefaults.standard.removeObject(forKey: "refreshToken-\(id)")
+                try? keychainService.saveRefreshToken(token, for: id, platform: platformString)
             }
         }
     }
@@ -367,13 +362,11 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     }
 
     public func savePassword(_ password: String) {
-        // Temporarily using UserDefaults instead of KeychainService
-        UserDefaults.standard.set(password, forKey: "password-\(id)")
+        try? keychainService.savePassword(password, for: id, platform: platformString)
     }
 
     public func getPassword() -> String? {
-        // Temporarily using UserDefaults instead of KeychainService
-        return UserDefaults.standard.string(forKey: "password-\(id)")
+        return try? keychainService.loadPassword(for: id, platform: platformString)
     }
 
     public func saveAccountDetails(_ details: [String: String]) {
@@ -389,14 +382,14 @@ public class SocialAccount: Identifiable, Codable, Equatable {
     }
 
     public func getClientCredentials() -> (clientId: String?, clientSecret: String?) {
-        let clientId = UserDefaults.standard.string(forKey: "clientId-\(id)")
-        let clientSecret = UserDefaults.standard.string(forKey: "clientSecret-\(id)")
-        return (clientId, clientSecret)
+        if let creds = try? keychainService.loadClientCredentials(for: id, platform: platformString) {
+            return (creds.clientId, creds.clientSecret)
+        }
+        return (nil, nil)
     }
 
     public func saveClientCredentials(clientId: String, clientSecret: String) {
-        UserDefaults.standard.set(clientId, forKey: "clientId-\(id)")
-        UserDefaults.standard.set(clientSecret, forKey: "clientSecret-\(id)")
+        try? keychainService.saveClientCredentials(clientId: clientId, clientSecret: clientSecret, for: id, platform: platformString)
     }
 
     public func getAccountDetails() -> [String: String]? {
@@ -506,24 +499,22 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
     /// Deletes all tokens associated with this account
     public func clearTokens() {
-        // Delete from UserDefaults
-        UserDefaults.standard.removeObject(forKey: "accessToken-\(id)")
-        UserDefaults.standard.removeObject(forKey: "refreshToken-\(id)")
+        try? keychainService.deleteAllCredentials(for: id, platform: platformString)
         UserDefaults.standard.removeObject(forKey: "token-expiry-\(id)")
-        UserDefaults.standard.removeObject(forKey: "password-\(id)")
 
         _accessToken = nil
         _refreshToken = nil
         _tokenExpirationDate = nil
     }
 
-    /// Load tokens from UserDefaults (to be replaced with KeychainService in future)
+    /// Load tokens from Keychain (migrating from UserDefaults on first access if needed)
     public func loadTokensFromKeychain() {
-        // Load tokens from UserDefaults
-        _accessToken = UserDefaults.standard.string(forKey: "accessToken-\(id)")
-        _refreshToken = UserDefaults.standard.string(forKey: "refreshToken-\(id)")
+        SocialAccount.migrateFromUserDefaultsIfNeeded(for: id, platform: platformString)
 
-        // Load expiration date from UserDefaults
+        _accessToken = try? keychainService.loadAccessToken(for: id, platform: platformString)
+        _refreshToken = try? keychainService.loadRefreshToken(for: id, platform: platformString)
+
+        // Load expiration date from UserDefaults (dates are not secrets)
         if let expiryTimestamp = UserDefaults.standard.object(forKey: "token-expiry-\(id)")
             as? TimeInterval
         {
@@ -539,6 +530,49 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
     public static func == (lhs: SocialAccount, rhs: SocialAccount) -> Bool {
         return lhs.id == rhs.id
+    }
+
+    // MARK: - UserDefaults → Keychain Migration
+
+    /// One-time migration of credentials from UserDefaults to Keychain.
+    /// Called on first access; subsequent calls are a no-op thanks to a migration flag.
+    static func migrateFromUserDefaultsIfNeeded(for accountId: String, platform: String) {
+        let migrationKey = "keychain-migrated-\(accountId)"
+        guard !UserDefaults.standard.bool(forKey: migrationKey) else { return }
+
+        let keychain = KeychainService.shared
+        let defaults = UserDefaults.standard
+
+        // Migrate access token
+        if let accessToken = defaults.string(forKey: "accessToken-\(accountId)") {
+            try? keychain.saveAccessToken(accessToken, for: accountId, platform: platform)
+            defaults.removeObject(forKey: "accessToken-\(accountId)")
+        }
+
+        // Migrate refresh token
+        if let refreshToken = defaults.string(forKey: "refreshToken-\(accountId)") {
+            try? keychain.saveRefreshToken(refreshToken, for: accountId, platform: platform)
+            defaults.removeObject(forKey: "refreshToken-\(accountId)")
+        }
+
+        // Migrate password
+        if let password = defaults.string(forKey: "password-\(accountId)") {
+            try? keychain.savePassword(password, for: accountId, platform: platform)
+            defaults.removeObject(forKey: "password-\(accountId)")
+        }
+
+        // Migrate client credentials
+        let clientId = defaults.string(forKey: "clientId-\(accountId)")
+        let clientSecret = defaults.string(forKey: "clientSecret-\(accountId)")
+        if let clientId = clientId, let clientSecret = clientSecret {
+            try? keychain.saveClientCredentials(clientId: clientId, clientSecret: clientSecret, for: accountId, platform: platform)
+            defaults.removeObject(forKey: "clientId-\(accountId)")
+            defaults.removeObject(forKey: "clientSecret-\(accountId)")
+        }
+
+        // Mark as migrated (token-expiry stays in UserDefaults — it's not a secret)
+        defaults.set(true, forKey: migrationKey)
+        print("🔐 Migrated credentials from UserDefaults to Keychain for account \(accountId)")
     }
 
     // Custom encoding to ensure we don't encode sensitive data
@@ -560,7 +594,7 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         // Encode account details if present
         try container.encodeIfPresent(accountDetails, forKey: .accountDetails)
 
-        // Note: We deliberately don't encode tokens here. They're stored in UserDefaults
+        // Note: We deliberately don't encode tokens here. They're stored in the Keychain
         // and loaded separately via loadTokensFromKeychain()
     }
 }
