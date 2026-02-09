@@ -247,9 +247,12 @@ public struct ShareThreadRenderBuilder {
         userMapping: inout [String: String]
     ) -> ShareImageDocument {
         var mapping = userMapping
-        let allPosts =
+        var allPosts =
             threadContext.ancestors + [threadContext.mainPost].compactMap { $0 }
             + threadContext.descendants
+        if !allPosts.contains(where: { $0.id == selectedPost.id }) {
+            allPosts.append(selectedPost)
+        }
 
         // Build ancestor chain ONLY if includeEarlier is true
         let ancestorChain: [CommentRenderable]
@@ -273,10 +276,10 @@ public struct ShareThreadRenderBuilder {
             // Remove both selected post AND root post from ancestors
             // Root post should only appear as the post header, not as a comment
             let ancestorsWithoutRootAndSelected = ancestorPosts.filter {
-                !ShareImageConfig.idsMatch(
-                    $0.id, selectedPost.id, platformSpecificId: selectedPost.platformSpecificId)
-                    && !ShareImageConfig.idsMatch(
-                        $0.id, rootPost.id, platformSpecificId: rootPost.platformSpecificId)
+                !ShareImageConfig.idsMatch($0.id, selectedPost.id)
+                    && !ShareImageConfig.idsMatch($0.platformSpecificId, selectedPost.id)
+                    && !ShareImageConfig.idsMatch($0.id, rootPost.id)
+                    && !ShareImageConfig.idsMatch($0.platformSpecificId, rootPost.id)
             }
 
             // Convert ancestors to renderables (these are only intermediate replies, not the root)
@@ -327,8 +330,8 @@ public struct ShareThreadRenderBuilder {
         // Debug assertion: ensure selected post is not in ancestor chain
         assert(
             !ancestorChain.contains(where: {
-                ShareImageConfig.idsMatch(
-                    $0.id, selectedPost.id, platformSpecificId: selectedPost.platformSpecificId)
+                ShareImageConfig.idsMatch($0.id, selectedPost.id)
+                    || ShareImageConfig.idsMatch($0.id, selectedPost.platformSpecificId)
             }),
             "Selected post must not appear in ancestor chain")
 

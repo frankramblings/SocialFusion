@@ -225,50 +225,44 @@ public class SearchStore: ObservableObject {
       return
     }
     
-    phase = .loading
-    
-    searchTask = Task {
-      do {
-        let page: SearchPage
-        
-        switch scope {
-        case .posts:
-          page = try await searchProvider.searchPosts(query: query, page: nil)
-        case .users:
-          if text.count < 3 {
-            // Use typeahead for short queries
-            page = try await searchProvider.searchUsersTypeahead(text: text, page: nil)
-          } else {
-            page = try await searchProvider.searchUsers(query: query, page: nil)
-          }
-        case .tags:
-          page = try await searchProvider.searchTags(query: query, page: nil)
-        }
-        
-        if Task.isCancelled {
-          return
-        }
-        
-        results = page.items
-        nextPageTokens = page.nextPageTokens
-        
-        // Update cache
-        cache.set(key: cacheKey, results: results, nextPageTokens: nextPageTokens)
-        
-        // Update phase
-        if results.isEmpty {
-          phase = .empty
+    if !ignoreCache {
+      phase = .loading
+    }
+
+    do {
+      let page: SearchPage
+
+      switch scope {
+      case .posts:
+        page = try await searchProvider.searchPosts(query: query, page: nil)
+      case .users:
+        if text.count < 3 {
+          // Use typeahead for short queries
+          page = try await searchProvider.searchUsersTypeahead(text: text, page: nil)
         } else {
-          phase = .loaded
+          page = try await searchProvider.searchUsers(query: query, page: nil)
         }
-        
-        updateChipRowModel()
-        addToRecentSearches(text)
-      } catch {
-        if !Task.isCancelled {
-          phase = .error(error.localizedDescription)
-        }
+      case .tags:
+        page = try await searchProvider.searchTags(query: query, page: nil)
       }
+
+      results = page.items
+      nextPageTokens = page.nextPageTokens
+
+      // Update cache
+      cache.set(key: cacheKey, results: results, nextPageTokens: nextPageTokens)
+
+      // Update phase
+      if results.isEmpty {
+        phase = .empty
+      } else {
+        phase = .loaded
+      }
+
+      updateChipRowModel()
+      addToRecentSearches(text)
+    } catch {
+      phase = .error(error.localizedDescription)
     }
   }
   

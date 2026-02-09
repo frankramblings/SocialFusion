@@ -67,8 +67,7 @@ public struct ThreadSlicer {
             // Find parent using robust ID matching
             if let parentID = post.inReplyToID {
                 current = allPosts.first { candidate in
-                    ShareImageConfig.idsMatch(
-                        candidate.id, parentID, platformSpecificId: candidate.platformSpecificId)
+                    ShareImageConfig.idsMatch(candidate.id, parentID)
                         || ShareImageConfig.idsMatch(candidate.platformSpecificId, parentID)
                 }
             } else {
@@ -101,9 +100,7 @@ public struct ThreadSlicer {
                 // Find parent using robust ID matching
                 var foundParent: (key: String, node: CommentNode)? = nil
                 for (key, candidate) in nodes {
-                    if ShareImageConfig.idsMatch(
-                        candidate.id, parentID,
-                        platformSpecificId: candidate.post.platformSpecificId)
+                    if ShareImageConfig.idsMatch(candidate.id, parentID)
                         || ShareImageConfig.idsMatch(candidate.post.platformSpecificId, parentID)
                     {
                         foundParent = (key, candidate)
@@ -178,8 +175,7 @@ public struct ThreadSlicer {
         // Start traversal from selected node's children
         for child in selectedNode.children {
             if allPosts.contains(where: { candidate in
-                ShareImageConfig.idsMatch(
-                    candidate.id, child.id, platformSpecificId: candidate.platformSpecificId)
+                ShareImageConfig.idsMatch(candidate.id, child.id)
                     || ShareImageConfig.idsMatch(candidate.platformSpecificId, child.id)
             }) {
                 if let childNode = findNode(
@@ -199,8 +195,10 @@ public struct ThreadSlicer {
         id: String, platformSpecificId: String? = nil, in nodes: [CommentNode]
     ) -> CommentNode? {
         for node in nodes {
-            if ShareImageConfig.idsMatch(
-                node.id, id, platformSpecificId: node.post.platformSpecificId)
+            if ShareImageConfig.idsMatch(node.id, id)
+                || ShareImageConfig.idsMatch(node.post.platformSpecificId, id)
+                || (platformSpecificId != nil
+                    && ShareImageConfig.idsMatch(node.id, platformSpecificId!))
                 || (platformSpecificId != nil
                     && ShareImageConfig.idsMatch(node.post.platformSpecificId, platformSpecificId!))
             {
