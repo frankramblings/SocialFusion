@@ -239,11 +239,13 @@ struct AddAccountView: View {
         Task {
             do {
                 // Handle test account creation
+                #if DEBUG
                 if username == "test" && password == "test" {
                     NSLog("🧪 [AddAccountView] Using test credentials")
                     createTestMastodonAccount()
                     return
                 }
+                #endif
 
                 // Check if the URL is valid
                 NSLog("🐘 [AddAccountView] Validating URL for: \(server)")
@@ -302,10 +304,12 @@ struct AddAccountView: View {
         Task {
             do {
                 // Handle test account creation
+                #if DEBUG
                 if username == "test" && password == "test" {
                     createTestBlueskyAccount()
                     return
                 }
+                #endif
 
                 // Make sure we have both username and password
                 guard !username.isEmpty, !password.isEmpty else {

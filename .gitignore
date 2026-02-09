@@ -33,3 +33,46 @@ temp/
 
 # Git worktrees
 .worktrees/
+
+# Environment and secrets
+.env
+.env.*
+*.secret
+*Secrets.swift
+
+# Certificates and keys
+*.pem
+*.key
+*.p12
+*.p8
+*.cer
+*.mobileprovision
+
+# Log files
+*.log
+
+# Backup and temp files
+*.bak
+*.backup
+*.patch
+*.part
+*.part-*
+*.ytdl
+
+# IDE-specific directories
+.cursor/
+.continue/
+.gemini/
+buildServer.json
+
+# Download fragments
+*.mp4.part
+*.mp4.ytdl
+
+# One-off scripts and artifacts
+GIT_COMMIT.txt
+COMMIT_SUBJECT.txt
+COMMIT_MESSAGE.md
+COMMIT_NOTES.md
+temp_module.swift
+INTEGRATION_EXAMPLE.swift

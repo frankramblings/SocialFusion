@@ -39,18 +39,9 @@ class AuthenticatedVideoAssetLoader: NSObject, AVAssetResourceLoaderDelegate {
         if let logJSON = try? JSONSerialization.data(withJSONObject: logData),
             let logString = String(data: logJSON, encoding: .utf8)
         {
-            if let fileHandle = FileHandle(
-                forWritingAtPath:
-                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-            {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(("\n" + logString).data(using: .utf8) ?? Data())
-                fileHandle.closeFile()
-            } else {
-                try? logString.write(
-                    toFile: "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                    atomically: false, encoding: .utf8)
-            }
+            #if DEBUG
+            print(logString)
+            #endif
         }
         // #endregion
 
@@ -281,19 +272,9 @@ class AuthenticatedVideoAssetLoader: NSObject, AVAssetResourceLoaderDelegate {
                 if let logJSON2 = try? JSONSerialization.data(withJSONObject: logData2),
                     let logString2 = String(data: logJSON2, encoding: .utf8)
                 {
-                    if let fileHandle = FileHandle(
-                        forWritingAtPath:
-                            "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-                    {
-                        fileHandle.seekToEndOfFile()
-                        fileHandle.write(("\n" + logString2).data(using: .utf8) ?? Data())
-                        fileHandle.closeFile()
-                    } else {
-                        try? logString2.write(
-                            toFile:
-                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                            atomically: false, encoding: .utf8)
-                    }
+                    #if DEBUG
+                    print(logString2)
+                    #endif
                 }
                 // #endregion
                 let staticLogger = Logger(
@@ -698,19 +679,9 @@ class AuthenticatedVideoAssetLoader: NSObject, AVAssetResourceLoaderDelegate {
         if let logJSON3 = try? JSONSerialization.data(withJSONObject: logData3),
             let logString3 = String(data: logJSON3, encoding: .utf8)
         {
-            if let fileHandle = FileHandle(
-                forWritingAtPath:
-                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-            {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(("\n" + logString3).data(using: .utf8) ?? Data())
-                fileHandle.closeFile()
-            } else {
-                try? logString3.write(
-                    toFile:
-                        "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                    atomically: false, encoding: .utf8)
-            }
+            #if DEBUG
+            print(logString3)
+            #endif
         }
         // #endregion
     }

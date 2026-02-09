@@ -849,18 +849,9 @@ private struct VideoPlayerView: View {
         if let logJSON = try? JSONSerialization.data(withJSONObject: logData),
             let logString = String(data: logJSON, encoding: .utf8)
         {
-            if let fileHandle = FileHandle(
-                forWritingAtPath:
-                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-            {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(("\n" + logString).data(using: .utf8) ?? Data())
-                fileHandle.closeFile()
-            } else {
-                try? logString.write(
-                    toFile: "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                    atomically: false, encoding: .utf8)
-            }
+            #if DEBUG
+            print(logString)
+            #endif
         }
         // #endregion
 
@@ -982,18 +973,9 @@ private struct VideoPlayerView: View {
         if let logJSON3 = try? JSONSerialization.data(withJSONObject: logData3),
             let logString3 = String(data: logJSON3, encoding: .utf8)
         {
-            if let fileHandle = FileHandle(
-                forWritingAtPath:
-                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-            {
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(("\n" + logString3).data(using: .utf8) ?? Data())
-                fileHandle.closeFile()
-            } else {
-                try? logString3.write(
-                    toFile: "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                    atomically: false, encoding: .utf8)
-            }
+            #if DEBUG
+            print(logString3)
+            #endif
         }
         // #endregion
 
@@ -1097,19 +1079,9 @@ private struct VideoPlayerView: View {
             if let logJSON4 = try? JSONSerialization.data(withJSONObject: logData4),
                 let logString4 = String(data: logJSON4, encoding: .utf8)
             {
-                if let fileHandle = FileHandle(
-                    forWritingAtPath:
-                        "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-                {
-                    fileHandle.seekToEndOfFile()
-                    fileHandle.write(("\n" + logString4).data(using: .utf8) ?? Data())
-                    fileHandle.closeFile()
-                } else {
-                    try? logString4.write(
-                        toFile:
-                            "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                        atomically: false, encoding: .utf8)
-                }
+                #if DEBUG
+                print(logString4)
+                #endif
             }
             // #endregion
 
@@ -1154,19 +1126,9 @@ private struct VideoPlayerView: View {
                     if let logJSON5 = try? JSONSerialization.data(withJSONObject: logData5),
                         let logString5 = String(data: logJSON5, encoding: .utf8)
                     {
-                        if let fileHandle = FileHandle(
-                            forWritingAtPath:
-                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
-                        ) {
-                            fileHandle.seekToEndOfFile()
-                            fileHandle.write(("\n" + logString5).data(using: .utf8) ?? Data())
-                            fileHandle.closeFile()
-                        } else {
-                            try? logString5.write(
-                                toFile:
-                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                                atomically: false, encoding: .utf8)
-                        }
+                        #if DEBUG
+                        print(logString5)
+                        #endif
                     }
                     // #endregion
                     return
@@ -1206,19 +1168,9 @@ private struct VideoPlayerView: View {
                 if let logJSON6 = try? JSONSerialization.data(withJSONObject: logData6),
                     let logString6 = String(data: logJSON6, encoding: .utf8)
                 {
-                    if let fileHandle = FileHandle(
-                        forWritingAtPath:
-                            "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log")
-                    {
-                        fileHandle.seekToEndOfFile()
-                        fileHandle.write(("\n" + logString6).data(using: .utf8) ?? Data())
-                        fileHandle.closeFile()
-                    } else {
-                        try? logString6.write(
-                            toFile:
-                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                            atomically: false, encoding: .utf8)
-                    }
+                    #if DEBUG
+                    print(logString6)
+                    #endif
                 }
                 // #endregion
 
@@ -1241,19 +1193,9 @@ private struct VideoPlayerView: View {
                     if let logJSON7 = try? JSONSerialization.data(withJSONObject: logData7),
                         let logString7 = String(data: logJSON7, encoding: .utf8)
                     {
-                        if let fileHandle = FileHandle(
-                            forWritingAtPath:
-                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
-                        ) {
-                            fileHandle.seekToEndOfFile()
-                            fileHandle.write(("\n" + logString7).data(using: .utf8) ?? Data())
-                            fileHandle.closeFile()
-                        } else {
-                            try? logString7.write(
-                                toFile:
-                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                                atomically: false, encoding: .utf8)
-                        }
+                        #if DEBUG
+                        print(logString7)
+                        #endif
                     }
                     // #endregion
                     continuation.resume(returning: player)
@@ -1293,19 +1235,9 @@ private struct VideoPlayerView: View {
                     if let logJSON8 = try? JSONSerialization.data(withJSONObject: logData8),
                         let logString8 = String(data: logJSON8, encoding: .utf8)
                     {
-                        if let fileHandle = FileHandle(
-                            forWritingAtPath:
-                                "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log"
-                        ) {
-                            fileHandle.seekToEndOfFile()
-                            fileHandle.write(("\n" + logString8).data(using: .utf8) ?? Data())
-                            fileHandle.closeFile()
-                        } else {
-                            try? logString8.write(
-                                toFile:
-                                    "/Users/frankemanuele/Documents/GitHub/SocialFusion/.cursor/debug.log",
-                                atomically: false, encoding: .utf8)
-                        }
+                        #if DEBUG
+                        print(logString8)
+                        #endif
                     }
                     // #endregion
                     continuation.resume(throwing: error)
@@ -1532,6 +1464,8 @@ class VideoPlayerViewModel: ObservableObject {
     private var progressObserver: NSKeyValueObservation?
     private var loopObserver: NSObjectProtocol?
     private var muteObserver: NSKeyValueObservation?
+    
+    private let logger = Logger(subsystem: "com.socialfusion.app", category: "VideoPlayerViewModel")
 
     func setPlayer(_ player: AVPlayer) {
         self.player = player
@@ -1542,8 +1476,49 @@ class VideoPlayerViewModel: ObservableObject {
 
     func toggleMute() {
         guard let player = player else { return }
-        player.isMuted.toggle()
-        isMuted = player.isMuted
+        let newMutedState = !player.isMuted
+        
+        if newMutedState {
+            // User is muting - switch back to ambient category
+            // This respects the mute switch and mixes with other audio
+            configureAudioSessionForMutedPlayback()
+        } else {
+            // User is unmuting - switch to playback category
+            // This ignores the mute switch and uses system volume
+            configureAudioSessionForUnmutedPlayback()
+        }
+        
+        player.isMuted = newMutedState
+        isMuted = newMutedState
+    }
+    
+    /// Configure AVAudioSession for muted video playback
+    /// Uses .ambient category which respects the mute switch and mixes with other audio
+    private func configureAudioSessionForMutedPlayback() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.ambient, mode: .default, options: [.mixWithOthers])
+            logger.debug("✅ Configured audio session for muted playback (.ambient category)")
+        } catch {
+            logger.warning("⚠️ Failed to configure audio session for muted playback: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+    
+    /// Configure AVAudioSession for unmuted video playback
+    /// Uses .playback category which ignores the mute switch and uses system volume
+    private func configureAudioSessionForUnmutedPlayback() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            // Use .playback category which:
+            // - Ignores the physical mute switch
+            // - Uses system volume controls
+            // - May interrupt other audio (expected behavior when user explicitly unmutes)
+            try audioSession.setCategory(.playback, mode: .default, options: [])
+            try audioSession.setActive(true)
+            logger.debug("✅ Configured audio session for unmuted playback (.playback category)")
+        } catch {
+            logger.warning("⚠️ Failed to configure audio session for unmuted playback: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func setupObservers() {
