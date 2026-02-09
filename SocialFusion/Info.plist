@@ -55,5 +55,9 @@
 	</array>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>SocialFusion needs access to save images to your photo library.</string>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.socialfusion.notification-refresh</string>
+	</array>
 </dict>
 </plist>
