@@ -415,7 +415,7 @@ struct NotificationRow: View {
                     }
                     
                     if let post = notification.post {
-                        Text(post.content)
+                        Text(PostNormalizerImpl.shared.normalizeContent(post.content))
                             .font(.system(size: 14))
                             .lineLimit(2)
                             .foregroundColor(.primary.opacity(0.8))
