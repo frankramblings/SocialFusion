@@ -198,6 +198,8 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
       "accountId": notification.account.id,
       "platform": notification.account.platform.rawValue,
       "postId": notification.post?.id ?? "",
+      "platformSpecificId": notification.post?.platformSpecificId ?? "",
+      "cid": notification.post?.cid ?? "",
       "notificationType": notification.type.rawValue,
       "fromUsername": notification.fromAccount.username,
     ]
@@ -278,22 +280,247 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
   // MARK: - Handlers
 
   private func handleReply(replyText: String, userInfo: [AnyHashable: Any]) {
-    print("💬 Replying with: \(replyText)")
-    // TODO: Implement reply logic using SocialServiceManager (Task 6)
+    guard let accountId = userInfo["accountId"] as? String,
+      let platformRaw = userInfo["platform"] as? String,
+      let platformSpecificId = userInfo["platformSpecificId"] as? String,
+      !platformSpecificId.isEmpty,
+      !replyText.isEmpty
+    else { return }
+
+    Task { @MainActor in
+      guard let serviceManager = self.serviceManager,
+        let account = serviceManager.accounts.first(where: { $0.id == accountId })
+      else { return }
+
+      do {
+        let platform = SocialPlatform(rawValue: platformRaw)
+        if platform == .mastodon {
+          try await mastodonReply(
+            statusId: platformSpecificId, content: replyText, account: account)
+        } else if platform == .bluesky {
+          let cid = userInfo["cid"] as? String ?? ""
+          try await blueskyReply(
+            uri: platformSpecificId, cid: cid, content: replyText, account: account)
+        }
+      } catch {
+        let errorContent = UNMutableNotificationContent()
+        errorContent.title = "Reply failed"
+        errorContent.body = "Tap to open the app and try again."
+        errorContent.sound = .default
+        let request = UNNotificationRequest(
+          identifier: "reply-error-\(UUID().uuidString)",
+          content: errorContent,
+          trigger: nil
+        )
+        try? await UNUserNotificationCenter.current().add(request)
+      }
+    }
   }
 
   private func handleLike(userInfo: [AnyHashable: Any]) {
-    print("❤️ Liking post from notification")
-    // TODO: Implement like logic (Task 6)
+    guard let accountId = userInfo["accountId"] as? String,
+      let platformRaw = userInfo["platform"] as? String,
+      let platformSpecificId = userInfo["platformSpecificId"] as? String,
+      !platformSpecificId.isEmpty
+    else { return }
+
+    Task { @MainActor in
+      guard let serviceManager = self.serviceManager,
+        let account = serviceManager.accounts.first(where: { $0.id == accountId })
+      else { return }
+
+      do {
+        let platform = SocialPlatform(rawValue: platformRaw)
+        if platform == .mastodon {
+          try await mastodonLike(statusId: platformSpecificId, account: account)
+        } else if platform == .bluesky {
+          let cid = userInfo["cid"] as? String ?? ""
+          try await blueskyLike(uri: platformSpecificId, cid: cid, account: account)
+        }
+      } catch {
+        print("❌ Like from notification failed: \(error)")
+      }
+    }
   }
 
   private func handleRepost(userInfo: [AnyHashable: Any]) {
-    print("🔁 Reposting from notification")
-    // TODO: Implement repost logic (Task 6)
+    guard let accountId = userInfo["accountId"] as? String,
+      let platformRaw = userInfo["platform"] as? String,
+      let platformSpecificId = userInfo["platformSpecificId"] as? String,
+      !platformSpecificId.isEmpty
+    else { return }
+
+    Task { @MainActor in
+      guard let serviceManager = self.serviceManager,
+        let account = serviceManager.accounts.first(where: { $0.id == accountId })
+      else { return }
+
+      do {
+        let platform = SocialPlatform(rawValue: platformRaw)
+        if platform == .mastodon {
+          try await mastodonRepost(statusId: platformSpecificId, account: account)
+        } else if platform == .bluesky {
+          let cid = userInfo["cid"] as? String ?? ""
+          try await blueskyRepost(uri: platformSpecificId, cid: cid, account: account)
+        }
+      } catch {
+        print("❌ Repost from notification failed: \(error)")
+      }
+    }
   }
 
   private func handleNotificationTap(userInfo: [AnyHashable: Any]) {
-    print("👉 Notification tapped")
-    // TODO: Implement deep linking (Task 6)
+    guard let postId = userInfo["postId"] as? String else { return }
+
+    Task { @MainActor in
+      if !postId.isEmpty {
+        NotificationCenter.default.post(
+          name: Notification.Name("navigateToPost"),
+          object: nil,
+          userInfo: ["postId": postId]
+        )
+      }
+    }
+  }
+
+  // MARK: - Mastodon API Calls
+
+  private func mastodonLike(statusId: String, account: SocialAccount) async throws {
+    let serverUrl = formatMastodonServerURL(account)
+    guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/favourite") else {
+      return
+    }
+    let request = try await makeAuthenticatedRequest(url: url, method: "POST", account: account)
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+      throw NSError(domain: "NotificationManager", code: -1)
+    }
+  }
+
+  private func mastodonRepost(statusId: String, account: SocialAccount) async throws {
+    let serverUrl = formatMastodonServerURL(account)
+    guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(statusId)/reblog") else { return }
+    let request = try await makeAuthenticatedRequest(url: url, method: "POST", account: account)
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+      throw NSError(domain: "NotificationManager", code: -1)
+    }
+  }
+
+  private func mastodonReply(
+    statusId: String, content: String, account: SocialAccount
+  ) async throws {
+    let serverUrl = formatMastodonServerURL(account)
+    guard let url = URL(string: "\(serverUrl)/api/v1/statuses") else { return }
+    let body: [String: Any] = ["status": content, "in_reply_to_id": statusId]
+    var request = try await makeAuthenticatedRequest(url: url, method: "POST", account: account)
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+      throw NSError(domain: "NotificationManager", code: -1)
+    }
+  }
+
+  // MARK: - Bluesky API Calls
+
+  private func blueskyLike(uri: String, cid: String, account: SocialAccount) async throws {
+    guard !cid.isEmpty else { return }
+    let serverUrl = formatBlueskyServerURL(account)
+    guard let url = URL(string: "\(serverUrl)/xrpc/com.atproto.repo.createRecord") else { return }
+    let body: [String: Any] = [
+      "repo": account.username,
+      "collection": "app.bsky.feed.like",
+      "record": [
+        "$type": "app.bsky.feed.like",
+        "subject": ["uri": uri, "cid": cid],
+        "createdAt": ISO8601DateFormatter().string(from: Date()),
+      ],
+    ]
+    var request = try await makeAuthenticatedRequest(url: url, method: "POST", account: account)
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+      throw NSError(domain: "NotificationManager", code: -1)
+    }
+  }
+
+  private func blueskyRepost(uri: String, cid: String, account: SocialAccount) async throws {
+    guard !cid.isEmpty else { return }
+    let serverUrl = formatBlueskyServerURL(account)
+    guard let url = URL(string: "\(serverUrl)/xrpc/com.atproto.repo.createRecord") else { return }
+    let body: [String: Any] = [
+      "repo": account.username,
+      "collection": "app.bsky.feed.repost",
+      "record": [
+        "$type": "app.bsky.feed.repost",
+        "subject": ["uri": uri, "cid": cid],
+        "createdAt": ISO8601DateFormatter().string(from: Date()),
+      ],
+    ]
+    var request = try await makeAuthenticatedRequest(url: url, method: "POST", account: account)
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+      throw NSError(domain: "NotificationManager", code: -1)
+    }
+  }
+
+  private func blueskyReply(
+    uri: String, cid: String, content: String, account: SocialAccount
+  ) async throws {
+    guard !cid.isEmpty else { return }
+    let serverUrl = formatBlueskyServerURL(account)
+    guard let url = URL(string: "\(serverUrl)/xrpc/com.atproto.repo.createRecord") else { return }
+    let body: [String: Any] = [
+      "repo": account.username,
+      "collection": "app.bsky.feed.post",
+      "record": [
+        "$type": "app.bsky.feed.post",
+        "text": content,
+        "reply": [
+          "root": ["uri": uri, "cid": cid],
+          "parent": ["uri": uri, "cid": cid],
+        ],
+        "createdAt": ISO8601DateFormatter().string(from: Date()),
+      ],
+    ]
+    var request = try await makeAuthenticatedRequest(url: url, method: "POST", account: account)
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await URLSession.shared.data(for: request)
+    guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+      throw NSError(domain: "NotificationManager", code: -1)
+    }
+  }
+
+  // MARK: - Helpers
+
+  private func makeAuthenticatedRequest(
+    url: URL, method: String, account: SocialAccount
+  ) async throws -> URLRequest {
+    let token = try await account.getValidAccessToken()
+    var request = URLRequest(url: url)
+    request.httpMethod = method
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    return request
+  }
+
+  private func formatMastodonServerURL(_ account: SocialAccount) -> String {
+    let raw = account.serverURL?.absoluteString ?? "https://mastodon.social"
+    let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    if trimmed.isEmpty { return "https://mastodon.social" }
+    if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+      // Strip trailing slash
+      return trimmed.hasSuffix("/") ? String(trimmed.dropLast()) : trimmed
+    }
+    return "https://\(trimmed)"
+  }
+
+  private func formatBlueskyServerURL(_ account: SocialAccount) -> String {
+    let raw = account.serverURL?.absoluteString ?? "bsky.social"
+    let sanitized = raw.replacingOccurrences(of: "https://", with: "")
+      .replacingOccurrences(of: "http://", with: "")
+      .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    return "https://\(sanitized.isEmpty ? "bsky.social" : sanitized)"
   }
 }
