@@ -1,4 +1,5 @@
 import AuthenticationServices
+import BackgroundTasks
 import Combine
 import Foundation
 import SwiftUI
@@ -79,7 +80,15 @@ struct SocialFusionApp: App {
                     .environmentObject(edgeCaseHandler)
                     .enableLiquidGlass()
                     .onAppear {
+                        notificationManager.serviceManager = serviceManager
+                        notificationManager.registerBackgroundTask()
                         notificationManager.requestAuthorization()
+                        if UserDefaults.standard.bool(forKey: "enableNotifications") {
+                            notificationManager.scheduleBackgroundRefresh()
+                            Task {
+                                await notificationManager.pollAndDeliverNotifications()
+                            }
+                        }
                     }
                     .onOpenURL { url in
                         handleURL(url)
