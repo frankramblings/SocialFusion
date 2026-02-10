@@ -290,6 +290,11 @@
 		FDB4435670702C877875D7E9 /* SimpleEdgeCaseHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */; };
 		FECCA602F302FB2E162FD7E3 /* TimelineContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0813F0F34AD7DC184CC866D /* TimelineContextProvider.swift */; };
 		FEE2644527BCB85258001783 /* EmojiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871F461B5F16031B01DAF2DB /* EmojiService.swift */; };
+		D5A1B2C3D4E5F6A7B8C9D0E1 /* ChatStreamModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A1B2C3D4E5F6A7B8C9D0E1 /* ChatStreamModels.swift */; };
+		D5A2B3C4D5E6F7A8B9C0D1E2 /* ChatStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A2B3C4D5E6F7A8B9C0D1E2 /* ChatStreamProvider.swift */; };
+		D5A3B4C5D6E7F8A9B0C1D2E3 /* MastodonChatStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A3B4C5D6E7F8A9B0C1D2E3 /* MastodonChatStreamProvider.swift */; };
+		D5A4B5C6D7E8F9A0B1C2D3E4 /* BlueskyPollStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A4B5C6D7E8F9A0B1C2D3E4 /* BlueskyPollStreamProvider.swift */; };
+		D5A5B6C7D8E9F0A1B2C3D4E5 /* ChatStreamService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A5B6C7D8E9F0A1B2C3D4E5 /* ChatStreamService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -595,6 +600,11 @@
 		FA324E9DE04C64F5EB3131B1 /* LayoutShiftDetector.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = LayoutShiftDetector.swift; path = LayoutShiftDetector.swift; sourceTree = "<group>"; };
 		FAF390A8A5ABD1CD3283AC68 /* NetworkSuggestionProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkSuggestionProvider.swift; sourceTree = "<group>"; };
 		FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatters.swift; sourceTree = "<group>"; };
+		C5A1B2C3D4E5F6A7B8C9D0E1 /* ChatStreamModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStreamModels.swift; sourceTree = "<group>"; };
+		C5A2B3C4D5E6F7A8B9C0D1E2 /* ChatStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStreamProvider.swift; sourceTree = "<group>"; };
+		C5A3B4C5D6E7F8A9B0C1D2E3 /* MastodonChatStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonChatStreamProvider.swift; sourceTree = "<group>"; };
+		C5A4B5C6D7E8F9A0B1C2D3E4 /* BlueskyPollStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyPollStreamProvider.swift; sourceTree = "<group>"; };
+		C5A5B6C7D8E9F0A1B2C3D4E5 /* ChatStreamService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStreamService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -900,6 +910,10 @@
 		D200DF008D07D922EF2AAC59 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C5A4B5C6D7E8F9A0B1C2D3E4 /* BlueskyPollStreamProvider.swift */,
+				C5A5B6C7D8E9F0A1B2C3D4E5 /* ChatStreamService.swift */,
+				C5A2B3C4D5E6F7A8B9C0D1E2 /* ChatStreamProvider.swift */,
+				C5A3B4C5D6E7F8A9B0C1D2E3 /* MastodonChatStreamProvider.swift */,
 				A3AE3DBDF1CBBF3BED24E136 /* AccountAccessor.swift */,
 				50739CD92F15DB1C00A086BA /* BlueskyGraphService.swift */,
 				50739CDA2F15DB1C00A086BA /* MastodonGraphService.swift */,
@@ -965,6 +979,7 @@
 			children = (
 				50739CD52F15DAC200A086BA /* RelationshipState.swift */,
 				B838B741234EAE29B1817EBB /* BlueskyModels.swift */,
+				C5A1B2C3D4E5F6A7B8C9D0E1 /* ChatStreamModels.swift */,
 				842002BDF43C77771C2516F3 /* BlueskyPost.swift */,
 				0D80D8E657DE7507D5B1D411 /* CanonicalPost.swift */,
 				CB32282E3437339B60C18B22 /* DraftPost.swift */,
@@ -1247,6 +1262,11 @@
 				E680E017602FF623E27FE181 /* CanonicalPostResolver.swift in Sources */,
 				0C2A1C34C726230BBC70531A /* CanonicalPostStore.swift in Sources */,
 				AE6491049D7BAE45DC20D148 /* ChatView.swift in Sources */,
+				D5A5B6C7D8E9F0A1B2C3D4E5 /* ChatStreamService.swift in Sources */,
+				D5A4B5C6D7E8F9A0B1C2D3E4 /* BlueskyPollStreamProvider.swift in Sources */,
+				D5A3B4C5D6E7F8A9B0C1D2E3 /* MastodonChatStreamProvider.swift in Sources */,
+				D5A2B3C4D5E6F7A8B9C0D1E2 /* ChatStreamProvider.swift in Sources */,
+				D5A1B2C3D4E5F6A7B8C9D0E1 /* ChatStreamModels.swift in Sources */,
 				C65481E13024F427F66E6C28 /* Color+Theme.swift in Sources */,
 				8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */,
 				00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */,

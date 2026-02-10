@@ -28,6 +28,9 @@ struct SocialFusionApp: App {
     // Draft store for saving unfinished posts
     @StateObject private var draftStore = DraftStore()
 
+    // Chat stream service for real-time messaging
+    @StateObject private var chatStreamService = ChatStreamService()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -56,6 +59,7 @@ struct SocialFusionApp: App {
                 .environmentObject(navigationEnvironment)
                 .environmentObject(draftStore)
                 .environmentObject(edgeCaseHandler)
+                .environmentObject(chatStreamService)
                 .enableLiquidGlass()
                 .onOpenURL { url in
                     handleURL(url)
@@ -68,6 +72,7 @@ struct SocialFusionApp: App {
                     .environmentObject(navigationEnvironment)
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
+                    .environmentObject(chatStreamService)
                     .enableLiquidGlass()
             } else {
                 ContentView()
@@ -78,6 +83,7 @@ struct SocialFusionApp: App {
                     .environmentObject(notificationManager)
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
+                    .environmentObject(chatStreamService)
                     .enableLiquidGlass()
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
@@ -89,6 +95,10 @@ struct SocialFusionApp: App {
                                 await notificationManager.pollAndDeliverNotifications()
                             }
                         }
+                        chatStreamService.configure(
+                            mastodonService: serviceManager.mastodonService,
+                            blueskyService: serviceManager.blueskyService
+                        )
                     }
                     .onOpenURL { url in
                         handleURL(url)

@@ -36,6 +36,7 @@ struct NetworkConfig {
     // Social media API hosts for domain filtering
     static let socialMediaHosts = [
         "api.bsky.app",
+        "api.bsky.chat",
         "bsky.social",
         "mastodon.social",
         "mastodon.online",

@@ -4483,4 +4483,26 @@ extension BlueskyService {
         let (data, _) = try await session.data(for: request)
         return try JSONDecoder().decode(BlueskyMessageView.self, from: data)
     }
+
+    /// Fetch chat log events (for real-time polling)
+    internal func getChatLog(cursor: String?, for account: SocialAccount) async throws -> BlueskyGetLogResponse {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+
+        var apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getLog"
+        if let cursor = cursor {
+            apiURL += "?cursor=\(cursor)"
+        }
+        guard let url = URL(string: apiURL) else {
+            throw BlueskyTokenError.invalidServerURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await session.data(for: request)
+        return try JSONDecoder().decode(BlueskyGetLogResponse.self, from: data)
+    }
 }

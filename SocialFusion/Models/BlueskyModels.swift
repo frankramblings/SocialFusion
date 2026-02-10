@@ -516,6 +516,107 @@ public struct BlueskyDeletedMessageView: Codable, Identifiable {
     }
 }
 
+// MARK: - Chat Log (getLog) Types
+
+public struct BlueskyGetLogResponse: Codable {
+    public let cursor: String?
+    public let logs: [BlueskyConvoLogEvent]
+}
+
+public enum BlueskyConvoLogEvent: Codable {
+    case beginConvo(BlueskyLogConvoEvent)
+    case acceptConvo(BlueskyLogConvoEvent)
+    case leaveConvo(BlueskyLogConvoEvent)
+    case muteConvo(BlueskyLogConvoEvent)
+    case unmuteConvo(BlueskyLogConvoEvent)
+    case createMessage(BlueskyLogCreateMessage)
+    case deleteMessage(BlueskyLogDeleteMessage)
+    case readMessage(BlueskyLogReadMessage)
+    case addReaction(BlueskyLogReaction)
+    case removeReaction(BlueskyLogReaction)
+    case unknown(String)
+
+    private enum TypeKey: String, CodingKey {
+        case type = "$type"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let typeContainer = try decoder.container(keyedBy: TypeKey.self)
+        let type = try typeContainer.decode(String.self, forKey: .type)
+
+        switch type {
+        case "chat.bsky.convo.defs#logBeginConvo":
+            self = .beginConvo(try BlueskyLogConvoEvent(from: decoder))
+        case "chat.bsky.convo.defs#logAcceptConvo":
+            self = .acceptConvo(try BlueskyLogConvoEvent(from: decoder))
+        case "chat.bsky.convo.defs#logLeaveConvo":
+            self = .leaveConvo(try BlueskyLogConvoEvent(from: decoder))
+        case "chat.bsky.convo.defs#logMuteConvo":
+            self = .muteConvo(try BlueskyLogConvoEvent(from: decoder))
+        case "chat.bsky.convo.defs#logUnmuteConvo":
+            self = .unmuteConvo(try BlueskyLogConvoEvent(from: decoder))
+        case "chat.bsky.convo.defs#logCreateMessage":
+            self = .createMessage(try BlueskyLogCreateMessage(from: decoder))
+        case "chat.bsky.convo.defs#logDeleteMessage":
+            self = .deleteMessage(try BlueskyLogDeleteMessage(from: decoder))
+        case "chat.bsky.convo.defs#logReadMessage":
+            self = .readMessage(try BlueskyLogReadMessage(from: decoder))
+        case "chat.bsky.convo.defs#logAddReaction":
+            self = .addReaction(try BlueskyLogReaction(from: decoder))
+        case "chat.bsky.convo.defs#logRemoveReaction":
+            self = .removeReaction(try BlueskyLogReaction(from: decoder))
+        default:
+            self = .unknown(type)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        switch self {
+        case .beginConvo(let e): try e.encode(to: encoder)
+        case .acceptConvo(let e): try e.encode(to: encoder)
+        case .leaveConvo(let e): try e.encode(to: encoder)
+        case .muteConvo(let e): try e.encode(to: encoder)
+        case .unmuteConvo(let e): try e.encode(to: encoder)
+        case .createMessage(let e): try e.encode(to: encoder)
+        case .deleteMessage(let e): try e.encode(to: encoder)
+        case .readMessage(let e): try e.encode(to: encoder)
+        case .addReaction(let e): try e.encode(to: encoder)
+        case .removeReaction(let e): try e.encode(to: encoder)
+        case .unknown: break
+        }
+    }
+}
+
+public struct BlueskyLogConvoEvent: Codable {
+    public let rev: String
+    public let convoId: String
+}
+
+public struct BlueskyLogCreateMessage: Codable {
+    public let rev: String
+    public let convoId: String
+    public let message: BlueskyMessageView
+}
+
+public struct BlueskyLogDeleteMessage: Codable {
+    public let rev: String
+    public let convoId: String
+    public let message: BlueskyDeletedMessageView
+}
+
+public struct BlueskyLogReadMessage: Codable {
+    public let rev: String
+    public let convoId: String
+}
+
+public struct BlueskyLogReaction: Codable {
+    public let rev: String
+    public let convoId: String
+    public let message: BlueskyMessageView?
+    public let value: String?
+    public let sender: BlueskyActor?
+}
+
 // Thread Response
 public struct BlueskyThreadResponse: Codable {
     public let thread: BlueskyThreadView

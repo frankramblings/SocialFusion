@@ -467,6 +467,7 @@ struct NotificationRow: View {
 
 struct DirectMessagesView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject var chatStreamService: ChatStreamService
     @Binding var showAccountDropdown: Bool
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
@@ -565,6 +566,46 @@ struct DirectMessagesView: View {
         .onAppear {
             Task {
                 await fetchConversations()
+            }
+            chatStreamService.startListStreaming(accounts: serviceManager.accounts)
+        }
+        .onDisappear {
+            chatStreamService.stopAllStreaming()
+        }
+        .onReceive(chatStreamService.$recentEvents) { events in
+            for event in events {
+                switch event {
+                case .newMessage(let msg):
+                    // Update lastMessage on matching conversation and re-sort
+                    if let index = conversations.firstIndex(where: { $0.id == msg.conversationId }) {
+                        var updated = conversations[index]
+                        let newLastMessage = DirectMessage(
+                            id: msg.id,
+                            sender: NotificationAccount(
+                                id: msg.senderId, username: msg.senderDisplayName,
+                                displayName: msg.senderDisplayName,
+                                avatarURL: nil, displayNameEmojiMap: nil),
+                            recipient: updated.lastMessage.recipient,
+                            content: msg.text,
+                            createdAt: msg.sentAt,
+                            platform: msg.platform
+                        )
+                        updated = DMConversation(
+                            id: updated.id,
+                            participant: updated.participant,
+                            lastMessage: newLastMessage,
+                            unreadCount: updated.unreadCount + 1,
+                            platform: updated.platform
+                        )
+                        conversations[index] = updated
+                        conversations.sort { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
+                    }
+                case .conversationUpdated(let update) where update.kind == .began:
+                    // New conversation — do a full refresh
+                    Task { await fetchConversations() }
+                default:
+                    break
+                }
             }
         }
     }

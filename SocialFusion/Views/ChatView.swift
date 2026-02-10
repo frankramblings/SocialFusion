@@ -2,8 +2,9 @@ import SwiftUI
 
 struct ChatView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject var chatStreamService: ChatStreamService
     let conversation: DMConversation
-    
+
     @State private var messages: [UnifiedChatMessage] = []
     @State private var newMessageText = ""
     @State private var isLoading = false
@@ -82,6 +83,30 @@ struct ChatView: View {
         }
         .onAppear {
             loadMessages()
+            chatStreamService.startConversationStreaming(
+                conversation: conversation,
+                accounts: serviceManager.accounts
+            )
+        }
+        .onDisappear {
+            chatStreamService.stopAllStreaming()
+        }
+        .onReceive(chatStreamService.$recentEvents) { events in
+            for event in events {
+                guard event.conversationId == conversation.id else { continue }
+                switch event {
+                case .newMessage(let msg):
+                    // Deduplicate by ID
+                    guard !messages.contains(where: { $0.id == msg.id }) else { continue }
+                    if let unified = msg.unifiedMessage {
+                        messages.append(unified)
+                    }
+                case .deletedMessage(let del):
+                    messages.removeAll { $0.id == del.messageId }
+                default:
+                    break
+                }
+            }
         }
     }
     
