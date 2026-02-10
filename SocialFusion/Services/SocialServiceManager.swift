@@ -3511,7 +3511,20 @@ public final class SocialServiceManager: ObservableObject {
             }
             messages.append(contentsOf: context.descendants)
 
-            // Map to UnifiedChatMessage
+            // Filter to only messages relevant to this conversation's participants.
+            // Mastodon DMs are posts with direct visibility; fetchStatusContext returns the
+            // entire reply tree which can span across separate conversations with different people.
+            let participantUsername = conversation.participant.username.lowercased()
+            let myId = account.platformSpecificId ?? account.id
+            messages = messages.filter { post in
+                let mentionedUsers = Set(post.mentions.map { $0.lowercased() })
+                let isFromParticipant = post.authorId == conversation.participant.id
+                let isFromMe = post.authorId == myId
+                let mentionsParticipant = mentionedUsers.contains(participantUsername)
+                // Keep messages that are between me and this conversation's participant
+                return (isFromMe && mentionsParticipant) || (isFromParticipant && !isFromMe)
+            }
+
             return messages.map { UnifiedChatMessage.mastodon($0) }
 
         case .bluesky:

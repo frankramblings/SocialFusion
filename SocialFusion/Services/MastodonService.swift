@@ -2331,7 +2331,7 @@ public final class MastodonService: @unchecked Sendable {
                     id: account.id, username: account.username, displayName: account.displayName,
                     avatarURL: account.profileImageURL?.absoluteString,
                     displayNameEmojiMap: account.displayNameEmojiMap),
-                content: mastodonConv.lastStatus.content,
+                content: HTMLString(raw: mastodonConv.lastStatus.content).plainText,
                 createdAt: DateParser.parse(mastodonConv.lastStatus.createdAt) ?? Date(),
                 platform: .mastodon
             )
