@@ -221,8 +221,34 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
     _ center: UNUserNotificationCenter, willPresent notification: UNNotification,
     withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
   ) {
-    // Show notification even when app is in foreground
-    completionHandler([.banner, .list, .sound, .badge])
+    let userInfo = notification.request.content.userInfo
+    let typeRaw = userInfo["notificationType"] as? String ?? ""
+    let notificationType = AppNotification.NotificationType(rawValue: typeRaw)
+
+    // Check if user is on the notifications tab
+    let isOnNotificationsTab = isViewingNotificationsTab()
+
+    if isOnNotificationsTab {
+      // Suppress banner, the list will refresh
+      completionHandler([])
+    } else if notificationType == .mention {
+      // Show toast for mentions
+      let title = notification.request.content.title
+      let body = notification.request.content.body
+      Task { @MainActor in
+        ToastManager.shared.show("\(title): \(body)", duration: 4.0)
+      }
+      completionHandler([.badge, .sound])
+    } else {
+      // Likes, reposts, follows — badge only
+      completionHandler([.badge])
+    }
+  }
+
+  private func isViewingNotificationsTab() -> Bool {
+    // ContentView tracks selectedTab: 0=Home, 1=Notifications, 2=Messages, 3=Search, 4=Profile
+    // We check via a shared UserDefaults key that ContentView updates
+    return UserDefaults.standard.integer(forKey: "currentSelectedTab") == 1
   }
 
   func userNotificationCenter(

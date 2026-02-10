@@ -157,6 +157,9 @@ struct ContentView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabViewCustomization($tabCustomization)
         .tint(Color("AppPrimaryColor"))
+        .onChange(of: selectedTab) { _, newTab in
+            UserDefaults.standard.set(newTab, forKey: "currentSelectedTab")
+        }
         .onAppear {
             setupTabBarDelegate()
             initializeSelection()
