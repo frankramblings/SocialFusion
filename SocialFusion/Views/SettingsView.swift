@@ -1,5 +1,7 @@
+import BackgroundTasks
 import SwiftUI
 import UIKit
+import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
@@ -15,6 +17,7 @@ struct SettingsView: View {
     @State private var showingPrivacyPolicy = false
     @State private var showingTermsOfService = false
     @State private var showingDebugOptions = false
+    @State private var showNotificationDeniedAlert = false
 
     var body: some View {
         NavigationStack {
@@ -87,6 +90,70 @@ struct SettingsView: View {
 
                 Section(header: Text("Notifications")) {
                     Toggle("Enable Notifications", isOn: $enableNotifications)
+                        .onChange(of: enableNotifications) { _, enabled in
+                            if enabled {
+                                UNUserNotificationCenter.current().requestAuthorization(
+                                    options: [.alert, .sound, .badge]
+                                ) { granted, _ in
+                                    DispatchQueue.main.async {
+                                        if granted {
+                                            NotificationManager.shared.setupNotificationCategories()
+                                            NotificationManager.shared.scheduleBackgroundRefresh()
+                                        } else {
+                                            enableNotifications = false
+                                            showNotificationDeniedAlert = true
+                                        }
+                                    }
+                                }
+                            } else {
+                                BGTaskScheduler.shared.cancel(
+                                    taskRequestWithIdentifier: NotificationManager.bgTaskIdentifier)
+                                UNUserNotificationCenter.current()
+                                    .removeAllDeliveredNotifications()
+                                UNUserNotificationCenter.current()
+                                    .removeAllPendingNotificationRequests()
+                                UIApplication.shared.applicationIconBadgeNumber = 0
+                            }
+                        }
+
+                    if enableNotifications {
+                        Toggle(
+                            "Mentions",
+                            isOn: Binding(
+                                get: {
+                                    UserDefaults.standard.object(forKey: "notifyMentions") as? Bool
+                                        ?? true
+                                },
+                                set: { UserDefaults.standard.set($0, forKey: "notifyMentions") }
+                            ))
+                        Toggle(
+                            "Likes",
+                            isOn: Binding(
+                                get: {
+                                    UserDefaults.standard.object(forKey: "notifyLikes") as? Bool
+                                        ?? true
+                                },
+                                set: { UserDefaults.standard.set($0, forKey: "notifyLikes") }
+                            ))
+                        Toggle(
+                            "Reposts",
+                            isOn: Binding(
+                                get: {
+                                    UserDefaults.standard.object(forKey: "notifyReposts") as? Bool
+                                        ?? true
+                                },
+                                set: { UserDefaults.standard.set($0, forKey: "notifyReposts") }
+                            ))
+                        Toggle(
+                            "New Followers",
+                            isOn: Binding(
+                                get: {
+                                    UserDefaults.standard.object(forKey: "notifyFollows") as? Bool
+                                        ?? true
+                                },
+                                set: { UserDefaults.standard.set($0, forKey: "notifyFollows") }
+                            ))
+                    }
                 }
 
                 Section(header: Text("About")) {
@@ -158,6 +225,17 @@ struct SettingsView: View {
                             }
                         }
                 }
+            }
+            .alert("Notifications Disabled", isPresented: $showNotificationDeniedAlert) {
+                Button("Open Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(
+                    "Notifications are disabled in system settings. Open Settings to enable them.")
             }
         }
     }
