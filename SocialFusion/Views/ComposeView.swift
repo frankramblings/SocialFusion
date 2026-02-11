@@ -680,6 +680,7 @@ struct ComposeView: View {
     init(
         replyingTo: Post? = nil,
         quotingTo: Post? = nil,
+        initialText: String? = nil,
         timelineContextProvider: TimelineContextProvider? = nil
     ) {
         self.replyingTo = replyingTo
@@ -691,6 +692,15 @@ struct ComposeView: View {
         // For replies or quotes, filter platforms to match the original post
         if let post = replyingTo ?? quotingTo {
             _selectedPlatforms = State(initialValue: [post.platform])
+        }
+
+        // Pre-fill text from deep link or Shortcuts
+        print("🔗 [ComposeView.init] initialText=\(initialText ?? "nil")")
+        if let initialText = initialText, !initialText.isEmpty {
+            var firstPost = ThreadPost()
+            firstPost.text = initialText
+            _threadPosts = State(initialValue: [firstPost])
+            print("🔗 [ComposeView.init] Pre-filled threadPosts[0].text=\(firstPost.text)")
         }
 
         // Store timeline context provider for autocomplete

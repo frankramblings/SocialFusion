@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var showComposeView = false
     @State private var showValidationView = false
     @State private var showAddAccountView = false
+    @State private var composeInitialText: String? = nil
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -179,6 +180,13 @@ struct ContentView: View {
         { _ in
             handleHomeTabDoubleTap()
         }
+        .modifier(DeepLinkNavigationModifier(
+            navigationEnvironment: navigationEnvironment,
+            selectedTab: $selectedTab,
+            showComposeView: $showComposeView,
+            composeInitialText: $composeInitialText,
+            onAccountSwitch: { switchToAccount(id: $0) }
+        ))
         .environment(
             \.openURL,
             OpenURLAction { url in
@@ -213,8 +221,11 @@ struct ContentView: View {
             .onLongPressGesture(minimumDuration: 1.0) {
                 showValidationView = true
             }
-            .sheet(isPresented: $showComposeView) {
+            .sheet(isPresented: $showComposeView, onDismiss: {
+                composeInitialText = nil
+            }) {
                 ComposeView(
+                    initialText: composeInitialText,
                     timelineContextProvider: serviceManager.timelineContextProvider
                 )
                 .environmentObject(serviceManager)
@@ -1056,6 +1067,67 @@ struct ContentView_Previews: PreviewProvider {
 }
 
 // UnifiedAccountsIcon is now defined in Views/UnifiedAccountsIcon.swift
+
+// MARK: - Deep Link Navigation Modifier
+
+/// Extracted modifier to reduce type-checking complexity in ContentView's modernTabView
+struct DeepLinkNavigationModifier: ViewModifier {
+    @ObservedObject var navigationEnvironment: PostNavigationEnvironment
+    @Binding var selectedTab: Int
+    @Binding var showComposeView: Bool
+    @Binding var composeInitialText: String?
+    var onAccountSwitch: (String) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                handlePendingDeepLinks()
+            }
+            .onChange(of: navigationEnvironment.pendingTab) { _, newTab in
+                if let tab = newTab {
+                    selectedTab = tab
+                    navigationEnvironment.pendingTab = nil
+                }
+            }
+            .onChange(of: navigationEnvironment.pendingCompose) { _, newCompose in
+                if newCompose != nil {
+                    handlePendingCompose()
+                }
+            }
+            .onChange(of: navigationEnvironment.pendingAccountSwitch) { _, newAccountId in
+                if let accountId = newAccountId {
+                    onAccountSwitch(accountId)
+                    navigationEnvironment.pendingAccountSwitch = nil
+                }
+            }
+    }
+
+    private func handlePendingDeepLinks() {
+        // Handle deep links that arrived before ContentView appeared (cold launch)
+        if let tab = navigationEnvironment.pendingTab {
+            selectedTab = tab
+            navigationEnvironment.pendingTab = nil
+        }
+        if navigationEnvironment.pendingCompose != nil {
+            handlePendingCompose()
+        }
+        if let accountId = navigationEnvironment.pendingAccountSwitch {
+            onAccountSwitch(accountId)
+            navigationEnvironment.pendingAccountSwitch = nil
+        }
+    }
+
+    private func handlePendingCompose() {
+        guard let compose = navigationEnvironment.pendingCompose else { return }
+        var parts: [String] = []
+        if let text = compose.text { parts.append(text) }
+        if let url = compose.url { parts.append(url) }
+        composeInitialText = parts.isEmpty ? nil : parts.joined(separator: "\n")
+        print("🔗 [DeepLink] pendingCompose fired — composeInitialText=\(composeInitialText ?? "nil"), showComposeView → true")
+        showComposeView = true
+        navigationEnvironment.pendingCompose = nil
+    }
+}
 
 // MARK: - Tab Bar Delegate for Double-Tap Detection
 class TabBarDelegate: NSObject, UITabBarControllerDelegate {
