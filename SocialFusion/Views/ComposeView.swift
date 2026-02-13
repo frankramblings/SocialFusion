@@ -695,12 +695,10 @@ struct ComposeView: View {
         }
 
         // Pre-fill text from deep link or Shortcuts
-        print("🔗 [ComposeView.init] initialText=\(initialText ?? "nil")")
         if let initialText = initialText, !initialText.isEmpty {
             var firstPost = ThreadPost()
             firstPost.text = initialText
             _threadPosts = State(initialValue: [firstPost])
-            print("🔗 [ComposeView.init] Pre-filled threadPosts[0].text=\(firstPost.text)")
         }
 
         // Store timeline context provider for autocomplete
@@ -1567,6 +1565,11 @@ struct ComposeView: View {
                         }
                         ToolbarItem(placement: .navigationBarTrailing) {
                             Button("Done") {
+                                // Save ALT text back to the post
+                                while threadPosts[activePostIndex].imageAltTexts.count <= selectedImageIndexForAltText {
+                                    threadPosts[activePostIndex].imageAltTexts.append("")
+                                }
+                                threadPosts[activePostIndex].imageAltTexts[selectedImageIndexForAltText] = currentAltText
                                 showAltTextSheet = false
                             }
                         }
@@ -1687,6 +1690,7 @@ struct ComposeView: View {
         }
         return Array(altTexts.prefix(post.images.count))
     }
+
 
     @ViewBuilder
     private func platformStatusBar() -> some View {

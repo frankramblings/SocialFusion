@@ -163,7 +163,6 @@ class PostNavigationEnvironment: ObservableObject {
             let text = queryItems.first(where: { $0.name == "text" })?.value
             let linkURL = queryItems.first(where: { $0.name == "url" })?.value
             let title = queryItems.first(where: { $0.name == "title" })?.value
-            print("🔗 [handleCustomScheme] compose route — text=\(text ?? "nil"), url=\(linkURL ?? "nil"), title=\(title ?? "nil")")
             Task { @MainActor in
                 pendingCompose = ComposeDeepLink(text: text, url: linkURL, title: title)
             }

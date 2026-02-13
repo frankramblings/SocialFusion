@@ -1123,7 +1123,6 @@ struct DeepLinkNavigationModifier: ViewModifier {
         if let text = compose.text { parts.append(text) }
         if let url = compose.url { parts.append(url) }
         composeInitialText = parts.isEmpty ? nil : parts.joined(separator: "\n")
-        print("🔗 [DeepLink] pendingCompose fired — composeInitialText=\(composeInitialText ?? "nil"), showComposeView → true")
         showComposeView = true
         navigationEnvironment.pendingCompose = nil
     }
