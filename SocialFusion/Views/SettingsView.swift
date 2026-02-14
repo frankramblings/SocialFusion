@@ -18,6 +18,12 @@ struct SettingsView: View {
     @State private var showingTermsOfService = false
     @State private var showingDebugOptions = false
     @State private var showNotificationDeniedAlert = false
+    @State private var totalCacheSize: Int64 = 0
+    @State private var isCalculatingSize = false
+    @State private var showClearImageAlert = false
+    @State private var showClearDatabaseAlert = false
+    @State private var showClearOtherAlert = false
+    @State private var clearingInProgress = false
 
     var body: some View {
         NavigationStack {
@@ -177,6 +183,38 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(header: Text("Storage")) {
+                    HStack {
+                        Text("Cache Size")
+                        Spacer()
+                        if isCalculatingSize {
+                            ProgressView()
+                                .scaleEffect(0.8)
+                        } else {
+                            Text(formattedSize(totalCacheSize))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .onAppear {
+                        Task { await calculateTotalCacheSize() }
+                    }
+
+                    Button("Clear Image Cache") {
+                        showClearImageAlert = true
+                    }
+                    .disabled(clearingInProgress)
+
+                    Button("Reset Post Database") {
+                        showClearDatabaseAlert = true
+                    }
+                    .disabled(clearingInProgress)
+
+                    Button("Clear Other Caches") {
+                        showClearOtherAlert = true
+                    }
+                    .disabled(clearingInProgress)
+                }
+
                 #if DEBUG
                     Section(header: Text("Debug")) {
                         Button("Profile Image Diagnostics") {
@@ -237,7 +275,88 @@ struct SettingsView: View {
                 Text(
                     "Notifications are disabled in system settings. Open Settings to enable them.")
             }
+            .alert("Clear Image Cache", isPresented: $showClearImageAlert) {
+                Button("Clear", role: .destructive) {
+                    Task { await clearImageCache() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will remove all cached images. They will be re-downloaded as needed.")
+            }
+            .alert("Reset Post Database", isPresented: $showClearDatabaseAlert) {
+                Button("Reset", role: .destructive) {
+                    Task { await clearPostDatabase() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will clear the offline post cache. Your timeline will refresh from the network.")
+            }
+            .alert("Clear Other Caches", isPresented: $showClearOtherAlert) {
+                Button("Clear", role: .destructive) {
+                    Task { await clearOtherCaches() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will clear link preview, emoji, media dimension, and search caches.")
+            }
         }
+    }
+
+    // MARK: - Storage Helpers
+
+    private func formattedSize(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+
+    private func calculateTotalCacheSize() async {
+        isCalculatingSize = true
+        defer { isCalculatingSize = false }
+
+        var total: Int64 = 0
+
+        // Image cache (URLCache disk usage)
+        let imageInfo = ImageCache.shared.getCacheInfo()
+        total += Int64(imageInfo.diskSize)
+
+        // Emoji cache (URLCache disk usage)
+        let emojiDiskUsage = await CustomEmojiCache.shared.getDiskUsage()
+        total += Int64(emojiDiskUsage)
+
+        // SwiftData store files
+        let storeSize = await TimelineSwiftDataStore.shared.getStoreSize()
+        total += storeSize
+
+        totalCacheSize = total
+    }
+
+    private func clearImageCache() async {
+        clearingInProgress = true
+        defer { clearingInProgress = false }
+
+        ImageCache.shared.clearCache()
+        await calculateTotalCacheSize()
+    }
+
+    private func clearPostDatabase() async {
+        clearingInProgress = true
+        defer { clearingInProgress = false }
+
+        await TimelineSwiftDataStore.shared.clearAll()
+        try? await serviceManager.fetchTimeline(force: true)
+        await calculateTotalCacheSize()
+    }
+
+    private func clearOtherCaches() async {
+        clearingInProgress = true
+        defer { clearingInProgress = false }
+
+        LinkPreviewCache.shared.clearCache()
+        await CustomEmojiCache.shared.clearCache()
+        MediaDimensionCache.shared.clearAll()
+        SearchCache.shared.clear()
+        await calculateTotalCacheSize()
     }
 }
 

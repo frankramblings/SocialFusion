@@ -254,3 +254,24 @@ class MockAVPlayer: AVPlayer {
 
 // MARK: - Test Extensions
 
+final class MediaDimensionCacheKeyTests: XCTestCase {
+    func testDiskFilenameRoundTripPreservesOriginalURL() {
+        let original =
+            "https://cdn.example.com/media/file_name_v2.png?foo=bar_baz&token=abc123"
+        let filename = MediaDimensionCache._test_diskFilename(for: original)
+        let decoded = MediaDimensionCache._test_decodeFilename(filename)
+
+        XCTAssertEqual(decoded, original)
+        XCTAssertFalse(filename.contains("/"))
+    }
+
+    func testDiskFilenameEncodingAvoidsUnderscoreCollision() {
+        let underscored = "https://example.com/path/file_name.png"
+        let slashed = "https://example.com/path/file/name.png"
+
+        let filenameA = MediaDimensionCache._test_diskFilename(for: underscored)
+        let filenameB = MediaDimensionCache._test_diskFilename(for: slashed)
+
+        XCTAssertNotEqual(filenameA, filenameB)
+    }
+}

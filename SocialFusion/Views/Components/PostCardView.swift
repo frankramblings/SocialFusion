@@ -133,151 +133,106 @@ struct PostCardView: View {
         return nil
     }
     
-    // CRITICAL FIX: Update cached values to prevent AttributeGraph cycles
-    // This function extracts values once and caches them, avoiding repeated access to nested @ObservedObject properties
-    // CRITICAL: This function must be called outside the view rendering cycle (via Task with delay)
-    // CRITICAL: All calculations and state updates are wrapped in Task to ensure they happen outside view update cycle
+    // Update cached values to avoid repeated nested observed-object reads in rendering paths.
     private func updateCachedValues() {
-        // Prevent recursive calls
         guard !isUpdatingCache else { return }
         isUpdatingCache = true
         defer { isUpdatingCache = false }
-        
-        // CRITICAL: Wrap ALL calculations and state updates in Task with delay to ensure they happen outside view update cycle
-        // This prevents "Modifying state during view update" warnings
-        Task { @MainActor in
-            // CRITICAL: Add delay before accessing post properties to ensure we're outside view update cycle
-            try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 second delay
-            
-            // CRITICAL: Capture originalPost and boostedBy references once to avoid multiple accesses
-            // Accessing post.originalPost and post.boostedBy triggers didSet which calls objectWillChange
-            // By capturing them once, we minimize the number of triggers
-            let originalPostRef = post.originalPost
-            let postBoostedByRef = post.boostedBy
-            
-            // Cache platform from displayPost to avoid accessing post.platform synchronously
-            let newDisplayPost: Post
-            let newPlatform: SocialPlatform
-            let isBoost = originalPostRef != nil || (boostedBy ?? postBoostedByRef) != nil
-            if isBoost, let original = originalPostRef {
-                newDisplayPost = original
-                newPlatform = original.platform
-            } else {
-                newDisplayPost = post
-                newPlatform = post.platform
-            }
-            
-            // Only update if value changed to prevent unnecessary view updates
-            if cachedDisplayPost?.id != newDisplayPost.id {
-                cachedDisplayPost = newDisplayPost
-            }
-            // Update platform if it changed
-            if cachedPlatform != newPlatform {
-                cachedPlatform = newPlatform
-            }
-            
-            // Update cached boost handle - only update if value changed
-            let hasOriginalPost = originalPostRef != nil
-            let finalBoostedBy = boostedBy ?? postBoostedByRef
-            let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let hasBoostHandle = boostHandle != nil && !boostHandle!.isEmpty
-            
-            let newBoostHandle: String?
-            if !hasOriginalPost && !hasBoostHandle {
-                newBoostHandle = nil
-            } else if let handle = boostHandle, !handle.isEmpty {
-                newBoostHandle = handle
-            } else if let handle = postBoostedByRef, !handle.isEmpty {
-                newBoostHandle = handle
-            } else if hasOriginalPost {
-                if !post.authorUsername.isEmpty {
-                    newBoostHandle = post.authorUsername
-                } else if post.id.hasPrefix("repost-") {
-                    let components = post.id.split(separator: "-", maxSplits: 2)
-                    if components.count >= 2 {
-                        newBoostHandle = String(components[1])
-                    } else {
-                        newBoostHandle = "Someone"
-                    }
-                } else if let original = originalPostRef, !original.authorUsername.isEmpty {
-                    newBoostHandle = original.authorUsername
+
+        let originalPostRef = post.originalPost
+        let postBoostedByRef = post.boostedBy
+
+        let newDisplayPost: Post
+        let newPlatform: SocialPlatform
+        let isBoost = originalPostRef != nil || (boostedBy ?? postBoostedByRef) != nil
+        if isBoost, let original = originalPostRef {
+            newDisplayPost = original
+            newPlatform = original.platform
+        } else {
+            newDisplayPost = post
+            newPlatform = post.platform
+        }
+
+        if cachedDisplayPost?.id != newDisplayPost.id {
+            cachedDisplayPost = newDisplayPost
+        }
+        if cachedPlatform != newPlatform {
+            cachedPlatform = newPlatform
+        }
+
+        let hasOriginalPost = originalPostRef != nil
+        let finalBoostedBy = boostedBy ?? postBoostedByRef
+        let boostHandle = finalBoostedBy?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasBoostHandle = boostHandle != nil && !boostHandle!.isEmpty
+
+        let newBoostHandle: String?
+        if !hasOriginalPost && !hasBoostHandle {
+            newBoostHandle = nil
+        } else if let handle = boostHandle, !handle.isEmpty {
+            newBoostHandle = handle
+        } else if let handle = postBoostedByRef, !handle.isEmpty {
+            newBoostHandle = handle
+        } else if hasOriginalPost {
+            if !post.authorUsername.isEmpty {
+                newBoostHandle = post.authorUsername
+            } else if post.id.hasPrefix("repost-") {
+                let components = post.id.split(separator: "-", maxSplits: 2)
+                if components.count >= 2 {
+                    newBoostHandle = String(components[1])
                 } else {
                     newBoostHandle = "Someone"
                 }
+            } else if let original = originalPostRef, !original.authorUsername.isEmpty {
+                newBoostHandle = original.authorUsername
             } else {
-                newBoostHandle = nil
+                newBoostHandle = "Someone"
             }
-            
-            // Only update if value changed
-            if cachedBoostHandle != newBoostHandle {
-                cachedBoostHandle = newBoostHandle
-            }
-            
-            // Update cached attachments - only update if value changed
-            let newAttachments: [Post.Attachment]
-            if let original = originalPostRef {
-                if !original.attachments.isEmpty {
-                    newAttachments = original.attachments
-                } else {
-                    let dp = cachedDisplayPost ?? post
-                    newAttachments = dp.attachments
-                }
+        } else {
+            newBoostHandle = nil
+        }
+
+        if cachedBoostHandle != newBoostHandle {
+            cachedBoostHandle = newBoostHandle
+        }
+
+        let newAttachments: [Post.Attachment]
+        if let original = originalPostRef {
+            if !original.attachments.isEmpty {
+                newAttachments = original.attachments
             } else {
                 let dp = cachedDisplayPost ?? post
                 newAttachments = dp.attachments
             }
-            
-            // Only update if attachments changed (compare by count and first URL)
-            if cachedAttachments.count != newAttachments.count ||
-               (cachedAttachments.first?.url != newAttachments.first?.url) {
-                cachedAttachments = newAttachments
-            }
-            
-            // Update cached poll - only update if value changed
-            let newPoll: Post.Poll?
+        } else {
             let dp = cachedDisplayPost ?? post
-            if let original = originalPostRef {
-                newPoll = original.poll ?? dp.poll
-            } else {
-                newPoll = dp.poll
-            }
+            newAttachments = dp.attachments
+        }
 
-            // Prefer existing poll when incoming data is nil
-            let finalPoll = newPoll ?? cachedPoll
-            if cachedPoll != finalPoll {
-                cachedPoll = finalPoll
-            }
+        if cachedAttachments.count != newAttachments.count
+            || (cachedAttachments.first?.url != newAttachments.first?.url)
+        {
+            cachedAttachments = newAttachments
+        }
 
-            // Update cached booster emoji map - only update if value changed
-            let newBoosterEmojiMap = post.boosterEmojiMap
-            if cachedBoosterEmojiMap != newBoosterEmojiMap {
-                cachedBoosterEmojiMap = newBoosterEmojiMap
-            }
+        let newPoll: Post.Poll?
+        let dp = cachedDisplayPost ?? post
+        if let original = originalPostRef {
+            newPoll = original.poll ?? dp.poll
+        } else {
+            newPoll = dp.poll
+        }
+
+        let finalPoll = newPoll ?? cachedPoll
+        if cachedPoll != finalPoll {
+            cachedPoll = finalPoll
+        }
+
+        let newBoosterEmojiMap = post.boosterEmojiMap
+        if cachedBoosterEmojiMap != newBoosterEmojiMap {
+            cachedBoosterEmojiMap = newBoosterEmojiMap
         }
     }
     
-    // CRITICAL FIX: Defer logging to prevent AttributeGraph cycles from accessing post.originalPost
-    private func logBannerState() {
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-            // CRITICAL: Capture references once to avoid multiple synchronous accesses
-            let originalPostRef = post.originalPost
-            let postBoostedByRef = post.boostedBy
-            let hasOriginalPost = originalPostRef != nil
-            let hasBoostedBy = (boostedBy ?? postBoostedByRef) != nil
-            let hasReplyInfo = replyInfo != nil
-            DebugLog.verbose("🔍 [PostCardView] Banner state for post \(post.id):")
-            DebugLog.verbose("  - hasOriginalPost: \(hasOriginalPost)")
-            DebugLog.verbose("  - hasBoostedBy: \(hasBoostedBy) (boostedBy param: \(boostedBy ?? "nil"), post.boostedBy: \(postBoostedByRef ?? "nil"))")
-            DebugLog.verbose("  - hasReplyInfo: \(hasReplyInfo)")
-            if hasOriginalPost {
-                DebugLog.verbose("  - originalPost.id: \(originalPostRef?.id ?? "nil")")
-                DebugLog.verbose("  - originalPost.content.isEmpty: \(originalPostRef?.content.isEmpty ?? true)")
-            }
-        }
-    }
-
-
     // Convenience initializer for TimelineEntry
     init(
         entry: TimelineEntry,
@@ -566,10 +521,7 @@ struct PostCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .id(displayPost.id + "_reply_banner")
             .onAppear {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 200_000_000)  // Longer delay to ensure outside view update cycle
-                    DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
-                }
+                DebugLog.verbose("[PostCardView] 🎯 Rendering ExpandingReplyBanner for post \(post.id) with username: \(replyInfo.username)")
             }
         }
     }
@@ -689,12 +641,9 @@ struct PostCardView: View {
                     .padding(.top, 4)
                     .clipped()
                     .onAppear {
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 200_000_000)
-                            DebugLog.verbose("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
-                            for (index, att) in attachmentsToShow.enumerated() {
-                                DebugLog.verbose("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
-                            }
+                        DebugLog.verbose("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
+                        for (index, att) in attachmentsToShow.enumerated() {
+                            DebugLog.verbose("[PostCardView]   Attachment \(index): type=\(att.type), url=\(att.url)")
                         }
                     }
             }
@@ -717,55 +666,35 @@ struct PostCardView: View {
         .onTapGesture {
             // Only handle tap if banner wasn't tapped
             if !bannerWasTapped {
+                HapticEngine.tap.trigger()
                 onPostTap()
             }
             bannerWasTapped = false
         }
         .onAppear {
-            // CRITICAL FIX: Update cache on appear to ensure correct values
-            // Cache is initialized to post in initializer, but may need to be updated to originalPost
-            // Use Task with longer delay to ensure we're completely outside the rendering cycle
-            // CRITICAL: Only update in onAppear, not onChange, to prevent cycles
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 seconds delay - longer to ensure outside cycle
-                guard !isUpdatingCache else { return }
-                updateCachedValues()
-                
-                // Read state tracking (non-blocking, uses in-memory cache)
-                if !hasCheckedReadState {
-                    isRead = ViewTracker.shared.isRead(postId: post.id)
-                    hasCheckedReadState = true
-                    
-                    // Mark as read asynchronously (non-blocking)
-                    Task {
-                        await ViewTracker.shared.markAsRead(postId: post.id, stableId: post.stableId)
-                        // Update UI state after marking as read
-                        await MainActor.run {
-                            isRead = true
-                        }
+            updateCachedValues()
+
+            // Read state tracking (non-blocking, uses in-memory cache)
+            if !hasCheckedReadState {
+                isRead = ViewTracker.shared.isRead(postId: post.id)
+                hasCheckedReadState = true
+
+                // Mark as read asynchronously (non-blocking)
+                Task {
+                    await ViewTracker.shared.markAsRead(postId: post.id, stableId: post.stableId)
+                    await MainActor.run {
+                        isRead = true
                     }
                 }
             }
         }
         .onChange(of: post.id) { _ in
-            // CRITICAL FIX: Update cache when post changes (e.g., originalPost is set)
-            // But defer it to prevent AttributeGraph cycles
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 seconds delay
-                guard !isUpdatingCache else { return }
-                updateCachedValues()
-            }
+            updateCachedValues()
         }
         .onChange(of: ObjectIdentifier(post)) { _ in
-            // CRITICAL FIX: Update cache when SwiftUI reuses the PostCardView with a new Post instance
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 200_000_000)
-                guard !isUpdatingCache else { return }
-                updateCachedValues()
-            }
+            updateCachedValues()
         }
         .onReceive(post.$poll) { _ in
-            guard !isUpdatingCache else { return }
             updateCachedValues()
         }
         // CRITICAL FIX: Removed onChange modifiers for post.originalPost that were causing AttributeGraph cycles

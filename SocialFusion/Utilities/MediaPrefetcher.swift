@@ -6,7 +6,7 @@ class MediaPrefetcher {
   static let shared = MediaPrefetcher()
   
   private var prefetchTasks: [String: Task<Void, Never>] = [:]
-  private let prefetchQueue = DispatchQueue(label: "com.socialfusion.mediaPrefetcher", attributes: .concurrent)
+  private var prefetchGeneration: [String: UUID] = [:]
   
   private init() {}
   
@@ -16,13 +16,20 @@ class MediaPrefetcher {
     
     // Cancel existing prefetch for this post
     prefetchTasks[postId]?.cancel()
+    let generation = UUID()
+    prefetchGeneration[postId] = generation
     
     // Get attachments to prefetch
     let attachments = post.originalPost?.attachments ?? post.attachments
     
     // Start prefetch task
-    prefetchTasks[postId] = Task {
+    prefetchTasks[postId] = Task { [weak self] in
+      guard let self = self else { return }
       await prefetchAttachments(attachments)
+      if prefetchGeneration[postId] == generation {
+        prefetchTasks.removeValue(forKey: postId)
+        prefetchGeneration.removeValue(forKey: postId)
+      }
     }
   }
   
@@ -51,6 +58,7 @@ class MediaPrefetcher {
   func cancelPrefetch(for postId: String) {
     prefetchTasks[postId]?.cancel()
     prefetchTasks.removeValue(forKey: postId)
+    prefetchGeneration.removeValue(forKey: postId)
   }
   
   /// Cancel all prefetches
@@ -59,6 +67,7 @@ class MediaPrefetcher {
       task.cancel()
     }
     prefetchTasks.removeAll()
+    prefetchGeneration.removeAll()
   }
   
   // MARK: - Private Helpers

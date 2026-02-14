@@ -119,6 +119,14 @@ class MediaDimensionCache {
   }
   
   // MARK: - Private Helpers
+
+  nonisolated static func _test_diskFilename(for key: String) -> String {
+    encodeKeyForFilename(key)
+  }
+
+  nonisolated static func _test_decodeFilename(_ filename: String) -> String? {
+    decodeFilenameToKey(filename)
+  }
   
   private func cacheKey(for url: String) -> String {
     // Use URL as-is for key (normalize if needed)
@@ -126,13 +134,8 @@ class MediaDimensionCache {
   }
   
   private func fileURL(for key: String) -> URL {
-    // Sanitize key for filesystem
-    let sanitized = key
-      .replacingOccurrences(of: "/", with: "_")
-      .replacingOccurrences(of: ":", with: "_")
-      .replacingOccurrences(of: "?", with: "_")
-      .replacingOccurrences(of: "&", with: "_")
-    return cacheDirectory.appendingPathComponent("\(sanitized).json")
+    let encoded = Self.encodeKeyForFilename(key)
+    return cacheDirectory.appendingPathComponent("\(encoded).json")
   }
   
   private func loadFromDisk() {
@@ -149,10 +152,13 @@ class MediaDimensionCache {
         if let data = try? Data(contentsOf: file),
            let cached = try? JSONDecoder().decode(CachedDimension.self, from: data),
            !cached.isExpired {
-          // Extract key from filename
-          let key = file.deletingPathExtension().lastPathComponent
-            .replacingOccurrences(of: "_", with: "/")
-          loaded[key] = cached
+          let filename = file.deletingPathExtension().lastPathComponent
+          if let key = Self.decodeFilenameToKey(filename) {
+            loaded[key] = cached
+          } else {
+            // Backward compatibility for legacy sanitized filenames
+            loaded[filename.replacingOccurrences(of: "_", with: "/")] = cached
+          }
         }
       }
       
@@ -173,13 +179,8 @@ class MediaDimensionCache {
   }
   
   nonisolated private func fileURL(for key: String, cacheDirectory: URL) -> URL {
-    // Sanitize key for filesystem
-    let sanitized = key
-      .replacingOccurrences(of: "/", with: "_")
-      .replacingOccurrences(of: ":", with: "_")
-      .replacingOccurrences(of: "?", with: "_")
-      .replacingOccurrences(of: "&", with: "_")
-    return cacheDirectory.appendingPathComponent("\(sanitized).json")
+    let encoded = Self.encodeKeyForFilename(key)
+    return cacheDirectory.appendingPathComponent("\(encoded).json")
   }
   
   nonisolated private func clearExpiredFromDisk(cacheDirectory: URL) {
@@ -194,5 +195,25 @@ class MediaDimensionCache {
         try? FileManager.default.removeItem(at: file)
       }
     }
+  }
+
+  nonisolated private static func encodeKeyForFilename(_ key: String) -> String {
+    let data = Data(key.utf8)
+    return data.base64EncodedString()
+      .replacingOccurrences(of: "+", with: "-")
+      .replacingOccurrences(of: "/", with: "_")
+      .replacingOccurrences(of: "=", with: "")
+  }
+
+  nonisolated private static func decodeFilenameToKey(_ filename: String) -> String? {
+    var base64 = filename
+      .replacingOccurrences(of: "-", with: "+")
+      .replacingOccurrences(of: "_", with: "/")
+    let paddingLength = (4 - (base64.count % 4)) % 4
+    if paddingLength > 0 {
+      base64 += String(repeating: "=", count: paddingLength)
+    }
+    guard let data = Data(base64Encoded: base64) else { return nil }
+    return String(data: data, encoding: .utf8)
   }
 }

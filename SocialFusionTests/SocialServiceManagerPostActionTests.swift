@@ -5,12 +5,19 @@ import Combine
 @MainActor
 final class SocialServiceManagerPostActionTests: XCTestCase {
     var cancellables: Set<AnyCancellable> = []
+    private let queueDefaultsKey = "socialfusion_offline_queue"
 
     override func setUp() {
         super.setUp()
         FeatureFlagManager.shared.enableFeature(.postActionsV2)
         SimpleEdgeCaseMonitor.shared.isNetworkAvailable = true
         cancellables = []
+        UserDefaults.standard.removeObject(forKey: queueDefaultsKey)
+    }
+
+    override func tearDown() {
+        UserDefaults.standard.removeObject(forKey: queueDefaultsKey)
+        super.tearDown()
     }
 
     // Adapted: use the PostActionCoordinator + PostActionNetworking mock to validate
@@ -183,5 +190,162 @@ final class SocialServiceManagerPostActionTests: XCTestCase {
         XCTAssertFalse(post.isLiked)
         XCTAssertEqual(post.likeCount, serverState.likeCount)
     }
+
+    // MARK: - Offline Queue Replay ID Semantics
+
+    func testQueuedActionPrefersPlatformPostIdForReplay() {
+        let action = QueuedAction(
+            postId: "stable-mastodon-post-id",
+            platformPostId: "109876543210",
+            platform: .mastodon,
+            type: .like
+        )
+
+        XCTAssertEqual(action.fetchPostId, "109876543210")
+    }
+
+    func testQueuedActionFallsBackToLegacyPostIdWhenPlatformPostIdMissing() throws {
+        let legacyJSON = """
+        {
+          "id": "D7C09D90-67C3-430A-9F84-742E09CC8655",
+          "postId": "legacy-post-id",
+          "platform": "bluesky",
+          "type": "repost",
+          "createdAt": "2026-02-14T00:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let action = try decoder.decode(QueuedAction.self, from: legacyJSON)
+
+        XCTAssertEqual(action.fetchPostId, "legacy-post-id")
+    }
+
+    func testQueueStorePersistsPlatformPostId() {
+        let store = OfflineQueueStore()
+
+        store.queueAction(
+            postId: "stable-id",
+            platformPostId: "native-id",
+            platform: .mastodon,
+            type: .like
+        )
+
+        XCTAssertEqual(store.queuedActions.count, 1)
+        XCTAssertEqual(store.queuedActions.first?.fetchPostId, "native-id")
+    }
 }
 
+final class ComposeAutocompleteLatencyTests: XCTestCase {
+    private func makeAccount(id: String, platform: SocialPlatform = .mastodon) -> SocialAccount {
+        SocialAccount(
+            id: id,
+            username: "user-\(id)",
+            displayName: "User \(id)",
+            serverURL: nil,
+            platform: platform,
+            profileImageURL: nil
+        )
+    }
+
+    func testServiceKeyIgnoresAccountOrder() {
+        let accountA = makeAccount(id: "a", platform: .mastodon)
+        let accountB = makeAccount(id: "b", platform: .bluesky)
+
+        let keyOne = ComposeAutocompleteServiceKey.make(
+            accounts: [accountA, accountB],
+            timelineScope: .unified
+        )
+        let keyTwo = ComposeAutocompleteServiceKey.make(
+            accounts: [accountB, accountA],
+            timelineScope: .unified
+        )
+
+        XCTAssertEqual(keyOne, keyTwo)
+    }
+
+    func testServiceKeyChangesWhenScopeChanges() {
+        let account = makeAccount(id: "a", platform: .mastodon)
+
+        let unified = ComposeAutocompleteServiceKey.make(
+            accounts: [account],
+            timelineScope: .unified
+        )
+        let thread = ComposeAutocompleteServiceKey.make(
+            accounts: [account],
+            timelineScope: .thread("post-123")
+        )
+
+        XCTAssertNotEqual(unified, thread)
+    }
+
+    func testServiceKeyChangesWhenAccountsChange() {
+        let accountA = makeAccount(id: "a", platform: .mastodon)
+        let accountB = makeAccount(id: "b", platform: .bluesky)
+
+        let oneAccount = ComposeAutocompleteServiceKey.make(
+            accounts: [accountA],
+            timelineScope: .unified
+        )
+        let twoAccounts = ComposeAutocompleteServiceKey.make(
+            accounts: [accountA, accountB],
+            timelineScope: .unified
+        )
+
+        XCTAssertNotEqual(oneAccount, twoAccounts)
+    }
+}
+
+final class PaginationReliabilityTests: XCTestCase {
+    func testOutcomeForSuccessfulPaginationWithoutFailures() {
+        let outcome = SocialServiceManager._test_resolvePaginationOutcome(
+            hadSuccessfulFetch: true,
+            hasMorePagesFromSuccess: false,
+            failureCount: 0
+        )
+
+        XCTAssertEqual(
+            outcome,
+            SocialServiceManager.PaginationOutcome(
+                hasNextPage: false,
+                shouldEmitError: false,
+                shouldThrow: false
+            )
+        )
+    }
+
+    func testOutcomeForPartialFailureKeepsPaginationRetryable() {
+        let outcome = SocialServiceManager._test_resolvePaginationOutcome(
+            hadSuccessfulFetch: true,
+            hasMorePagesFromSuccess: false,
+            failureCount: 1
+        )
+
+        XCTAssertEqual(
+            outcome,
+            SocialServiceManager.PaginationOutcome(
+                hasNextPage: true,
+                shouldEmitError: true,
+                shouldThrow: false
+            )
+        )
+    }
+
+    func testOutcomeForTotalFailureThrowsAndKeepsNextPageTrue() {
+        let outcome = SocialServiceManager._test_resolvePaginationOutcome(
+            hadSuccessfulFetch: false,
+            hasMorePagesFromSuccess: false,
+            failureCount: 2
+        )
+
+        XCTAssertEqual(
+            outcome,
+            SocialServiceManager.PaginationOutcome(
+                hasNextPage: true,
+                shouldEmitError: true,
+                shouldThrow: true
+            )
+        )
+    }
+}

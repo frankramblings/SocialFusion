@@ -151,6 +151,50 @@ public final class SocialServiceManager: ObservableObject {
     @Published var hasNextPage: Bool = true
     private var paginationTokens: [String: String] = [:]  // accountId -> nextPageToken
 
+    struct PaginationOutcome: Equatable {
+        let hasNextPage: Bool
+        let shouldEmitError: Bool
+        let shouldThrow: Bool
+    }
+
+    private struct PaginationFailureSummaryError: LocalizedError {
+        let failedAccounts: [String]
+
+        var errorDescription: String? {
+            guard !failedAccounts.isEmpty else { return "Failed to load more posts." }
+            let list = failedAccounts.joined(separator: ", ")
+            return "Some accounts failed to load more posts: \(list)"
+        }
+    }
+
+    nonisolated static func _test_resolvePaginationOutcome(
+        hadSuccessfulFetch: Bool,
+        hasMorePagesFromSuccess: Bool,
+        failureCount: Int
+    ) -> PaginationOutcome {
+        if hadSuccessfulFetch {
+            return PaginationOutcome(
+                hasNextPage: hasMorePagesFromSuccess || failureCount > 0,
+                shouldEmitError: failureCount > 0,
+                shouldThrow: false
+            )
+        }
+
+        if failureCount > 0 {
+            return PaginationOutcome(
+                hasNextPage: true,
+                shouldEmitError: true,
+                shouldThrow: true
+            )
+        }
+
+        return PaginationOutcome(
+            hasNextPage: hasMorePagesFromSuccess,
+            shouldEmitError: false,
+            shouldThrow: false
+        )
+    }
+
     // Disk Caching
     private let timelineCacheURL: URL = {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
@@ -2104,26 +2148,31 @@ public final class SocialServiceManager: ObservableObject {
             return
         }
 
-        Task { @MainActor in
-            isLoadingNextPage = true
-        }
+        isLoadingNextPage = true
+        timelineError = nil
+        defer { isLoadingNextPage = false }
 
         guard let plan = currentTimelinePlan ?? resolveTimelineFetchPlan() else {
-            Task { @MainActor in
-                isLoadingNextPage = false
-            }
             return
         }
 
         var allNewPosts: [Post] = []
-        var hasMorePages = false
+        var hasMorePagesFromSuccess = false
+        var hadSuccessfulFetch = false
+        var firstFailure: Error?
+        var failedAccounts: [String] = []
+
+        func recordPaginationFailure(accountName: String, error: Error) {
+            DebugLog.verbose("Error fetching next page for \(accountName): \(error)")
+            failedAccounts.append(accountName)
+            if firstFailure == nil {
+                firstFailure = error
+            }
+        }
 
         switch plan {
         case .unified(let accountsToFetch):
             guard !accountsToFetch.isEmpty else {
-                Task { @MainActor in
-                    isLoadingNextPage = false
-                }
                 return
             }
 
@@ -2131,6 +2180,7 @@ public final class SocialServiceManager: ObservableObject {
             for account in accountsToFetch {
                 do {
                     let result = try await fetchNextPageForAccount(account, selection: .unified)
+                    hadSuccessfulFetch = true
                     allNewPosts.append(contentsOf: result.posts)
                     updatePaginationTokens(
                         for: account,
@@ -2138,11 +2188,10 @@ public final class SocialServiceManager: ObservableObject {
                         pagination: result.pagination
                     )
                     if result.pagination.hasNextPage {
-                        hasMorePages = true
+                        hasMorePagesFromSuccess = true
                     }
                 } catch {
-                    DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
-                    // Continue with other accounts even if one fails
+                    recordPaginationFailure(accountName: account.username, error: error)
                 }
             }
         case .mastodon(let account, let feed):
@@ -2151,15 +2200,16 @@ public final class SocialServiceManager: ObservableObject {
                     account,
                     selection: .mastodon(feed)
                 )
+                hadSuccessfulFetch = true
                 allNewPosts.append(contentsOf: result.posts)
-                hasMorePages = result.pagination.hasNextPage
+                hasMorePagesFromSuccess = result.pagination.hasNextPage
                 updatePaginationTokens(
                     for: account,
                     selection: .mastodon(feed),
                     pagination: result.pagination
                 )
             } catch {
-                DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
+                recordPaginationFailure(accountName: account.username, error: error)
             }
         case .bluesky(let account, let feed):
             do {
@@ -2167,17 +2217,39 @@ public final class SocialServiceManager: ObservableObject {
                     account,
                     selection: .bluesky(feed)
                 )
+                hadSuccessfulFetch = true
                 allNewPosts.append(contentsOf: result.posts)
-                hasMorePages = result.pagination.hasNextPage
+                hasMorePagesFromSuccess = result.pagination.hasNextPage
                 updatePaginationTokens(
                     for: account,
                     selection: .bluesky(feed),
                     pagination: result.pagination
                 )
             } catch {
-                DebugLog.verbose("Error fetching next page for \(account.username): \(error)")
+                recordPaginationFailure(accountName: account.username, error: error)
             }
         }
+
+        let outcome = Self._test_resolvePaginationOutcome(
+            hadSuccessfulFetch: hadSuccessfulFetch,
+            hasMorePagesFromSuccess: hasMorePagesFromSuccess,
+            failureCount: failedAccounts.count
+        )
+        hasNextPage = outcome.hasNextPage
+
+        if outcome.shouldEmitError {
+            if failedAccounts.count > 1 {
+                timelineError = PaginationFailureSummaryError(failedAccounts: failedAccounts)
+            } else if let failure = firstFailure {
+                timelineError = failure
+            }
+        }
+
+        if outcome.shouldThrow, let failure = firstFailure {
+            throw failure
+        }
+
+        guard hadSuccessfulFetch else { return }
 
         // Process and append new posts
         let uniquePosts = allNewPosts.map { post -> Post in
@@ -2203,11 +2275,7 @@ public final class SocialServiceManager: ObservableObject {
         )
         let canonicalPosts = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
 
-        await MainActor.run {
-            self.unifiedTimeline = canonicalPosts
-            self.hasNextPage = hasMorePages
-            self.isLoadingNextPage = false
-        }
+        unifiedTimeline = canonicalPosts
 
 #if DEBUG
         if FeatureFlagManager.isEnabled(.replyFiltering)
@@ -2808,7 +2876,12 @@ public final class SocialServiceManager: ObservableObject {
         if !EdgeCaseHandler.shared.networkStatus.isConnected {
             // Queue for later if offline
             if let type = queuedActionType(from: name) {
-                offlineQueueStore.queueAction(postId: post.id, platform: post.platform, type: type)
+                offlineQueueStore.queueAction(
+                    postId: post.id,
+                    platformPostId: post.platformSpecificId,
+                    platform: post.platform,
+                    type: type
+                )
                 scheduleOfflineActionNotification(type: type)
 
                 // Return an optimistic update if possible
@@ -2829,7 +2902,12 @@ public final class SocialServiceManager: ObservableObject {
         } catch {
             if isTransientError(error), let type = queuedActionType(from: name) {
                 // Queue for later if it's a network error
-                offlineQueueStore.queueAction(postId: post.id, platform: post.platform, type: type)
+                offlineQueueStore.queueAction(
+                    postId: post.id,
+                    platformPostId: post.platformSpecificId,
+                    platform: post.platform,
+                    type: type
+                )
                 scheduleOfflineActionNotification(type: type)
 
                 // Still return the error so the UI can show a "Queued for later" message
@@ -3628,7 +3706,7 @@ public final class SocialServiceManager: ObservableObject {
         for action in actions {
             do {
                 // Fetch the post first to ensure we have current state
-                let post = try await fetchPost(id: action.postId, platform: action.platform)
+                let post = try await fetchPost(id: action.fetchPostId, platform: action.platform)
 
                 switch action.type {
                 case .like:
@@ -4508,16 +4586,29 @@ public enum QueuedActionType: String, Codable {
 public struct QueuedAction: Identifiable, Codable {
     public let id: UUID
     public let postId: String
+    public let platformPostId: String?
     public let platform: SocialPlatform
     public let type: QueuedActionType
     public let createdAt: Date
 
+    /// Preferred identifier for replay fetches.
+    /// Uses platform-native post IDs when available, and falls back to legacy postId.
+    public var fetchPostId: String {
+        guard let platformPostId, !platformPostId.isEmpty else { return postId }
+        return platformPostId
+    }
+
     public init(
-        id: UUID = UUID(), postId: String, platform: SocialPlatform, type: QueuedActionType,
+        id: UUID = UUID(),
+        postId: String,
+        platformPostId: String? = nil,
+        platform: SocialPlatform,
+        type: QueuedActionType,
         createdAt: Date = Date()
     ) {
         self.id = id
         self.postId = postId
+        self.platformPostId = platformPostId
         self.platform = platform
         self.type = type
         self.createdAt = createdAt
@@ -4534,8 +4625,18 @@ public class OfflineQueueStore: ObservableObject {
         loadQueue()
     }
 
-    public func queueAction(postId: String, platform: SocialPlatform, type: QueuedActionType) {
-        let action = QueuedAction(postId: postId, platform: platform, type: type)
+    public func queueAction(
+        postId: String,
+        platformPostId: String? = nil,
+        platform: SocialPlatform,
+        type: QueuedActionType
+    ) {
+        let action = QueuedAction(
+            postId: postId,
+            platformPostId: platformPostId,
+            platform: platform,
+            type: type
+        )
         queuedActions.append(action)
         persist()
     }

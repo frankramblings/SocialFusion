@@ -113,5 +113,26 @@ actor TimelineSwiftDataStore {
     func clearAll() async {
         try? container.mainContext.delete(model: CachedPost.self)
     }
+
+    /// Returns the combined file size of the SwiftData store files (default.store, -wal, -shm)
+    func getStoreSize() -> Int64 {
+        let fileManager = FileManager.default
+        guard let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return 0
+        }
+
+        let storeFiles = ["default.store", "default.store-wal", "default.store-shm"]
+        var totalSize: Int64 = 0
+
+        for file in storeFiles {
+            let url = appSupport.appendingPathComponent(file)
+            if let attrs = try? fileManager.attributesOfItem(atPath: url.path),
+               let size = attrs[.size] as? Int64 {
+                totalSize += size
+            }
+        }
+
+        return totalSize
+    }
 }
 

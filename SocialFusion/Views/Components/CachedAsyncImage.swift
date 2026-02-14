@@ -49,10 +49,6 @@ public class ImageCache: ObservableObject {
         hotCache.countLimit = 150  // Increased
         hotCache.totalCostLimit = 30 * 1024 * 1024  // 30MB for hot cache
 
-        // Enable debug logging for cache hits/misses
-        print(
-            "🔧 [ImageCache] Initialized with scroll-optimized settings - Memory: 200MB, Disk: 500MB, Count: 500"
-        )
     }
 
     /// Load image with progressive loading support (thumbnail first, then full image)
@@ -147,15 +143,11 @@ public class ImageCache: ObservableObject {
         let timeoutInterval: TimeInterval = priority == .high ? 15 : 30
         let retryCount = priority == .high ? 3 : 2
 
-        // Smart jitter based on priority - high priority gets less delay
-        let jitter = priority == .high ? Double.random(in: 0.0...0.1) : Double.random(in: 0.1...0.3)
-
         let publisher = session.dataTaskPublisher(for: url)
             .timeout(
                 .seconds(timeoutInterval),
                 scheduler: DispatchQueue.global(qos: qosForPriority(priority))
             )
-            .delay(for: .seconds(jitter), scheduler: DispatchQueue.global(qos: .background))
             .retry(retryCount)
             .subscribe(on: DispatchQueue.global(qos: qosForPriority(priority)))
             .map { [weak self] data, response -> UIImage? in
@@ -232,11 +224,9 @@ public class ImageCache: ObservableObject {
         if priority == .high {
             cache.setObject(image, forKey: key)
             hotCache.setObject(image, forKey: key)
-            print("💾 [ImageCache] Cached high-priority image: \(key.lastPathComponent)")
         } else {
             // Normal priority images go to regular cache
             cache.setObject(image, forKey: key)
-            print("💾 [ImageCache] Cached image: \(key.lastPathComponent)")
         }
     }
 
@@ -264,7 +254,6 @@ public class ImageCache: ObservableObject {
 
         for url in lowPriorityURLs {
             inFlightRequests.removeValue(forKey: url)
-            print("🚫 [ImageCache] Cancelled low-priority request: \(url.lastPathComponent)")
         }
     }
 

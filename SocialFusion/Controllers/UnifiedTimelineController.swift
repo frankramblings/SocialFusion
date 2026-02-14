@@ -26,6 +26,10 @@ class UnifiedTimelineController: ObservableObject {
     // MARK: - Unread Above Viewport Tracking
     /// Count of posts that are unread and above the current viewport
     @Published private(set) var unreadAboveViewportCount: Int = 0
+    /// Bridge value: holds the buffer count during the async gap between
+    /// mergeBufferedPosts() draining the buffer and updatePosts() setting unreadAboveViewportCount.
+    /// Prevents the pill from flickering to 0 during the merge.
+    @Published private(set) var pendingMergeCount: Int = 0
     /// IDs of posts that are above the current viewport and haven't been scrolled to yet
     private var unreadPostIds: Set<String> = []
 
@@ -224,6 +228,7 @@ class UnifiedTimelineController: ObservableObject {
         let filteredPosts = filterPosts(newPosts)
 
         self.posts = filteredPosts
+        if pendingMergeCount > 0 { pendingMergeCount = 0 }
         if FeatureFlagManager.isEnabled(.postActionsV2) {
             filteredPosts.forEach { post in
                 actionStore.ensureState(for: post)
@@ -284,7 +289,10 @@ class UnifiedTimelineController: ObservableObject {
         }
 
         if !newUnreadIds.isEmpty {
+            print("📊 [trackUnread] Found \(newUnreadIds.count) new posts above anchor at index \(anchorIndex). IDs: \(newUnreadIds.sorted().prefix(5))")
             addUnreadAboveViewport(newUnreadIds)
+        } else {
+            print("📊 [trackUnread] No new posts above anchor at index \(anchorIndex). Total posts: \(newPosts.count), previous: \(previousPostIds.count)")
         }
     }
 
@@ -401,7 +409,7 @@ class UnifiedTimelineController: ObservableObject {
         do {
             try await serviceManager.fetchNextPage()
         } catch {
-            // Error is automatically propagated via binding
+            self.error = error
         }
     }
 
@@ -432,6 +440,8 @@ class UnifiedTimelineController: ObservableObject {
     }
 
     func mergeBufferedPosts() {
+        let count = bufferCount
+        if count > 0 { pendingMergeCount = count }
         refreshCoordinator.mergeBufferedPostsIfNeeded()
     }
 
@@ -473,9 +483,10 @@ class UnifiedTimelineController: ObservableObject {
 
     /// Clear all unread tracking (e.g., when user scrolls to top)
     func clearUnreadAboveViewport() {
-        guard !unreadPostIds.isEmpty else { return }
+        guard !unreadPostIds.isEmpty || pendingMergeCount > 0 else { return }
         unreadPostIds.removeAll()
         unreadAboveViewportCount = 0
+        pendingMergeCount = 0
     }
 
     /// Check if a post is in the unread set
@@ -490,6 +501,8 @@ class UnifiedTimelineController: ObservableObject {
         // Posts 0 to (index-1) are above the viewport (unread)
         // Posts at index and below have been seen
         let newCount = max(0, index)
+
+        print("📊 [updateUnread] index=\(index) newCount=\(newCount) current=\(unreadAboveViewportCount) willUpdate=\(newCount < unreadAboveViewportCount)")
 
         // Only update if the count decreased (user scrolled up to see more posts)
         // This prevents the count from increasing when scrolling back down

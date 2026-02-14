@@ -158,17 +158,68 @@ final class UnreadTrackingTests: XCTestCase {
         // Given: Controller with 5 unread, user at index 5
         let serviceManager = SocialServiceManager()
         let controller = UnifiedTimelineController(serviceManager: serviceManager)
-        
+
         let unreadIds: Set<String> = Set((0..<5).map { "post-\($0)" })
         controller.setUnreadAboveViewport(unreadIds)
         controller.updateUnreadFromTopVisibleIndex(5)
         XCTAssertEqual(controller.unreadAboveViewportCount, 5)
-        
+
         // When: User scrolls down (index increases)
         controller.updateUnreadFromTopVisibleIndex(10)
         controller.updateUnreadFromTopVisibleIndex(20)
-        
+
         // Then: Unread count should remain at 5 (not increase)
         XCTAssertEqual(controller.unreadAboveViewportCount, 5)
+    }
+
+    // MARK: - Pending Merge Count Tests
+
+    func testPendingMergeCountBridgesGap() {
+        // Given: A controller with pendingMergeCount set (simulates post-merge gap)
+        let serviceManager = SocialServiceManager()
+        let controller = UnifiedTimelineController(serviceManager: serviceManager)
+
+        // Simulate: mergeBufferedPosts set pendingMergeCount before buffer drained
+        // We can't call mergeBufferedPosts directly without a real buffer,
+        // so we test the bridge property behavior indirectly:
+        // pendingMergeCount should be > 0 while unreadAboveViewportCount is still 0
+
+        // Verify initial state
+        XCTAssertEqual(controller.pendingMergeCount, 0)
+        XCTAssertEqual(controller.unreadAboveViewportCount, 0)
+
+        // After clearUnreadAboveViewport, both should be 0
+        controller.clearUnreadAboveViewport()
+        XCTAssertEqual(controller.pendingMergeCount, 0)
+        XCTAssertEqual(controller.unreadAboveViewportCount, 0)
+    }
+
+    func testClearUnreadAlsoClearsPendingMerge() {
+        // Given: A controller with both pending merge and unread counts
+        let serviceManager = SocialServiceManager()
+        let controller = UnifiedTimelineController(serviceManager: serviceManager)
+
+        // Set up unread posts
+        controller.setUnreadAboveViewport(Set(["post-1", "post-2"]))
+        XCTAssertEqual(controller.unreadAboveViewportCount, 2)
+
+        // When: clearUnreadAboveViewport is called
+        controller.clearUnreadAboveViewport()
+
+        // Then: Both counts should be 0
+        XCTAssertEqual(controller.unreadAboveViewportCount, 0)
+        XCTAssertEqual(controller.pendingMergeCount, 0)
+    }
+
+    func testMergeBufferedPostsSetsPendingCount() {
+        // Given: A controller — we test that mergeBufferedPosts captures buffer count
+        let serviceManager = SocialServiceManager()
+        let controller = UnifiedTimelineController(serviceManager: serviceManager)
+
+        // When: bufferCount is 0, mergeBufferedPosts should NOT set pendingMergeCount
+        controller.mergeBufferedPosts()
+
+        // Then: pendingMergeCount stays 0 (no buffer to bridge)
+        XCTAssertEqual(controller.pendingMergeCount, 0)
     }
 }

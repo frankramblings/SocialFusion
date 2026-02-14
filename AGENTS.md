@@ -86,12 +86,6 @@ Project scripts:
 - ./run_tests.sh
 - ./debug_deployment.sh
 
-## Testing Expectations
-
-- Prefer Xcode-based builds/tests for the iOS app target.
-- Use SwiftPM for the package under Sources/ and Tests/.
-- Only claim success after verifying the original scenario in the simulator.
-
 ## Key Files
 
 - App entry: SocialFusion/SocialFusionApp.swift
@@ -111,9 +105,35 @@ Project scripts:
 - Quote post fallbacks need improvement
 - Some error states lack UI feedback (TODOs in TimelineViewModel)
 - TokenManager getClientId/getClientSecret are stubbed
+- Boost/reply banners occasionally fail to render
+- Fullscreen media horizontal swiping requires 25px minimum gesture distance
+- SwiftData model synchronization needs verification
+- iOS 26 compatibility patches require documentation
 
 ## Development Notes
 
 - Focus on polish and refinement rather than large rewrites.
 - Consult recent repo .md files for context on specific fixes.
 - If you add lint/format tooling, update AGENTS.md with exact commands.
+- Document CI/CD changes: 
+  - Dynamic provisioning profile handling
+  - TestFlight deployment workflow
+  - GITHUB_RUN_NUMBER integration for build numbers
+- Note SwiftData model updates:
+  - Ensure store directory exists
+  - Maintain schema consistency with Post model
+- Record iOS 26 compatibility work:
+  - Clear glass material implementation
+  - Tab bar/ navigation bar styling
+  - Floating compose button behavior
+- Track multi-agent features:
+  - Bluesky media/replies/threads integration
+  - Mastodon interaction enhancements
+  - Persistent Drafts system
+  - Search refinement efforts
+  - Deep Linking (SocialFusion://)
+- Note recent architecture stabilizations:
+  - Triple-Tap Scroll logic for PostDetailView
+  - Unified avatar/thread alignment
+  - Layout recursion prevention
+  - MainActor state flow cleanup

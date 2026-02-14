@@ -145,7 +145,10 @@ struct ConsolidatedTimelineView: View {
       MediaPrefetcher.shared
     }
     @StateObject private var updateCoordinator = FeedUpdateCoordinator()
-    
+
+    // Cached screen height to avoid UIScreen queries on every scroll frame
+    private let deepHistoryThreshold: CGFloat = UIScreen.main.bounds.height * 2.0
+
     // Read state tracking
     @State private var showJumpToLastRead = false
     @State private var lastReadPostId: String? = nil
@@ -256,9 +259,6 @@ struct ConsolidatedTimelineView: View {
                     pendingAnchorRestoreId = restorationId
                 }
 
-                print("📋 [PostsChanged] Posts updated - count: \(newPosts.count), isRefreshing: \(isRefreshing)")
-                print("📋 [PostsChanged] pendingAnchorRestoreId: \(pendingAnchorRestoreId ?? "nil")")
-                print("📋 [PostsChanged] Current scrollAnchorId: \(scrollAnchorId ?? "nil")")
                 logAnchorState("posts updated count=\(newPosts.count) isRefreshing=\(isRefreshing)")
 
                 // With buffer-then-merge, posts don't change during .refreshable
@@ -569,13 +569,18 @@ struct ConsolidatedTimelineView: View {
                                         )
                                     }
                                 )
-                                .task { await handleInfiniteScroll(currentIndex: index) }
 
                             if post.id != controller.posts.last?.id {
                                 Divider()
                                     .padding(.horizontal, 16)
                                     .accessibilityHidden(true)
                             }
+                        }
+
+                        if controller.hasNextPage && !controller.posts.isEmpty {
+                            Color.clear
+                                .frame(height: 1)
+                                .task { await loadMorePostsFromTailIfNeeded() }
                         }
 
                         if controller.isLoadingNextPage {
@@ -597,7 +602,17 @@ struct ConsolidatedTimelineView: View {
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
                     lastVisiblePositions = positions
 
-                    // Anchor tracking is gated by locks to prevent position jumping
+                    // Unread tracking — always runs, even during anchor lock
+                    // This ensures the pill count ticks down as the user scrolls through new posts
+                    if let topVisibleInfo = positions
+                        .filter({ $0.value.minY >= -50 })
+                        .min(by: { $0.value.minY < $1.value.minY }) {
+                        controller.updateUnreadFromTopVisibleIndex(topVisibleInfo.value.index)
+                    }
+                    let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
+                    controller.markVisiblePostsAsRead(visibleIds)
+
+                    // Anchor tracking — gated by locks to prevent position jumping
                     guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
                     if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
                     guard let nextId = positions
@@ -618,22 +633,8 @@ struct ConsolidatedTimelineView: View {
                         lastTopVisibleOffset = topInfo.minY
                     }
                     syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
-                    let deepHistoryThreshold = UIScreen.main.bounds.height * 2.0
                     let isDeepHistory = (topId.flatMap { positions[$0]?.minY }.map { $0 < -deepHistoryThreshold }) ?? false
                     controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: isDeepHistory)
-
-                    // Update unread count based on topmost visible post
-                    // Find the topmost visible post (smallest positive minY or closest to 0)
-                    if let topVisibleInfo = positions
-                        .filter({ $0.value.minY >= -50 }) // Posts at or near top of viewport
-                        .min(by: { $0.value.minY < $1.value.minY }) {
-                        controller.updateUnreadFromTopVisibleIndex(topVisibleInfo.value.index)
-                    }
-
-                    // Mark visible posts as read in real-time (tick down pill as user scrolls)
-                    // Posts with minY >= 0 are at or below the top of the screen (visible)
-                    let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
-                    controller.markVisiblePostsAsRead(visibleIds)
                 }
                 .scrollPosition(id: $scrollAnchorId)
                 .onChange(of: scrollAnchorId) { newValue in
@@ -697,9 +698,14 @@ struct ConsolidatedTimelineView: View {
                         newPostsPill(proxy: proxy)
                         jumpToLastReadButton(proxy: proxy)
                     }
+                    .animation(
+                        reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.8),
+                        value: newPostsAboveCount > 0 && !controller.isNearTop
+                    )
                 }
                 .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
                 { _ in
+                    HapticEngine.tap.trigger()
                     // Merge any buffered posts and scroll to top
                     if controller.bufferCount > 0 {
                         controller.scrollPolicy = .jumpToNow
@@ -733,16 +739,21 @@ struct ConsolidatedTimelineView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(Array(controller.posts.enumerated()), id: \.element.stableId) { index, post in
+                        ForEach(controller.posts, id: \.stableId) { post in
                             postCard(for: post)
                                 .id(scrollIdentifier(for: post))
-                                .task { await handleInfiniteScroll(currentIndex: index) }
 
                             if post.id != controller.posts.last?.id {
                                 Divider()
                                     .padding(.horizontal, 16)
                                     .accessibilityHidden(true)
                             }
+                        }
+
+                        if controller.hasNextPage && !controller.posts.isEmpty {
+                            Color.clear
+                                .frame(height: 1)
+                                .task { await loadMorePostsFromTailIfNeeded() }
                         }
 
                         if controller.isLoadingNextPage {
@@ -797,6 +808,10 @@ struct ConsolidatedTimelineView: View {
                         newPostsPill(proxy: proxy)
                         jumpToLastReadButton(proxy: proxy)
                     }
+                    .animation(
+                        reduceMotion ? .none : .spring(response: 0.35, dampingFraction: 0.8),
+                        value: newPostsAboveCount > 0 && !controller.isNearTop
+                    )
                 }
                 .onAppear {
                     // Best-effort restoration if we have a persisted ID (may be nil on first run)
@@ -830,21 +845,26 @@ struct ConsolidatedTimelineView: View {
         Task {
             do {
                 try await serviceManager.reportPost(post, reason: reason)
-                print("✅ Successfully reported post")
+                DebugLog.verbose("✅ Successfully reported post")
             } catch {
-                print("❌ Failed to report post: \(error)")
+                DebugLog.verbose("❌ Failed to report post: \(error.localizedDescription)")
             }
             reportingPost = nil
         }
     }
 
     /// Count of new posts above viewport
-    /// Priority: buffer count (posts waiting to merge) > unread count (posts above viewport)
-    /// This ensures pill shows during buffered state and continues showing after merge
+    /// Priority: buffer count > pending merge bridge > unread count
+    /// The pendingMergeCount bridges the async gap between buffer drain and unread count update,
+    /// preventing the pill from flickering to 0 during the merge.
     private var newPostsAboveCount: Int {
         // If we have buffered posts waiting to merge, show that count
         if controller.bufferCount > 0 {
             return controller.bufferCount
+        }
+        // Bridge the gap: buffer just drained but updatePosts() hasn't fired yet
+        if controller.pendingMergeCount > 0 && controller.unreadAboveViewportCount == 0 {
+            return controller.pendingMergeCount
         }
         // Otherwise show the unread count (posts merged but above viewport)
         return controller.unreadAboveViewportCount
@@ -859,6 +879,11 @@ struct ConsolidatedTimelineView: View {
                     Text("\(count) new post\(count == 1 ? "" : "s")")
                         .font(.subheadline)
                         .fontWeight(.semibold)
+                        .contentTransition(.numericText())
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.8),
+                            value: count
+                        )
                     Image(systemName: "arrow.up.to.line")
                         .font(.caption)
                 }
@@ -871,6 +896,7 @@ struct ConsolidatedTimelineView: View {
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
             .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
@@ -879,15 +905,17 @@ struct ConsolidatedTimelineView: View {
     }
     
     private func handleNewPostsTap(proxy: ScrollViewProxy) {
+        HapticEngine.tap.trigger()
+
         // If there are buffered posts, merge them first
         if controller.bufferCount > 0 {
             controller.scrollPolicy = .jumpToNow
             controller.mergeBufferedPosts()
         }
-        
+
         // Scroll to top
         scrollToTop(using: proxy)
-        
+
         // Clear unread tracking
         controller.clearUnreadAboveViewport()
     }
@@ -921,22 +949,21 @@ struct ConsolidatedTimelineView: View {
     private func handleJumpToLastRead(proxy: ScrollViewProxy, postId: String) {
         guard let post = controller.posts.first(where: { $0.id == postId }) else { return }
         let identifier = scrollIdentifier(for: post)
-        
+        HapticEngine.tap.trigger()
+
         if #available(iOS 17.0, *) {
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) {
+            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
                 scrollAnchorId = identifier
             }
         } else {
-            withAnimation(.none) {
+            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
                 proxy.scrollTo(identifier, anchor: .top)
             }
         }
-        
+
         // Update visibility after scroll
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 300_000_000) // Wait for scroll to complete
+            try? await Task.sleep(nanoseconds: 400_000_000) // Wait for scroll animation to complete
             updateJumpToLastReadVisibility()
         }
     }
@@ -987,11 +1014,13 @@ struct ConsolidatedTimelineView: View {
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first.map(scrollIdentifier(for:)) else { return }
         if #available(iOS 17.0, *) {
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) { scrollAnchorId = topId }
+            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
+                scrollAnchorId = topId
+            }
         } else {
-            withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
+                proxy.scrollTo(topId, anchor: .top)
+            }
         }
     }
 
@@ -1082,7 +1111,6 @@ struct ConsolidatedTimelineView: View {
 
     /// Refresh timeline - proper async pattern for user-initiated refresh
     private func refreshTimeline() async {
-        print("🔄 ConsolidatedTimelineView: User-initiated refresh (pull-to-refresh)")
         await controller.refreshTimelineAsync()
     }
 
@@ -1166,9 +1194,10 @@ struct ConsolidatedTimelineView: View {
         controller.clearUnreadAboveViewport()
     }
 
-    /// Handle infinite scroll - proper async pattern
-    private func handleInfiniteScroll(currentIndex: Int) async {
-        guard shouldLoadMorePosts(currentIndex: currentIndex) else { return }
+    /// Trigger infinite scroll from tail sentinel only to avoid per-row task churn.
+    private func loadMorePostsFromTailIfNeeded() async {
+        guard !controller.posts.isEmpty else { return }
+        guard shouldLoadMorePosts(currentIndex: controller.posts.count - 1) else { return }
         await loadMorePosts()
     }
 

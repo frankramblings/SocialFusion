@@ -497,11 +497,6 @@ struct FocusableTextEditor: UIViewRepresentable {
             let text = textView.text ?? ""
             let caretLocation = selectedRange.location
 
-            // Debug logging
-            print(
-                "🔍 checkForAutocompleteTrigger: text='\(text)', caretLocation=\(caretLocation), activeDestinations=\(parent.activeDestinations)"
-            )
-
             // Check if we just typed a trigger character (@, #, :)
             // For simple trigger characters, allow checking even with marked text
             // (some keyboards may have brief marked text even for ASCII)
@@ -531,7 +526,6 @@ struct FocusableTextEditor: UIViewRepresentable {
             let triggers = ["@", "#", ":"]
             for prefix in triggers {
                 let caretRect = getCaretRect(textView: textView, location: caretLocation)
-                print("🔍 Trying prefix '\(prefix)', caretRect=\(caretRect)")
                 if let token = TokenExtractor.extractToken(
                     text: text,
                     caretLocation: caretLocation,
@@ -540,16 +534,9 @@ struct FocusableTextEditor: UIViewRepresentable {
                     documentRevision: parent.documentRevision,
                     caretRect: caretRect
                 ) {
-                    print("✅ Token extracted: prefix=\(token.prefix), query=\(token.query)")
-                    print(
-                        "📞 Calling onAutocompleteToken callback, parent.onAutocompleteToken is \(parent.onAutocompleteToken != nil ? "set" : "nil")"
-                    )
                     lastToken = token
                     parent.onAutocompleteToken?(token)
-                    print("📞 Callback completed")
                     return
-                } else {
-                    print("❌ No token found for prefix '\(prefix)'")
                 }
             }
 
@@ -632,6 +619,26 @@ struct PartialSuccessInfo {
     }
 }
 
+struct ComposeAutocompleteServiceKey: Equatable {
+    let accountIDs: [String]
+    let timelineScope: AutocompleteTimelineScope
+
+    init(accountIDs: [String], timelineScope: AutocompleteTimelineScope) {
+        self.accountIDs = accountIDs.sorted()
+        self.timelineScope = timelineScope
+    }
+
+    static func make(
+        accounts: [SocialAccount],
+        timelineScope: AutocompleteTimelineScope
+    ) -> ComposeAutocompleteServiceKey {
+        ComposeAutocompleteServiceKey(
+            accountIDs: accounts.map(\.id),
+            timelineScope: timelineScope
+        )
+    }
+}
+
 struct ComposeView: View {
     @State private var threadPosts: [ThreadPost] = [ThreadPost()]
     @State private var activePostIndex: Int = 0
@@ -667,6 +674,8 @@ struct ComposeView: View {
     @State private var currentAutocompleteToken: AutocompleteToken?
     @State private var autocompleteSuggestions: [AutocompleteSuggestion] = []
     @State private var autocompleteService: AutocompleteService?
+    @State private var autocompleteServiceKey: ComposeAutocompleteServiceKey?
+    @State private var fallbackTimelineContextProvider: UnifiedTimelineContextProvider?
     @State private var isAutocompleteSearching: Bool = false
     @State private var timelineContextProvider: TimelineContextProvider?
 
@@ -1079,11 +1088,6 @@ struct ComposeView: View {
                         )
                         .allowsHitTesting(true)
                         .zIndex(1000)
-                        .onAppear {
-                            print(
-                                "✅ Autocomplete overlay appeared: token=\(token.prefix)\(token.query), caretRect=\(token.caretRect)"
-                            )
-                        }
                     }
                 }
             }
@@ -2432,9 +2436,7 @@ struct ComposeView: View {
 
     /// Handle autocomplete token detection
     private func handleAutocompleteToken(_ token: AutocompleteToken?) {
-        print("🎯 handleAutocompleteToken called with token: \(token != nil ? "exists" : "nil")")
         guard let token = token else {
-            print("🎯 Clearing autocomplete token")
             currentAutocompleteToken = nil
             autocompleteSuggestions = []
             isAutocompleteSearching = false
@@ -2442,69 +2444,14 @@ struct ComposeView: View {
             return
         }
 
-        print(
-            "🎯 Token received: prefix=\(token.prefix), query=\(token.query), docRev=\(token.documentRevision), modelRev=\(composerTextModel.documentRevision)"
-        )
-
-        // Note: Document revision check is disabled because tokens are extracted with stale revision (0)
-        // The revision increments on every text change, and by the time we check, the model revision
-        // has already incremented many times. We rely on the token's requestID for stale-result rejection instead.
-        // Accept all tokens - the AutocompleteService will handle stale-result rejection via requestID matching.
-
         // Always set token immediately to show overlay
         currentAutocompleteToken = token
         isAutocompleteSearching = true
 
-        // Debug: Print to verify token is detected
-        print(
-            "🔍 Autocomplete token detected: prefix=\(token.prefix), query=\(token.query), scope=\(token.scope)"
-        )
-
         // Get current accounts for all selected platforms
         let currentAccounts = selectedPlatforms.compactMap { selectedAccount(for: $0) }
-
-        // Debug: Log accounts being used
-        print(
-            "🔍 Autocomplete accounts: \(currentAccounts.map { "\($0.platform.rawValue):\($0.id)" }.joined(separator: ", "))"
-        )
-        print("🔍 Token scope: \(token.scope.joined(separator: ", "))")
-        print("🔍 Mastodon service available: true")
-        print("🔍 Bluesky service available: true")
-
-        // Always update service to ensure it has latest accounts and services
-        // This ensures both Mastodon and Bluesky are searched if accounts are available
-
-        // Use provided timeline context provider or create a new one (fallback)
-        // For reply context, use thread scope
-        let timelineScope: AutocompleteTimelineScope =
-            replyingTo != nil ? .thread(replyingTo!.id) : .unified
-        let contextProvider = timelineContextProvider ?? UnifiedTimelineContextProvider()
-
-        // Create suggestion providers
-        var providers: [SuggestionProvider] = []
-        providers.append(LocalHistoryProvider(cache: AutocompleteCache.shared))
-        providers.append(
-            TimelineContextSuggestionProvider(
-                contextProvider: contextProvider,
-                scope: timelineScope
-            ))
-        providers.append(
-            NetworkSuggestionProvider(
-                mastodonService: socialServiceManager.mastodonService,
-                blueskyService: socialServiceManager.blueskyService,
-                accounts: currentAccounts
-            ))
-
-        autocompleteService = AutocompleteService(
-            cache: AutocompleteCache.shared,
-            mastodonService: socialServiceManager.mastodonService,
-            blueskyService: socialServiceManager.blueskyService,
-            accounts: currentAccounts,
-            suggestionProviders: providers,
-            timelineContextProvider: contextProvider,
-            timelineScope: timelineScope
-        )
-        print("🔍 Created/updated AutocompleteService with \(currentAccounts.count) accounts")
+        let timelineScope: AutocompleteTimelineScope = replyingTo != nil ? .thread(replyingTo!.id) : .unified
+        ensureAutocompleteService(accounts: currentAccounts, timelineScope: timelineScope)
 
         Task { @MainActor in
             guard let service = autocompleteService else {
@@ -2522,6 +2469,58 @@ struct ComposeView: View {
                 isAutocompleteSearching = false
             }
         }
+    }
+
+    private func resolveTimelineContextProvider() -> TimelineContextProvider {
+        if let provider = timelineContextProvider {
+            return provider
+        }
+        if let fallback = fallbackTimelineContextProvider {
+            return fallback
+        }
+        let fallback = UnifiedTimelineContextProvider()
+        fallbackTimelineContextProvider = fallback
+        return fallback
+    }
+
+    private func ensureAutocompleteService(
+        accounts: [SocialAccount],
+        timelineScope: AutocompleteTimelineScope
+    ) {
+        let nextKey = ComposeAutocompleteServiceKey.make(
+            accounts: accounts,
+            timelineScope: timelineScope
+        )
+        guard autocompleteService == nil || autocompleteServiceKey != nextKey else {
+            return
+        }
+
+        let contextProvider = resolveTimelineContextProvider()
+
+        var providers: [SuggestionProvider] = []
+        providers.append(LocalHistoryProvider(cache: AutocompleteCache.shared))
+        providers.append(
+            TimelineContextSuggestionProvider(
+                contextProvider: contextProvider,
+                scope: timelineScope
+            ))
+        providers.append(
+            NetworkSuggestionProvider(
+                mastodonService: socialServiceManager.mastodonService,
+                blueskyService: socialServiceManager.blueskyService,
+                accounts: accounts
+            ))
+
+        autocompleteService = AutocompleteService(
+            cache: AutocompleteCache.shared,
+            mastodonService: socialServiceManager.mastodonService,
+            blueskyService: socialServiceManager.blueskyService,
+            accounts: accounts,
+            suggestionProviders: providers,
+            timelineContextProvider: contextProvider,
+            timelineScope: timelineScope
+        )
+        autocompleteServiceKey = nextKey
     }
 
     /// Accept an autocomplete suggestion

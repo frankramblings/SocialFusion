@@ -16,6 +16,8 @@ class ViewTracker {
     // Persistence
     private var persistenceTask: Task<Void, Never>?
     private var pendingSave = false
+    private var pendingReadEntriesByPostId: [String: String] = [:]
+    private let persistDebounceNanoseconds: UInt64 = 500_000_000
 
     // UserDefaults keys (for iOS 16 fallback)
     private let readPostsKey = "read_posts"
@@ -57,13 +59,10 @@ class ViewTracker {
         readPostIds.insert(postId)
         lastReadPostId = postId
         lastReadDate = Date()
+        pendingReadEntriesByPostId[postId] = stableId
+        pendingSave = true
 
-        // Persist asynchronously (non-blocking)
-        if #available(iOS 17.0, *) {
-            await persistToSwiftData(postId: postId, stableId: stableId)
-        } else {
-            persistToUserDefaults()
-        }
+        schedulePersistenceFlush()
     }
 
     /// Get the most recent read post ID
@@ -78,6 +77,11 @@ class ViewTracker {
 
     /// Clear all read state
     func clearReadState() {
+        persistenceTask?.cancel()
+        persistenceTask = nil
+        pendingSave = false
+        pendingReadEntriesByPostId.removeAll()
+
         readPostIds.removeAll()
         lastReadPostId = nil
         lastReadDate = nil
@@ -130,31 +134,34 @@ class ViewTracker {
     }
 
     @available(iOS 17.0, *)
-    private func persistToSwiftData(postId: String, stableId: String) async {
+    private func persistBatchToSwiftData(entries: [(postId: String, stableId: String)]) async {
+        guard !entries.isEmpty else { return }
         guard let container = container else { return }
 
         let context = container.mainContext
 
-        // Check if already exists
-        let descriptor = FetchDescriptor<ReadPost>(
-            predicate: #Predicate<ReadPost> { $0.postId == postId }
-        )
-
         do {
-            let existing = try context.fetch(descriptor)
-            if let existingPost = existing.first {
-                // Update existing
-                existingPost.readAt = Date()
-                existingPost.stableId = stableId
-            } else {
-                // Create new
-                let readPost = ReadPost(postId: postId, readAt: Date(), stableId: stableId)
-                context.insert(readPost)
+            for entry in entries {
+                let entryPostId = entry.postId
+                let descriptor = FetchDescriptor<ReadPost>(
+                    predicate: #Predicate<ReadPost> { $0.postId == entryPostId }
+                )
+                let existing = try context.fetch(descriptor)
+                if let existingPost = existing.first {
+                    existingPost.readAt = Date()
+                    existingPost.stableId = entry.stableId
+                } else {
+                    let readPost = ReadPost(
+                        postId: entry.postId,
+                        readAt: Date(),
+                        stableId: entry.stableId
+                    )
+                    context.insert(readPost)
+                }
             }
-
             try context.save()
         } catch {
-            print("⚠️ ViewTracker: Failed to persist read state: \(error)")
+            print("⚠️ ViewTracker: Failed to persist read-state batch: \(error)")
         }
     }
 
@@ -195,6 +202,33 @@ class ViewTracker {
         }
         if let lastReadDate = lastReadDate {
             UserDefaults.standard.set(lastReadDate, forKey: lastReadDateKey)
+        }
+    }
+
+    private func schedulePersistenceFlush() {
+        persistenceTask?.cancel()
+        persistenceTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.sleep(nanoseconds: persistDebounceNanoseconds)
+            } catch {
+                return
+            }
+            await self.flushPendingReadState()
+        }
+    }
+
+    private func flushPendingReadState() async {
+        guard pendingSave else { return }
+        pendingSave = false
+
+        let entries = pendingReadEntriesByPostId.map { (postId: $0.key, stableId: $0.value) }
+        pendingReadEntriesByPostId.removeAll()
+
+        if #available(iOS 17.0, *) {
+            await persistBatchToSwiftData(entries: entries)
+        } else {
+            persistToUserDefaults()
         }
     }
 

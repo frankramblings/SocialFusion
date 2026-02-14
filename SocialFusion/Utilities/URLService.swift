@@ -683,6 +683,80 @@ class URLService {
         return quoteURLs
     }
 
+    /// Extracts quote URLs with their associated text patterns for removal from content
+    /// This includes RE: prefixes and standalone quote URLs that will be rendered as cards
+    /// - Parameter text: The post content text (plain text, not HTML)
+    /// - Parameter rawHTML: Optional raw HTML to extract URLs from href attributes
+    /// - Returns: Array of tuples containing the URL and the full text pattern to remove
+    func extractQuoteURLsWithTextPatterns(from text: String, rawHTML: String? = nil) -> [(url: URL, pattern: String)] {
+        var patterns: [(url: URL, pattern: String)] = []
+
+        // First, check for RE: prefix convention (highest priority)
+        if let reQuoteURL = extractQuoteURLFromREPrefix(in: text) {
+            // Extract the full RE: prefix pattern
+            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            // Check for various RE: prefix formats (case insensitive)
+            let rePrefixPatterns = [
+                "^RE:\\s*",      // RE: with optional space
+                "^Re:\\s*",      // Re: with optional space  
+                "^re:\\s*",      // re: with optional space
+                "^RT\\s+@",      // RT @user format (retweet style, less common in fediverse)
+            ]
+
+            for patternStr in rePrefixPatterns {
+                if let regex = try? NSRegularExpression(pattern: patternStr, options: []),
+                   let match = regex.firstMatch(in: trimmedText, options: [], range: NSRange(location: 0, length: trimmedText.utf16.count)) {
+                    // Found RE: prefix, extract the full pattern including URL
+                    let utf16View = trimmedText.utf16
+                    guard let startIndex = utf16View.index(utf16View.startIndex, offsetBy: match.range.location, limitedBy: utf16View.endIndex),
+                          let stringIndex = String.Index(startIndex, within: trimmedText) else {
+                        continue
+                    }
+                    
+                    // Extract text from start to end of URL
+                    let afterPrefix = String(trimmedText[stringIndex...])
+                    
+                    // Extract the first URL from the text after the prefix
+                    if let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue),
+                       let urlMatch = detector.firstMatch(in: afterPrefix, options: [], range: NSRange(location: 0, length: afterPrefix.utf16.count)),
+                       let url = urlMatch.url {
+                        
+                        // Get the full text up to and including the URL
+                        let urlText = afterPrefix[..<afterPrefix.index(afterPrefix.startIndex, offsetBy: urlMatch.range.length)]
+                        let fullPattern = String(trimmedText.prefix(urlText.count + match.range.length))
+                        
+                        patterns.append((url: url, pattern: fullPattern))
+                        break
+                    }
+                }
+            }
+        }
+
+        // Extract links from plain text and HTML
+        var allLinks = extractLinks(from: text)
+        
+        // Also extract URLs from HTML href attributes if provided
+        if let html = rawHTML, !html.isEmpty {
+            let htmlLinks = extractURLsFromHTML(html)
+            for link in htmlLinks where !allLinks.contains(link) {
+                allLinks.append(link)
+            }
+        }
+        
+        // For standalone quote URLs (without RE: prefix), we need to identify them
+        // These are social media post URLs that will be rendered as quote cards
+        for link in allLinks where !patterns.contains(where: { $0.url == link }) {
+            if isBlueskyPostURL(link) || isFediversePostURL(link) {
+                // For standalone URLs, the pattern is just the URL itself
+                let urlString = link.absoluteString
+                patterns.append((url: link, pattern: urlString))
+            }
+        }
+
+        return patterns
+    }
+
     /// Extracts the Bluesky post ID from a URL
     /// - Parameter url: The Bluesky post URL
     /// - Returns: The post ID if available

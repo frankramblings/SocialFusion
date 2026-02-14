@@ -128,6 +128,11 @@ public actor CustomEmojiCache {
     }
   }
 
+  /// Returns the disk usage of the emoji URLCache in bytes
+  public func getDiskUsage() -> Int {
+    return session.configuration.urlCache?.currentDiskUsage ?? 0
+  }
+
   /// Clears the cache (call on memory warning)
   public func clearCache() {
     imageCache.removeAll()
