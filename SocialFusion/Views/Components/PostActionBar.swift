@@ -13,6 +13,7 @@ struct PostActionBar: View {
     let onReply: () -> Void
     let onRepost: () -> Void
     let onLike: () -> Void
+    let onQuote: () -> Void
     let onShare: () -> Void
     @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
@@ -29,6 +30,7 @@ struct PostActionBar: View {
         onReply: @escaping () -> Void,
         onRepost: @escaping () -> Void,
         onLike: @escaping () -> Void,
+        onQuote: @escaping () -> Void = {},
         onShare: @escaping () -> Void,
         postActionStore: PostActionStore,
         postActionCoordinator: PostActionCoordinator? = nil
@@ -44,6 +46,7 @@ struct PostActionBar: View {
         self.onReply = onReply
         self.onRepost = onRepost
         self.onLike = onLike
+        self.onQuote = onQuote
         self.onShare = onShare
         self.postActionStore = postActionStore
         self.postActionCoordinator = postActionCoordinator
@@ -115,8 +118,7 @@ struct PostActionBar: View {
                     platform: post.platform,
                     isProcessing: false, // Quote opens compose view, no async processing needed
                     onTap: {
-                        // Quote action would be handled by onQuote if provided
-                        // For now, this is a placeholder
+                        onQuote()
                     }
                 )
                 .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
@@ -163,8 +165,7 @@ struct PostActionBar: View {
                     platform: post.platform,
                     isProcessing: false, // Quote opens compose view, no async processing needed
                     onTap: {
-                        // Quote action would be handled by onQuote if provided
-                        // For now, this is a placeholder
+                        onQuote()
                     }
                 )
                 .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
@@ -187,6 +188,7 @@ struct SmallPostActionBar: View {
     let onReply: () -> Void
     let onRepost: () -> Void
     let onLike: () -> Void
+    var onQuote: () -> Void = {}
     let onShare: () -> Void
     @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
@@ -237,8 +239,7 @@ struct SmallPostActionBar: View {
                     platform: post.platform,
                     isProcessing: false, // Quote opens compose view, no async processing needed
                     onTap: {
-                        // Quote action would be handled by onQuote if provided
-                        // For now, this is a placeholder
+                        onQuote()
                     }
                 )
                 .frame(maxWidth: .infinity)
@@ -287,8 +288,7 @@ struct SmallPostActionBar: View {
                     platform: post.platform,
                     isProcessing: false, // Quote opens compose view, no async processing needed
                     onTap: {
-                        // Quote action would be handled by onQuote if provided
-                        // For now, this is a placeholder
+                        onQuote()
                     }
                 )
                 .frame(maxWidth: .infinity)

@@ -150,5 +150,55 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
         XCTAssertEqual(mergeCalls, 1)
         XCTAssertEqual(coordinator.bufferCount, 0)
     }
-}
 
+    func testDeterministicIdlePollingIntervalIsStableForSameCycle() {
+        let first = TimelineRefreshCoordinator._test_deterministicInterval(
+            timelineID: "unified",
+            platform: .mastodon,
+            trigger: .idlePolling,
+            cycle: 0
+        )
+        let second = TimelineRefreshCoordinator._test_deterministicInterval(
+            timelineID: "unified",
+            platform: .mastodon,
+            trigger: .idlePolling,
+            cycle: 0
+        )
+
+        XCTAssertEqual(first, second, accuracy: 0.0001)
+    }
+
+    func testDeterministicIdlePollingIntervalVariesAcrossCycles() {
+        let cycleZero = TimelineRefreshCoordinator._test_deterministicInterval(
+            timelineID: "unified",
+            platform: .bluesky,
+            trigger: .idlePolling,
+            cycle: 0
+        )
+        let cycleOne = TimelineRefreshCoordinator._test_deterministicInterval(
+            timelineID: "unified",
+            platform: .bluesky,
+            trigger: .idlePolling,
+            cycle: 1
+        )
+
+        XCTAssertNotEqual(cycleZero, cycleOne)
+    }
+
+    func testDeterministicForegroundIntervalIsStable() {
+        let first = TimelineRefreshCoordinator._test_deterministicInterval(
+            timelineID: "unified",
+            platform: .mastodon,
+            trigger: .foreground,
+            cycle: 0
+        )
+        let second = TimelineRefreshCoordinator._test_deterministicInterval(
+            timelineID: "unified",
+            platform: .mastodon,
+            trigger: .foreground,
+            cycle: 0
+        )
+
+        XCTAssertEqual(first, second, accuracy: 0.0001)
+    }
+}

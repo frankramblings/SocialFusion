@@ -200,12 +200,6 @@ struct NotificationsView: View {
                 accountDropdownOverlay
             }
         }
-        .sheet(isPresented: $showComposeView) {
-            ComposeView().environmentObject(serviceManager)
-        }
-        .sheet(isPresented: $showValidationView) {
-            TimelineValidationDebugView(serviceManager: serviceManager)
-        }
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
@@ -225,15 +219,22 @@ struct NotificationsView: View {
     }
     
     private var composeButton: some View {
-        Image(systemName: "square.and.pencil")
-            .font(.system(size: 18))
-            .foregroundColor(.primary)
-            .onTapGesture {
-                showComposeView = true
-            }
-            .onLongPressGesture(minimumDuration: 1.0) {
-                showValidationView = true
-            }
+        Button {
+            showComposeView = true
+        } label: {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Compose")
+        .accessibilityHint("Create a new post")
+        .accessibilityIdentifier("ComposeToolbarButton")
+        .onLongPressGesture(minimumDuration: 1.0) {
+            showValidationView = true
+        }
     }
     
     private var accountDropdownOverlay: some View {
@@ -291,7 +292,8 @@ struct NotificationsView: View {
             let fetchedNotifications = try await serviceManager.fetchNotifications()
             let fetchedCount = fetchedNotifications.count
             
-            print("📬 NotificationsView: Fetched \(fetchedCount) notifications (had \(previousCount) before)")
+            DebugLog.verbose(
+                "NotificationsView fetched \(fetchedCount) notifications (previous \(previousCount))")
             
             // Only update if we got results, or if both are empty (to show empty state when there really are none)
             // This prevents clearing existing notifications if fetch returns empty due to cancellation
@@ -303,7 +305,8 @@ struct NotificationsView: View {
                 notifications = fetchedNotifications
             } else {
                 // Fetch returned empty but we had notifications - likely cancelled, preserve existing
-                print("⚠️ NotificationsView: Fetch returned empty but had \(previousCount) notifications - preserving existing (likely cancelled)")
+                DebugLog.verbose(
+                    "NotificationsView fetch returned empty; preserving \(previousCount) existing notifications")
                 notifications = previousNotifications
             }
         } catch {
@@ -312,9 +315,10 @@ struct NotificationsView: View {
                                 (error as NSError).code == NSURLErrorCancelled
             
             if isCancellation {
-                print("⚠️ NotificationsView: Request was cancelled - preserving \(previousCount) existing notifications")
+                DebugLog.verbose(
+                    "NotificationsView request cancelled; preserving \(previousCount) existing notifications")
             } else {
-                print("❌ NotificationsView: Failed to fetch notifications: \(error)")
+                DebugLog.verbose("NotificationsView failed to fetch notifications: \(error)")
             }
             
             // Preserve existing notifications on error to prevent blank screen

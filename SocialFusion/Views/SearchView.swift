@@ -207,12 +207,6 @@ struct SearchView: View {
                 accountDropdownOverlay
             }
         }
-        .sheet(isPresented: $showComposeView) {
-            ComposeView().environmentObject(serviceManager)
-        }
-        .sheet(isPresented: $showValidationView) {
-            TimelineValidationDebugView(serviceManager: serviceManager)
-        }
         .task {
             // Initialize SearchStore with proper provider
             let accountId = selectedAccountId ?? serviceManager.selectedAccountIds.first ?? "all"
@@ -228,7 +222,7 @@ struct SearchView: View {
                 do {
                     trendingTags = try await serviceManager.fetchTrendingTags()
                 } catch {
-                    print("Failed to fetch trending: \(error)")
+                    DebugLog.verbose("Failed to fetch trending tags: \(error)")
                 }
                 isLoadingTrending = false
             }
@@ -452,7 +446,6 @@ struct SearchView: View {
     // MARK: - Direct Open Handling
     
     private func handleDirectOpen(_ target: DirectOpenTarget) {
-        guard let store = searchStore else { return }
         switch target {
         case .profile(let user):
             navigationEnvironment.navigateToUser(from: user)
@@ -488,15 +481,22 @@ struct SearchView: View {
     }
     
     private var composeButton: some View {
-        Image(systemName: "square.and.pencil")
-            .font(.system(size: 18))
-            .foregroundColor(.primary)
-            .onTapGesture {
-                showComposeView = true
-            }
-            .onLongPressGesture(minimumDuration: 1.0) {
-                showValidationView = true
-            }
+        Button {
+            showComposeView = true
+        } label: {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Compose")
+        .accessibilityHint("Create a new post")
+        .accessibilityIdentifier("ComposeToolbarButton")
+        .onLongPressGesture(minimumDuration: 1.0) {
+            showValidationView = true
+        }
     }
     
     private var accountDropdownOverlay: some View {
@@ -592,7 +592,7 @@ struct DirectOpenRow: View {
         switch target {
         case .profile(let user):
             return "Open Profile: @\(user.username)"
-        case .post(let post):
+        case .post:
             return "Open Post"
         case .tag(let tag):
             return "Search Tag: #\(tag.name)"

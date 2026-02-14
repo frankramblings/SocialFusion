@@ -14,6 +14,20 @@ final class TimelineRefreshCoordinator: ObservableObject {
     @Published private(set) var isDeepHistory: Bool = false
     @Published private(set) var isScrolling: Bool = false
 
+    nonisolated static func _test_deterministicInterval(
+        timelineID: String,
+        platform: SocialPlatform,
+        trigger: RefreshTrigger,
+        cycle: Int
+    ) -> TimeInterval {
+        deterministicInterval(
+            timelineID: timelineID,
+            platform: platform,
+            trigger: trigger,
+            cycle: cycle
+        )
+    }
+
     private let timelineID: String
     private let platforms: [SocialPlatform]
     private let isLoading: () -> Bool
@@ -30,12 +44,14 @@ final class TimelineRefreshCoordinator: ObservableObject {
     private var autoMergeTask: Task<Void, Never>?
     private var lastFetchAtByPlatform: [SocialPlatform: Date] = [:]
     private var lastVisibleInteractionAt: Date = Date.distantPast
+    private var idlePollingCycleByPlatform: [SocialPlatform: Int] = [:]
+    private var lastIdlePollingIntervalByPlatform: [SocialPlatform: TimeInterval] = [:]
     private var isTimelineVisible = false
     private var isComposing = false
 
-    private let foregroundRefreshRange: ClosedRange<TimeInterval> = 60...120
-    private let mastodonPollingRange: ClosedRange<TimeInterval> = 45...60
-    private let blueskyPollingRange: ClosedRange<TimeInterval> = 30...45
+    nonisolated private static let foregroundRefreshRange: ClosedRange<TimeInterval> = 60...120
+    nonisolated private static let mastodonPollingRange: ClosedRange<TimeInterval> = 45...60
+    nonisolated private static let blueskyPollingRange: ClosedRange<TimeInterval> = 30...45
     private let interactionGracePeriod: TimeInterval = 4.0
     private let topMergeGracePeriod: TimeInterval = 2.5
 
@@ -209,7 +225,7 @@ final class TimelineRefreshCoordinator: ObservableObject {
 
     private func autoRefreshLoop(for platform: SocialPlatform) async {
         while !Task.isCancelled {
-            let interval = nextPollingInterval(for: platform)
+            let interval = consumeNextIdlePollingInterval(for: platform)
             do {
                 try await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
             } catch {
@@ -293,21 +309,34 @@ final class TimelineRefreshCoordinator: ObservableObject {
     private func minimumInterval(for platform: SocialPlatform, trigger: RefreshTrigger) -> TimeInterval {
         switch trigger {
         case .foreground:
-            return TimeInterval.random(in: foregroundRefreshRange)
+            return Self.deterministicInterval(
+                timelineID: timelineID,
+                platform: platform,
+                trigger: .foreground,
+                cycle: 0
+            )
         case .idlePolling:
-            return nextPollingInterval(for: platform)
+            return lastIdlePollingIntervalByPlatform[platform]
+                ?? Self.deterministicInterval(
+                    timelineID: timelineID,
+                    platform: platform,
+                    trigger: .idlePolling,
+                    cycle: 0
+                )
         }
     }
 
-    private func nextPollingInterval(for platform: SocialPlatform) -> TimeInterval {
-        let range: ClosedRange<TimeInterval>
-        switch platform {
-        case .mastodon:
-            range = mastodonPollingRange
-        case .bluesky:
-            range = blueskyPollingRange
-        }
-        return TimeInterval.random(in: range)
+    private func consumeNextIdlePollingInterval(for platform: SocialPlatform) -> TimeInterval {
+        let cycle = idlePollingCycleByPlatform[platform, default: 0]
+        let interval = Self.deterministicInterval(
+            timelineID: timelineID,
+            platform: platform,
+            trigger: .idlePolling,
+            cycle: cycle
+        )
+        idlePollingCycleByPlatform[platform] = cycle + 1
+        lastIdlePollingIntervalByPlatform[platform] = interval
+        return interval
     }
 
     private func cancelActiveAutoFetch(reason: String) {
@@ -346,5 +375,43 @@ final class TimelineRefreshCoordinator: ObservableObject {
         bufferEarliestTimestamp = snapshot.bufferEarliestTimestamp
         bufferSources = snapshot.bufferSources
         log("📦 [Refresh:\(timelineID)] Buffer update (\(reason)) count=\(bufferCount) sources=\(bufferSources)")
+    }
+
+    nonisolated private static func deterministicInterval(
+        timelineID: String,
+        platform: SocialPlatform,
+        trigger: RefreshTrigger,
+        cycle: Int
+    ) -> TimeInterval {
+        let range: ClosedRange<TimeInterval>
+        switch trigger {
+        case .foreground:
+            range = foregroundRefreshRange
+        case .idlePolling:
+            switch platform {
+            case .mastodon:
+                range = mastodonPollingRange
+            case .bluesky:
+                range = blueskyPollingRange
+            }
+        }
+
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return range.lowerBound }
+
+        let seed = stableSeed("\(timelineID)|\(platform.rawValue)|\(trigger.rawValue)")
+        let cycleSeed = seed &+ UInt64(cycle) &* 0x9E3779B185EBCA87
+        let normalized = Double(cycleSeed % 10_000) / 10_000.0
+        return range.lowerBound + (span * normalized)
+    }
+
+    nonisolated private static func stableSeed(_ value: String) -> UInt64 {
+        var hash: UInt64 = 1469598103934665603
+        let prime: UInt64 = 1099511628211
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= prime
+        }
+        return hash
     }
 }

@@ -262,6 +262,7 @@ struct PostDetailView: View {
                             onReply: { handleAction(.reply, for: post) },
                             onRepost: { handleAction(.repost, for: post) },
                             onLike: { handleAction(.like, for: post) },
+                            onQuote: { handleAction(.quote, for: post) },
                             onShare: { handleAction(.share, for: post) },
                             postActionStore: serviceManager.postActionStore,
                             postActionCoordinator: serviceManager.postActionCoordinator
@@ -382,6 +383,7 @@ struct PostDetailView: View {
                             onReply: { handleAction(.reply, for: post) },
                             onRepost: { handleAction(.repost, for: post) },
                             onLike: { handleAction(.like, for: post) },
+                            onQuote: { handleAction(.quote, for: post) },
                             onShare: { handleAction(.share, for: post) },
                             postActionStore: serviceManager.postActionStore,
                             postActionCoordinator: serviceManager.postActionCoordinator
@@ -1100,7 +1102,7 @@ struct SelectedPostView: View {
                                     try await serviceManager.voteInPoll(
                                         post: post, choices: optionIndexes)
                                 } catch {
-                                    print("❌ Failed to vote: \(error.localizedDescription)")
+                                    DebugLog.verbose("Failed to vote in poll: \(error.localizedDescription)")
                                 }
                             }
                         }
@@ -1140,6 +1142,7 @@ struct PostRow: View {
     var onReply: (() -> Void)? = nil
     var onRepost: (() -> Void)? = nil
     var onLike: (() -> Void)? = nil
+    var onQuote: (() -> Void)? = nil
     var onShare: (() -> Void)? = nil
     @ObservedObject var postActionStore: PostActionStore
     let postActionCoordinator: PostActionCoordinator?
@@ -1247,7 +1250,7 @@ struct PostRow: View {
                                     try await serviceManager.voteInPoll(
                                         post: post, choices: optionIndexes)
                                 } catch {
-                                    print("❌ Failed to vote: \(error.localizedDescription)")
+                                    DebugLog.verbose("Failed to vote in poll: \(error.localizedDescription)")
                                 }
                             }
                         }
@@ -1262,6 +1265,7 @@ struct PostRow: View {
                         onReply: { onReply?() },
                         onRepost: { onRepost?() },
                         onLike: { onLike?() },
+                        onQuote: { onQuote?() },
                         onShare: { onShare?() },
                         postActionStore: postActionStore,
                         postActionCoordinator: postActionCoordinator

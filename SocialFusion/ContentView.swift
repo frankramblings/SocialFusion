@@ -23,6 +23,7 @@ struct ContentView: View {
     @State private var showValidationView = false
     @State private var showAddAccountView = false
     @State private var composeInitialText: String? = nil
+    @State private var isSwitchingAccounts = false
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -72,6 +73,18 @@ struct ContentView: View {
             AddAccountView()
                 .environmentObject(serviceManager)
         }
+        .sheet(isPresented: $showComposeView, onDismiss: {
+            composeInitialText = nil
+        }) {
+            ComposeView(
+                initialText: composeInitialText,
+                timelineContextProvider: serviceManager.timelineContextProvider
+            )
+            .environmentObject(serviceManager)
+        }
+        .sheet(isPresented: $showValidationView) {
+            TimelineValidationDebugView(serviceManager: serviceManager)
+        }
         .withToastNotifications()
     }
 
@@ -86,6 +99,19 @@ struct ContentView: View {
                         ConsolidatedTimelineView(serviceManager: serviceManager)
                         if showAccountDropdown {
                             accountDropdownOverlay
+                        }
+                        if isSwitchingAccounts {
+                            VStack {
+                                ProgressView("Switching account…")
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 8)
+                                    .background(.ultraThinMaterial, in: Capsule())
+                                Spacer()
+                            }
+                            .padding(.top, 8)
+                            .transition(.opacity)
+                            .zIndex(10)
+                            .allowsHitTesting(false)
                         }
                     }
                     .toolbar {
@@ -212,27 +238,22 @@ struct ContentView: View {
     }
 
     private var composeButton: some View {
-        Image(systemName: "square.and.pencil")
-            .font(.system(size: 18))
-            .foregroundColor(.primary)
-            .onTapGesture {
-                showComposeView = true
-            }
-            .onLongPressGesture(minimumDuration: 1.0) {
-                showValidationView = true
-            }
-            .sheet(isPresented: $showComposeView, onDismiss: {
-                composeInitialText = nil
-            }) {
-                ComposeView(
-                    initialText: composeInitialText,
-                    timelineContextProvider: serviceManager.timelineContextProvider
-                )
-                .environmentObject(serviceManager)
-            }
-            .sheet(isPresented: $showValidationView) {
-                TimelineValidationDebugView(serviceManager: serviceManager)
-            }
+        Button {
+            showComposeView = true
+        } label: {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.primary)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Compose")
+        .accessibilityHint("Create a new post")
+        .accessibilityIdentifier("ComposeToolbarButton")
+        .onLongPressGesture(minimumDuration: 1.0) {
+            showValidationView = true
+        }
     }
 
     private var accountDropdownOverlay: some View {
@@ -250,7 +271,8 @@ struct ContentView: View {
                         selectedAccountId: $selectedAccountId,
                         previousAccountId: $previousAccountId,
                         isVisible: $showAccountDropdown,
-                        showAddAccountView: $showAddAccountView
+                        showAddAccountView: $showAddAccountView,
+                        onSelectAccount: { switchToAccount(id: $0) }
                     )
                     .environmentObject(serviceManager)
                     Spacer()
@@ -292,12 +314,6 @@ struct ContentView: View {
                 accountDropdownOverlay
             }
         }
-        .sheet(isPresented: $showComposeView) {
-            ComposeView().environmentObject(serviceManager)
-        }
-        .sheet(isPresented: $showValidationView) {
-            TimelineValidationDebugView(serviceManager: serviceManager)
-        }
     }
 
     private var noAccountView: some View {
@@ -337,11 +353,12 @@ struct ContentView: View {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
             granted, error in
             if let error = error {
-                print("Failed to request notification permissions: \(error.localizedDescription)")
+                DebugLog.verbose(
+                    "Failed to request notification permissions: \(error.localizedDescription)")
             } else if granted {
-                print("Notification permissions granted")
+                DebugLog.verbose("Notification permissions granted")
             } else {
-                print("Notification permissions denied")
+                DebugLog.verbose("Notification permissions denied")
             }
         }
 
@@ -449,10 +466,17 @@ struct ContentView: View {
 
     // Helper function to switch accounts and track previous selection
     private func switchToAccount(id: String?) {
+        guard selectedAccountId != id else {
+            showAccountDropdown = false
+            return
+        }
+
         // Store current selection as previous
         previousAccountId = selectedAccountId
         // Update to new selection
         selectedAccountId = id
+        showAccountDropdown = false
+        isSwitchingAccounts = true
 
         // Update the selected account IDs in the service manager
         if let id = id {
@@ -464,7 +488,8 @@ struct ContentView: View {
         }
 
         // Refresh timeline with new account selection
-        Task {
+        Task { @MainActor in
+            defer { isSwitchingAccounts = false }
             try? await serviceManager.refreshTimeline(intent: .manualRefresh)
         }
     }
@@ -496,6 +521,7 @@ struct SimpleAccountDropdown: View {
     @Binding var previousAccountId: String?
     @Binding var isVisible: Bool
     @Binding var showAddAccountView: Bool
+    var onSelectAccount: ((String?) -> Void)? = nil
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) var colorScheme
 
@@ -503,18 +529,7 @@ struct SimpleAccountDropdown: View {
         VStack(spacing: 0) {
             // "All Accounts" option
             Button(action: {
-                previousAccountId = selectedAccountId
-                selectedAccountId = nil
-                serviceManager.selectedAccountIds = ["all"]
-
-                // Clear timeline immediately for better UX
-                serviceManager.unifiedTimeline = []
-                serviceManager.resetPagination()
-
-                isVisible = false
-                Task {
-                    try? await serviceManager.refreshTimeline(intent: .manualRefresh)
-                }
+                selectAccount(nil)
             }) {
                 HStack {
                     Text("All Accounts")
@@ -541,18 +556,7 @@ struct SimpleAccountDropdown: View {
             ForEach(serviceManager.mastodonAccounts + serviceManager.blueskyAccounts, id: \.id) {
                 account in
                 Button(action: {
-                    previousAccountId = selectedAccountId
-                    selectedAccountId = account.id
-                    serviceManager.selectedAccountIds = [account.id]
-
-                    // Clear timeline immediately for better UX
-                    serviceManager.unifiedTimeline = []
-                    serviceManager.resetPagination()
-
-                    isVisible = false
-                    Task {
-                        try? await serviceManager.refreshTimeline(intent: .manualRefresh)
-                    }
+                    selectAccount(account.id)
                 }) {
                     HStack {
                         ProfileImageView(account: account)
@@ -628,6 +632,21 @@ struct SimpleAccountDropdown: View {
         .scaleEffect(isVisible ? 1.0 : 0.8)
         .opacity(isVisible ? 1.0 : 0.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVisible)
+    }
+
+    private func selectAccount(_ id: String?) {
+        if let onSelectAccount {
+            onSelectAccount(id)
+            return
+        }
+
+        previousAccountId = selectedAccountId
+        selectedAccountId = id
+        serviceManager.selectedAccountIds = id.map { [$0] } ?? ["all"]
+        isVisible = false
+        Task {
+            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
+        }
     }
 }
 
