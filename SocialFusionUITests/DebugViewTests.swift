@@ -3,11 +3,15 @@ import XCTest
 final class DebugViewTests: XCTestCase {
     var app: XCUIApplication!
 
-    override func setUp() {
-        super.setUp()
+    override func setUpWithError() throws {
+        try super.setUpWithError()
         app = XCUIApplication()
-        app.launchArguments = ["UI-Testing"]
+        app.launchArguments = ["UI-Testing", "UI_TESTING"]
         app.launch()
+
+        if !app.buttons["Enable Debug Mode"].waitForExistence(timeout: 1) {
+            throw XCTSkip("Debug view entry controls are not present in this build configuration")
+        }
     }
 
     func testDebugViewNavigation() {

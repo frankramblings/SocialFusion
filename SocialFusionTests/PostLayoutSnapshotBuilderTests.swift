@@ -89,7 +89,7 @@ final class PostLayoutSnapshotBuilderTests: XCTestCase {
     XCTAssertEqual(snapshot.mediaBlocks.count, 1)
     let mediaBlock = snapshot.mediaBlocks[0]
     XCTAssertNotNil(mediaBlock.aspectRatio)
-    XCTAssertEqual(mediaBlock.aspectRatio, 1920.0 / 1080.0, accuracy: 0.01)
+    XCTAssertEqual(Double(mediaBlock.aspectRatio ?? 0), 1920.0 / 1080.0, accuracy: 0.01)
     XCTAssertTrue(mediaBlock.shouldShow)
   }
   

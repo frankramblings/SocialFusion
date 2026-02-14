@@ -1985,7 +1985,7 @@ struct ComposeView: View {
                             } catch {
                                 // Collect failure but don't throw - allow other platforms to succeed
                                 failedReplies[platform] = error.localizedDescription
-                                print(
+                                DebugLog.verbose(
                                     "❌ Failed to reply on \(platform.rawValue): \(error.localizedDescription)"
                                 )
                             }
@@ -2057,7 +2057,7 @@ struct ComposeView: View {
                     showAlert = true
                 }
 
-                print("Posting error: \(error)")
+                DebugLog.verbose("Posting error: \(error)")
             }
         }
     }
@@ -2344,7 +2344,7 @@ struct ComposeView: View {
                                         self.resolvePastedHandle(username, did: did)
                                     }
                                 } catch {
-                                    print("⚠️ Failed to resolve pasted handle @\(username): \(error)")
+                                    DebugLog.verbose("⚠️ Failed to resolve pasted handle @\(username): \(error)")
                                 }
                             }
                         }
@@ -2388,7 +2388,7 @@ struct ComposeView: View {
         
         if updated {
             composerTextModel.documentRevision += 1
-            print("✅ Resolved DID for pasted handle @\(handle): \(did)")
+            DebugLog.verbose("✅ Resolved DID for pasted handle @\(handle): \(did)")
         }
     }
 

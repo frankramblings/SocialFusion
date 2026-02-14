@@ -20,13 +20,13 @@ final class TimelineRegressionTests: XCTestCase {
         let seed = app.buttons["SeedTimelineButton"]
         XCTAssertTrue(seed.waitForExistence(timeout: 5), "Seed button should exist")
         seed.tap()
-        
-        // Wait for timeline to populate
-        sleep(1)
-        
-        // Timeline label should exist
-        let timeline = app.otherElements["Timeline"]
-        XCTAssertTrue(timeline.waitForExistence(timeout: 3), "Timeline should exist after seeding")
+
+        // Verify timeline debug hooks and scroll container are present after seeding.
+        let bufferCount = app.staticTexts["TimelineBufferCount"]
+        XCTAssertTrue(bufferCount.waitForExistence(timeout: 3), "Timeline debug overlay should be present")
+
+        let scrollViews = app.scrollViews
+        XCTAssertTrue(scrollViews.count > 0, "Timeline scroll container should exist after seeding")
     }
     
     /// Test that post cards exist in timeline

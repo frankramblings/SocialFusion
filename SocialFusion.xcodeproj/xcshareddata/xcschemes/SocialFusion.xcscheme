@@ -47,6 +47,16 @@
                ReferencedContainer = "container:SocialFusion.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "DDC6F18FDADA4CC24E473FA5"
+               BuildableName = "SocialFusionUITests.xctest"
+               BlueprintName = "SocialFusionUITests"
+               ReferencedContainer = "container:SocialFusion.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

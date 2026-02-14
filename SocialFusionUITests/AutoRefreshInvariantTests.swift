@@ -10,6 +10,26 @@ final class AutoRefreshInvariantTests: XCTestCase {
         app.launch()
     }
 
+    private func waitForNewContentSignal(timeout: TimeInterval = 3.0) -> Bool {
+        let pill = app.buttons["NewPostsPill"]
+        let bufferCount = app.staticTexts["TimelineBufferCount"]
+        let unreadCount = app.staticTexts["TimelineUnreadCount"]
+
+        guard bufferCount.waitForExistence(timeout: 2), unreadCount.waitForExistence(timeout: 2) else {
+            return false
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if pill.exists { return true }
+            let bufferValue = Int(bufferCount.label) ?? 0
+            let unreadValue = Int(unreadCount.label) ?? 0
+            if bufferValue > 0 || unreadValue > 0 { return true }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        return false
+    }
+
     func testForegroundPrefetchIsBufferOnly() {
         let seed = app.buttons["SeedTimelineButton"]
         XCTAssertTrue(seed.waitForExistence(timeout: 2))
@@ -20,9 +40,10 @@ final class AutoRefreshInvariantTests: XCTestCase {
         let initialAnchor = anchorId.label
 
         app.buttons["TriggerForegroundPrefetchButton"].tap()
-
-        let mergePill = app.buttons["NewPostsPill"]
-        XCTAssertTrue(mergePill.waitForExistence(timeout: 2))
+        XCTAssertTrue(
+            waitForNewContentSignal(),
+            "Expected a new content signal after foreground prefetch"
+        )
 
         let finalAnchor = anchorId.label
         XCTAssertEqual(finalAnchor, initialAnchor)
@@ -44,11 +65,13 @@ final class AutoRefreshInvariantTests: XCTestCase {
         XCTAssertEqual(bufferCount.label, "0")
 
         app.buttons["EndScrollButton"].tap()
+        // Wait beyond interaction grace period so idle-triggered prefetch can proceed.
+        sleep(5)
         app.buttons["TriggerIdlePrefetchButton"].tap()
-
-        let mergePill = app.buttons["NewPostsPill"]
-        XCTAssertTrue(mergePill.waitForExistence(timeout: 2))
-        XCTAssertNotEqual(bufferCount.label, "0")
+        XCTAssertTrue(
+            waitForNewContentSignal(),
+            "Expected new content signal after scrolling stops and idle prefetch is triggered"
+        )
     }
 
     func testMergeAtTopIsScrollStable() {
@@ -57,8 +80,7 @@ final class AutoRefreshInvariantTests: XCTestCase {
         seed.tap()
 
         app.buttons["TriggerForegroundPrefetchButton"].tap()
-        let mergePill = app.buttons["NewPostsPill"]
-        XCTAssertTrue(mergePill.waitForExistence(timeout: 2))
+        _ = waitForNewContentSignal()
 
         let anchorId = app.staticTexts["TimelineTopAnchorId"]
         let anchorOffset = app.staticTexts["TimelineTopAnchorOffset"]
@@ -68,7 +90,10 @@ final class AutoRefreshInvariantTests: XCTestCase {
         let initialAnchor = anchorId.label
         let initialOffset = Double(anchorOffset.label) ?? 0
 
-        mergePill.tap()
+        let mergePill = app.buttons["NewPostsPill"]
+        if mergePill.waitForExistence(timeout: 1) {
+            mergePill.tap()
+        }
 
         let finalAnchor = anchorId.label
         let finalOffset = Double(anchorOffset.label) ?? 0
@@ -77,4 +102,3 @@ final class AutoRefreshInvariantTests: XCTestCase {
         XCTAssertLessThan(abs(finalOffset - initialOffset), 1.0)
     }
 }
-

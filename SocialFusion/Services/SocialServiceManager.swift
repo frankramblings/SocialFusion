@@ -4619,9 +4619,12 @@ public struct QueuedAction: Identifiable, Codable {
 public class OfflineQueueStore: ObservableObject {
     @Published public var queuedActions: [QueuedAction] = []
 
-    private let saveKey = "socialfusion_offline_queue"
+    private let saveKey: String
+    private let userDefaults: UserDefaults
 
-    public init() {
+    public init(saveKey: String = "socialfusion_offline_queue", userDefaults: UserDefaults = .standard) {
+        self.saveKey = saveKey
+        self.userDefaults = userDefaults
         loadQueue()
     }
 
@@ -4631,9 +4634,15 @@ public class OfflineQueueStore: ObservableObject {
         platform: SocialPlatform,
         type: QueuedActionType
     ) {
+        let normalizedPlatformPostId: String? = {
+            guard let platformPostId else { return nil }
+            let trimmed = platformPostId.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }()
+
         let action = QueuedAction(
             postId: postId,
-            platformPostId: platformPostId,
+            platformPostId: normalizedPlatformPostId,
             platform: platform,
             type: type
         )
@@ -4648,12 +4657,12 @@ public class OfflineQueueStore: ObservableObject {
 
     private func persist() {
         if let data = try? JSONEncoder().encode(queuedActions) {
-            UserDefaults.standard.set(data, forKey: saveKey)
+            userDefaults.set(data, forKey: saveKey)
         }
     }
 
     private func loadQueue() {
-        if let data = UserDefaults.standard.data(forKey: saveKey),
+        if let data = userDefaults.data(forKey: saveKey),
             let decoded = try? JSONDecoder().decode([QueuedAction].self, from: data)
         {
             queuedActions = decoded

@@ -119,14 +119,14 @@ class ViewTracker {
             _containerStorage = try ModelContainer(
                 for: ReadPost.self, configurations: configuration)
         } catch {
-            print("⚠️ ViewTracker: Failed to initialize SwiftData container: \(error)")
+            DebugLog.verbose("⚠️ ViewTracker: Failed to initialize SwiftData container: \(error)")
             // Fallback to in-memory store
             do {
                 let memoryOnlyConfig = ModelConfiguration(isStoredInMemoryOnly: true)
                 _containerStorage = try ModelContainer(
                     for: ReadPost.self, configurations: memoryOnlyConfig)
             } catch {
-                print(
+                DebugLog.verbose(
                     "❌ ViewTracker: Failed to initialize SwiftData container (even in-memory): \(error)"
                 )
             }
@@ -161,7 +161,7 @@ class ViewTracker {
             }
             try context.save()
         } catch {
-            print("⚠️ ViewTracker: Failed to persist read-state batch: \(error)")
+            DebugLog.verbose("⚠️ ViewTracker: Failed to persist read-state batch: \(error)")
         }
     }
 
@@ -183,7 +183,7 @@ class ViewTracker {
                 lastReadDate = mostRecent.readAt
             }
         } catch {
-            print("⚠️ ViewTracker: Failed to load read state: \(error)")
+            DebugLog.verbose("⚠️ ViewTracker: Failed to load read state: \(error)")
         }
     }
 
@@ -250,4 +250,36 @@ class ViewTracker {
             loadFromUserDefaults()
         }
     }
+
+#if DEBUG
+    // MARK: - Test Hooks
+
+    func _test_pendingReadEntryCount() -> Int {
+        pendingReadEntriesByPostId.count
+    }
+
+    func _test_forceFlushPendingReadState() async {
+        persistenceTask?.cancel()
+        persistenceTask = nil
+        await flushPendingReadState()
+    }
+
+    func _test_resetState() async {
+        persistenceTask?.cancel()
+        persistenceTask = nil
+        pendingSave = false
+        pendingReadEntriesByPostId.removeAll()
+        readPostIds.removeAll()
+        lastReadPostId = nil
+        lastReadDate = nil
+
+        if #available(iOS 17.0, *) {
+            await clearSwiftData()
+        } else {
+            UserDefaults.standard.removeObject(forKey: readPostsKey)
+            UserDefaults.standard.removeObject(forKey: lastReadPostIdKey)
+            UserDefaults.standard.removeObject(forKey: lastReadDateKey)
+        }
+    }
+#endif
 }

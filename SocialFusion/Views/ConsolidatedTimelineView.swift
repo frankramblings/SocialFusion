@@ -311,9 +311,11 @@ struct ConsolidatedTimelineView: View {
                     }
                 }
             }
-            .overlay {
+            .overlay(alignment: .topLeading) {
                 if UITestHooks.isEnabled {
                     debugOverlay
+                        .padding(.top, 8)
+                        .padding(.leading, 8)
                 }
             }
     }
@@ -442,7 +444,10 @@ struct ConsolidatedTimelineView: View {
                 .accessibilityIdentifier("TimelineTopAnchorOffset")
         }
         .font(.caption2)
-        .opacity(0.01)
+        .padding(8)
+        .background(.thinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .opacity(UITestHooks.isEnabled ? 0.85 : 0.01)
         #else
         EmptyView()
         #endif
@@ -1165,7 +1170,7 @@ struct ConsolidatedTimelineView: View {
         let pending = pendingAnchorRestoreId ?? "nil"
         let visible = visibleAnchorId ?? "nil"
         let lock = anchorLockUntil?.timeIntervalSinceNow ?? -1
-        print(
+        DebugLog.verbose(
             "🧭 [ConsolidatedTimelineView] \(label) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: "%.2f", lock)) restored=\(hasRestoredInitialAnchor)"
         )
     }

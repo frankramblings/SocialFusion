@@ -204,6 +204,26 @@ final class TimelineRefreshCoordinator: ObservableObject {
         await bufferNewPosts(trigger: trigger, platform: nil)
     }
 
+#if DEBUG
+    /// Debug-only prefetch path used by UI tests.
+    /// Bypasses cadence and interaction suppression so test hooks remain deterministic.
+    func debugForcePrefetch(trigger: RefreshTrigger) async {
+        guard isTimelineVisible else { return }
+        log("🧪 [Refresh:\(timelineID)] Force prefetch (\(trigger.rawValue))")
+
+        for platform in platforms {
+            let rawPosts = await fetchPostsForPlatform(platform)
+            guard !rawPosts.isEmpty else { continue }
+
+            let filteredPosts = await filterPosts(rawPosts)
+            let visiblePosts = visiblePostsProvider()
+            if let snapshot = buffer.append(incomingPosts: filteredPosts, visiblePosts: visiblePosts) {
+                updateSnapshot(snapshot, reason: "debug force prefetch")
+            }
+        }
+    }
+#endif
+
     // MARK: - Private Helpers
 
     private func startAutoRefresh() {

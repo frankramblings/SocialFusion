@@ -289,10 +289,14 @@ class UnifiedTimelineController: ObservableObject {
         }
 
         if !newUnreadIds.isEmpty {
-            print("📊 [trackUnread] Found \(newUnreadIds.count) new posts above anchor at index \(anchorIndex). IDs: \(newUnreadIds.sorted().prefix(5))")
+            DebugLog.verbose(
+                "📊 [trackUnread] Found \(newUnreadIds.count) new posts above anchor at index \(anchorIndex). IDs: \(newUnreadIds.sorted().prefix(5))"
+            )
             addUnreadAboveViewport(newUnreadIds)
         } else {
-            print("📊 [trackUnread] No new posts above anchor at index \(anchorIndex). Total posts: \(newPosts.count), previous: \(previousPostIds.count)")
+            DebugLog.verbose(
+                "📊 [trackUnread] No new posts above anchor at index \(anchorIndex). Total posts: \(newPosts.count), previous: \(previousPostIds.count)"
+            )
         }
     }
 
@@ -502,7 +506,9 @@ class UnifiedTimelineController: ObservableObject {
         // Posts at index and below have been seen
         let newCount = max(0, index)
 
-        print("📊 [updateUnread] index=\(index) newCount=\(newCount) current=\(unreadAboveViewportCount) willUpdate=\(newCount < unreadAboveViewportCount)")
+        DebugLog.verbose(
+            "📊 [updateUnread] index=\(index) newCount=\(newCount) current=\(unreadAboveViewportCount) willUpdate=\(newCount < unreadAboveViewportCount)"
+        )
 
         // Only update if the count decreased (user scrolled up to see more posts)
         // This prevents the count from increasing when scrolling back down
@@ -548,7 +554,7 @@ class UnifiedTimelineController: ObservableObject {
 
     func debugTriggerForegroundPrefetch() {
         guard UITestHooks.isEnabled else { return }
-        refreshCoordinator.handleAppForegrounded()
+        Task { await refreshCoordinator.debugForcePrefetch(trigger: .foreground) }
     }
 
     private static func makeTestPosts(count: Int, platform: SocialPlatform) -> [Post] {

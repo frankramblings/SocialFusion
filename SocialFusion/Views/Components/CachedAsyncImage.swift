@@ -263,7 +263,7 @@ public class ImageCache: ObservableObject {
         session.configuration.urlCache?.removeAllCachedResponses()
         inFlightRequests.removeAll()
         requestPriorities.removeAll()
-        print("🗑️ [ImageCache] Cache cleared")
+        DebugLog.verbose("🗑️ [ImageCache] Cache cleared")
     }
 
     public func getCacheInfo() -> (memoryCount: Int, diskSize: Int) {
