@@ -31,6 +31,8 @@ struct SearchView: View {
     @State private var showAddAccountView = false
     @State private var trendingTags: [SearchTag] = []
     @State private var isLoadingTrending = false
+    @State private var replyingToPost: Post? = nil
+    @State private var quotingToPost: Post? = nil
     
     init(
         showAccountDropdown: Binding<Bool>,
@@ -227,6 +229,14 @@ struct SearchView: View {
                 isLoadingTrending = false
             }
         }
+        .sheet(item: $replyingToPost) { post in
+            ComposeView(replyingTo: post)
+                .environmentObject(serviceManager)
+        }
+        .sheet(item: $quotingToPost) { post in
+            ComposeView(quotingTo: post)
+                .environmentObject(serviceManager)
+        }
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
@@ -305,16 +315,24 @@ struct SearchView: View {
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
             onReply: {
-                // Reply handling - would need reply state management
+                replyingToPost = post.originalPost ?? post
             },
             onRepost: {
                 Task {
-                    try? await serviceManager.repostPost(post)
+                    do {
+                        try await serviceManager.repostPost(post)
+                    } catch {
+                        ErrorHandler.shared.handleError(error)
+                    }
                 }
             },
             onLike: {
                 Task {
-                    try? await serviceManager.likePost(post)
+                    do {
+                        try await serviceManager.likePost(post)
+                    } catch {
+                        ErrorHandler.shared.handleError(error)
+                    }
                 }
             },
             onShare: { post.presentShareSheet() },
@@ -322,7 +340,7 @@ struct SearchView: View {
             onCopyLink: { post.copyLink() },
             onReport: { report(post) },
             onQuote: {
-                // Quote handling
+                quotingToPost = post
             }
         )
     }
