@@ -33,6 +33,7 @@ struct PostShareButton: View {
             Image(systemName: showConfirmation ? "checkmark" : "square.and.arrow.up")
                 .foregroundColor(showConfirmation ? .green : .secondary)
                 .scaleEffect(showConfirmation ? 1.1 : 1.0)
+                .frame(minWidth: 44, minHeight: 44)
         }
         .scaleEffect(isPressed ? 0.88 : 1.0)
         .opacity(isPressed ? 0.75 : 1.0)
@@ -55,6 +56,8 @@ struct PostShareButton: View {
             }, perform: {}
         )
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel(showConfirmation ? "Shared" : "Share post")
+        .accessibilityHint("Opens share options")
     }
 }
 

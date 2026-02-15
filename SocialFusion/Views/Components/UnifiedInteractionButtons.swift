@@ -403,6 +403,8 @@ struct UnifiedInteractionButtons: View {
                     onTap: onShare
                 )
                 .frame(width: 44, height: 44)
+                .accessibilityLabel("Share post")
+                .accessibilityHint("Opens share options")
             }
         }
         .opacity(isPending ? 0.7 : 1.0)

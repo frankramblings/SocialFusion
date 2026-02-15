@@ -72,10 +72,6 @@ class UnifiedTimelineController: ObservableObject {
                     return []
                 }
             },
-            filterPosts: { [weak serviceManager] posts in
-                guard let serviceManager = serviceManager else { return posts }
-                return await serviceManager.filterPostsForTimeline(posts)
-            },
             mergeBufferedPosts: { [weak serviceManager] posts in
                 serviceManager?.mergeBufferedPosts(posts)
             },

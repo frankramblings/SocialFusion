@@ -1,11 +1,15 @@
 import Foundation
 import Combine
+import UIKit
+import os.log
 
 @MainActor
 public class DraftStore: ObservableObject {
     @Published public var drafts: [DraftPost] = []
     
     private let fileManager = FileManager.default
+    private let persistenceQueue = DraftPersistenceQueue()
+    private let logger = Logger(subsystem: "com.socialfusion", category: "DraftStore")
     private var draftsURL: URL {
         let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
         return documents.appendingPathComponent("drafts.json")
@@ -21,30 +25,25 @@ public class DraftStore: ObservableObject {
         replyingToId: String? = nil,
         selectedAccounts: [SocialPlatform: String] = [:]
     ) {
-        let draftPosts = posts.map { post in
-            ThreadPostDraft(
-                text: post.text,
-                mediaData: post.images.compactMap { $0.jpegData(compressionQuality: 0.8) },
-                cwEnabled: post.cwEnabled,
-                cwText: post.cwText,
-                attachmentAltTexts: post.imageAltTexts,
-                attachmentSensitiveFlags: post.attachmentSensitiveFlags
-            )
-        }
-        
-        // Use first post's CW for legacy support
+        let snapshots = posts.map(ThreadPostSnapshot.init(post:))
         let firstPost = posts.first ?? ThreadPost()
-        var draft = DraftPost(
-            posts: draftPosts,
-            selectedPlatforms: platforms,
-            replyingToId: replyingToId,
-            cwEnabled: firstPost.cwEnabled,
-            cwText: firstPost.cwText
-        )
-        draft.selectedAccounts = selectedAccounts
-        drafts.insert(draft, at: 0)
-        sortDrafts()
-        persist()
+
+        Task {
+            let draftPosts = await persistenceQueue.encodeDraftPosts(from: snapshots)
+            await MainActor.run {
+                var draft = DraftPost(
+                    posts: draftPosts,
+                    selectedPlatforms: platforms,
+                    replyingToId: replyingToId,
+                    cwEnabled: firstPost.cwEnabled,
+                    cwText: firstPost.cwText
+                )
+                draft.selectedAccounts = selectedAccounts
+                drafts.insert(draft, at: 0)
+                sortDrafts()
+                persist()
+            }
+        }
     }
     
     public func renameDraft(_ draft: DraftPost, newName: String) {
@@ -82,13 +81,10 @@ public class DraftStore: ObservableObject {
     }
     
     private func persist() {
-        Task.detached(priority: .background) {
-            do {
-                let data = try JSONEncoder().encode(await self.drafts)
-                try data.write(to: await self.draftsURL, options: [.atomic, .completeFileProtection])
-            } catch {
-                print("Failed to persist drafts: \(error)")
-            }
+        let snapshot = drafts
+        let destinationURL = draftsURL
+        Task {
+            await persistenceQueue.enqueuePersist(drafts: snapshot, destinationURL: destinationURL)
         }
     }
     
@@ -99,8 +95,33 @@ public class DraftStore: ObservableObject {
             drafts = try JSONDecoder().decode([DraftPost].self, from: data)
             sortDrafts()
         } catch {
-            print("Failed to load drafts: \(error)")
+            logger.error("load_drafts_failed error=\(error.localizedDescription, privacy: .public)")
         }
     }
 }
 
+final class DraftImageBox: @unchecked Sendable {
+    let image: UIImage
+
+    init(image: UIImage) {
+        self.image = image
+    }
+}
+
+struct ThreadPostSnapshot: Sendable {
+    let text: String
+    let images: [DraftImageBox]
+    let cwEnabled: Bool
+    let cwText: String
+    let attachmentAltTexts: [String]
+    let attachmentSensitiveFlags: [Bool]
+
+    init(post: ThreadPost) {
+        self.text = post.text
+        self.images = post.images.map { DraftImageBox(image: $0) }
+        self.cwEnabled = post.cwEnabled
+        self.cwText = post.cwText
+        self.attachmentAltTexts = post.imageAltTexts
+        self.attachmentSensitiveFlags = post.attachmentSensitiveFlags
+    }
+}

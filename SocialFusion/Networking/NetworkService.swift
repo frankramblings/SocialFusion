@@ -1,5 +1,6 @@
 import Foundation
 import os.log
+import os.signpost
 
 /// A unified protocol for networking errors across the app
 public enum NetworkError: Error {
@@ -129,16 +130,26 @@ public class NetworkService {
     private let session: URLSession
     private let logger = Logger(subsystem: "com.socialfusion", category: "NetworkService")
     private let connectionManager = ConnectionManager.shared
+    private let signpostLog = OSLog(subsystem: "com.socialfusion", category: .pointsOfInterest)
+    private var activeRequestTasks: [UUID: URLSessionTask] = [:]
+    private let activeRequestTasksLock = NSLock()
+    private var totalRequestCount: Int = 0
+    private var cancelledRequestCount: Int = 0
+    private let metricsLock = NSLock()
 
     // MARK: - Initialization
 
-    private init() {
+    init(session: URLSession? = nil) {
+        if let session {
+            self.session = session
+            return
+        }
+
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = NetworkConfig.defaultRequestTimeout
         config.waitsForConnectivity = true
         config.httpMaximumConnectionsPerHost = NetworkConfig.maxConcurrentConnections
-
-        session = URLSession(configuration: config)
+        self.session = URLSession(configuration: config)
     }
 
     // MARK: - Public Methods
@@ -268,9 +279,12 @@ public class NetworkService {
             "Sending \(method, privacy: .public) request to \(finalURL.absoluteString, privacy: .public)"
         )
 
+        let requestID = UUID()
+        incrementRequestCount()
+
         do {
             // Send the request
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await trackedData(for: request, requestID: requestID)
 
             // Check response status
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -325,9 +339,15 @@ public class NetworkService {
         } catch {
             // Convert to standard NetworkError if not already
             if let networkError = error as? NetworkError {
+                if case .cancelled = networkError {
+                    incrementCancelledRequestCount()
+                }
                 throw networkError
             } else {
                 let networkError = NetworkError.from(error: error, response: nil)
+                if case .cancelled = networkError {
+                    incrementCancelledRequestCount()
+                }
                 logger.error(
                     "Request failed: \(networkError.userFriendlyDescription, privacy: .public)")
                 throw networkError
@@ -337,8 +357,11 @@ public class NetworkService {
 
     /// Download data from a URL
     public func downloadData(from url: URL) async throws -> Data {
+        let requestID = UUID()
+        incrementRequestCount()
         do {
-            let (data, response) = try await session.data(from: url)
+            let request = URLRequest(url: url)
+            let (data, response) = try await trackedData(for: request, requestID: requestID)
 
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw NetworkError.unsupportedResponse
@@ -351,15 +374,160 @@ public class NetworkService {
             return data
         } catch {
             if let networkError = error as? NetworkError {
+                if case .cancelled = networkError {
+                    incrementCancelledRequestCount()
+                }
                 throw networkError
             } else {
-                throw NetworkError.from(error: error, response: nil)
+                let networkError = NetworkError.from(error: error, response: nil)
+                if case .cancelled = networkError {
+                    incrementCancelledRequestCount()
+                }
+                throw networkError
             }
         }
     }
 
     /// Cancel all ongoing requests
     public func cancelAllRequests() {
+        let tasksToCancel: [URLSessionTask]
+        activeRequestTasksLock.lock()
+        tasksToCancel = Array(activeRequestTasks.values)
+        activeRequestTasks.removeAll()
+        activeRequestTasksLock.unlock()
+
+        for task in tasksToCancel {
+            task.cancel()
+        }
+
+        metricsLock.lock()
+        let cancellationRate = totalRequestCount > 0
+            ? Double(cancelledRequestCount) / Double(totalRequestCount)
+            : 0
+        metricsLock.unlock()
+        logger.debug(
+            "Cancelled \(tasksToCancel.count, privacy: .public) tracked request(s). cancellation_rate=\(cancellationRate, privacy: .public)"
+        )
+
+        // Keep the legacy cancellation path for requests still routed through ConnectionManager.
         connectionManager.cancelAllRequests()
+    }
+
+    private func trackedData(for request: URLRequest, requestID: UUID) async throws -> (Data, URLResponse)
+    {
+        let requestSignpostLog = signpostLog
+        let signpostID = OSSignpostID(log: requestSignpostLog)
+        os_signpost(
+            .begin,
+            log: requestSignpostLog,
+            name: "NetworkRequest",
+            signpostID: signpostID,
+            "id=%{public}s",
+            requestID.uuidString
+        )
+
+        return try await withTaskCancellationHandler(operation: {
+            try await withCheckedThrowingContinuation { continuation in
+                let task = session.dataTask(with: request) { [weak self] data, response, error in
+                    guard let self else {
+                        os_signpost(
+                            .end,
+                            log: requestSignpostLog,
+                            name: "NetworkRequest",
+                            signpostID: signpostID,
+                            "status=cancelled"
+                        )
+                        continuation.resume(throwing: NetworkError.cancelled)
+                        return
+                    }
+                    self.removeTrackedTask(requestID)
+
+                    if let error {
+                        os_signpost(
+                            .end,
+                            log: requestSignpostLog,
+                            name: "NetworkRequest",
+                            signpostID: signpostID,
+                            "status=error"
+                        )
+                        continuation.resume(throwing: error)
+                        return
+                    }
+                    guard let data else {
+                        os_signpost(
+                            .end,
+                            log: requestSignpostLog,
+                            name: "NetworkRequest",
+                            signpostID: signpostID,
+                            "status=no_data"
+                        )
+                        continuation.resume(throwing: NetworkError.noData)
+                        return
+                    }
+                    guard let response else {
+                        os_signpost(
+                            .end,
+                            log: requestSignpostLog,
+                            name: "NetworkRequest",
+                            signpostID: signpostID,
+                            "status=bad_response"
+                        )
+                        continuation.resume(throwing: NetworkError.unsupportedResponse)
+                        return
+                    }
+                    os_signpost(
+                        .end,
+                        log: requestSignpostLog,
+                        name: "NetworkRequest",
+                        signpostID: signpostID,
+                        "status=success bytes=%{public}d",
+                        data.count
+                    )
+                    continuation.resume(returning: (data, response))
+                }
+                self.storeTrackedTask(task, requestID: requestID)
+                task.resume()
+            }
+        }, onCancel: { [weak self] in
+            self?.cancelTrackedRequest(requestID)
+            os_signpost(
+                .end,
+                log: requestSignpostLog,
+                name: "NetworkRequest",
+                signpostID: signpostID,
+                "status=cancelled"
+            )
+        })
+    }
+
+    private func storeTrackedTask(_ task: URLSessionTask, requestID: UUID) {
+        activeRequestTasksLock.lock()
+        activeRequestTasks[requestID] = task
+        activeRequestTasksLock.unlock()
+    }
+
+    private func removeTrackedTask(_ requestID: UUID) {
+        activeRequestTasksLock.lock()
+        activeRequestTasks.removeValue(forKey: requestID)
+        activeRequestTasksLock.unlock()
+    }
+
+    private func cancelTrackedRequest(_ requestID: UUID) {
+        activeRequestTasksLock.lock()
+        let task = activeRequestTasks.removeValue(forKey: requestID)
+        activeRequestTasksLock.unlock()
+        task?.cancel()
+    }
+
+    private func incrementRequestCount() {
+        metricsLock.lock()
+        totalRequestCount += 1
+        metricsLock.unlock()
+    }
+
+    private func incrementCancelledRequestCount() {
+        metricsLock.lock()
+        cancelledRequestCount += 1
+        metricsLock.unlock()
     }
 }

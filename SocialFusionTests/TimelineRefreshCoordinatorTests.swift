@@ -26,7 +26,6 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
             fetchPostsForPlatform: { _ in
                 [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
             },
-            filterPosts: { $0 },
             mergeBufferedPosts: { _ in },
             refreshVisibleTimeline: { _ in refreshCalls += 1 },
             visiblePostsProvider: { [] },
@@ -48,7 +47,6 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
             fetchPostsForPlatform: { _ in
                 [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
             },
-            filterPosts: { $0 },
             mergeBufferedPosts: { _ in },
             refreshVisibleTimeline: { _ in },
             visiblePostsProvider: { [] },
@@ -69,7 +67,6 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
             fetchPostsForPlatform: { _ in
                 [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
             },
-            filterPosts: { $0 },
             mergeBufferedPosts: { _ in },
             refreshVisibleTimeline: { _ in },
             visiblePostsProvider: { [] },
@@ -91,7 +88,6 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
             fetchPostsForPlatform: { _ in
                 [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
             },
-            filterPosts: { $0 },
             mergeBufferedPosts: { _ in },
             refreshVisibleTimeline: { _ in },
             visiblePostsProvider: { [] },
@@ -113,7 +109,6 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
             fetchPostsForPlatform: { _ in
                 [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
             },
-            filterPosts: { $0 },
             mergeBufferedPosts: { _ in },
             refreshVisibleTimeline: { _ in },
             visiblePostsProvider: { [] },
@@ -136,7 +131,6 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
             fetchPostsForPlatform: { _ in
                 [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
             },
-            filterPosts: { $0 },
             mergeBufferedPosts: { _ in mergeCalls += 1 },
             refreshVisibleTimeline: { _ in },
             visiblePostsProvider: { [] },
@@ -149,6 +143,28 @@ final class TimelineRefreshCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(mergeCalls, 1)
         XCTAssertEqual(coordinator.bufferCount, 0)
+    }
+
+    func testFetchToBufferBuffersRawPostsWithoutMerging() async {
+        var mergeCalls = 0
+        let coordinator = TimelineRefreshCoordinator(
+            timelineID: "test",
+            platforms: [.mastodon],
+            isLoading: { false },
+            fetchPostsForPlatform: { _ in
+                [self.makePost(id: "1", platform: .mastodon, createdAt: Date())]
+            },
+            mergeBufferedPosts: { _ in mergeCalls += 1 },
+            refreshVisibleTimeline: { _ in },
+            visiblePostsProvider: { [] },
+            log: { _ in }
+        )
+
+        coordinator.setTimelineVisible(true)
+        let count = await coordinator.fetchToBuffer()
+
+        XCTAssertEqual(count, 1)
+        XCTAssertEqual(mergeCalls, 0, "fetchToBuffer should not commit or merge visible timeline.")
     }
 
     func testDeterministicIdlePollingIntervalIsStableForSameCycle() {

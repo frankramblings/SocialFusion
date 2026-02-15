@@ -48,6 +48,12 @@ final class FeatureFlagManager: ObservableObject {
     /// Controls whether reply filtering is enabled (Bluesky style)
     @AppStorage("enableReplyFiltering") private(set) var enableReplyFiltering = true
 
+    /// Controls refresh generation guard commit gating.
+    @AppStorage("refreshGenerationGuard") private(set) var refreshGenerationGuard = true
+
+    /// Controls timeline prefetch/snapshot diffing optimization.
+    @AppStorage("timelinePrefetchDiffing") private(set) var timelinePrefetchDiffing = true
+
     // MARK: - Analytics
 
     /// Tracks when features were enabled
@@ -88,6 +94,10 @@ final class FeatureFlagManager: ObservableObject {
             enableGIFUnfurling = true
         case .replyFiltering:
             enableReplyFiltering = true
+        case .refreshGenerationGuard:
+            refreshGenerationGuard = true
+        case .timelinePrefetchDiffing:
+            timelinePrefetchDiffing = true
         }
 
         // Track when feature was enabled
@@ -120,6 +130,10 @@ final class FeatureFlagManager: ObservableObject {
             enableGIFUnfurling = false
         case .replyFiltering:
             enableReplyFiltering = false
+        case .refreshGenerationGuard:
+            refreshGenerationGuard = false
+        case .timelinePrefetchDiffing:
+            timelinePrefetchDiffing = false
         }
 
         saveAnalyticsData()
@@ -154,6 +168,8 @@ final class FeatureFlagManager: ObservableObject {
             "performanceTracking": trackPerformance,
             "gifUnfurling": enableGIFUnfurling,
             "replyFiltering": enableReplyFiltering,
+            "refreshGenerationGuard": refreshGenerationGuard,
+            "timelinePrefetchDiffing": timelinePrefetchDiffing,
         ]
 
         return stats
@@ -184,6 +200,10 @@ final class FeatureFlagManager: ObservableObject {
             return shared.enableGIFUnfurling
         case .replyFiltering:
             return shared.enableReplyFiltering
+        case .refreshGenerationGuard:
+            return shared.refreshGenerationGuard
+        case .timelinePrefetchDiffing:
+            return shared.timelinePrefetchDiffing
         }
     }
 
@@ -228,6 +248,8 @@ enum FeatureFlag: String {
     case performanceTracking = "performance_tracking"
     case gifUnfurling = "gif_unfurling"
     case replyFiltering = "reply_filtering"
+    case refreshGenerationGuard = "refresh_generation_guard"
+    case timelinePrefetchDiffing = "timeline_prefetch_diffing"
 }
 
 enum DebugLog {
@@ -265,7 +287,9 @@ extension View {
                 .verboseLogging where manager.verboseLogging,
                 .performanceTracking where manager.trackPerformance,
                 .gifUnfurling where manager.enableGIFUnfurling,
-                .replyFiltering where manager.enableReplyFiltering:
+                .replyFiltering where manager.enableReplyFiltering,
+                .refreshGenerationGuard where manager.refreshGenerationGuard,
+                .timelinePrefetchDiffing where manager.timelinePrefetchDiffing:
                 content()
             default:
                 EmptyView()

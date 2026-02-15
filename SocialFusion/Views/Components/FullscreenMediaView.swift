@@ -367,12 +367,13 @@ struct FullscreenMediaView: View {
             previousOffset = .zero
             dragOffset = .zero
         }
+        .onDisappear {
+            cleanupPlaybackResources()
+        }
 
     }
 
     private func mediaView(for attachment: Post.Attachment) -> some View {
-        print("FullscreenMediaView loading URL: \(attachment.url) type: \(attachment.type)")
-
         guard let url = URL(string: attachment.url), !attachment.url.isEmpty else {
             return AnyView(
                 VStack {
@@ -654,29 +655,12 @@ struct FullscreenMediaView: View {
         }
     }
     
-    /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
-    private func configureGIFLooping(for player: AVPlayer) {
-        guard let playerItem = player.currentItem else { return }
-        
-        // CRITICAL: Set playback rate to 1.0 to prevent fast playback
-        // Some videos might have incorrect rate metadata
-        player.rate = 1.0
-        
-        // Set actionAtItemEnd to .none to prevent pausing at end
-        player.actionAtItemEnd = .none
-        
-        // Add observer to loop when video ends
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem,
-            queue: .main
-        ) { [weak player] _ in
-            guard let player = player else { return }
-            // Seek to beginning and play again
-            player.seek(to: .zero)
-            player.rate = 1.0
-            player.play()
+    private func cleanupPlaybackResources() {
+        for player in videoPlayers.values {
+            player.pause()
         }
+        videoPlayers.removeAll()
+        currentPlayer = nil
     }
 }
 
@@ -688,6 +672,7 @@ private struct FullscreenVideoPlayerView: View {
     @Binding var currentPlayer: AVPlayer?
     
     @State private var player: AVPlayer?
+    @State private var gifLoopObserverToken: NSObjectProtocol?
 
     private var isSimulator: Bool {
         #if targetEnvironment(simulator)
@@ -714,10 +699,15 @@ private struct FullscreenVideoPlayerView: View {
                         player.play()
                     }
                     .onDisappear {
+                        if let token = gifLoopObserverToken {
+                            NotificationCenter.default.removeObserver(token)
+                            gifLoopObserverToken = nil
+                        }
                         if currentPlayer == player {
                             player.pause()
                             currentPlayer = nil
                         }
+                        videoPlayers.removeValue(forKey: url)
                     }
             } else {
                 VStack(spacing: 16) {
@@ -759,6 +749,10 @@ private struct FullscreenVideoPlayerView: View {
     /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
     private func configureGIFLooping(for player: AVPlayer) {
         guard let playerItem = player.currentItem else { return }
+        if let token = gifLoopObserverToken {
+            NotificationCenter.default.removeObserver(token)
+            gifLoopObserverToken = nil
+        }
         
         // CRITICAL: Set playback rate to 1.0 to prevent fast playback
         player.rate = 1.0
@@ -767,7 +761,7 @@ private struct FullscreenVideoPlayerView: View {
         player.actionAtItemEnd = .none
         
         // Add observer to loop when video ends
-        NotificationCenter.default.addObserver(
+        gifLoopObserverToken = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
             queue: .main

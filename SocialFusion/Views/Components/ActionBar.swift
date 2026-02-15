@@ -125,7 +125,9 @@ struct ActionBar: View {
                 post: post,
                 onTap: { onAction(.share) }
             )
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .accessibilityLabel("Share post")
+            .accessibilityHint("Opens share options")
 
             // Menu button (three dots)
             Menu {
@@ -157,7 +159,8 @@ struct ActionBar: View {
             )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
-            .frame(maxWidth: .infinity)
+            .accessibilityHint("Shows additional actions for this post")
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .padding(.vertical, 2)
         .padding(.horizontal, 0)
@@ -264,7 +267,9 @@ struct ActionBarV2: View {
                 post: post,
                 onTap: { onAction(.share) }
             )
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .accessibilityLabel("Share post")
+            .accessibilityHint("Opens share options")
 
             Menu {
                 menuOpenTrigger
@@ -295,7 +300,8 @@ struct ActionBarV2: View {
             )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
-            .frame(maxWidth: .infinity)
+            .accessibilityHint("Shows additional actions for this post")
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .opacity(isPending ? 0.7 : 1.0)
         .padding(.vertical, 2)

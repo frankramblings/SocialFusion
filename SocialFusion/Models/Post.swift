@@ -375,10 +375,8 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
 
     // Computed property for a stable unique identifier
     public var stableId: String {
-        if isReposted, let original = originalPost {
-            return "\(platform.rawValue)-repost-\(authorUsername)-\(original.platformSpecificId)"
-        }
-        return "\(platform.rawValue)-\(platformSpecificId)"
+        let immutableNativeID = platformSpecificId.isEmpty ? id : platformSpecificId
+        return "\(platform.rawValue)-\(immutableNativeID)"
     }
     
     /// Determines if this post is a reply (has reply indicators)

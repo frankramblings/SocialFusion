@@ -198,7 +198,7 @@ struct VisibilityButton: View {
             Image(systemName: visibilityIcon)
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.secondary)
-                .frame(width: 32, height: 32)
+                .frame(width: 44, height: 44)
                 .background(Material.regularMaterial, in: Circle())
                 .overlay(
                     Circle()
@@ -206,6 +206,9 @@ struct VisibilityButton: View {
                 )
                 .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
         }
+        .accessibilityLabel("Post visibility")
+        .accessibilityValue(options.indices.contains(selectedVisibility) ? options[selectedVisibility] : "Public")
+        .accessibilityHint("Choose who can see this post")
         .animation(.easeInOut(duration: 0.2), value: selectedVisibility)
     }
 

@@ -32,7 +32,6 @@ final class TimelineRefreshCoordinator: ObservableObject {
     private let platforms: [SocialPlatform]
     private let isLoading: () -> Bool
     private let fetchPostsForPlatform: (SocialPlatform) async -> [Post]
-    private let filterPosts: ([Post]) async -> [Post]
     private let mergeBufferedPosts: ([Post]) -> Void
     private let refreshVisibleTimeline: (TimelineRefreshIntent) async -> Void
     private let visiblePostsProvider: () -> [Post]
@@ -60,7 +59,6 @@ final class TimelineRefreshCoordinator: ObservableObject {
         platforms: [SocialPlatform],
         isLoading: @escaping () -> Bool,
         fetchPostsForPlatform: @escaping (SocialPlatform) async -> [Post],
-        filterPosts: @escaping ([Post]) async -> [Post],
         mergeBufferedPosts: @escaping ([Post]) -> Void,
         refreshVisibleTimeline: @escaping (TimelineRefreshIntent) async -> Void,
         visiblePostsProvider: @escaping () -> [Post],
@@ -70,7 +68,6 @@ final class TimelineRefreshCoordinator: ObservableObject {
         self.platforms = platforms
         self.isLoading = isLoading
         self.fetchPostsForPlatform = fetchPostsForPlatform
-        self.filterPosts = filterPosts
         self.mergeBufferedPosts = mergeBufferedPosts
         self.refreshVisibleTimeline = refreshVisibleTimeline
         self.visiblePostsProvider = visiblePostsProvider
@@ -184,14 +181,13 @@ final class TimelineRefreshCoordinator: ObservableObject {
                 continue
             }
 
-            let filteredPosts = await filterPosts(rawPosts)
             let visiblePosts = visiblePostsProvider()
 
-            if let snapshot = buffer.append(incomingPosts: filteredPosts, visiblePosts: visiblePosts) {
+            if let snapshot = buffer.append(incomingPosts: rawPosts, visiblePosts: visiblePosts) {
                 updateSnapshot(snapshot, reason: "pull-to-refresh buffer")
             }
 
-            log("✅ [Refresh:\(timelineID)] Buffered \(filteredPosts.count) posts from \(platform.rawValue)")
+            log("✅ [Refresh:\(timelineID)] Buffered \(rawPosts.count) posts from \(platform.rawValue)")
         }
 
         markManualRefresh()
@@ -215,9 +211,8 @@ final class TimelineRefreshCoordinator: ObservableObject {
             let rawPosts = await fetchPostsForPlatform(platform)
             guard !rawPosts.isEmpty else { continue }
 
-            let filteredPosts = await filterPosts(rawPosts)
             let visiblePosts = visiblePostsProvider()
-            if let snapshot = buffer.append(incomingPosts: filteredPosts, visiblePosts: visiblePosts) {
+            if let snapshot = buffer.append(incomingPosts: rawPosts, visiblePosts: visiblePosts) {
                 updateSnapshot(snapshot, reason: "debug force prefetch")
             }
         }
@@ -278,9 +273,8 @@ final class TimelineRefreshCoordinator: ObservableObject {
                 log("🚫 [Refresh:\(timelineID)] Buffer update suppressed (scroll/interaction)")
                 continue
             }
-            let filteredPosts = await filterPosts(rawPosts)
             let visiblePosts = visiblePostsProvider()
-            if let snapshot = buffer.append(incomingPosts: filteredPosts, visiblePosts: visiblePosts) {
+            if let snapshot = buffer.append(incomingPosts: rawPosts, visiblePosts: visiblePosts) {
                 updateSnapshot(snapshot, reason: "buffer append")
             }
             scheduleAutoMergeIfEligible()

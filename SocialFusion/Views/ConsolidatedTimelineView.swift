@@ -1,4 +1,5 @@
 import SwiftUI
+import os.signpost
 
 /// Simple empty state view for basic edge case handling - ConsolidatedTimeline version
 struct ConsolidatedTimelineEmptyStateView: View {
@@ -105,7 +106,24 @@ struct ConsolidatedTimelineEmptyStateView: View {
 /// Implements proper SwiftUI state management to prevent AttributeGraph cycles
 /// Enhanced with Phase 3 features: position persistence, smart restoration, and unread tracking
 struct ConsolidatedTimelineView: View {
+    private struct TimelineAlertState: Identifiable {
+        let id = UUID()
+        let error: Error
+    }
+
+    enum TimelineSurfaceState: Equatable {
+        case timeline
+        case loading
+        case noAccounts
+        case offline
+        case authExpired
+        case rateLimited(retryAfter: TimeInterval?)
+        case error(message: String)
+        case empty
+    }
+
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @ObservedObject private var edgeCase = EdgeCaseHandler.shared
     @StateObject private var controller: UnifiedTimelineController
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
@@ -127,9 +145,13 @@ struct ConsolidatedTimelineView: View {
     @State private var hasRestoredInitialAnchor = false
     @State private var visibleAnchorId: String?
     @State private var anchorLockUntil: Date?
-    @State private var lastVisiblePositions: [String: TimelineItemInfo] = [:]
+    @State private var positionProcessingTask: Task<Void, Never>?
+    @State private var lastProcessedTopVisibleID: String?
+    @State private var lastProcessedTopVisibleIndex: Int = -1
+    @State private var lastProcessedTopVisibleOffset: CGFloat = .greatestFiniteMagnitude
     @State private var lastTopVisibleId: String?
     @State private var lastTopVisibleOffset: CGFloat = 0
+    @State private var timelineAlertState: TimelineAlertState?
     @Environment(\.scenePhase) private var scenePhase
 
     // PHASE 3+: Enhanced timeline state (optional, works alongside existing functionality)
@@ -139,15 +161,19 @@ struct ConsolidatedTimelineView: View {
     
     // Layout snapshot system for stable media layout
     @State private var postSnapshots: [String: PostLayoutSnapshot] = [:]
+    @State private var lastSnapshotFingerprints: [String: Int] = [:]
     private let snapshotBuilder = PostLayoutSnapshotBuilder()
     // Computed property to access actor-isolated shared instance from MainActor context
     private var prefetcher: MediaPrefetcher {
       MediaPrefetcher.shared
     }
     @StateObject private var updateCoordinator = FeedUpdateCoordinator()
+    private let viewSignpostLog = OSLog(subsystem: "com.socialfusion", category: .pointsOfInterest)
 
     // Cached screen height to avoid UIScreen queries on every scroll frame
     private let deepHistoryThreshold: CGFloat = UIScreen.main.bounds.height * 2.0
+    private let visibleTrackingLowerBound: CGFloat = -400
+    private let visibleTrackingUpperBound: CGFloat = UIScreen.main.bounds.height * 2.0
 
     // Read state tracking
     @State private var showJumpToLastRead = false
@@ -233,6 +259,8 @@ struct ConsolidatedTimelineView: View {
             }
             .onDisappear {
                 controller.setTimelineVisible(false)
+                positionProcessingTask?.cancel()
+                positionProcessingTask = nil
             }
             .onChange(of: scenePhase) { phase in
                 if phase == .background {
@@ -271,18 +299,41 @@ struct ConsolidatedTimelineView: View {
                 lastReadPostId = ViewTracker.shared.getLastReadPostId()
                 updateJumpToLastReadVisibility()
 
-                // Build snapshots for new posts and prefetch dimensions
                 Task {
-                    await buildSnapshotsForPosts(newPosts)
-                    prefetcher.prefetchDimensions(for: newPosts)
+                    await handlePostCollectionUpdate(newPosts)
                 }
             }
             .onChange(of: serviceManager.currentTimelineScope) { _ in
                 controller.refreshTimeline()
             }
-            .alert("Error", isPresented: .constant(controller.error != nil)) {
+            .onChange(of: controller.error?.localizedDescription) { _, _ in
+                guard !controller.posts.isEmpty else {
+                    timelineAlertState = nil
+                    return
+                }
+                guard let error = controller.error else {
+                    timelineAlertState = nil
+                    return
+                }
+                if timelineAlertState?.error.localizedDescription != error.localizedDescription {
+                    timelineAlertState = TimelineAlertState(error: error)
+                }
+            }
+            .alert(
+                "Error",
+                isPresented: Binding(
+                    get: { timelineAlertState != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            timelineAlertState = nil
+                            controller.clearError()
+                        }
+                    }
+                )
+            ) {
                 Button("Retry") {
-                    let error = controller.error
+                    let error = timelineAlertState?.error
+                    timelineAlertState = nil
                     controller.clearError()
                     if let error = error {
                         ErrorHandler.shared.handleError(error) {
@@ -291,24 +342,15 @@ struct ConsolidatedTimelineView: View {
                     }
                     controller.refreshTimeline()
                 }
-                Button("OK") {
-                    if let error = controller.error {
-                        ErrorHandler.shared.handleError(error)
-                    }
+                Button("Dismiss", role: .cancel) {
+                    timelineAlertState = nil
                     controller.clearError()
                 }
             } message: {
-                if let error = controller.error {
+                if let error = timelineAlertState?.error {
                     Text(error.localizedDescription)
                 } else {
                     Text("Unknown error")
-                }
-            }
-            .onChange(of: controller.error?.localizedDescription) { _ in
-                if let error = controller.error {
-                    ErrorHandler.shared.handleError(error) {
-                        controller.refreshTimeline()
-                    }
                 }
             }
             .overlay(alignment: .topLeading) {
@@ -455,7 +497,10 @@ struct ConsolidatedTimelineView: View {
 
     @ViewBuilder
     private var contentView: some View {
-        if controller.posts.isEmpty && controller.isLoading {
+        switch timelineSurfaceState {
+        case .timeline:
+            timelineView
+        case .loading:
             ConsolidatedTimelineEmptyStateView(
                 state: .loading,
                 onRetry: {
@@ -463,17 +508,7 @@ struct ConsolidatedTimelineView: View {
                 },
                 onAddAccount: nil
             )
-        } else if controller.posts.isEmpty && !controller.isLoading {
-            determineEmptyState()
-        } else {
-            timelineView
-        }
-    }
-
-    @ViewBuilder
-    private func determineEmptyState() -> some View {
-        // Determine the appropriate empty state based on current conditions
-        if serviceManager.accounts.isEmpty {
+        case .noAccounts:
             ConsolidatedTimelineEmptyStateView(
                 state: .noAccounts,
                 onRetry: nil,
@@ -481,7 +516,43 @@ struct ConsolidatedTimelineView: View {
                     showAddAccountView = true
                 }
             )
-        } else {
+        case .offline:
+            EnhancedEmptyStateView(
+                state: .noInternet,
+                onRetry: { controller.refreshTimeline() },
+                onPrimaryAction: { controller.refreshTimeline() }
+            )
+            .environmentObject(edgeCase)
+        case .authExpired:
+            EnhancedEmptyStateView(
+                state: .authenticationExpired,
+                onRetry: { controller.refreshTimeline() },
+                onPrimaryAction: { controller.refreshTimeline() }
+            )
+            .environmentObject(edgeCase)
+        case .rateLimited(let retryAfter):
+            EnhancedEmptyStateView(
+                state: .rateLimited(retryAfter: retryAfter),
+                onRetry: { controller.refreshTimeline() },
+                onPrimaryAction: { controller.refreshTimeline() }
+            )
+            .environmentObject(edgeCase)
+        case .error(let message):
+            EnhancedEmptyStateView(
+                state: .serverError,
+                onRetry: { controller.refreshTimeline() },
+                onPrimaryAction: { controller.refreshTimeline() }
+            )
+            .overlay(alignment: .bottom) {
+                Text(message)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
+                    .multilineTextAlignment(.center)
+            }
+            .environmentObject(edgeCase)
+        case .empty:
             ConsolidatedTimelineEmptyStateView(
                 state: .noPostsYet,
                 onRetry: {
@@ -490,6 +561,67 @@ struct ConsolidatedTimelineView: View {
                 onAddAccount: nil
             )
         }
+    }
+
+    private var timelineSurfaceState: TimelineSurfaceState {
+        if !controller.posts.isEmpty {
+            return .timeline
+        }
+
+        if controller.isLoading {
+            return .loading
+        }
+
+        if serviceManager.accounts.isEmpty {
+            return .noAccounts
+        }
+
+        if !edgeCase.networkStatus.isConnected {
+            return .offline
+        }
+
+        if case .expired = edgeCase.authenticationState {
+            return .authExpired
+        }
+
+        if let error = controller.error ?? serviceManager.timelineError {
+            if let classified = classifyTimelineError(error) {
+                return classified
+            }
+            return .error(message: error.localizedDescription)
+        }
+
+        return .empty
+    }
+
+    private func classifyTimelineError(_ error: Error) -> TimelineSurfaceState? {
+        if let serviceError = error as? ServiceError {
+            switch serviceError {
+            case .authenticationExpired(_), .unauthorized(_):
+                return .authExpired
+            case .rateLimitError(_, let retryAfter):
+                return .rateLimited(retryAfter: retryAfter)
+            case .networkError(_):
+                return .offline
+            default:
+                break
+            }
+        }
+
+        if let networkError = error as? NetworkError {
+            switch networkError {
+            case .networkUnavailable:
+                return .offline
+            case .unauthorized:
+                return .authExpired
+            case .rateLimitExceeded(let retryAfter):
+                return .rateLimited(retryAfter: retryAfter)
+            default:
+                break
+            }
+        }
+
+        return nil
     }
 
     private var currentScopeAccount: SocialAccount? {
@@ -605,41 +737,14 @@ struct ConsolidatedTimelineView: View {
                 }
                 .coordinateSpace(name: "timelineScroll")
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
-                    lastVisiblePositions = positions
+                    let filteredPositions = filterTrackedPositions(positions)
 
-                    // Unread tracking — always runs, even during anchor lock
-                    // This ensures the pill count ticks down as the user scrolls through new posts
-                    if let topVisibleInfo = positions
-                        .filter({ $0.value.minY >= -50 })
-                        .min(by: { $0.value.minY < $1.value.minY }) {
-                        controller.updateUnreadFromTopVisibleIndex(topVisibleInfo.value.index)
+                    positionProcessingTask?.cancel()
+                    positionProcessingTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 80_000_000)
+                        guard !Task.isCancelled else { return }
+                        processVisiblePositions(filteredPositions)
                     }
-                    let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
-                    controller.markVisiblePostsAsRead(visibleIds)
-
-                    // Anchor tracking — gated by locks to prevent position jumping
-                    guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
-                    if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
-                    guard let nextId = positions
-                        .filter({ $0.value.minY >= 0 })
-                        .min(by: { $0.value.minY < $1.value.minY })?.key
-                        ?? positions.min(by: { abs($0.value.minY) < abs($1.value.minY) })?.key
-                    else { return }
-                    if visibleAnchorId != nextId {
-                        visibleAnchorId = nextId
-                        persistedAnchorId = nextId
-                        controller.updateCurrentAnchor(nextId)
-                        logAnchorState("visible anchor -> \(nextId)")
-                    }
-                    let topId = controller.posts.first.map(scrollIdentifier(for:))
-                    let isAtTop = topId.flatMap { positions[$0]?.minY }.map { $0 >= -12 } ?? false
-                    if let topId = topId, let topInfo = positions[topId] {
-                        lastTopVisibleId = topId
-                        lastTopVisibleOffset = topInfo.minY
-                    }
-                    syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
-                    let isDeepHistory = (topId.flatMap { positions[$0]?.minY }.map { $0 < -deepHistoryThreshold }) ?? false
-                    controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: isDeepHistory)
                 }
                 .scrollPosition(id: $scrollAnchorId)
                 .onChange(of: scrollAnchorId) { newValue in
@@ -1162,7 +1267,8 @@ struct ConsolidatedTimelineView: View {
         return stable.hasSuffix("-") ? post.id : stable
     }
 
-    private func logAnchorState(_ label: String) {
+    private func logAnchorState(_ label: @autoclosure () -> String) {
+#if DEBUG
         guard UserDefaults.standard.bool(forKey: "debugScrollAnchor") else { return }
         let topId = controller.posts.first.map(scrollIdentifier(for:)) ?? "nil"
         let persisted = persistedAnchorId ?? "nil"
@@ -1171,8 +1277,9 @@ struct ConsolidatedTimelineView: View {
         let visible = visibleAnchorId ?? "nil"
         let lock = anchorLockUntil?.timeIntervalSinceNow ?? -1
         DebugLog.verbose(
-            "🧭 [ConsolidatedTimelineView] \(label) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: "%.2f", lock)) restored=\(hasRestoredInitialAnchor)"
+            "🧭 [ConsolidatedTimelineView] \(label()) top=\(topId) persisted=\(persisted) anchor=\(anchor) pending=\(pending) visible=\(visible) lock=\(String(format: "%.2f", lock)) restored=\(hasRestoredInitialAnchor)"
         )
+#endif
     }
 
     private func syncAnchorToTopIfNeeded(topId: String?, isAtTop: Bool) {
@@ -1197,6 +1304,99 @@ struct ConsolidatedTimelineView: View {
         pendingAnchorRestoreId = nil
         // Clear unread when user reaches the top - they're viewing newest content
         controller.clearUnreadAboveViewport()
+    }
+
+    private func filterTrackedPositions(_ positions: [String: TimelineItemInfo]) -> [String: TimelineItemInfo] {
+        let validIDs = Set(controller.posts.map(scrollIdentifier(for:)))
+        let topTimelineID = controller.posts.first.map(scrollIdentifier(for:))
+
+        var filtered: [String: TimelineItemInfo] = [:]
+        filtered.reserveCapacity(min(positions.count, 64))
+
+        for (id, info) in positions {
+            guard validIDs.contains(id) else { continue }
+            if info.minY >= visibleTrackingLowerBound && info.minY <= visibleTrackingUpperBound {
+                filtered[id] = info
+            }
+        }
+
+        if let topTimelineID, let topInfo = positions[topTimelineID] {
+            filtered[topTimelineID] = topInfo
+        }
+
+        return filtered
+    }
+
+    private func processVisiblePositions(_ positions: [String: TimelineItemInfo]) {
+        let signpostID = OSSignpostID(log: viewSignpostLog)
+        os_signpost(
+            .begin,
+            log: viewSignpostLog,
+            name: "TimelinePositionProcess",
+            signpostID: signpostID,
+            "count=%{public}d",
+            positions.count
+        )
+        defer {
+            os_signpost(
+                .end,
+                log: viewSignpostLog,
+                name: "TimelinePositionProcess",
+                signpostID: signpostID
+            )
+        }
+
+        guard let topVisibleInfo = positions
+            .filter({ $0.value.minY >= -50 })
+            .min(by: { $0.value.minY < $1.value.minY }) else {
+            return
+        }
+
+        let topVisibleID = topVisibleInfo.key
+        let topVisibleIndex = topVisibleInfo.value.index
+        let topVisibleOffset = topVisibleInfo.value.minY
+        let meaningfulTopChange =
+            topVisibleID != lastProcessedTopVisibleID
+            || topVisibleIndex != lastProcessedTopVisibleIndex
+            || abs(topVisibleOffset - lastProcessedTopVisibleOffset) > 20
+
+        if meaningfulTopChange {
+            controller.updateUnreadFromTopVisibleIndex(topVisibleIndex)
+            let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
+            controller.markVisiblePostsAsRead(visibleIds)
+            lastProcessedTopVisibleID = topVisibleID
+            lastProcessedTopVisibleIndex = topVisibleIndex
+            lastProcessedTopVisibleOffset = topVisibleOffset
+        }
+
+        guard hasRestoredInitialAnchor, pendingAnchorRestoreId == nil else { return }
+        if let lockUntil = anchorLockUntil, Date() < lockUntil { return }
+
+        if meaningfulTopChange {
+            if let nextId = positions
+                .filter({ $0.value.minY >= 0 })
+                .min(by: { $0.value.minY < $1.value.minY })?.key
+                ?? positions.min(by: { abs($0.value.minY) < abs($1.value.minY) })?.key,
+                visibleAnchorId != nextId {
+                visibleAnchorId = nextId
+                persistedAnchorId = nextId
+                controller.updateCurrentAnchor(nextId)
+                logAnchorState("visible anchor -> \(nextId)")
+            }
+        }
+
+        let topId = controller.posts.first.map(scrollIdentifier(for:))
+        let isAtTop = topId.flatMap { positions[$0]?.minY }.map { $0 >= -12 } ?? false
+        if let topId = topId, let topInfo = positions[topId] {
+            lastTopVisibleId = topId
+            lastTopVisibleOffset = topInfo.minY
+        }
+        if meaningfulTopChange {
+            syncAnchorToTopIfNeeded(topId: topId, isAtTop: isAtTop)
+        }
+        let isDeepHistory =
+            (topId.flatMap { positions[$0]?.minY }.map { $0 < -deepHistoryThreshold }) ?? false
+        controller.updateScrollState(isNearTop: isAtTop, isDeepHistory: isDeepHistory)
     }
 
     /// Trigger infinite scroll from tail sentinel only to avoid per-row task churn.
@@ -1225,9 +1425,90 @@ struct ConsolidatedTimelineView: View {
     // Removing this eliminates the crash without affecting functionality
     
     // MARK: - Layout Snapshot Management
+
+    private func handlePostCollectionUpdate(_ posts: [Post]) async {
+        let signpostID = OSSignpostID(log: viewSignpostLog)
+        os_signpost(
+            .begin,
+            log: viewSignpostLog,
+            name: "TimelinePostUpdate",
+            signpostID: signpostID,
+            "count=%{public}d",
+            posts.count
+        )
+
+        guard FeatureFlagManager.isEnabled(.timelinePrefetchDiffing) else {
+            lastSnapshotFingerprints.removeAll(keepingCapacity: true)
+            await buildSnapshotsForPosts(posts)
+            prefetcher.prefetchDimensions(for: posts, force: true)
+            os_signpost(
+                .end,
+                log: viewSignpostLog,
+                name: "TimelinePostUpdate",
+                signpostID: signpostID,
+                "changed=%{public}d",
+                posts.count
+            )
+            return
+        }
+
+        var nextFingerprints: [String: Int] = [:]
+        var changedPosts: [Post] = []
+        changedPosts.reserveCapacity(min(posts.count, 40))
+
+        for post in posts {
+            let fingerprint = snapshotFingerprint(for: post)
+            nextFingerprints[post.id] = fingerprint
+            if lastSnapshotFingerprints[post.id] != fingerprint {
+                changedPosts.append(post)
+            }
+        }
+        lastSnapshotFingerprints = nextFingerprints
+
+        if !changedPosts.isEmpty {
+            let cappedBatch = Array(changedPosts.prefix(40))
+            await buildSnapshotsForPosts(cappedBatch)
+        }
+
+        let clampedStart = max(0, lastProcessedTopVisibleIndex)
+        let lookaheadStartIndex = min(clampedStart, max(0, posts.count - 1))
+        prefetcher.prefetchLookahead(posts: posts, from: lookaheadStartIndex, lookahead: 12)
+
+        os_signpost(
+            .end,
+            log: viewSignpostLog,
+            name: "TimelinePostUpdate",
+            signpostID: signpostID,
+            "changed=%{public}d",
+            min(changedPosts.count, 40)
+        )
+    }
+
+    private func snapshotFingerprint(for post: Post) -> Int {
+        var hasher = Hasher()
+        hasher.combine(post.id)
+        hasher.combine(post.stableId)
+        hasher.combine(post.content)
+        hasher.combine(post.createdAt.timeIntervalSince1970)
+        hasher.combine(post.likeCount)
+        hasher.combine(post.repostCount)
+        hasher.combine(post.replyCount)
+        hasher.combine(post.isLiked)
+        hasher.combine(post.isReposted)
+        hasher.combine(post.isFollowingAuthor)
+        hasher.combine(post.attachments.count)
+        for attachment in post.attachments.prefix(4) {
+            hasher.combine(attachment.url)
+            hasher.combine(attachment.thumbnailURL ?? "")
+            hasher.combine(attachment.width ?? -1)
+            hasher.combine(attachment.height ?? -1)
+        }
+        return hasher.finalize()
+    }
     
     /// Build snapshots for posts (async, uses cache when available)
     private func buildSnapshotsForPosts(_ posts: [Post]) async {
+        guard !posts.isEmpty else { return }
         await withTaskGroup(of: (String, PostLayoutSnapshot).self) { group in
             for post in posts {
                 group.addTask {
@@ -1256,18 +1537,17 @@ struct ConsolidatedTimelineView: View {
     /// Prefetch dimensions for initial posts
     private func prefetchInitialPosts() async {
         let posts = controller.posts
-        prefetcher.prefetchDimensions(for: posts)
-        
-        // Build initial snapshots synchronously (using cache only)
+        let initialSnapshotPosts = Array(posts.prefix(40))
+
+        // Build an immediate cache-only snapshot window to avoid visible layout pop-in.
         var initialSnapshots: [String: PostLayoutSnapshot] = [:]
-        for post in posts {
+        for post in initialSnapshotPosts {
             let snapshot = snapshotBuilder.buildSnapshotSync(for: post)
             initialSnapshots[post.id] = snapshot
         }
         postSnapshots = initialSnapshots
-        
-        // Then build full snapshots async (with dimension fetching)
-        await buildSnapshotsForPosts(posts)
+
+        await handlePostCollectionUpdate(posts)
     }
 }
 

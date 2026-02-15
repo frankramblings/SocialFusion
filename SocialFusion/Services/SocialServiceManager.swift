@@ -5,6 +5,7 @@ import SwiftUI
 import UIKit
 import os
 import os.log
+import os.signpost
 
 // Define notification names
 extension Notification.Name {
@@ -195,6 +196,12 @@ public final class SocialServiceManager: ObservableObject {
         )
     }
 
+    nonisolated static func _test_shouldCommitRefreshGeneration(active: UInt64, candidate: UInt64)
+        -> Bool
+    {
+        return candidate == active
+    }
+
     // Disk Caching
     private let timelineCacheURL: URL = {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
@@ -208,6 +215,15 @@ public final class SocialServiceManager: ObservableObject {
     nonisolated internal let mastodonService: MastodonService
     nonisolated internal let blueskyService: BlueskyService
     private let actionLogger = Logger(subsystem: "com.socialfusion", category: "PostActions")
+    private let refreshLogger = Logger(subsystem: "com.socialfusion", category: "TimelineRefresh")
+    private let refreshSignpostLog = OSLog(
+        subsystem: "com.socialfusion",
+        category: .pointsOfInterest
+    )
+    private let networkSignpostLog = OSLog(
+        subsystem: "com.socialfusion",
+        category: "NetworkRefresh"
+    )
 
     // Post action V2 infrastructure - accessible within module
     internal lazy var postActionStore = PostActionStore()
@@ -215,6 +231,10 @@ public final class SocialServiceManager: ObservableObject {
         store: postActionStore, service: self)
     private let canonicalPostStore = CanonicalPostStore()
     private let canonicalUnifiedTimelineID = CanonicalPostStore.unifiedTimelineID
+    typealias RefreshGeneration = UInt64
+    private var refreshGeneration: RefreshGeneration = 0
+    private let followGraphCache = FollowGraphCache(defaultTTL: 300)
+    private let timelineCacheWriter = TimelineCacheWriter.shared
     
     // Relationship management
     public let relationshipStore = RelationshipStore()
@@ -560,11 +580,7 @@ public final class SocialServiceManager: ObservableObject {
     private func saveTimelineToDisk() {
         let timeline = unifiedTimeline
         Task {
-            if #available(iOS 17.0, *) {
-                await TimelineSwiftDataStore.shared.saveTimeline(timeline)
-            } else {
-                await PersistenceManager.shared.saveTimeline(timeline)
-            }
+            await timelineCacheWriter.saveTimeline(timeline)
         }
     }
 
@@ -770,6 +786,7 @@ public final class SocialServiceManager: ObservableObject {
     func addAccount(_ account: SocialAccount) {
 
         accounts.append(account)
+        scheduleFollowGraphCacheInvalidation(reason: "account_added")
         // Save to UserDefaults
         saveAccounts()
 
@@ -917,6 +934,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Update platform-specific lists
         updateAccountLists()
+        await invalidateFollowGraphCache(reason: "account_removed")
 
         // Reset timeline if no accounts left
         if accounts.isEmpty {
@@ -954,6 +972,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Save empty state to persistence
         saveAccounts()
+        await invalidateFollowGraphCache(reason: "logout")
 
         resetUnifiedTimelineStore()
         DebugLog.verbose("🚪 Logout complete")
@@ -1007,8 +1026,24 @@ public final class SocialServiceManager: ObservableObject {
         DebugLog.verbose(
             "🔄 SocialServiceManager: fetchPostsForAccount called for \(account.username) (\(account.platform))"
         )
+        let signpostID = OSSignpostID(log: networkSignpostLog)
+        os_signpost(
+            .begin,
+            log: networkSignpostLog,
+            name: "AccountFetch",
+            signpostID: signpostID,
+            "platform=%{public}s",
+            account.platform.rawValue
+        )
 
         if Task.isCancelled {
+            os_signpost(
+                .end,
+                log: networkSignpostLog,
+                name: "AccountFetch",
+                signpostID: signpostID,
+                "status=cancelled"
+            )
             throw CancellationError()
         }
 
@@ -1028,8 +1063,23 @@ public final class SocialServiceManager: ObservableObject {
                 posts = result.posts
                 DebugLog.verbose("🔄 SocialServiceManager: Bluesky fetch completed - \(posts.count) posts")
             }
+            os_signpost(
+                .end,
+                log: networkSignpostLog,
+                name: "AccountFetch",
+                signpostID: signpostID,
+                "status=success count=%{public}d",
+                posts.count
+            )
             return posts
         } catch {
+            os_signpost(
+                .end,
+                log: networkSignpostLog,
+                name: "AccountFetch",
+                signpostID: signpostID,
+                "status=error"
+            )
             DebugLog.verbose(
                 "❌ SocialServiceManager: fetchPostsForAccount failed for \(account.username): \(error.localizedDescription)"
             )
@@ -1166,6 +1216,10 @@ public final class SocialServiceManager: ObservableObject {
 
         // For pull-to-refresh (manualRefresh), use merge mode for smooth experience
         shouldMergeOnRefresh = (intent == .manualRefresh)
+
+        if intent == .manualRefresh {
+            await invalidateFollowGraphCache(reason: "manual_refresh")
+        }
         
         do {
             try await fetchTimeline(force: isUserInitiated)
@@ -1288,7 +1342,11 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Refresh timeline from the specified accounts and return all posts
-    func refreshTimeline(accounts: [SocialAccount], shouldMerge: Bool = false) async throws -> [Post] {
+    func refreshTimeline(
+        accounts: [SocialAccount],
+        shouldMerge: Bool = false,
+        generation: RefreshGeneration? = nil
+    ) async throws -> [Post] {
         DebugLog.verbose(
             "🔄 SocialServiceManager: refreshTimeline(accounts:) called with \(accounts.count) accounts, shouldMerge: \(shouldMerge)"
         )
@@ -1304,46 +1362,73 @@ public final class SocialServiceManager: ObservableObject {
             DebugLog.verbose("🔄   - \(account.username) (\(account.platform)) - ID: \(account.id)")
         }
 
-        var allPosts: [Post] = []
-
-        // Use Task.detached to prevent cancellation during navigation
-        let collectedPosts = await Task.detached(priority: .userInitiated) {
-            await withTaskGroup(of: [Post].self) { group in
-                for account in accounts {
-                    group.addTask {
-                        do {
-                            DebugLog.verbose("🔄 SocialServiceManager: Starting fetch for \(account.username)")
-                            let posts = try await self.fetchPostsForAccount(account)
+        let fetchSignpostID = OSSignpostID(log: refreshSignpostLog)
+        os_signpost(
+            .begin,
+            log: refreshSignpostLog,
+            name: "RefreshFetch",
+            signpostID: fetchSignpostID,
+            "accounts=%{public}d",
+            accounts.count
+        )
+        var collectedPosts: [Post] = []
+        await withTaskGroup(of: [Post].self) { group in
+            for account in accounts {
+                group.addTask {
+                    do {
+                        DebugLog.verbose("🔄 SocialServiceManager: Starting fetch for \(account.username)")
+                        let posts = try await self.fetchPostsForAccount(account)
+                        DebugLog.verbose(
+                            "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
+                        )
+                        return posts
+                    } catch {
+                        if Task.isCancelled || (error as? URLError)?.code == .cancelled {
                             DebugLog.verbose(
-                                "🔄 SocialServiceManager: Fetched \(posts.count) posts for \(account.username)"
+                                "🔄 SocialServiceManager: Fetch cancelled for \(account.username)"
                             )
-                            return posts
-                        } catch {
-                            // Check for cancellation and handle appropriately
-                            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
-                                DebugLog.verbose(
-                                    "🔄 SocialServiceManager: Fetch cancelled for \(account.username)"
-                                )
-                            } else {
-                                DebugLog.verbose(
-                                    "❌ Error fetching \(account.username): \(error.localizedDescription)"
-                                )
-                            }
-                            return []
+                        } else {
+                            DebugLog.verbose(
+                                "❌ Error fetching \(account.username): \(error.localizedDescription)"
+                            )
                         }
+                        return []
                     }
-                }
-
-                for await posts in group {
-                    allPosts.append(contentsOf: posts)
                 }
             }
 
-            DebugLog.verbose("🔄 SocialServiceManager: Total posts collected: \(allPosts.count)")
-            return allPosts
-        }.value
+            for await posts in group {
+                collectedPosts.append(contentsOf: posts)
+            }
+        }
+        os_signpost(
+            .end,
+            log: refreshSignpostLog,
+            name: "RefreshFetch",
+            signpostID: fetchSignpostID,
+            "posts=%{public}d",
+            collectedPosts.count
+        )
+        DebugLog.verbose("🔄 SocialServiceManager: Total posts collected: \(collectedPosts.count)")
 
-        let filteredPosts = await filterRepliesInTimeline(collectedPosts)
+        let followedAccounts = await getFollowedAccounts()
+        let filteredPosts = await filterRepliesInTimeline(
+            collectedPosts,
+            followedAccounts: followedAccounts
+        )
+        if let generation, !shouldCommitRefresh(generation: generation, stage: "accounts_commit") {
+            return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+        }
+
+        let mergeSignpostID = OSSignpostID(log: refreshSignpostLog)
+        os_signpost(
+            .begin,
+            log: refreshSignpostLog,
+            name: "RefreshMerge",
+            signpostID: mergeSignpostID,
+            "incoming=%{public}d",
+            filteredPosts.count
+        )
         let sourceContext = TimelineSourceContext(source: .refresh)
         // When shouldMerge is true (pull-to-refresh at top), always use processIncomingPosts for smooth merging
         // Otherwise, use replaceTimeline when replyFiltering is enabled to ensure clean state
@@ -1360,7 +1445,16 @@ public final class SocialServiceManager: ObservableObject {
                 sourceContext: sourceContext
             )
         }
-        return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+        let mergedTimeline = canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+        os_signpost(
+            .end,
+            log: refreshSignpostLog,
+            name: "RefreshMerge",
+            signpostID: mergeSignpostID,
+            "timeline_count=%{public}d",
+            mergedTimeline.count
+        )
+        return mergedTimeline
     }
 
     /// Convert UserID to CanonicalUserID, detecting stable IDs (DIDs) vs handles
@@ -1383,9 +1477,34 @@ public final class SocialServiceManager: ObservableObject {
         
         return CanonicalUserID(platform: userID.platform, stableID: stableID, normalizedHandle: normalizedHandle)
     }
+
+    private func followedAccountsCacheKey() -> String {
+        let accountKey = accounts
+            .map { "\($0.platform.rawValue):\($0.id):\($0.platformSpecificId)" }
+            .sorted()
+            .joined(separator: "|")
+        return "followed:\(accountKey)"
+    }
+
+    private func invalidateFollowGraphCache(reason: String) async {
+        await followGraphCache.invalidateAll()
+        refreshLogger.debug("follow_graph_cache_invalidated reason=\(reason, privacy: .public)")
+    }
+
+    private func scheduleFollowGraphCacheInvalidation(reason: String) {
+        Task {
+            await invalidateFollowGraphCache(reason: reason)
+        }
+    }
     
     /// Get all followed accounts across all platforms as canonical IDs
     private func getFollowedAccounts() async -> Set<CanonicalUserID> {
+        let cacheKey = followedAccountsCacheKey()
+        if let cached = await followGraphCache.value(for: cacheKey) {
+            refreshLogger.debug("follow_graph_cache_hit key=\(cacheKey, privacy: .public)")
+            return cached
+        }
+
         var followedAccounts = Set<CanonicalUserID>()
 
         await withTaskGroup(of: Set<UserID>.self) { group in
@@ -1443,11 +1562,18 @@ public final class SocialServiceManager: ObservableObject {
             }
         }
 
+        await followGraphCache.set(followedAccounts, for: cacheKey)
+        refreshLogger.debug(
+            "follow_graph_cache_store key=\(cacheKey, privacy: .public) count=\(followedAccounts.count, privacy: .public)"
+        )
         return followedAccounts
     }
 
     /// Filter replies in the timeline based on following rules
-    private func filterRepliesInTimeline(_ posts: [Post]) async -> [Post] {
+    private func filterRepliesInTimeline(
+        _ posts: [Post],
+        followedAccounts cachedFollowedAccounts: Set<CanonicalUserID>? = nil
+    ) async -> [Post] {
         let isEnabled = FeatureFlagManager.isEnabled(.replyFiltering)
         postFeedFilter.isReplyFilteringEnabled = isEnabled
 
@@ -1455,8 +1581,22 @@ public final class SocialServiceManager: ObservableObject {
 
         DebugLog.verbose("🔍 SocialServiceManager: Starting reply filtering for \(posts.count) posts")
         let startTime = Date()
+        let signpostID = OSSignpostID(log: refreshSignpostLog)
+        os_signpost(
+            .begin,
+            log: refreshSignpostLog,
+            name: "RefreshFilter",
+            signpostID: signpostID,
+            "count=%{public}d",
+            posts.count
+        )
 
-        let followedAccounts = await getFollowedAccounts()
+        let followedAccounts: Set<CanonicalUserID>
+        if let cachedFollowedAccounts {
+            followedAccounts = cachedFollowedAccounts
+        } else {
+            followedAccounts = await getFollowedAccounts()
+        }
         var filteredPosts: [Post] = []
 
         await withTaskGroup(of: (Post, Bool).self) { group in
@@ -1481,6 +1621,14 @@ public final class SocialServiceManager: ObservableObject {
         let duration = Date().timeIntervalSince(startTime)
         DebugLog.verbose(
             "✅ SocialServiceManager: Filtering complete. Filtered \(posts.count) -> \(filteredPosts.count) posts in \(String(format: "%.2f", duration))s"
+        )
+        os_signpost(
+            .end,
+            log: refreshSignpostLog,
+            name: "RefreshFilter",
+            signpostID: signpostID,
+            "duration_ms=%{public}.2f",
+            duration * 1000
         )
 
         return filteredPosts
@@ -1535,12 +1683,9 @@ public final class SocialServiceManager: ObservableObject {
         let isInitialLoad = unifiedTimeline.isEmpty && !isLoadingTimeline
         let shouldBypassRestrictions = force || isInitialLoad
 
-        // Allow initial loads and forced refreshes to proceed even if refresh is in progress
-        guard !isLoadingTimeline && (!isRefreshInProgress || shouldBypassRestrictions) else {
-            DebugLog.verbose(
-                "🔄 SocialServiceManager: Already loading or refreshing - aborting (isInitialLoad: \(isInitialLoad), force: \(force))"
-            )
-            return  // Silent return - avoid spam
+        if !shouldBypassRestrictions && (isLoadingTimeline || isRefreshInProgress) {
+            DebugLog.verbose("🔄 SocialServiceManager: Already loading or refreshing - aborting")
+            return
         }
 
         // Prevent rapid successive refreshes (minimum 2 seconds between attempts)
@@ -1562,42 +1707,93 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         currentTimelinePlan = plan
-
-        // Reset loading state
-        // CRITICAL FIX: Defer state updates to prevent "Publishing changes from within view updates" warnings
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
-            isLoadingTimeline = true
-            timelineError = nil
-        }
-
-        defer {
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 10_000_000)  // 0.01 seconds delay
-                isLoadingTimeline = false
-            }
-        }
+        let generation = beginRefreshGeneration()
+        let refreshSignpostID = OSSignpostID(log: refreshSignpostLog)
+        os_signpost(
+            .begin,
+            log: refreshSignpostLog,
+            name: "TimelineRefresh",
+            signpostID: refreshSignpostID,
+            "generation=%{public}llu",
+            generation
+        )
+        updateLoadingState(true)
 
         do {
-            let canonicalPosts = try await refreshTimeline(plan: plan)
+            let canonicalPosts = try await refreshTimeline(plan: plan, generation: generation)
+            guard shouldCommitRefresh(generation: generation, stage: "ui_commit") else {
+                os_signpost(
+                    .end,
+                    log: refreshSignpostLog,
+                    name: "TimelineRefresh",
+                    signpostID: refreshSignpostID,
+                    "status=stale"
+                )
+                return
+            }
             DebugLog.verbose("🔄 SocialServiceManager: Canonical timeline updated with \(canonicalPosts.count) posts")
 
-            // Update UI on main thread with proper delay to prevent rapid updates and AttributeGraph cycles
-            Task { @MainActor in
-                self.safelyUpdateTimeline(canonicalPosts)
-                DebugLog.verbose("🔄 SocialServiceManager: Timeline updated with \(canonicalPosts.count) posts")
-            }
+            let uiCommitSignpostID = OSSignpostID(log: refreshSignpostLog)
+            os_signpost(
+                .begin,
+                log: refreshSignpostLog,
+                name: "RefreshUICommit",
+                signpostID: uiCommitSignpostID,
+                "count=%{public}d",
+                canonicalPosts.count
+            )
+            safelyUpdateTimeline(canonicalPosts)
+            os_signpost(
+                .end,
+                log: refreshSignpostLog,
+                name: "RefreshUICommit",
+                signpostID: uiCommitSignpostID
+            )
+            updateLoadingState(false)
+            os_signpost(
+                .end,
+                log: refreshSignpostLog,
+                name: "TimelineRefresh",
+                signpostID: refreshSignpostID,
+                "status=success count=%{public}d",
+                canonicalPosts.count
+            )
+            DebugLog.verbose("🔄 SocialServiceManager: Timeline updated with \(canonicalPosts.count) posts")
         } catch {
+            guard shouldCommitRefresh(generation: generation, stage: "error_commit") else {
+                os_signpost(
+                    .end,
+                    log: refreshSignpostLog,
+                    name: "TimelineRefresh",
+                    signpostID: refreshSignpostID,
+                    "status=stale_error"
+                )
+                return
+            }
             ErrorHandler.shared.handleError(error)
             DebugLog.verbose("🔄 SocialServiceManager: fetchTimeline failed: \(error.localizedDescription)")
+            updateLoadingState(false, error: error)
+            os_signpost(
+                .end,
+                log: refreshSignpostLog,
+                name: "TimelineRefresh",
+                signpostID: refreshSignpostID,
+                "status=error"
+            )
             throw error
         }
     }
 
-    private func refreshTimeline(plan: TimelineFetchPlan) async throws -> [Post] {
+    private func refreshTimeline(plan: TimelineFetchPlan, generation: RefreshGeneration? = nil)
+        async throws -> [Post]
+    {
         switch plan {
         case .unified(let accounts):
-            return try await refreshTimeline(accounts: accounts, shouldMerge: shouldMergeOnRefresh)
+            return try await refreshTimeline(
+                accounts: accounts,
+                shouldMerge: shouldMergeOnRefresh,
+                generation: generation
+            )
         case .mastodon(let account, let feed):
             let result = try await fetchMastodonTimeline(account: account, feed: feed, maxId: nil)
             updatePaginationTokens(
@@ -1606,7 +1802,12 @@ public final class SocialServiceManager: ObservableObject {
                 pagination: result.pagination
             )
             hasNextPage = result.pagination.hasNextPage
-            return await applyTimelinePosts(result.posts, source: .refresh, shouldMerge: shouldMergeOnRefresh)
+            return await applyTimelinePosts(
+                result.posts,
+                source: .refresh,
+                shouldMerge: shouldMergeOnRefresh,
+                generation: generation
+            )
         case .bluesky(let account, let feed):
             let result = try await fetchBlueskyTimeline(account: account, feed: feed, cursor: nil)
             updatePaginationTokens(
@@ -1615,12 +1816,25 @@ public final class SocialServiceManager: ObservableObject {
                 pagination: result.pagination
             )
             hasNextPage = result.pagination.hasNextPage
-            return await applyTimelinePosts(result.posts, source: .refresh, shouldMerge: shouldMergeOnRefresh)
+            return await applyTimelinePosts(
+                result.posts,
+                source: .refresh,
+                shouldMerge: shouldMergeOnRefresh,
+                generation: generation
+            )
         }
     }
 
-    private func applyTimelinePosts(_ posts: [Post], source: TimelineSource, shouldMerge: Bool = false) async -> [Post] {
+    private func applyTimelinePosts(
+        _ posts: [Post],
+        source: TimelineSource,
+        shouldMerge: Bool = false,
+        generation: RefreshGeneration? = nil
+    ) async -> [Post] {
         let filteredPosts = await filterRepliesInTimeline(posts)
+        if let generation, !shouldCommitRefresh(generation: generation, stage: "apply_\(source)") {
+            return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
+        }
         let sourceContext = TimelineSourceContext(source: source)
         // When shouldMerge is true (pull-to-refresh at top), always use processIncomingPosts for smooth merging
         // Otherwise, use replaceTimeline when replyFiltering is enabled to ensure clean state
@@ -2265,7 +2479,11 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         let sortedNewPosts = uniquePosts.sorted(by: { $0.createdAt > $1.createdAt })
-        let filteredNewPosts = await filterRepliesInTimeline(sortedNewPosts)
+        let followedAccounts = await getFollowedAccounts()
+        let filteredNewPosts = await filterRepliesInTimeline(
+            sortedNewPosts,
+            followedAccounts: followedAccounts
+        )
         let sourceContext = TimelineSourceContext(source: .pagination)
 
         canonicalPostStore.processIncomingPosts(
@@ -2283,7 +2501,10 @@ public final class SocialServiceManager: ObservableObject {
         {
             let recentWindow = Array(filteredNewPosts.suffix(200))
             if !recentWindow.isEmpty {
-                let filteredWindow = await filterRepliesInTimeline(recentWindow)
+                let filteredWindow = await filterRepliesInTimeline(
+                    recentWindow,
+                    followedAccounts: followedAccounts
+                )
                 if filteredWindow.count != recentWindow.count {
                     DebugLog.verbose(
                         "⚠️ SocialServiceManager: Reply filtering invariant failed for pagination window (\(recentWindow.count - filteredWindow.count) replies reintroduced)"
@@ -3061,6 +3282,7 @@ public final class SocialServiceManager: ObservableObject {
             // For now, let's assume authorUsername might be the DID or handle.
             _ = try await blueskyService.followUser(did: post.authorUsername, account: account)
         }
+        await invalidateFollowGraphCache(reason: "follow_user_post")
     }
 
     /// Unfollow a user
@@ -3072,6 +3294,7 @@ public final class SocialServiceManager: ObservableObject {
             }
             _ = try await mastodonService.unfollowAccount(
                 userId: post.authorUsername, account: account)
+            await invalidateFollowGraphCache(reason: "unfollow_user_post")
         case .bluesky:
             // Unfollow on Bluesky requires the follow record URI.
             // This is complex because we don't usually have it on the post object.
@@ -3214,6 +3437,7 @@ public final class SocialServiceManager: ObservableObject {
             }
             _ = try await blueskyService.followUser(did: userId, account: account)
         }
+        await invalidateFollowGraphCache(reason: "follow_user_id")
     }
 
     public func unfollowUser(userId: String, platform: SocialPlatform, followUri: String? = nil)
@@ -3241,6 +3465,7 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
         }
+        await invalidateFollowGraphCache(reason: "unfollow_user_id")
     }
 
     public func muteUser(userId: String, platform: SocialPlatform) async throws {
@@ -4158,6 +4383,31 @@ public final class SocialServiceManager: ObservableObject {
         )
     }
 
+    @discardableResult
+    private func beginRefreshGeneration() -> RefreshGeneration {
+        guard FeatureFlagManager.isEnabled(.refreshGenerationGuard) else {
+            return refreshGeneration
+        }
+        refreshGeneration &+= 1
+        let generation = refreshGeneration
+        refreshLogger.debug("refresh_generation_begin generation=\(generation, privacy: .public)")
+        return generation
+    }
+
+    private func shouldCommitRefresh(generation: RefreshGeneration, stage: String) -> Bool {
+        guard FeatureFlagManager.isEnabled(.refreshGenerationGuard) else {
+            return true
+        }
+        guard Self._test_shouldCommitRefreshGeneration(active: refreshGeneration, candidate: generation)
+        else {
+            refreshLogger.debug(
+                "refresh_generation_stale stage=\(stage, privacy: .public) candidate=\(generation, privacy: .public) active=\(self.refreshGeneration, privacy: .public)"
+            )
+            return false
+        }
+        return true
+    }
+
     /// Safely update the timeline with proper isolation to prevent AttributeGraph cycles
     @MainActor
     private func safelyUpdateTimeline(_ posts: [Post]) {
@@ -4176,9 +4426,11 @@ public final class SocialServiceManager: ObservableObject {
     private func updateLoadingState(_ isLoading: Bool, error: Error? = nil) {
         // Immediate update - no delays
         self.isLoadingTimeline = isLoading
-        if let error = error {
+        if isLoading {
+            self.timelineError = nil
+        } else if let error = error {
             self.timelineError = error
-        } else if !isLoading {
+        } else {
             self.timelineError = nil
         }
     }
@@ -4203,6 +4455,37 @@ public final class SocialServiceManager: ObservableObject {
                 safelyUpdateTimeline(mergedPosts)
             }
         }
+    }
+
+    @MainActor
+    func seedAccountSwitchFixturesForUITests() {
+        guard UITestHooks.isEnabled else { return }
+
+        let mastodonFixture = SocialAccount(
+            id: "ui-test-mastodon",
+            username: "ui-test-mastodon",
+            displayName: "UI Test Mastodon",
+            serverURL: URL(string: "https://example.social"),
+            platform: .mastodon,
+            profileImageURL: nil
+        )
+        mastodonFixture.platformSpecificId = "ui-test-mastodon-native"
+
+        let blueskyFixture = SocialAccount(
+            id: "ui-test-bluesky",
+            username: "ui-test.bsky.social",
+            displayName: "UI Test Bluesky",
+            serverURL: URL(string: "https://bsky.social"),
+            platform: .bluesky,
+            profileImageURL: nil
+        )
+        blueskyFixture.platformSpecificId = "did:plc:ui-test-bluesky"
+
+        accounts = [mastodonFixture, blueskyFixture]
+        selectedAccountIds = ["all"]
+        updateAccountLists()
+        resetUnifiedTimelineStore()
+        scheduleFollowGraphCacheInvalidation(reason: "ui_test_seed_accounts")
     }
 
 #if DEBUG

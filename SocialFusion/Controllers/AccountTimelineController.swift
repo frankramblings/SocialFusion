@@ -49,9 +49,6 @@ final class AccountTimelineController: ObservableObject {
                     return []
                 }
             },
-            filterPosts: { posts in
-                return posts
-            },
             mergeBufferedPosts: { [weak self] posts in
                 self?.mergeBufferedPosts(posts)
             },

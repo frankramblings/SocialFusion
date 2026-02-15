@@ -349,3 +349,225 @@ final class PaginationReliabilityTests: XCTestCase {
         )
     }
 }
+
+final class RefreshGenerationGuardTests: XCTestCase {
+    func testStaleGenerationIsRejected() {
+        XCTAssertFalse(
+            SocialServiceManager._test_shouldCommitRefreshGeneration(active: 7, candidate: 6)
+        )
+    }
+
+    func testCurrentGenerationIsAccepted() {
+        XCTAssertTrue(
+            SocialServiceManager._test_shouldCommitRefreshGeneration(active: 7, candidate: 7)
+        )
+    }
+}
+
+@MainActor
+final class PolishRolloutFeatureFlagTests: XCTestCase {
+    override func tearDown() {
+        FeatureFlagManager.shared.disableFeature(.refreshGenerationGuard)
+        FeatureFlagManager.shared.disableFeature(.timelinePrefetchDiffing)
+        super.tearDown()
+    }
+
+    func testRefreshGenerationGuardFlagCanBeToggled() {
+        FeatureFlagManager.shared.disableFeature(.refreshGenerationGuard)
+        XCTAssertFalse(FeatureFlagManager.isEnabled(.refreshGenerationGuard))
+
+        FeatureFlagManager.shared.enableFeature(.refreshGenerationGuard)
+        XCTAssertTrue(FeatureFlagManager.isEnabled(.refreshGenerationGuard))
+    }
+
+    func testTimelinePrefetchDiffingFlagCanBeToggled() {
+        FeatureFlagManager.shared.disableFeature(.timelinePrefetchDiffing)
+        XCTAssertFalse(FeatureFlagManager.isEnabled(.timelinePrefetchDiffing))
+
+        FeatureFlagManager.shared.enableFeature(.timelinePrefetchDiffing)
+        XCTAssertTrue(FeatureFlagManager.isEnabled(.timelinePrefetchDiffing))
+    }
+}
+
+@MainActor
+final class TimelineIdentityStabilityTests: XCTestCase {
+    private func makePost(id: String, platformSpecificId: String, platform: SocialPlatform = .mastodon)
+        -> Post
+    {
+        Post(
+            id: id,
+            content: "Post \(id)",
+            authorName: "Author \(id)",
+            authorUsername: "author\(id)",
+            authorProfilePictureURL: "",
+            createdAt: Date(),
+            platform: platform,
+            originalURL: "https://example.com/\(id)",
+            platformSpecificId: platformSpecificId
+        )
+    }
+
+    func testStableIdentityDoesNotChangeWhenRepostVisualStateChanges() {
+        let post = makePost(id: "wrapper", platformSpecificId: "native-wrapper")
+        let original = makePost(id: "original", platformSpecificId: "native-original")
+        let baseline = post.stableId
+
+        post.originalPost = original
+        post.isReposted = true
+
+        XCTAssertEqual(
+            post.stableId,
+            baseline,
+            "Timeline identity should be immutable and independent from mutable repost state."
+        )
+    }
+}
+
+final class NetworkServiceCancellationTests: XCTestCase {
+    private struct ResponsePayload: Decodable {
+        let value: String
+    }
+
+    private final class BlockingURLProtocol: URLProtocol {
+        static var startedExpectation: XCTestExpectation?
+        static var cancelledExpectation: XCTestExpectation?
+        private static let lock = NSLock()
+        private static var cancellationCount: Int = 0
+
+        static func reset() {
+            lock.lock()
+            startedExpectation = nil
+            cancelledExpectation = nil
+            cancellationCount = 0
+            lock.unlock()
+        }
+
+        private var scheduledCompletion: DispatchWorkItem?
+
+        override class func canInit(with request: URLRequest) -> Bool { true }
+        override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+        override func startLoading() {
+            Self.startedExpectation?.fulfill()
+            let completion = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                let data = #"{"value":"ok"}"#.data(using: .utf8) ?? Data()
+                let response = HTTPURLResponse(
+                    url: self.request.url ?? URL(string: "https://example.com")!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]
+                )!
+                self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                self.client?.urlProtocol(self, didLoad: data)
+                self.client?.urlProtocolDidFinishLoading(self)
+            }
+            scheduledCompletion = completion
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5.0, execute: completion)
+        }
+
+        override func stopLoading() {
+            scheduledCompletion?.cancel()
+            Self.lock.lock()
+            let shouldFulfill = Self.cancellationCount == 0
+            Self.cancellationCount += 1
+            Self.lock.unlock()
+            if shouldFulfill {
+                Self.cancelledExpectation?.fulfill()
+            }
+            client?.urlProtocol(self, didFailWithError: URLError(.cancelled))
+        }
+    }
+
+    override func setUp() {
+        super.setUp()
+        BlockingURLProtocol.reset()
+    }
+
+    func testCancelAllRequestsCancelsInFlightWork() async {
+        let started = expectation(description: "request started")
+        let cancelled = expectation(description: "request cancelled")
+        BlockingURLProtocol.startedExpectation = started
+        BlockingURLProtocol.cancelledExpectation = cancelled
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [BlockingURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let service = NetworkService(session: session)
+
+        let requestTask = Task {
+            try? await service.get(
+                url: URL(string: "https://example.com/hang")!,
+                responseType: ResponsePayload.self
+            )
+        }
+
+        await fulfillment(of: [started], timeout: 1.5)
+        service.cancelAllRequests()
+        await fulfillment(of: [cancelled], timeout: 1.5)
+        _ = await requestTask.result
+    }
+}
+
+final class FollowGraphCacheTests: XCTestCase {
+    func testCacheEntryExpiresAfterTTL() async {
+        let cache = FollowGraphCache(defaultTTL: 0.1)
+        let user = CanonicalUserID(
+            platform: .mastodon,
+            stableID: "123",
+            normalizedHandle: "user@example.com"
+        )
+
+        await cache.set([user], for: "followed")
+        let cachedNow = await cache.value(for: "followed")
+        XCTAssertEqual(cachedNow?.count, 1)
+
+        try? await Task.sleep(nanoseconds: 160_000_000)
+        let cachedLater = await cache.value(for: "followed")
+        XCTAssertNil(cachedLater)
+    }
+
+    func testInvalidateAllClearsEntries() async {
+        let cache = FollowGraphCache(defaultTTL: 60)
+        let user = CanonicalUserID(
+            platform: .bluesky,
+            stableID: "did:plc:test",
+            normalizedHandle: "tester.bsky.social"
+        )
+
+        await cache.set([user], for: "followed")
+        let cachedBeforeInvalidation = await cache.value(for: "followed")
+        XCTAssertNotNil(cachedBeforeInvalidation)
+
+        await cache.invalidateAll()
+        let cachedAfterInvalidation = await cache.value(for: "followed")
+        XCTAssertNil(cachedAfterInvalidation)
+    }
+}
+
+final class DraftPersistenceOrderingTests: XCTestCase {
+    private func makeDraft(text: String) -> DraftPost {
+        DraftPost(
+            posts: [ThreadPostDraft(text: text)],
+            selectedPlatforms: [.mastodon]
+        )
+    }
+
+    func testQueuePersistsLatestCoalescedWrite() async throws {
+        let queue = DraftPersistenceQueue()
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "draft-order-\(UUID().uuidString).json"
+        )
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        await queue.enqueuePersist(drafts: [makeDraft(text: "first")], destinationURL: tempURL)
+        await queue.enqueuePersist(drafts: [makeDraft(text: "second")], destinationURL: tempURL)
+        await queue.enqueuePersist(drafts: [makeDraft(text: "latest")], destinationURL: tempURL)
+
+        try? await Task.sleep(nanoseconds: 450_000_000)
+        let data = try Data(contentsOf: tempURL)
+        let decoded = try JSONDecoder().decode([DraftPost].self, from: data)
+
+        XCTAssertEqual(decoded.first?.posts.first?.text, "latest")
+    }
+}

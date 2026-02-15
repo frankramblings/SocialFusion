@@ -51,6 +51,11 @@ struct ContentView: View {
         ZStack {
             modernTabView
 
+            if UITestHooks.isEnabled {
+                uiTestAccountSwitchOverlay
+                    .zIndex(900)
+            }
+
             // Fullscreen media overlay - presented at root level to avoid clipping
             if mediaCoordinator.showFullscreen, let media = mediaCoordinator.selectedMedia {
                 FullscreenMediaOverlay(
@@ -256,6 +261,48 @@ struct ContentView: View {
         }
     }
 
+    private var uiTestAccountSwitchOverlay: some View {
+        VStack {
+            HStack {
+                Spacer()
+                VStack(alignment: .trailing, spacing: 6) {
+                    Button("Seed Accounts") {
+                        seedAccountSwitchFixtures()
+                    }
+                    .accessibilityIdentifier("SeedAccountSwitchFixturesButton")
+
+                    Button("Switch Mastodon") {
+                        switchToAccount(id: "ui-test-mastodon")
+                    }
+                    .accessibilityIdentifier("SwitchToTestMastodonAccountButton")
+
+                    Button("Switch Bluesky") {
+                        switchToAccount(id: "ui-test-bluesky")
+                    }
+                    .accessibilityIdentifier("SwitchToTestBlueskyAccountButton")
+
+                    Button("Switch All") {
+                        switchToAccount(id: nil)
+                    }
+                    .accessibilityIdentifier("SwitchToAllAccountsButton")
+
+                    Text(uiTestSelectedAccountValue)
+                        .font(.caption2.monospaced())
+                        .accessibilityIdentifier("UITestSelectedAccountId")
+                    Text(uiTestServiceSelectionValue)
+                        .font(.caption2.monospaced())
+                        .accessibilityIdentifier("UITestServiceSelectedAccountIds")
+                }
+                .padding(8)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.top, 8)
+                .padding(.trailing, 8)
+            }
+            Spacer()
+        }
+        .allowsHitTesting(true)
+    }
+
     private var accountDropdownOverlay: some View {
         ZStack {
             Color.clear
@@ -334,7 +381,8 @@ struct ContentView: View {
                         AccountPickerSheet(
                             selectedAccountId: $selectedAccountId,
                             previousAccountId: $previousAccountId,
-                            isPresented: $showAccountPicker
+                            isPresented: $showAccountPicker,
+                            onSelectAccount: { switchToAccount(id: $0) }
                         )
                     }
             }
@@ -487,6 +535,11 @@ struct ContentView: View {
             serviceManager.selectedAccountIds = ["all"]
         }
 
+        if UITestHooks.isEnabled {
+            isSwitchingAccounts = false
+            return
+        }
+
         // Refresh timeline with new account selection
         Task { @MainActor in
             defer { isSwitchingAccounts = false }
@@ -508,6 +561,28 @@ struct ContentView: View {
         } else {
             return serviceManager.mastodonAccounts + serviceManager.blueskyAccounts
         }
+    }
+
+    private var uiTestSelectedAccountValue: String {
+        selectedAccountId ?? "all"
+    }
+
+    private var uiTestServiceSelectionValue: String {
+        if serviceManager.selectedAccountIds.contains("all") {
+            return "all"
+        }
+        if serviceManager.selectedAccountIds.count == 1 {
+            return serviceManager.selectedAccountIds.first ?? "all"
+        }
+        return serviceManager.selectedAccountIds.sorted().joined(separator: ",")
+    }
+
+    private func seedAccountSwitchFixtures() {
+        serviceManager.seedAccountSwitchFixturesForUITests()
+        selectedAccountId = nil
+        previousAccountId = nil
+        showAccountDropdown = false
+        isSwitchingAccounts = false
     }
 
     private func handleHomeTabDoubleTap() {
@@ -896,6 +971,7 @@ struct AccountPickerSheet: View {
     @Binding var selectedAccountId: String?
     @Binding var previousAccountId: String?  // Add binding for previous account
     @Binding var isPresented: Bool
+    let onSelectAccount: (String?) -> Void
     @State private var showSettingsView = false
     @State private var showAddAccountView = false
 
@@ -906,7 +982,7 @@ struct AccountPickerSheet: View {
                 Section(header: Text("Accounts")) {
                     // All accounts option
                     Button(action: {
-                        switchToAccount(id: nil)
+                        onSelectAccount(nil)
                         isPresented = false
                     }) {
                         HStack {
@@ -931,7 +1007,7 @@ struct AccountPickerSheet: View {
                     // Mastodon accounts
                     ForEach(serviceManager.mastodonAccounts) { account in
                         Button(action: {
-                            switchToAccount(id: account.id)
+                            onSelectAccount(account.id)
                             isPresented = false
                         }) {
                             HStack {
@@ -965,7 +1041,7 @@ struct AccountPickerSheet: View {
                     // Bluesky accounts
                     ForEach(serviceManager.blueskyAccounts) { account in
                         Button(action: {
-                            switchToAccount(id: account.id)
+                            onSelectAccount(account.id)
                             isPresented = false
                         }) {
                             HStack {
@@ -1069,13 +1145,6 @@ struct AccountPickerSheet: View {
         }
     }
 
-    // Helper function to switch accounts and track previous selection
-    private func switchToAccount(id: String?) {
-        // Store current selection as previous
-        previousAccountId = selectedAccountId
-        // Update to new selection
-        selectedAccountId = id
-    }
 }
 
 struct ContentView_Previews: PreviewProvider {

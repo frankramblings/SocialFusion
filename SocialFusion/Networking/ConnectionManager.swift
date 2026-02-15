@@ -1,9 +1,11 @@
 import Foundation
 import UIKit
+import os.log
 
 /// A manager class to handle API connections with proper retry, timeout and concurrency control
 class ConnectionManager {
     static let shared = ConnectionManager()
+    private let logger = Logger(subsystem: "com.socialfusion", category: "ConnectionManager")
 
     // Track active requests and connections
     private var activeConnections = 0
@@ -137,9 +139,9 @@ class ConnectionManager {
             do {
                 return try decoder.decode(responseType, from: data)
             } catch {
-                print("Decoding error: \(error)")
+                logger.error("decoding_error error=\(error.localizedDescription, privacy: .public)")
                 if let dataString = String(data: data, encoding: .utf8)?.prefix(200) {
-                    print("Response prefix: \(dataString)...")
+                    logger.debug("response_prefix=\(String(dataString), privacy: .private)")
                 }
                 throw NetworkError.decodingError
             }

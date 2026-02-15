@@ -1,12 +1,13 @@
 import Foundation
 import SwiftData
-import SwiftUI
+import os.log
 
 @available(iOS 17.0, *)
 actor TimelineSwiftDataStore {
     static let shared = TimelineSwiftDataStore()
     
     private let container: ModelContainer
+    private let logger = Logger(subsystem: "com.socialfusion", category: "TimelineSwiftDataStore")
     
     private init() {
         do {
@@ -32,44 +33,44 @@ actor TimelineSwiftDataStore {
         }
     }
     
-    @MainActor
     func saveTimeline(_ posts: [Post]) async {
-        let context = container.mainContext
-        
-        // Clear old cache
-        try? context.delete(model: CachedPost.self)
-        
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        
-        // Add new posts
-        for post in posts.prefix(100) { // Cache top 100 posts for offline reading
-            let postData = try? encoder.encode(post)
-            
-            let cached = CachedPost(
-                id: post.id,
-                content: post.content,
-                authorName: post.authorName,
-                authorUsername: post.authorUsername,
-                authorProfilePictureURL: post.authorProfilePictureURL,
-                createdAt: post.createdAt,
-                platform: post.platform,
-                originalURL: post.originalURL,
-                replyCount: post.replyCount,
-                repostCount: post.repostCount,
-                likeCount: post.likeCount,
-                attachmentURLs: post.attachments.map { $0.url },
-                postData: postData
-            )
-            context.insert(cached)
+        let context = ModelContext(container)
+
+        do {
+            try context.delete(model: CachedPost.self)
+
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+
+            for post in posts.prefix(100) { // Cache top 100 posts for offline reading
+                let postData = try? encoder.encode(post)
+
+                let cached = CachedPost(
+                    id: post.id,
+                    content: post.content,
+                    authorName: post.authorName,
+                    authorUsername: post.authorUsername,
+                    authorProfilePictureURL: post.authorProfilePictureURL,
+                    createdAt: post.createdAt,
+                    platform: post.platform,
+                    originalURL: post.originalURL,
+                    replyCount: post.replyCount,
+                    repostCount: post.repostCount,
+                    likeCount: post.likeCount,
+                    attachmentURLs: post.attachments.map { $0.url },
+                    postData: postData
+                )
+                context.insert(cached)
+            }
+
+            try context.save()
+        } catch {
+            logger.error("save_timeline_failed error=\(error.localizedDescription, privacy: .public)")
         }
-        
-        try? context.save()
     }
     
-    @MainActor
     func loadTimeline() async -> [Post]? {
-        let context = container.mainContext
+        let context = ModelContext(container)
         let descriptor = FetchDescriptor<CachedPost>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
         
         do {
@@ -104,14 +105,19 @@ actor TimelineSwiftDataStore {
                 )
             }
         } catch {
-            print("Failed to fetch cached posts: \(error)")
+            logger.error("load_timeline_failed error=\(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
     
-    @MainActor
     func clearAll() async {
-        try? container.mainContext.delete(model: CachedPost.self)
+        let context = ModelContext(container)
+        do {
+            try context.delete(model: CachedPost.self)
+            try context.save()
+        } catch {
+            logger.error("clear_timeline_failed error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// Returns the combined file size of the SwiftData store files (default.store, -wal, -shm)
@@ -135,4 +141,3 @@ actor TimelineSwiftDataStore {
         return totalSize
     }
 }
-

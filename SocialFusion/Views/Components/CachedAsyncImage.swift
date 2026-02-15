@@ -16,14 +16,13 @@ public class ImageCache: ObservableObject {
     private let cache = NSCache<NSString, UIImage>()
     private let session: URLSession
     private var inFlightRequests = [URL: AnyPublisher<UIImage?, Never>]()
-    private let requestQueue = DispatchQueue(label: "ImageCache.requests", qos: .userInitiated)
+    private let stateQueue = DispatchQueue(label: "ImageCache.state", qos: .userInitiated)
 
     // Add a memory-only cache for frequently accessed profile images
     private let hotCache = NSCache<NSString, UIImage>()
 
     // Priority-based request management
     private var requestPriorities = [URL: ImageLoadPriority]()
-    private let priorityLock = NSLock()
 
     private init() {
         // Configure URLSession with optimized settings for image loading
@@ -126,16 +125,10 @@ public class ImageCache: ObservableObject {
             return Just(cachedImage).eraseToAnyPublisher()
         }
 
-        // Update priority for this request
-        priorityLock.lock()
-        let currentPriority = requestPriorities[url] ?? .background
-        if priority.rawValue > currentPriority.rawValue {
-            requestPriorities[url] = priority
-        }
-        priorityLock.unlock()
+        updatePriority(priority, for: url)
 
         // Check if we already have an in-flight request for this URL
-        if let existingPublisher = inFlightRequests[url] {
+        if let existingPublisher = inFlightPublisher(for: url) {
             return existingPublisher
         }
 
@@ -174,22 +167,13 @@ public class ImageCache: ObservableObject {
             .replaceError(with: nil)
             .handleEvents(
                 receiveCompletion: { [weak self] _ in
-                    // Clean up tracking
-                    self?.requestQueue.async {
-                        self?.inFlightRequests.removeValue(forKey: url)
-                        self?.priorityLock.lock()
-                        self?.requestPriorities.removeValue(forKey: url)
-                        self?.priorityLock.unlock()
-                    }
+                    self?.clearRequestState(for: url)
                 }
             )
             .share()
             .eraseToAnyPublisher()
 
-        // Store in-flight request
-        inFlightRequests[url] = publisher
-
-        return publisher
+        return storeInFlightPublisher(publisher, for: url)
     }
 
     private func optimizeImageIfNeeded(_ image: UIImage) -> UIImage {
@@ -244,16 +228,56 @@ public class ImageCache: ObservableObject {
         }
     }
 
+    private func updatePriority(_ priority: ImageLoadPriority, for url: URL) {
+        stateQueue.sync {
+            let current = requestPriorities[url] ?? .background
+            if priority.rawValue > current.rawValue {
+                requestPriorities[url] = priority
+            }
+        }
+    }
+
+    private func inFlightPublisher(for url: URL) -> AnyPublisher<UIImage?, Never>? {
+        stateQueue.sync {
+            inFlightRequests[url]
+        }
+    }
+
+    private func storeInFlightPublisher(
+        _ publisher: AnyPublisher<UIImage?, Never>,
+        for url: URL
+    ) -> AnyPublisher<UIImage?, Never> {
+        stateQueue.sync {
+            if let existing = inFlightRequests[url] {
+                return existing
+            }
+            inFlightRequests[url] = publisher
+            return publisher
+        }
+    }
+
+    private func clearRequestState(for url: URL) {
+        stateQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.inFlightRequests.removeValue(forKey: url)
+            self.requestPriorities.removeValue(forKey: url)
+        }
+    }
+
     /// Cancel low-priority requests when scrolling fast
     public func cancelLowPriorityRequests() {
-        priorityLock.lock()
-        let lowPriorityURLs = requestPriorities.compactMap { url, priority in
-            priority.rawValue <= ImageLoadPriority.low.rawValue ? url : nil
+        let lowPriorityURLs = stateQueue.sync {
+            requestPriorities.compactMap { url, priority in
+                priority.rawValue <= ImageLoadPriority.low.rawValue ? url : nil
+            }
         }
-        priorityLock.unlock()
 
-        for url in lowPriorityURLs {
-            inFlightRequests.removeValue(forKey: url)
+        stateQueue.async { [weak self] in
+            guard let self = self else { return }
+            for url in lowPriorityURLs {
+                self.inFlightRequests.removeValue(forKey: url)
+                self.requestPriorities.removeValue(forKey: url)
+            }
         }
     }
 
@@ -261,8 +285,10 @@ public class ImageCache: ObservableObject {
         cache.removeAllObjects()
         hotCache.removeAllObjects()
         session.configuration.urlCache?.removeAllCachedResponses()
-        inFlightRequests.removeAll()
-        requestPriorities.removeAll()
+        stateQueue.sync {
+            inFlightRequests.removeAll()
+            requestPriorities.removeAll()
+        }
         DebugLog.verbose("🗑️ [ImageCache] Cache cleared")
     }
 

@@ -70,4 +70,31 @@ echo ""
 
 echo "✅ Architecture testing is ready!"
 echo "All components are in place and the build is successful."
-echo "You can now test the new architecture improvements safely." 
+echo "You can now test the new architecture improvements safely."
+
+echo ""
+echo "🛡️ Release Candidate Gates"
+echo "========================="
+echo "Running targeted stabilization tests..."
+
+RC_TESTS=(
+  "-only-testing:SocialFusionTests/RefreshGenerationGuardTests"
+  "-only-testing:SocialFusionTests/NetworkServiceCancellationTests"
+  "-only-testing:SocialFusionTests/TimelineIdentityStabilityTests"
+  "-only-testing:SocialFusionTests/TimelineRefreshCoordinatorTests/testFetchToBufferBuffersRawPostsWithoutMerging"
+)
+
+if xcodebuild -project SocialFusion.xcodeproj -scheme SocialFusion -destination 'platform=iOS Simulator,name=iPhone 17 Pro' "${RC_TESTS[@]}" test; then
+  echo "✅ Release gates passed:"
+  echo "   - No stale refresh commit regression detected"
+  echo "   - Network cancellation path still cancels in-flight requests"
+  echo "   - Timeline identity remains stable across repost visual mutations"
+  echo "   - Buffer fetch path avoids immediate merge side effects"
+  echo "⚠️ Manual gate still required:"
+  echo "   - Rapid account switch consistency"
+  echo "   - Duplicate error banners check"
+  echo "   - Media-heavy timeline responsiveness stress pass"
+else
+  echo "❌ Release gates failed. Fix regressions before RC."
+  exit 1
+fi
