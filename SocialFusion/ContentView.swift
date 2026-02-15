@@ -9,10 +9,10 @@ struct ContentView: View {
     @EnvironmentObject var appVersionManager: AppVersionManager
     @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
     @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
-    @State private var selectedTab = 0
+    @SceneStorage("selectedTab") private var selectedTab = 0
 
-    // Account selection state
-    @State private var selectedAccountId: String? = nil  // nil means showing unified view
+    // Account selection state — persisted across relaunches via SceneStorage
+    @SceneStorage("selectedAccountId") private var selectedAccountId: String?
     @State private var previousAccountId: String? = nil  // For back/forth navigation between accounts
 
     // UI control states
@@ -189,8 +189,8 @@ struct ContentView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabViewCustomization($tabCustomization)
         .tint(Color("AppPrimaryColor"))
-        .onChange(of: selectedTab) { _, newTab in
-            UserDefaults.standard.set(newTab, forKey: "currentSelectedTab")
+        .onChange(of: selectedTab) { _, _ in
+            // Tab persisted automatically via @SceneStorage
         }
         .onAppear {
             setupTabBarDelegate()
