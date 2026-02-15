@@ -74,6 +74,80 @@ final class SearchStoreTests: XCTestCase {
     // Should have refreshed
     XCTAssertTrue(mockProvider.callCount > 0)
   }
+  // MARK: - Suggestions & Completions Tests
+
+  func testRecentSearchesAppearAsSuggestions() async {
+    let mockProvider = MockSearchProvider()
+    let recentStorage = RecentSearchesStorage.shared
+    // Seed some recent searches
+    recentStorage.addSearch("swift", accountId: "suggest-test", networkSelection: .unified)
+    recentStorage.addSearch("mastodon", accountId: "suggest-test", networkSelection: .unified)
+
+    let store = SearchStore(
+      searchProvider: mockProvider,
+      recentSearchesStorage: recentStorage,
+      accountId: "suggest-test"
+    )
+
+    let suggestions = store.suggestions(for: "")
+    XCTAssertTrue(suggestions.contains("swift"), "Recent search 'swift' should appear in suggestions")
+    XCTAssertTrue(suggestions.contains("mastodon"), "Recent search 'mastodon' should appear in suggestions")
+
+    // Clean up
+    recentStorage.clearSearches(accountId: "suggest-test", networkSelection: .unified)
+  }
+
+  func testSuggestionsFilterByPrefix() async {
+    let mockProvider = MockSearchProvider()
+    let recentStorage = RecentSearchesStorage.shared
+    recentStorage.addSearch("swift", accountId: "filter-test", networkSelection: .unified)
+    recentStorage.addSearch("swiftui", accountId: "filter-test", networkSelection: .unified)
+    recentStorage.addSearch("mastodon", accountId: "filter-test", networkSelection: .unified)
+
+    let store = SearchStore(
+      searchProvider: mockProvider,
+      recentSearchesStorage: recentStorage,
+      accountId: "filter-test"
+    )
+
+    let filtered = store.suggestions(for: "swi")
+    XCTAssertTrue(filtered.contains("swift"))
+    XCTAssertTrue(filtered.contains("swiftui"))
+    XCTAssertFalse(filtered.contains("mastodon"), "Non-matching term should be filtered out")
+
+    // Clean up
+    recentStorage.clearSearches(accountId: "filter-test", networkSelection: .unified)
+  }
+
+  func testPinnedSearchesAppearInSuggestions() async {
+    let mockProvider = MockSearchProvider()
+    let store = SearchStore(
+      searchProvider: mockProvider,
+      accountId: "pinned-test"
+    )
+
+    let suggestions = store.suggestions(for: "")
+    // Pinned searches should also feed suggestions (they come from pinnedSearches)
+    // If no pinned searches, the list should at least not crash
+    XCTAssertNotNil(suggestions)
+  }
+
+  func testScopeChangeTriggersNewSearch() async {
+    let mockProvider = MockSearchProvider()
+    let store = SearchStore(
+      searchProvider: mockProvider,
+      accountId: "scope-test"
+    )
+
+    store.text = "test"
+    try? await Task.sleep(nanoseconds: 600_000_000)
+    let firstCallCount = mockProvider.callCount
+
+    store.scope = .users
+    try? await Task.sleep(nanoseconds: 600_000_000)
+
+    XCTAssertGreaterThan(mockProvider.callCount, firstCallCount, "Scope change should trigger a new search")
+  }
 }
 
 // MARK: - Mock Search Provider

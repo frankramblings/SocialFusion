@@ -51,35 +51,7 @@ struct SearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let store = searchStore {
-                // Use ObservedObject wrapper to ensure SwiftUI observes changes
                 SearchStoreWrapper(store: store) { observedStore in
-                    // Search Bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Search for people, posts, and hashtags", text: Binding(
-                        get: { observedStore.text },
-                        set: { observedStore.text = $0 }
-                    ))
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .onSubmit {
-                            observedStore.performSearch()
-                        }
-                    if !observedStore.text.isEmpty {
-                        Button(action: {
-                            observedStore.text = ""
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(10)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.top, 10)
-                
                 // Chip Row (when results are available)
                 if let chipModel = observedStore.chipRowModel, observedStore.phase.hasResults {
                     SearchChipRow(
@@ -89,7 +61,7 @@ struct SearchView: View {
                     )
                     .padding(.vertical, 8)
                 }
-                
+
                 // Direct Open Target (if detected)
                 if let directTarget = observedStore.directOpenTarget {
                     DirectOpenRow(target: directTarget) {
@@ -98,7 +70,7 @@ struct SearchView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
                 }
-                
+
                 // Scope Picker
                 if !observedStore.text.isEmpty || observedStore.phase.hasResults {
                     Picker("Search Scope", selection: Binding(
@@ -112,7 +84,7 @@ struct SearchView: View {
                     .pickerStyle(SegmentedPickerStyle())
                     .padding()
                 }
-                
+
                 // Results or Empty State
                 if observedStore.phase.isLoading && observedStore.results.isEmpty {
                     Spacer()
@@ -157,6 +129,24 @@ struct SearchView: View {
                 ProgressView("Initializing...")
                 Spacer()
             }
+        }
+        .searchable(
+            text: Binding(
+                get: { searchStore?.text ?? "" },
+                set: { searchStore?.text = $0 }
+            ),
+            prompt: "People, posts, and hashtags"
+        ) {
+            if let store = searchStore {
+                let suggestions = store.suggestions(for: store.text)
+                ForEach(suggestions, id: \.self) { suggestion in
+                    Text(suggestion)
+                        .searchCompletion(suggestion)
+                }
+            }
+        }
+        .onSubmit(of: .search) {
+            searchStore?.performSearch()
         }
         .navigationDestination(
             isPresented: Binding(
@@ -320,7 +310,7 @@ struct SearchView: View {
             onRepost: {
                 Task {
                     do {
-                        try await serviceManager.repostPost(post)
+                        _ = try await serviceManager.repostPost(post)
                     } catch {
                         ErrorHandler.shared.handleError(error)
                     }
@@ -329,7 +319,7 @@ struct SearchView: View {
             onLike: {
                 Task {
                     do {
-                        try await serviceManager.likePost(post)
+                        _ = try await serviceManager.likePost(post)
                     } catch {
                         ErrorHandler.shared.handleError(error)
                     }

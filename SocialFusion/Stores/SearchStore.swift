@@ -164,6 +164,17 @@ public class SearchStore: ObservableObject {
     loadRecentSearches()
   }
   
+  /// Return search suggestions based on recent and pinned searches, optionally filtered by prefix.
+  public func suggestions(for prefix: String) -> [String] {
+    let pinned = pinnedSearches.map(\.query)
+    let all = pinned + recentSearches
+    // Deduplicate preserving order
+    var seen = Set<String>()
+    let unique = all.filter { seen.insert($0.lowercased()).inserted }
+    guard !prefix.isEmpty else { return unique }
+    return unique.filter { $0.lowercased().hasPrefix(prefix.lowercased()) }
+  }
+
   // MARK: - Private Methods
   
   private func handleTextChange() {
