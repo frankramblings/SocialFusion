@@ -76,4 +76,11 @@ Look for: Smooth navigation, back button works correctly, no navigation stack is
 • Screenshots/videos if applicable
 • Frequency (every time or intermittent)
 
+═══════════════════════════════════════════════════════════════
+
+📊 SHIP-READINESS COVERAGE
+───────────────────────────────────────────────────────────────
+Run `./run_tests.sh` for automated matrix preflight.
+See Docs/ship-readiness-matrix.md for full test ownership map.
+
 Thank you for testing SocialFusion! 🚀
