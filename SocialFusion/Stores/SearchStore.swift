@@ -57,6 +57,8 @@ public class SearchStore: ObservableObject {
   
   private var nextPageTokens: [String: SearchPageToken] = [:]
   private var isRefreshing = false
+  /// Monotonically increasing token to detect stale search responses.
+  private var searchGeneration: UInt64 = 0
   
   // MARK: - Initialization
   
@@ -197,10 +199,14 @@ public class SearchStore: ObservableObject {
   }
   
   private func checkDirectOpen() {
+    let gen = searchGeneration
     Task {
       do {
-        directOpenTarget = try await searchProvider.resolveDirectOpen(input: text)
+        let target = try await searchProvider.resolveDirectOpen(input: text)
+        guard gen == searchGeneration else { return }
+        directOpenTarget = target
       } catch {
+        guard gen == searchGeneration else { return }
         directOpenTarget = nil
       }
     }
@@ -208,34 +214,39 @@ public class SearchStore: ObservableObject {
   
   func performSearchInternal(ignoreCache: Bool = false) async {
     cancelSearch()
-    
+
     guard !text.isEmpty else {
       phase = .idle
       return
     }
-    
+
+    // Increment generation so stale responses are discarded.
+    searchGeneration &+= 1
+    let myGeneration = searchGeneration
+
     let query = SearchQuery(
       text: text,
       scope: scope,
       networkSelection: networkSelection
     )
-    
+
     let cacheKey = query.cacheKey(accountId: accountId)
-    
+
     // Check cache first (unless refreshing)
     if !ignoreCache, let cached = cache.get(key: cacheKey) {
+      guard myGeneration == searchGeneration else { return }
       results = cached.results
       nextPageTokens = cached.nextPageTokens
       phase = .showingCached
       updateChipRowModel()
-      
+
       // Refresh in background
       Task {
         await performSearchInternal(ignoreCache: true)
       }
       return
     }
-    
+
     if !ignoreCache {
       phase = .loading
     }
@@ -248,7 +259,6 @@ public class SearchStore: ObservableObject {
         page = try await searchProvider.searchPosts(query: query, page: nil)
       case .users:
         if text.count < 3 {
-          // Use typeahead for short queries
           page = try await searchProvider.searchUsersTypeahead(text: text, page: nil)
         } else {
           page = try await searchProvider.searchUsers(query: query, page: nil)
@@ -256,6 +266,9 @@ public class SearchStore: ObservableObject {
       case .tags:
         page = try await searchProvider.searchTags(query: query, page: nil)
       }
+
+      // Stale-result guard: discard if a newer search has started.
+      guard myGeneration == searchGeneration else { return }
 
       results = page.items
       nextPageTokens = page.nextPageTokens
@@ -273,6 +286,7 @@ public class SearchStore: ObservableObject {
       updateChipRowModel()
       addToRecentSearches(text)
     } catch {
+      guard myGeneration == searchGeneration else { return }
       phase = .error(error.localizedDescription)
     }
   }

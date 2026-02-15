@@ -132,6 +132,41 @@ final class SearchStoreTests: XCTestCase {
     XCTAssertNotNil(suggestions)
   }
 
+  /// When a slow query finishes after a newer fast query, the stale results must be discarded.
+  func testLatestQueryWinsWhenTasksRace() async {
+    let delayProvider = DelayingMockSearchProvider()
+    let store = SearchStore(
+      searchProvider: delayProvider,
+      accountId: "race-test"
+    )
+
+    // Query A: slow (will take 400ms), returns 1 result
+    delayProvider.delayNanoseconds = 400_000_000
+    delayProvider.resultItemCount = 1
+    store.text = "slow"
+    let taskA = Task { await store.performSearchInternal() }
+
+    // Small gap so A starts first
+    try? await Task.sleep(nanoseconds: 50_000_000)
+
+    // Query B: fast (returns instantly), returns 3 results
+    delayProvider.delayNanoseconds = 0
+    delayProvider.resultItemCount = 3
+    store.text = "fast"
+    await store.performSearchInternal()
+
+    // B should have finished — 3 results
+    XCTAssertEqual(store.results.count, 3, "Fast query B should have written 3 results")
+
+    // Wait for A to finish
+    await taskA.value
+    try? await Task.sleep(nanoseconds: 100_000_000)
+
+    // Results should STILL be B's 3 results, not overwritten by stale A's 1 result
+    XCTAssertEqual(store.results.count, 3,
+                   "Stale query A must not overwrite newer query B results")
+  }
+
   func testScopeChangeTriggersNewSearch() async {
     let mockProvider = MockSearchProvider()
     let store = SearchStore(
@@ -195,4 +230,51 @@ class MockSearchProvider: SearchProviding {
   var providerId: String {
     "mock"
   }
+}
+
+// MARK: - Delaying Mock Search Provider
+
+/// Mock that introduces configurable delay to simulate slow network responses for race testing.
+class DelayingMockSearchProvider: SearchProviding {
+  var delayNanoseconds: UInt64 = 0
+  var resultItemCount: Int = 0
+
+  func searchPosts(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
+    let count = resultItemCount
+    if delayNanoseconds > 0 {
+      try? await Task.sleep(nanoseconds: delayNanoseconds)
+    }
+    let items: [SearchResultItem] = (0..<count).map { i in
+      let post = Post(
+        id: "\(query.text)-\(i)",
+        content: "Result \(i) for \(query.text)",
+        authorName: "Test",
+        authorUsername: "test",
+        authorProfilePictureURL: "",
+        createdAt: Date(),
+        platform: .bluesky,
+        originalURL: "https://example.com/\(i)"
+      )
+      return .post(post)
+    }
+    return SearchPage(items: items)
+  }
+
+  func searchUsersTypeahead(text: String, page: SearchPageToken?) async throws -> SearchPage {
+    SearchPage.empty
+  }
+
+  func searchUsers(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
+    SearchPage.empty
+  }
+
+  func searchTags(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
+    SearchPage.empty
+  }
+
+  func resolveDirectOpen(input: String) async throws -> DirectOpenTarget? { nil }
+
+  var capabilities: SearchCapabilities { SearchCapabilities() }
+  var supportsSortTopLatest: Bool { false }
+  var providerId: String { "delaying-mock" }
 }
