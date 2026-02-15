@@ -582,9 +582,11 @@ public final class BlueskyService: Sendable {
                                 retryData, account: account)
                         } else {
                             logger.error("Retry after token refresh still failed")
+                            #if DEBUG
                             if let retryResponseBody = String(data: retryData, encoding: .utf8) {
                                 logger.error("Retry response body: \(retryResponseBody)")
                             }
+                            #endif
                         }
                     } catch {
                         logger.error(
@@ -594,9 +596,11 @@ public final class BlueskyService: Sendable {
 
                 // If we couldn't handle the 400 error or retry failed, fall through to generic error
                 logger.error("Bluesky API returned 400 status")
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("Response body: \(responseBody)")
                 }
+                #endif
                 throw ServiceError.apiError("Server returned status code 400")
             }
 
@@ -604,9 +608,11 @@ public final class BlueskyService: Sendable {
                 logger.error(
                     "Bluesky API returned non-success status code: \(httpResponse.statusCode)")
                 // Log the response body to help diagnose issues
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("Response body: \(responseBody)")
                 }
+                #endif
                 throw ServiceError.apiError(
                     "Server returned status code \(httpResponse.statusCode)")
             }
@@ -803,9 +809,11 @@ public final class BlueskyService: Sendable {
         }
         
         // Log raw response for debugging
+        #if DEBUG
         if let responseString = String(data: data, encoding: .utf8) {
             print("🔍 [BlueskyService] Raw search posts response: \(responseString.prefix(500))")
         }
+        #endif
         
         do {
             return try JSONDecoder().decode(BlueskySearchPostsResponse.self, from: data)
@@ -1044,9 +1052,11 @@ public final class BlueskyService: Sendable {
             return TimelineResult(posts: posts, pagination: pagination)
         } catch {
             logger.error("Timeline processing error: \(error.localizedDescription)")
+            #if DEBUG
             if let data = String(data: data, encoding: .utf8) {
                 logger.debug("Raw response data: \(data.prefix(500))...")
             }
+            #endif
             throw error
         }
     }
@@ -1098,9 +1108,11 @@ public final class BlueskyService: Sendable {
             return posts
         } catch {
             logger.error("Timeline processing error: \(error.localizedDescription)")
+            #if DEBUG
             if let data = String(data: data, encoding: .utf8) {
                 logger.debug("Raw response data: \(data.prefix(500))...")
             }
+            #endif
             throw error
         }
     }
@@ -1187,9 +1199,11 @@ public final class BlueskyService: Sendable {
 
             if httpResponse.statusCode != 200 {
                 // Log the response body to help diagnose issues
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("Response body: \(responseBody)")
                 }
+                #endif
                 throw ServiceError.apiError(
                     "Server returned status code \(httpResponse.statusCode)")
             }
@@ -3076,9 +3090,11 @@ public final class BlueskyService: Sendable {
         if let httpResponse = response as? HTTPURLResponse {
             logger.info("[Bluesky] likePost response status: \(httpResponse.statusCode)")
             if httpResponse.statusCode != 200 {
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("[Bluesky] likePost error response: \(responseBody)")
                 }
+                #endif
             }
         }
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -3227,9 +3243,11 @@ public final class BlueskyService: Sendable {
         if let httpResponse = response as? HTTPURLResponse {
             logger.info("[Bluesky] unlikePost response status: \(httpResponse.statusCode)")
             if httpResponse.statusCode != 200 {
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("[Bluesky] unlikePost error response: \(responseBody)")
                 }
+                #endif
             }
         }
 
@@ -3335,9 +3353,11 @@ public final class BlueskyService: Sendable {
         if let httpResponse = response as? HTTPURLResponse {
             logger.info("[Bluesky] repostPost response status: \(httpResponse.statusCode)")
             if httpResponse.statusCode != 200 {
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("[Bluesky] repostPost error response: \(responseBody)")
                 }
+                #endif
             }
         }
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
@@ -3489,9 +3509,11 @@ public final class BlueskyService: Sendable {
         if let httpResponse = response as? HTTPURLResponse {
             logger.info("[Bluesky] unrepostPost response status: \(httpResponse.statusCode)")
             if httpResponse.statusCode != 200 {
+                #if DEBUG
                 if let responseBody = String(data: data, encoding: .utf8) {
                     logger.error("[Bluesky] unrepostPost error response: \(responseBody)")
                 }
+                #endif
             }
         }
 
@@ -3764,8 +3786,10 @@ public final class BlueskyService: Sendable {
         
         guard httpResponse.statusCode == 200 else {
             // Try to get error message from response
+            #if DEBUG
             let responseString = String(data: data, encoding: .utf8) ?? "Unable to decode response"
             print("❌ [BlueskyService] Follow failed: HTTP \(httpResponse.statusCode), response: \(responseString)")
+            #endif
             
             if let errorJson = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let error = errorJson["error"] as? String {

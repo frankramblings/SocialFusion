@@ -322,6 +322,7 @@
 		FEE2644527BCB85258001783 /* EmojiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 871F461B5F16031B01DAF2DB /* EmojiService.swift */; };
 		9BC6B2481DDF0EC7B134BA93 /* DraftStoreIOTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0CE779F56140DF6F2E7BDC8 /* DraftStoreIOTests.swift */; };
 		80F737CE7F72F3F4186DC06F /* ViewTrackerPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E330BAD0B22CB6C35AEE8FA3 /* ViewTrackerPerformanceTests.swift */; };
+		6C838691D98D8AD1B6FB6208 /* ReleaseLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA7F183502DFAB2126E64F1B /* ReleaseLoggingTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -667,6 +668,7 @@
 		FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatters.swift; sourceTree = "<group>"; };
 		A0CE779F56140DF6F2E7BDC8 /* DraftStoreIOTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DraftStoreIOTests.swift; sourceTree = "<group>"; };
 		E330BAD0B22CB6C35AEE8FA3 /* ViewTrackerPerformanceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ViewTrackerPerformanceTests.swift; sourceTree = "<group>"; };
+		AA7F183502DFAB2126E64F1B /* ReleaseLoggingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReleaseLoggingTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -737,6 +739,7 @@
 				6E506C216A13B8D4DC54CCEC /* SearchPostRenderingTests.swift */,
 				5AEA2B9342D631CF1ED9B1E2 /* SearchPostMappingTests.swift */,
 				29C7EDFE5C2D8CDD8B45BED6 /* SearchStoreTests.swift */,
+				AA7F183502DFAB2126E64F1B /* ReleaseLoggingTests.swift */,
 				E330BAD0B22CB6C35AEE8FA3 /* ViewTrackerPerformanceTests.swift */,
 				A0CE779F56140DF6F2E7BDC8 /* DraftStoreIOTests.swift */,
 				E4E9A959A1FB8C632579ECBB /* DirectOpenDetectorTests.swift */,
@@ -1377,6 +1380,7 @@
 				2C22645352B20FC25EF06E19 /* SearchPostRenderingTests.swift in Sources */,
 				5D5C60308F149F46464E1077 /* SearchPostMappingTests.swift in Sources */,
 				6D216F315DF7CAD09950C3A1 /* SearchStoreTests.swift in Sources */,
+				6C838691D98D8AD1B6FB6208 /* ReleaseLoggingTests.swift in Sources */,
 				80F737CE7F72F3F4186DC06F /* ViewTrackerPerformanceTests.swift in Sources */,
 				9BC6B2481DDF0EC7B134BA93 /* DraftStoreIOTests.swift in Sources */,
 				0810A78BEDB0147DA19E7A99 /* DirectOpenDetectorTests.swift in Sources */,
