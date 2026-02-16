@@ -35,11 +35,11 @@ struct TimelineFeedPickerPopover: View {
                 instanceBrowserView
             }
         }
-        .onChange(of: scope) { _, _ in
+        .onChange(of: scope) { _ in
             step = .root
             viewModel.instanceSearchText = ""
         }
-        .onChange(of: isPresented) { _, presented in
+        .onChange(of: isPresented) { presented in
             if presented {
                 step = .root
                 viewModel.instanceSearchText = ""

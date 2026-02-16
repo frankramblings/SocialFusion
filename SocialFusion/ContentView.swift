@@ -44,9 +44,6 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var sidebarSelection: Int? = 0
 
-    // Tab customization for sidebarAdaptable style
-    @AppStorage("tabViewCustomization") private var tabCustomization: TabViewCustomization = .init()
-
     var body: some View {
         ZStack {
             modernTabView
@@ -93,101 +90,16 @@ struct ContentView: View {
         .withToastNotifications()
     }
 
-    // MARK: - Modern TabView (iOS 18+ Tab API with sidebarAdaptable)
+    // MARK: - Tab View (iOS 18+ sidebarAdaptable with iOS 17 fallback)
 
     private var modernTabView: some View {
-        TabView(selection: $selectedTab) {
-            // Home Tab
-            Tab("Home", systemImage: "house.fill", value: 0) {
-                NavigationStack {
-                    ZStack {
-                        ConsolidatedTimelineView(serviceManager: serviceManager)
-                        if showAccountDropdown {
-                            accountDropdownOverlay
-                        }
-                        if isSwitchingAccounts {
-                            VStack {
-                                ProgressView("Switching account…")
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 8)
-                                    .background(.ultraThinMaterial, in: Capsule())
-                                Spacer()
-                            }
-                            .padding(.top, 8)
-                            .transition(.opacity)
-                            .zIndex(10)
-                            .allowsHitTesting(false)
-                        }
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            accountButton
-                        }
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            composeButton
-                        }
-                    }
-                }
+        Group {
+            if #available(iOS 18.0, *) {
+                ios18TabView
+            } else {
+                ios17TabView
             }
-            .customizationID("com.socialfusion.home")
-
-            // Notifications Tab
-            Tab("Notifications", systemImage: "bell.fill", value: 1) {
-                NavigationStack {
-                    NotificationsView(
-                        showAccountDropdown: $showAccountDropdown,
-                        showComposeView: $showComposeView,
-                        showValidationView: $showValidationView,
-                        selectedAccountId: $selectedAccountId,
-                        previousAccountId: $previousAccountId
-                    )
-                    .environmentObject(serviceManager)
-                }
-            }
-            .customizationID("com.socialfusion.notifications")
-
-            // Search Tab with search role
-            Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
-                NavigationStack {
-                    SearchView(
-                        showAccountDropdown: $showAccountDropdown,
-                        showComposeView: $showComposeView,
-                        showValidationView: $showValidationView,
-                        selectedAccountId: $selectedAccountId,
-                        previousAccountId: $previousAccountId
-                    )
-                    .environmentObject(serviceManager)
-                }
-            }
-            .customizationID("com.socialfusion.search")
-
-            // Messages section (grouped with Profile on iPad sidebar)
-            TabSection("Social") {
-                Tab("Messages", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
-                    NavigationStack {
-                        DirectMessagesView(
-                            showAccountDropdown: $showAccountDropdown,
-                            showComposeView: $showComposeView,
-                            showValidationView: $showValidationView,
-                            selectedAccountId: $selectedAccountId,
-                            previousAccountId: $previousAccountId
-                        )
-                        .environmentObject(serviceManager)
-                    }
-                }
-                .customizationID("com.socialfusion.messages")
-
-                Tab("Profile", systemImage: "person.fill", value: 4) {
-                    NavigationStack {
-                        profileContent
-                    }
-                }
-                .customizationID("com.socialfusion.profile")
-            }
-            .customizationID("com.socialfusion.social")
         }
-        .tabViewStyle(.sidebarAdaptable)
-        .tabViewCustomization($tabCustomization)
         .tint(Color("AppPrimaryColor"))
         .onChange(of: selectedTab) { _, _ in
             // Tab persisted automatically via @SceneStorage
@@ -228,6 +140,147 @@ struct ContentView: View {
                 return .systemAction
             }
         )
+    }
+
+    // MARK: - iOS 18+ Tab View (sidebarAdaptable with Tab/TabSection)
+
+    @available(iOS 18.0, *)
+    private var ios18TabView: some View {
+        TabView(selection: $selectedTab) {
+            Tab("Home", systemImage: "house.fill", value: 0) {
+                homeTabContent
+            }
+            .customizationID("com.socialfusion.home")
+
+            Tab("Notifications", systemImage: "bell.fill", value: 1) {
+                notificationsTabContent
+            }
+            .customizationID("com.socialfusion.notifications")
+
+            Tab("Search", systemImage: "magnifyingglass", value: 3, role: .search) {
+                searchTabContent
+            }
+            .customizationID("com.socialfusion.search")
+
+            TabSection("Social") {
+                Tab("Messages", systemImage: "bubble.left.and.bubble.right.fill", value: 2) {
+                    messagesTabContent
+                }
+                .customizationID("com.socialfusion.messages")
+
+                Tab("Profile", systemImage: "person.fill", value: 4) {
+                    profileTabContent
+                }
+                .customizationID("com.socialfusion.profile")
+            }
+            .customizationID("com.socialfusion.social")
+        }
+        .tabViewStyle(.sidebarAdaptable)
+    }
+
+    // MARK: - iOS 17 Fallback Tab View
+
+    private var ios17TabView: some View {
+        TabView(selection: $selectedTab) {
+            homeTabContent
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(0)
+
+            notificationsTabContent
+                .tabItem { Label("Notifications", systemImage: "bell.fill") }
+                .tag(1)
+
+            messagesTabContent
+                .tabItem { Label("Messages", systemImage: "bubble.left.and.bubble.right.fill") }
+                .tag(2)
+
+            searchTabContent
+                .tabItem { Label("Search", systemImage: "magnifyingglass") }
+                .tag(3)
+
+            profileTabContent
+                .tabItem { Label("Profile", systemImage: "person.fill") }
+                .tag(4)
+        }
+    }
+
+    // MARK: - Shared Tab Content
+
+    private var homeTabContent: some View {
+        NavigationStack {
+            ZStack {
+                ConsolidatedTimelineView(serviceManager: serviceManager)
+                if showAccountDropdown {
+                    accountDropdownOverlay
+                }
+                if isSwitchingAccounts {
+                    VStack {
+                        ProgressView("Switching account…")
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
+                        Spacer()
+                    }
+                    .padding(.top, 8)
+                    .transition(.opacity)
+                    .zIndex(10)
+                    .allowsHitTesting(false)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    accountButton
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    composeButton
+                }
+            }
+        }
+    }
+
+    private var notificationsTabContent: some View {
+        NavigationStack {
+            NotificationsView(
+                showAccountDropdown: $showAccountDropdown,
+                showComposeView: $showComposeView,
+                showValidationView: $showValidationView,
+                selectedAccountId: $selectedAccountId,
+                previousAccountId: $previousAccountId
+            )
+            .environmentObject(serviceManager)
+        }
+    }
+
+    private var searchTabContent: some View {
+        NavigationStack {
+            SearchView(
+                showAccountDropdown: $showAccountDropdown,
+                showComposeView: $showComposeView,
+                showValidationView: $showValidationView,
+                selectedAccountId: $selectedAccountId,
+                previousAccountId: $previousAccountId
+            )
+            .environmentObject(serviceManager)
+        }
+    }
+
+    private var messagesTabContent: some View {
+        NavigationStack {
+            DirectMessagesView(
+                showAccountDropdown: $showAccountDropdown,
+                showComposeView: $showComposeView,
+                showValidationView: $showValidationView,
+                selectedAccountId: $selectedAccountId,
+                previousAccountId: $previousAccountId
+            )
+            .environmentObject(serviceManager)
+        }
+    }
+
+    private var profileTabContent: some View {
+        NavigationStack {
+            profileContent
+        }
     }
 
     private var accountButton: some View {
