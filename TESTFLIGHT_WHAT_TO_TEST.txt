@@ -84,3 +84,30 @@ Run `./run_tests.sh` for automated matrix preflight.
 See Docs/ship-readiness-matrix.md for full test ownership map.
 
 Thank you for testing SocialFusion! 🚀
+
+═══════════════════════════════════════════════════════════════
+
+📦 Ship Readiness RC (2026-02-15)
+───────────────────────────────────────────────────────────────
+
+New in this build:
+• Floating compose button for one-handed use on large iPhones
+• Search now uses native .searchable modifier with suggestions
+• Search race conditions fixed (latest query always wins)
+• Tab and account selection restored across app relaunches
+• Draft persistence moved off main thread
+• Sensitive token/response logging removed from release builds
+• Fullscreen media swipe/dismiss gesture friction reduced
+• Share Extension ready (source files, target setup pending)
+• App Intents return structured feedback to Shortcuts
+• Notification permission no longer auto-prompted on launch
+• iPad multi-scene support enabled
+
+What to test:
+1. Launch on iPhone 17 Pro Max — floating compose button in bottom-right
+2. Search for a user/tag — verify suggestions appear
+3. Type quickly in search, change queries — latest results should win
+4. Kill and relaunch the app — selected tab and account should restore
+5. Open fullscreen media with multiple images — swipe between them
+6. Check Settings > Notifications toggle works
+7. On iPad, try opening a second window (multitasking)
