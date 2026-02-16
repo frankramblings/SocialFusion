@@ -66,3 +66,64 @@ final class ComposeAutocompleteServiceKeyTests: XCTestCase {
         XCTAssertNotEqual(key1, key2)
     }
 }
+
+@MainActor
+final class ComposeAutoFocusGateTests: XCTestCase {
+    func testGateOnlyAllowsOneRequestUntilReset() {
+        var gate = ComposeAutoFocusGate()
+
+        XCTAssertTrue(
+            gate.shouldRequestAutoFocus(
+                isAutoFocusEnabled: true,
+                isFirstResponder: false,
+                hasWindow: true
+            )
+        )
+
+        XCTAssertFalse(
+            gate.shouldRequestAutoFocus(
+                isAutoFocusEnabled: true,
+                isFirstResponder: false,
+                hasWindow: true
+            )
+        )
+
+        gate.reset()
+
+        XCTAssertTrue(
+            gate.shouldRequestAutoFocus(
+                isAutoFocusEnabled: true,
+                isFirstResponder: false,
+                hasWindow: true
+            )
+        )
+    }
+
+    func testGateSkipsInvalidFocusStates() {
+        var gate = ComposeAutoFocusGate()
+
+        XCTAssertFalse(
+            gate.shouldRequestAutoFocus(
+                isAutoFocusEnabled: false,
+                isFirstResponder: false,
+                hasWindow: true
+            )
+        )
+
+        XCTAssertFalse(
+            gate.shouldRequestAutoFocus(
+                isAutoFocusEnabled: true,
+                isFirstResponder: true,
+                hasWindow: true
+            )
+        )
+
+        XCTAssertFalse(
+            gate.shouldRequestAutoFocus(
+                isAutoFocusEnabled: true,
+                isFirstResponder: false,
+                hasWindow: false
+            )
+        )
+    }
+}

@@ -164,12 +164,22 @@ public struct ShareImageRenderer {
     
     /// Saves the rendered image to a temporary file and returns the URL
     public static func saveToTempFile(_ image: UIImage, filename: String) throws -> URL {
-        guard let data = image.pngData() else {
-            throw RenderError.failedToEncode
-        }
+        let preparedImage = prepareOpaqueImageForExport(image)
 
         let tempDir = FileManager.default.temporaryDirectory
         let fileURL = tempDir.appendingPathComponent(filename)
+        let fileExtension = fileURL.pathExtension.lowercased()
+
+        let data: Data?
+        if fileExtension == "jpg" || fileExtension == "jpeg" {
+            data = preparedImage.jpegData(compressionQuality: 0.95)
+        } else {
+            data = preparedImage.pngData()
+        }
+
+        guard let data else {
+            throw RenderError.failedToEncode
+        }
 
         try data.write(to: fileURL)
 
@@ -235,6 +245,38 @@ public struct ShareImageRenderer {
             showWatermark: document.showWatermark,
             includeReplies: document.includeReplies
         )
+    }
+
+    private static func prepareOpaqueImageForExport(_ image: UIImage) -> UIImage {
+        guard hasAlphaChannel(image) else {
+            return image
+        }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+
+        let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+        return renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: image.size))
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+    }
+
+    private static func hasAlphaChannel(_ image: UIImage) -> Bool {
+        guard let alphaInfo = image.cgImage?.alphaInfo else {
+            return false
+        }
+
+        switch alphaInfo {
+        case .alphaOnly, .first, .last, .premultipliedFirst, .premultipliedLast:
+            return true
+        case .none, .noneSkipFirst, .noneSkipLast:
+            return false
+        @unknown default:
+            return true
+        }
     }
     
     // MARK: - Errors

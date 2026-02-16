@@ -147,6 +147,26 @@ struct ReplyContextHeader: View {
 }
 
 /// A UIViewRepresentable wrapper for UITextView with better focus control and autocomplete support
+struct ComposeAutoFocusGate {
+    private var hasRequested = false
+
+    mutating func shouldRequestAutoFocus(
+        isAutoFocusEnabled: Bool,
+        isFirstResponder: Bool,
+        hasWindow: Bool
+    ) -> Bool {
+        guard isAutoFocusEnabled, !isFirstResponder, hasWindow, !hasRequested else {
+            return false
+        }
+        hasRequested = true
+        return true
+    }
+
+    mutating func reset() {
+        hasRequested = false
+    }
+}
+
 struct FocusableTextEditor: UIViewRepresentable {
     @Binding var text: String
     let placeholder: String
@@ -184,6 +204,14 @@ struct FocusableTextEditor: UIViewRepresentable {
     func updateUIView(_ uiView: UITextView, context: Context) {
         // Thread-safe check to prevent crashes
         guard !Task.isCancelled else { return }
+
+        if context.coordinator.autoFocusGate.shouldRequestAutoFocus(
+            isAutoFocusEnabled: shouldAutoFocus,
+            isFirstResponder: uiView.isFirstResponder,
+            hasWindow: uiView.window != nil
+        ) {
+            context.coordinator.scheduleAutoFocus(for: uiView)
+        }
 
         // Update text if it's different and not showing placeholder
         // Only update if the text actually changed to avoid unnecessary updates
@@ -246,25 +274,14 @@ struct FocusableTextEditor: UIViewRepresentable {
             uiView.selectedRange = NSRange(location: text.utf16.count, length: 0)
         }
 
-        // Handle auto-focus with proper safety checks
-        if shouldAutoFocus && !uiView.isFirstResponder {
-            // Check if the view is still in the view hierarchy
-            guard uiView.window != nil else { return }
-
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
-                // Double-check the view is still valid before focusing
-                guard !Task.isCancelled,
-                    uiView.window != nil,
-                    !uiView.isFirstResponder
-                else { return }
-                uiView.becomeFirstResponder()
-            }
-        }
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
+    }
+
+    static func dismantleUIView(_ uiView: UITextView, coordinator: Coordinator) {
+        coordinator.cancelPendingAutoFocus()
     }
 
     class Coordinator: NSObject, UITextViewDelegate {
@@ -272,6 +289,8 @@ struct FocusableTextEditor: UIViewRepresentable {
         private var isUpdating = false
         private var lastToken: AutocompleteToken?
         weak var textView: UITextView?
+        var autoFocusGate = ComposeAutoFocusGate()
+        private var pendingAutoFocusTask: Task<Void, Never>?
         private var lastKnownText: String = ""
         private var lastKnownEntities: [TextEntity] = []
         private var previousText: String = ""  // Track previous text for edit range computation
@@ -284,11 +303,27 @@ struct FocusableTextEditor: UIViewRepresentable {
         }
 
         deinit {
+            pendingAutoFocusTask?.cancel()
             parent = nil
         }
 
         func setTextView(_ textView: UITextView) {
             self.textView = textView
+        }
+
+        func scheduleAutoFocus(for textView: UITextView) {
+            pendingAutoFocusTask?.cancel()
+            pendingAutoFocusTask = Task { @MainActor [weak textView] in
+                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
+                guard let textView, !Task.isCancelled, textView.window != nil, !textView.isFirstResponder
+                else { return }
+                textView.becomeFirstResponder()
+            }
+        }
+
+        func cancelPendingAutoFocus() {
+            pendingAutoFocusTask?.cancel()
+            pendingAutoFocusTask = nil
         }
 
         func textViewDidBeginEditing(_ textView: UITextView) {

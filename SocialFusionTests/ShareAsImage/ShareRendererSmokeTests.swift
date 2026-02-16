@@ -1,5 +1,6 @@
 import XCTest
 @testable import SocialFusion
+import Darwin
 
 /// Smoke tests for ShareImageRenderer - minimal rendering validation
 /// These tests ensure the renderer doesn't crash and produces valid output
@@ -275,6 +276,25 @@ final class ShareRendererSmokeTests: XCTestCase {
         XCTAssertNotNil(image, "Should render anonymized document")
     }
 
+    func testShareAsImageViewModelInitialPreviewRendersQuickly() async throws {
+        // Given: A simple post
+        let post = ShareAsImageTestHelpers.makePost(content: "Preview speed test")
+
+        // When: Opening share-as-image
+        let viewModel = ShareAsImageViewModel(post: post, threadContext: nil, isReply: false)
+
+        // Then: Initial preview should appear quickly
+        let deadline = Date().addingTimeInterval(0.35)
+        while viewModel.previewImage == nil && Date() < deadline {
+            try await Task.sleep(nanoseconds: 25_000_000)
+        }
+
+        XCTAssertNotNil(
+            viewModel.previewImage,
+            "Initial preview should render quickly, before media preloading fully completes."
+        )
+    }
+
     // MARK: - Save to File Tests
 
     func testSaveToTempFile() async throws {
@@ -312,6 +332,62 @@ final class ShareRendererSmokeTests: XCTestCase {
 
         // Cleanup
         try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func testSaveToTempFileWritesOpaqueImageData() throws {
+        // Given: A rendered image
+        let post = ShareAsImageTestHelpers.makePost(content: "Opaque output validation")
+        var mapping: [String: String] = [:]
+
+        let postRenderable = UnifiedAdapter.convertPost(post, hideUsernames: false, userMapping: &mapping)
+        let document = ShareImageDocument(
+            selectedPost: postRenderable,
+            selectedCommentID: nil,
+            ancestorChain: [],
+            replySubtree: [],
+            includePostDetails: true,
+            hideUsernames: false,
+            showWatermark: true,
+            includeReplies: false
+        )
+
+        guard let image = ShareImageRenderer.renderPreview(document: document) else {
+            XCTFail("Failed to render image")
+            return
+        }
+
+        // When: Saving to temp file
+        let filename = "test-share-opaque-\(UUID().uuidString).jpg"
+        let fileURL = try ShareImageRenderer.saveToTempFile(image, filename: filename)
+        let savedData = try Data(contentsOf: fileURL)
+        let savedImage = try XCTUnwrap(UIImage(data: savedData))
+        let cgImage = try XCTUnwrap(savedImage.cgImage)
+
+        // Then: The encoded image should not contain an alpha channel
+        XCTAssertFalse(hasAlphaChannel(cgImage.alphaInfo), "Saved share image should be encoded as opaque")
+
+        // Cleanup
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    func testUpdateMemoryUsageInPreparationDoesNotLogRollbackWarning() {
+        let manager = GradualMigrationManager.shared
+        let originalPhase = manager.migrationPhase
+
+        defer {
+            manager.migrationPhase = originalPhase
+        }
+
+        manager.migrationPhase = .preparation
+
+        let output = captureStandardOutput {
+            manager.updateMemoryUsage(350.0)
+        }
+
+        XCTAssertFalse(
+            output.contains("Cannot rollback from preparation"),
+            "Auto-rollback checks should skip cleanly when there is no previous phase."
+        )
     }
 
     // MARK: - Error Handling Tests
@@ -354,5 +430,31 @@ final class ShareRendererSmokeTests: XCTestCase {
 
         // Then: Test passes if measure completes without timeout
         // Performance baselines are established by the measure block
+    }
+
+    private func hasAlphaChannel(_ alphaInfo: CGImageAlphaInfo) -> Bool {
+        switch alphaInfo {
+        case .alphaOnly, .first, .last, .premultipliedFirst, .premultipliedLast:
+            return true
+        case .none, .noneSkipFirst, .noneSkipLast:
+            return false
+        @unknown default:
+            return true
+        }
+    }
+
+    private func captureStandardOutput(_ action: () -> Void) -> String {
+        let pipe = Pipe()
+        let originalStdout = dup(STDOUT_FILENO)
+
+        dup2(pipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
+        action()
+        fflush(stdout)
+        dup2(originalStdout, STDOUT_FILENO)
+        close(originalStdout)
+
+        pipe.fileHandleForWriting.closeFile()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        return String(data: data, encoding: .utf8) ?? ""
     }
 }
