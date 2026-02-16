@@ -86,7 +86,8 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
       forTaskWithIdentifier: Self.bgTaskIdentifier,
       using: nil
     ) { [weak self] task in
-      self?.handleBackgroundRefresh(task as! BGAppRefreshTask)
+      guard let refreshTask = task as? BGAppRefreshTask else { return }
+      self?.handleBackgroundRefresh(refreshTask)
     }
   }
 
