@@ -2615,11 +2615,8 @@ public final class MastodonService: @unchecked Sendable {
         // Check if this is a reblog/boost
         if let reblog = status.reblog {
             // Debug: Log reblog structure
-            logger.info(
+            DebugLog.verbose(
                 "[Mastodon] 🔍 Processing reblog: id=\(reblog.id ?? "nil"), hasMediaAttachments=\(reblog.mediaAttachments?.count ?? 0), mediaAttachments=\(reblog.mediaAttachments?.map { $0.url }.joined(separator: ", ") ?? "none")"
-            )
-            print(
-                "[Mastodon] 🔍 Processing reblog: id=\(reblog.id ?? "nil"), hasMediaAttachments=\(reblog.mediaAttachments?.count ?? 0)"
             )
 
             let reblogCreatedAt: Date = {
@@ -2627,14 +2624,13 @@ public final class MastodonService: @unchecked Sendable {
                 let parsedDate = DateParser.parse(createdAtString)
                 if parsedDate == nil {
                     logger.error("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
-                    print("❌ MASTODON REBLOG DATE PARSE FAILED: '\(createdAtString)'")
                 }
                 return parsedDate ?? Date.distantPast
             }()
             let reblogAttachments: [Post.Attachment] = {
                 // Debug: Check what we're working with
                 let mediaAttachmentsArray = reblog.mediaAttachments ?? []
-                logger.info(
+                DebugLog.verbose(
                     "[Mastodon] 🔍 reblog.mediaAttachments is \(reblog.mediaAttachments == nil ? "nil" : "not nil"), count: \(mediaAttachmentsArray.count)"
                 )
                 if mediaAttachmentsArray.isEmpty && reblog.mediaAttachments != nil {
@@ -2691,10 +2687,7 @@ public final class MastodonService: @unchecked Sendable {
                 }
                 // Log attachments for debugging
                 if !parsedAttachments.isEmpty {
-                    logger.info(
-                        "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
-                    )
-                    print(
+                    DebugLog.verbose(
                         "[Mastodon] 📎 Parsed \(parsedAttachments.count) attachments for reblog \(reblog.id ?? "unknown"): \(parsedAttachments.map { $0.url }.joined(separator: ", "))"
                     )
                 }
@@ -2869,7 +2862,6 @@ public final class MastodonService: @unchecked Sendable {
                     let parsedDate = DateParser.parse(status.createdAt)
                     if parsedDate == nil {
                         logger.error("❌ MASTODON DATE PARSE FAILED: '\(status.createdAt)'")
-                        print("❌ MASTODON DATE PARSE FAILED: '\(status.createdAt)'")
                     }
                     return parsedDate ?? Date.distantPast
                 }(),
@@ -2889,7 +2881,7 @@ public final class MastodonService: @unchecked Sendable {
                     let displayName = status.account.displayName
                     let acct = status.account.acct
                     let boostedByValue = (!(displayName?.isEmpty ?? true)) ? displayName! : acct
-                    logger.info(
+                    DebugLog.verbose(
                         "[Mastodon] Setting boostedBy for boost wrapper: displayName=\(displayName ?? "nil"), acct=\(acct), final=\(boostedByValue)"
                     )
                     return boostedByValue
@@ -2903,7 +2895,7 @@ public final class MastodonService: @unchecked Sendable {
             )
 
             // Log final state after creating boost wrapper
-            logger.info(
+            DebugLog.verbose(
                 "[Mastodon] ✅ Created boost wrapper. Final originalPost attachments: \(boostPost.originalPost?.attachments.count ?? 0), boostedBy: \(boostPost.boostedBy ?? "nil")"
             )
 
@@ -2917,7 +2909,7 @@ public final class MastodonService: @unchecked Sendable {
             guard supportedTypes.contains(media.type), let url = URL(string: media.url),
                 !media.url.isEmpty
             else {
-                print(
+                DebugLog.verbose(
                     "[Mastodon] Skipping unsupported or invalid attachment: \(media.url) type: \(media.type)"
                 )
                 return nil
@@ -2961,7 +2953,7 @@ public final class MastodonService: @unchecked Sendable {
             default:
                 return nil  // Skip unsupported types
             }
-            print(
+            DebugLog.verbose(
                 "[Mastodon] Parsed \(media.type) attachment: \(url) alt: \(alt) -> \(attachmentType)"
             )
             return Post.Attachment(
@@ -2986,7 +2978,6 @@ public final class MastodonService: @unchecked Sendable {
             DateParser.parse(status.createdAt)
             ?? {
                 logger.error("❌ MASTODON MAIN DATE PARSE FAILED: '\(status.createdAt)'")
-                print("❌ MASTODON MAIN DATE PARSE FAILED: '\(status.createdAt)'")
                 return Date.distantPast
             }()
 
@@ -3081,7 +3072,7 @@ public final class MastodonService: @unchecked Sendable {
         )
 
         // DEBUG: Print interaction counts for debugging
-        print(
+        DebugLog.verbose(
             "📊 [MastodonService] Post \(status.id.prefix(10)) - likes: \(status.favouritesCount), reposts: \(status.reblogsCount), replies: \(status.repliesCount)"
         )
 

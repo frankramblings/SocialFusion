@@ -641,11 +641,15 @@ public final class BlueskyService: Sendable {
             )
             return result
         } catch {
-            logger.error("Error fetching Bluesky timeline: \(error.localizedDescription)")
-            if let urlError = error as? URLError {
-                logger.error(
-                    "URLError code: \(urlError.code.rawValue), description: \(urlError.localizedDescription)"
-                )
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+                logger.debug("Bluesky timeline fetch cancelled")
+            } else {
+                logger.error("Bluesky timeline fetch failed: \(error.localizedDescription)")
+                if let urlError = error as? URLError {
+                    logger.error(
+                        "URLError code: \(urlError.code.rawValue), description: \(urlError.localizedDescription)"
+                    )
+                }
             }
             throw ServiceError.timelineError(underlying: error)
         }
@@ -1470,7 +1474,7 @@ public final class BlueskyService: Sendable {
 
             // Helper function to parse attachments from an embed dictionary
             func parseAttachments(from embed: [String: Any], source: String) {
-                logger.info(
+                DebugLog.verbose(
                     "[Bluesky] 🔍 Parsing attachments from \(source) for post \(uri): \(embed.keys.joined(separator: ", "))"
                 )
 
@@ -1650,10 +1654,7 @@ public final class BlueskyService: Sendable {
 
             // Then check top-level embed (might have additional media or quote posts)
             if let topLevelEmbed = post["embed"] as? [String: Any] {
-                print(
-                    "[Bluesky] 🔍 Processing embed for post \(uri): \(topLevelEmbed.keys.joined(separator: ", "))"
-                )
-                logger.info(
+                DebugLog.verbose(
                     "[Bluesky] Processing embed for post \(uri): \(topLevelEmbed.keys.joined(separator: ", "))"
                 )
 
@@ -1673,7 +1674,7 @@ public final class BlueskyService: Sendable {
 
             // Log attachments after parsing
             if !attachments.isEmpty {
-                logger.info(
+                DebugLog.verbose(
                     "[Bluesky] 📎 Parsed \(attachments.count) attachments for post \(uri): \(attachments.map { $0.url }.joined(separator: ", "))"
                 )
             }
@@ -1766,10 +1767,7 @@ public final class BlueskyService: Sendable {
             var externalEmbedThumb: String? = nil
 
             if let embed = post["embed"] as? [String: Any] {
-                print(
-                    "🔍 [QUOTE_DEBUG] Found embed for post \(uri): \(embed.keys.joined(separator: ", "))"
-                )
-                logger.info(
+                DebugLog.verbose(
                     "[Bluesky] Processing embed for post \(uri): \(embed.keys.joined(separator: ", "))"
                 )
 

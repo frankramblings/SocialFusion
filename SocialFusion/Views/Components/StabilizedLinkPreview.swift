@@ -137,8 +137,9 @@ struct StabilizedLinkPreview: View {
 
                 // DEBUG: Log timeout with decision outcome
                 #if DEBUG
-                let decision = serverFieldsExist ? "rich_from_server" : "fallback"
-                print("[LinkPreview] TIMEOUT: LP fetch timed out for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=\(decision)")
+                if !serverFieldsExist {
+                    print("[LinkPreview] TIMEOUT: LP fetch timed out for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=fallback")
+                }
                 #endif
             }
         }
@@ -165,8 +166,9 @@ struct StabilizedLinkPreview: View {
 
                     // DEBUG: Log errors with decision outcome (throttled to slow/fallback only)
                     #if DEBUG
-                    let decision = serverFieldsExist ? "rich_from_server" : "fallback"
-                    print("[LinkPreview] ERROR: LP fetch failed for \(self.url.host ?? "unknown") in \(String(format: "%.2f", elapsed))s, serverCardFields=\(serverFieldsExist), decision=\(decision), error=\(error.localizedDescription)")
+                    if !serverFieldsExist {
+                        print("[LinkPreview] ERROR: LP fetch failed for \(self.url.host ?? "unknown") in \(String(format: "%.2f", elapsed))s, serverCardFields=\(serverFieldsExist), decision=fallback, error=\(error.localizedDescription)")
+                    }
                     #endif
                     return
                 }
@@ -180,9 +182,8 @@ struct StabilizedLinkPreview: View {
 
                     // DEBUG: Log slow fetches only (> 3s threshold)
                     #if DEBUG
-                    if elapsed > 3.0 {
-                        let decision = serverFieldsExist ? "rich_from_server" : "rich_from_lp"
-                        print("[LinkPreview] SLOW: LP fetch took \(String(format: "%.2f", elapsed))s for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=\(decision)")
+                    if elapsed > 3.0 && !serverFieldsExist {
+                        print("[LinkPreview] SLOW: LP fetch took \(String(format: "%.2f", elapsed))s for \(self.url.host ?? "unknown"), serverCardFields=\(serverFieldsExist), decision=rich_from_lp")
                     }
                     #endif
                 } else {
