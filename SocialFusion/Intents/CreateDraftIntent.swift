@@ -20,7 +20,7 @@ struct CreateDraftIntent: AppIntent {
     var openEditor: Bool
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         var queryItems: [String] = []
 
         if let text = text {
@@ -35,6 +35,6 @@ struct CreateDraftIntent: AppIntent {
         let deepLink = URL(string: "socialfusion://draft\(query)")!
 
         await UIApplication.shared.open(deepLink)
-        return .result()
+        return .result(dialog: "Created draft")
     }
 }

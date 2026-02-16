@@ -73,6 +73,58 @@ echo "All components are in place and the build is successful."
 echo "You can now test the new architecture improvements safely."
 
 echo ""
+echo "📊 Ship-Readiness Matrix Preflight"
+echo "==================================="
+
+# Required test suites mapped to ship-readiness waves.
+# Format: "RelativePath:Wave:Owner"
+REQUIRED_SUITES=(
+  # Wave 0 – Baseline
+  "SocialFusionUITests/TimelineRegressionTests.swift:W0:Release"
+  # Wave 1 – P0 Functional
+  "SocialFusionTests/SearchPostRenderingTests.swift:W1:Search"
+  "SocialFusionTests/SearchStoreTests.swift:W1:Search"
+  "SocialFusionUITests/StateRestorationUITests.swift:W1:Navigation"
+  # Wave 2 – P0 Performance/Security
+  "SocialFusionTests/DraftStoreIOTests.swift:W2:Performance"
+  "SocialFusionTests/ViewTrackerPerformanceTests.swift:W2:Performance"
+  "SocialFusionTests/ReleaseLoggingTests.swift:W2:Security"
+  # Wave 3 – P1 Interaction Polish
+  "SocialFusionUITests/ReachabilityUITests.swift:W3:UI"
+  "SocialFusionUITests/FullscreenMediaGestureUITests.swift:W3:Media"
+  # Wave 4 – P1 Platform Integrations
+  "SocialFusionUITests/ShareExtensionFlowUITests.swift:W4:Platform"
+  "SocialFusionTests/AppIntentsTests.swift:W4:Intents"
+  "SocialFusionUITests/NotificationPermissionUITests.swift:W4:Notifications"
+  "SocialFusionUITests/MultiSceneUITests.swift:W4:iPad"
+)
+
+MATRIX_PASS=true
+MATRIX_PRESENT=0
+MATRIX_TOTAL=${#REQUIRED_SUITES[@]}
+
+for entry in "${REQUIRED_SUITES[@]}"; do
+  IFS=':' read -r path wave owner <<< "$entry"
+  if [ -f "$path" ]; then
+    echo "   ✅ [$wave/$owner] $path"
+    MATRIX_PRESENT=$((MATRIX_PRESENT + 1))
+  else
+    echo "   ❌ [$wave/$owner] $path — MISSING"
+    MATRIX_PASS=false
+  fi
+done
+
+echo ""
+echo "Matrix coverage: $MATRIX_PRESENT / $MATRIX_TOTAL suites present"
+
+if [ "$MATRIX_PASS" = false ]; then
+  echo "❌ Ship-readiness matrix preflight FAILED — add missing test suites before RC."
+  exit 1
+fi
+
+echo "✅ Ship-readiness matrix preflight PASSED"
+echo ""
+
 echo "🛡️ Release Candidate Gates"
 echo "========================="
 echo "Running targeted stabilization tests..."

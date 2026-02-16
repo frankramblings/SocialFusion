@@ -16,7 +16,7 @@ public class DraftStore: ObservableObject {
     }
     
     public init() {
-        loadDrafts()
+        loadDraftsAsync()
     }
     
     public func saveDraft(
@@ -88,15 +88,26 @@ public class DraftStore: ObservableObject {
         }
     }
     
-    private func loadDrafts() {
-        guard fileManager.fileExists(atPath: draftsURL.path) else { return }
-        do {
-            let data = try Data(contentsOf: draftsURL)
-            drafts = try JSONDecoder().decode([DraftPost].self, from: data)
-            sortDrafts()
-        } catch {
-            logger.error("load_drafts_failed error=\(error.localizedDescription, privacy: .public)")
+    /// Load drafts asynchronously to avoid blocking the main thread with file I/O and decode.
+    private func loadDraftsAsync() {
+        let url = draftsURL
+        Task.detached(priority: .userInitiated) { [weak self] in
+            guard FileManager.default.fileExists(atPath: url.path) else { return }
+            do {
+                let data = try Data(contentsOf: url)
+                let decoded = try JSONDecoder().decode([DraftPost].self, from: data)
+                await self?.applyLoadedDrafts(decoded)
+            } catch {
+                await MainActor.run {
+                    self?.logger.error("load_drafts_failed error=\(error.localizedDescription, privacy: .public)")
+                }
+            }
         }
+    }
+
+    private func applyLoadedDrafts(_ loaded: [DraftPost]) {
+        drafts = loaded
+        sortDrafts()
     }
 }
 

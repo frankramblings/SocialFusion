@@ -14,7 +14,7 @@ struct OpenInSocialFusionIntent: AppIntent {
     var url: URL
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         let urlService = URLService.shared
 
         // Check if it's a recognized social URL
@@ -56,6 +56,6 @@ struct OpenInSocialFusionIntent: AppIntent {
             }
         }
 
-        return .result()
+        return .result(dialog: "Opened in SocialFusion")
     }
 }

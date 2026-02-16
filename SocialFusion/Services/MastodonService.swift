@@ -889,7 +889,7 @@ public final class MastodonService: @unchecked Sendable {
 
         logger.info("🔄 MASTODON: Fetching timeline from: \(urlString)")
         print("🔄 MASTODON: Fetching timeline from: \(urlString)")
-        print("🔄 MASTODON: Token preview: \(String(token.prefix(10)))...")
+        print("🔄 MASTODON: Token present, proceeding with request")
 
         // Create request
         var request = URLRequest(url: url)
@@ -946,9 +946,11 @@ public final class MastodonService: @unchecked Sendable {
 
             if httpResponse.statusCode != 200 {
                 // Log response body for debugging
+                #if DEBUG
                 if let responseString = String(data: data, encoding: .utf8) {
                     logger.error("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
                 }
+                #endif
                 throw ServiceError.apiError(
                     "Server returned status code \(httpResponse.statusCode)")
             }
@@ -979,9 +981,11 @@ public final class MastodonService: @unchecked Sendable {
                 logger.error("❌ MASTODON JSON DECODE ERROR: \(error)")
 
                 // Try to log first 1000 characters of response to see what we got
+                #if DEBUG
                 if let responseString = String(data: data, encoding: .utf8) {
                     logger.error("❌ MASTODON RAW RESPONSE: \(String(responseString.prefix(1000)))")
                 }
+                #endif
 
                 // Try to decode as a single status instead of array (some endpoints return single objects)
                 if let singleStatus = try? JSONDecoder().decode(MastodonStatus.self, from: data) {
@@ -1320,9 +1324,11 @@ public final class MastodonService: @unchecked Sendable {
                 }
 
                 // Log response body for debugging
+                #if DEBUG
                 if let responseString = String(data: data, encoding: .utf8) {
                     logger.error("❌ MASTODON: Response body: \(String(responseString.prefix(500)))")
                 }
+                #endif
 
                 let errorMessage = "Failed to fetch user timeline: HTTP \(httpResponse.statusCode)"
                 logger.error("❌ MASTODON: \(errorMessage)")
@@ -1384,9 +1390,11 @@ public final class MastodonService: @unchecked Sendable {
         }
         
         // Debug: Log the raw response
+        #if DEBUG
         if let responseString = String(data: data, encoding: .utf8) {
             print("🔍 [Search] Raw response: \(responseString.prefix(500))")
         }
+        #endif
         print("🔍 [Search] Response data size: \(data.count) bytes, status: \(httpResponse.statusCode)")
 
         // Some instances return 500 but still include valid JSON data
@@ -3251,9 +3259,10 @@ public final class MastodonService: @unchecked Sendable {
             }
 
             request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-            print("🔐 Using access token for \(account.username): \(accessToken.prefix(10))...")
-
+            #if DEBUG
+            print("🔐 Using access token for \(account.username)")
             print("🌐 Making Mastodon API request to: \(endpoint)")
+            #endif
             let (data, response) = try await URLSession.shared.data(for: request)
 
             // Check HTTP response status
@@ -3289,9 +3298,11 @@ public final class MastodonService: @unchecked Sendable {
                     print(
                         "❌ Mastodon API returned error status \(httpResponse.statusCode) for \(account.username)"
                     )
+                    #if DEBUG
                     if let responseString = String(data: data, encoding: .utf8) {
                         print("❌ Response body: \(responseString)")
                     }
+                    #endif
                     return
                 }
             }
@@ -3544,9 +3555,11 @@ public final class MastodonService: @unchecked Sendable {
                     userInfo: [NSLocalizedDescriptionKey: "Failed to fetch status"])
             }
 
+            #if DEBUG
             if let responseStr = String(data: data, encoding: .utf8) {
                 logger.debug("Raw response from Mastodon API: \(responseStr.prefix(200))...")
             }
+            #endif
 
             let status = try JSONDecoder().decode(MastodonStatus.self, from: data)
             logger.info(

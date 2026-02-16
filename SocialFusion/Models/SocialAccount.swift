@@ -236,11 +236,15 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         // Store tokens securely
         if let accessToken = accessToken {
             saveAccessToken(accessToken)
-            print("Saved access token for \(username): \(accessToken.prefix(5))...")
+            #if DEBUG
+            print("Saved access token for \(username)")
+            #endif
 
             if let refreshToken = refreshToken {
                 saveRefreshToken(refreshToken)
-                print("Saved refresh token for \(username): \(refreshToken.prefix(5))...")
+                #if DEBUG
+                print("Saved refresh token for \(username)")
+                #endif
             }
 
             if let expirationDate = expirationDate {

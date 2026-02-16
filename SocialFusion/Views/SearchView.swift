@@ -31,6 +31,8 @@ struct SearchView: View {
     @State private var showAddAccountView = false
     @State private var trendingTags: [SearchTag] = []
     @State private var isLoadingTrending = false
+    @State private var replyingToPost: Post? = nil
+    @State private var quotingToPost: Post? = nil
     
     init(
         showAccountDropdown: Binding<Bool>,
@@ -49,35 +51,7 @@ struct SearchView: View {
     var body: some View {
         VStack(spacing: 0) {
             if let store = searchStore {
-                // Use ObservedObject wrapper to ensure SwiftUI observes changes
                 SearchStoreWrapper(store: store) { observedStore in
-                    // Search Bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("Search for people, posts, and hashtags", text: Binding(
-                        get: { observedStore.text },
-                        set: { observedStore.text = $0 }
-                    ))
-                        .textFieldStyle(PlainTextFieldStyle())
-                        .onSubmit {
-                            observedStore.performSearch()
-                        }
-                    if !observedStore.text.isEmpty {
-                        Button(action: {
-                            observedStore.text = ""
-                        }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                .padding(10)
-                .background(Color(.systemGray6))
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.top, 10)
-                
                 // Chip Row (when results are available)
                 if let chipModel = observedStore.chipRowModel, observedStore.phase.hasResults {
                     SearchChipRow(
@@ -87,7 +61,7 @@ struct SearchView: View {
                     )
                     .padding(.vertical, 8)
                 }
-                
+
                 // Direct Open Target (if detected)
                 if let directTarget = observedStore.directOpenTarget {
                     DirectOpenRow(target: directTarget) {
@@ -96,7 +70,7 @@ struct SearchView: View {
                     .padding(.horizontal)
                     .padding(.vertical, 8)
                 }
-                
+
                 // Scope Picker
                 if !observedStore.text.isEmpty || observedStore.phase.hasResults {
                     Picker("Search Scope", selection: Binding(
@@ -110,7 +84,7 @@ struct SearchView: View {
                     .pickerStyle(SegmentedPickerStyle())
                     .padding()
                 }
-                
+
                 // Results or Empty State
                 if observedStore.phase.isLoading && observedStore.results.isEmpty {
                     Spacer()
@@ -155,6 +129,24 @@ struct SearchView: View {
                 ProgressView("Initializing...")
                 Spacer()
             }
+        }
+        .searchable(
+            text: Binding(
+                get: { searchStore?.text ?? "" },
+                set: { searchStore?.text = $0 }
+            ),
+            prompt: "People, posts, and hashtags"
+        ) {
+            if let store = searchStore {
+                let suggestions = store.suggestions(for: store.text)
+                ForEach(suggestions, id: \.self) { suggestion in
+                    Text(suggestion)
+                        .searchCompletion(suggestion)
+                }
+            }
+        }
+        .onSubmit(of: .search) {
+            searchStore?.performSearch()
         }
         .navigationDestination(
             isPresented: Binding(
@@ -226,6 +218,14 @@ struct SearchView: View {
                 }
                 isLoadingTrending = false
             }
+        }
+        .sheet(item: $replyingToPost) { post in
+            ComposeView(replyingTo: post)
+                .environmentObject(serviceManager)
+        }
+        .sheet(item: $quotingToPost) { post in
+            ComposeView(quotingTo: post)
+                .environmentObject(serviceManager)
         }
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
@@ -305,16 +305,24 @@ struct SearchView: View {
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
             onReply: {
-                // Reply handling - would need reply state management
+                replyingToPost = post.originalPost ?? post
             },
             onRepost: {
                 Task {
-                    try? await serviceManager.repostPost(post)
+                    do {
+                        _ = try await serviceManager.repostPost(post)
+                    } catch {
+                        ErrorHandler.shared.handleError(error)
+                    }
                 }
             },
             onLike: {
                 Task {
-                    try? await serviceManager.likePost(post)
+                    do {
+                        _ = try await serviceManager.likePost(post)
+                    } catch {
+                        ErrorHandler.shared.handleError(error)
+                    }
                 }
             },
             onShare: { post.presentShareSheet() },
@@ -322,7 +330,7 @@ struct SearchView: View {
             onCopyLink: { post.copyLink() },
             onReport: { report(post) },
             onQuote: {
-                // Quote handling
+                quotingToPost = post
             }
         )
     }

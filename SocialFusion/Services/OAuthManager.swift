@@ -130,7 +130,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
                 self.clientId = clientId
                 self.clientSecret = clientSecret
                 
-                NSLog("🔐 [OAuth] Step 2: Starting OAuth flow with clientId: %@", clientId)
+                NSLog("🔐 [OAuth] Step 2: Starting OAuth flow")
 
                 // Step 2: Start OAuth flow
                 await MainActor.run {

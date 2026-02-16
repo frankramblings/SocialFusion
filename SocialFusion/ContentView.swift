@@ -9,10 +9,10 @@ struct ContentView: View {
     @EnvironmentObject var appVersionManager: AppVersionManager
     @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
     @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
-    @State private var selectedTab = 0
+    @SceneStorage("selectedTab") private var selectedTab = 0
 
-    // Account selection state
-    @State private var selectedAccountId: String? = nil  // nil means showing unified view
+    // Account selection state — persisted across relaunches via SceneStorage
+    @SceneStorage("selectedAccountId") private var selectedAccountId: String?
     @State private var previousAccountId: String? = nil  // For back/forth navigation between accounts
 
     // UI control states
@@ -50,6 +50,33 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             modernTabView
+
+            // Floating compose button for one-handed reachability on large phones
+            if horizontalSizeClass == .compact {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Button {
+                            showComposeView = true
+                        } label: {
+                            Image(systemName: "square.and.pencil")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(Color("AppPrimaryColor"))
+                                .clipShape(Circle())
+                                .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
+                        }
+                        .accessibilityLabel("Compose")
+                        .accessibilityHint("Create a new post")
+                        .accessibilityIdentifier("FloatingComposeButton")
+                        .padding(.trailing, 20)
+                        .padding(.bottom, 16)
+                    }
+                }
+                .zIndex(500)
+            }
 
             if UITestHooks.isEnabled {
                 uiTestAccountSwitchOverlay
@@ -189,13 +216,13 @@ struct ContentView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tabViewCustomization($tabCustomization)
         .tint(Color("AppPrimaryColor"))
-        .onChange(of: selectedTab) { _, newTab in
-            UserDefaults.standard.set(newTab, forKey: "currentSelectedTab")
+        .onChange(of: selectedTab) { _, _ in
+            // Tab persisted automatically via @SceneStorage
         }
         .onAppear {
             setupTabBarDelegate()
             initializeSelection()
-            requestNotificationPermissions()
+            registerNotificationCategories()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
@@ -396,21 +423,9 @@ struct ContentView: View {
         }
     }
 
-    /// Request notification permissions for showing token refresh alerts
-    private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
-            granted, error in
-            if let error = error {
-                DebugLog.verbose(
-                    "Failed to request notification permissions: \(error.localizedDescription)")
-            } else if granted {
-                DebugLog.verbose("Notification permissions granted")
-            } else {
-                DebugLog.verbose("Notification permissions denied")
-            }
-        }
-
-        // Set up notification categories for better user experience
+    /// Register notification categories without prompting for permission.
+    /// Permission is requested explicitly from the Settings toggle.
+    private func registerNotificationCategories() {
         let reauthCategory = UNNotificationCategory(
             identifier: "REAUTH_NEEDED",
             actions: [],

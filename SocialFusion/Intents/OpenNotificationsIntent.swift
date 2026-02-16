@@ -11,8 +11,8 @@ struct OpenNotificationsIntent: AppIntent {
     static var openAppWhenRun = true
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         await UIApplication.shared.open(URL(string: "socialfusion://notifications")!)
-        return .result()
+        return .result(dialog: "Opened Notifications")
     }
 }
