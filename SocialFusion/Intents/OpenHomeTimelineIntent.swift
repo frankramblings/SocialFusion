@@ -11,8 +11,8 @@ struct OpenHomeTimelineIntent: AppIntent {
     static var openAppWhenRun = true
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         await UIApplication.shared.open(URL(string: "socialfusion://timeline")!)
-        return .result()
+        return .result(dialog: "Opened Home Timeline")
     }
 }

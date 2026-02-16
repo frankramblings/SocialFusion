@@ -20,7 +20,7 @@ struct ShareToSocialFusionIntent: AppIntent {
     var title: String?
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         var queryItems: [String] = []
 
         if let text = text {
@@ -37,6 +37,6 @@ struct ShareToSocialFusionIntent: AppIntent {
         let deepLink = URL(string: "socialfusion://compose\(query)")!
 
         await UIApplication.shared.open(deepLink)
-        return .result()
+        return .result(dialog: "Opened SocialFusion composer")
     }
 }

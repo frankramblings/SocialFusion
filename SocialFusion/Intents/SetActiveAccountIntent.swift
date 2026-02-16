@@ -14,11 +14,11 @@ struct SetActiveAccountIntent: AppIntent {
     var account: SocialAccountEntity
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         let encoded = account.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? account.id
         let deepLink = URL(string: "socialfusion://account/\(encoded)")!
 
         await UIApplication.shared.open(deepLink)
-        return .result()
+        return .result(dialog: "Switched to \(account.displayRepresentation.title)")
     }
 }

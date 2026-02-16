@@ -17,7 +17,7 @@ struct PostWithConfirmationIntent: AppIntent {
     var url: URL?
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         var queryItems: [String] = []
 
         if let text = text {
@@ -31,6 +31,6 @@ struct PostWithConfirmationIntent: AppIntent {
         let deepLink = URL(string: "socialfusion://compose\(query)")!
 
         await UIApplication.shared.open(deepLink)
-        return .result()
+        return .result(dialog: "Opened composer")
     }
 }

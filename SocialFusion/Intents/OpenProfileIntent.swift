@@ -14,7 +14,7 @@ struct OpenProfileIntent: AppIntent {
     var identifier: String
 
     @MainActor
-    func perform() async throws -> some IntentResult {
+    func perform() async throws -> some IntentResult & ProvidesDialog {
         let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Try to parse as URL first
@@ -25,18 +25,18 @@ struct OpenProfileIntent: AppIntent {
             if host == "bsky.app", components.count >= 2, components[0] == "profile" {
                 let handle = components[1]
                 await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(handle)")!)
-                return .result()
+                return .result(dialog: "Opened profile for \(handle)")
             } else if components.count >= 1, components[0].hasPrefix("@") {
                 let handle = String(components[0].dropFirst())
                 await UIApplication.shared.open(URL(string: "socialfusion://user/mastodon/\(handle)")!)
-                return .result()
+                return .result(dialog: "Opened profile for \(handle)")
             }
         }
 
         // Check for DID (Bluesky)
         if trimmed.hasPrefix("did:") {
             await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(trimmed)")!)
-            return .result()
+            return .result(dialog: "Opened profile for \(trimmed)")
         }
 
         // Check for @user@server (Mastodon/fediverse)
@@ -44,16 +44,16 @@ struct OpenProfileIntent: AppIntent {
         if handle.hasPrefix("@") { handle = String(handle.dropFirst()) }
 
         if handle.contains("@") {
-            // user@server format → Mastodon
+            // user@server format -> Mastodon
             await UIApplication.shared.open(URL(string: "socialfusion://user/mastodon/\(handle)")!)
         } else if handle.contains(".") {
-            // Looks like a domain-based handle → Bluesky (e.g. user.bsky.social)
+            // Looks like a domain-based handle -> Bluesky (e.g. user.bsky.social)
             await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(handle)")!)
         } else {
-            // Bare handle — default to Bluesky since Mastodon needs a server
+            // Bare handle -- default to Bluesky since Mastodon needs a server
             await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(handle)")!)
         }
 
-        return .result()
+        return .result(dialog: "Opened profile for \(handle)")
     }
 }
