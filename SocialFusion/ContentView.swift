@@ -222,7 +222,7 @@ struct ContentView: View {
         .onAppear {
             setupTabBarDelegate()
             initializeSelection()
-            requestNotificationPermissions()
+            registerNotificationCategories()
         }
         .onReceive(
             NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
@@ -423,21 +423,9 @@ struct ContentView: View {
         }
     }
 
-    /// Request notification permissions for showing token refresh alerts
-    private func requestNotificationPermissions() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
-            granted, error in
-            if let error = error {
-                DebugLog.verbose(
-                    "Failed to request notification permissions: \(error.localizedDescription)")
-            } else if granted {
-                DebugLog.verbose("Notification permissions granted")
-            } else {
-                DebugLog.verbose("Notification permissions denied")
-            }
-        }
-
-        // Set up notification categories for better user experience
+    /// Register notification categories without prompting for permission.
+    /// Permission is requested explicitly from the Settings toggle.
+    private func registerNotificationCategories() {
         let reauthCategory = UNNotificationCategory(
             identifier: "REAUTH_NEEDED",
             actions: [],
