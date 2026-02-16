@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D7FAB20100000002 /* AppIntentsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB20100000001 /* AppIntentsTests.swift */; };
+
+		D7FAB10100000002 /* ShareExtensionFlowUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB10100000001 /* ShareExtensionFlowUITests.swift */; };
+
+		D7FAB30100000002 /* NotificationPermissionUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB30100000001 /* NotificationPermissionUITests.swift */; };
+
 		D7FAB90100000002 /* FullscreenMediaGestureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB90100000001 /* FullscreenMediaGestureUITests.swift */; };
 
 		D7FAB80100000002 /* ReachabilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB80100000001 /* ReachabilityUITests.swift */; };
@@ -347,6 +353,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D7FAB20100000001 /* AppIntentsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppIntentsTests.swift; sourceTree = "<group>"; };
+
+		D7FAB10100000001 /* ShareExtensionFlowUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareExtensionFlowUITests.swift; sourceTree = "<group>"; };
+
+		D7FAB30100000001 /* NotificationPermissionUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermissionUITests.swift; sourceTree = "<group>"; };
+
 		D7FAB90100000001 /* FullscreenMediaGestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenMediaGestureUITests.swift; sourceTree = "<group>"; };
 
 		D7FAB80100000001 /* ReachabilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReachabilityUITests.swift; sourceTree = "<group>"; };
@@ -703,6 +715,7 @@
 		050E67C91FD953EDA62FA59E /* Autocomplete */ = {
 			isa = PBXGroup;
 			children = (
+				D7FAB30100000001 /* NotificationPermissionUITests.swift */,
 				B908F57D588FA7E493356EF8 /* SuggestionProvider.swift */,
 				E0813F0F34AD7DC184CC866D /* TimelineContextProvider.swift */,
 				D6C9902C32557D65A334A8A1 /* UnifiedTimelineContextProvider.swift */,
@@ -756,6 +769,7 @@
 				7F38148F48BCB4A88669A101 /* PostLayoutSnapshotBuilderTests.swift */,
 				462A58F59416561931511BF9 /* OfflineQueueActionReplayTests.swift */,
 				77D84E8488E45A74045573C6 /* ComposeAutocompleteLatencyTests.swift */,
+				D7FAB20100000001 /* AppIntentsTests.swift */,
 			);
 			path = SocialFusionTests;
 			sourceTree = "<group>";
@@ -832,6 +846,7 @@
 		50C6830DCE635B5EBB0F870B /* SocialFusionUITests */ = {
 			isa = PBXGroup;
 			children = (
+				D7FAB10100000001 /* ShareExtensionFlowUITests.swift */,
 				D7FAB90100000001 /* FullscreenMediaGestureUITests.swift */,
 				D7FAB80100000001 /* ReachabilityUITests.swift */,
 				FAB4CB762C7C50843586A7E9 /* AutoRefreshInvariantTests.swift */,
@@ -1400,6 +1415,7 @@
 				CC85937DCDD28B4A4867F72F /* PostLayoutSnapshotBuilderTests.swift in Sources */,
 				AF9A6D001D80BEF7FAA1CCCE /* OfflineQueueActionReplayTests.swift in Sources */,
 				0179326E050CE41F40E98303 /* ComposeAutocompleteLatencyTests.swift in Sources */,
+				D7FAB20100000002 /* AppIntentsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1688,6 +1704,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7FAB10100000002 /* ShareExtensionFlowUITests.swift in Sources */,
 				D7FAB90100000002 /* FullscreenMediaGestureUITests.swift in Sources */,
 				D7FAB80100000002 /* ReachabilityUITests.swift in Sources */,
 				74B7D6EB0E0D177B8EFA541F /* AutoRefreshInvariantTests.swift in Sources */,
