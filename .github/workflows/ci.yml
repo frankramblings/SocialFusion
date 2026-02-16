@@ -31,7 +31,7 @@ jobs:
     - name: Build
       run: |
         export IBTOOL_DISABLE_INITIALIZE_WEBVIEW=YES
-        xcodebuild -scheme SocialFusion -destination "platform=iOS Simulator,name=iPhone 16 Pro" build -allowProvisioningUpdates -configuration Debug
+        xcodebuild -scheme SocialFusion -destination "generic/platform=iOS Simulator" build -allowProvisioningUpdates -configuration Debug
       
     - name: Run SwiftLint
       run: |
