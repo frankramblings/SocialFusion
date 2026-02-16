@@ -41,6 +41,7 @@ targets:
     info:
       path: SocialFusion/Info.plist
       properties:
+        ITSAppUsesNonExemptEncryption: false
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations:
