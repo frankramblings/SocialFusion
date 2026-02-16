@@ -93,9 +93,9 @@ struct FullscreenMediaView: View {
                                                     }
                                                 }
                                             },
-                                        // Higher minimumDistance (25) reduces interference with TabView's horizontal swipe gesture
+                                        // Higher minimumDistance (40) reduces interference with TabView's horizontal swipe gesture
                                         // TabView can recognize horizontal swipes before this gesture activates
-                                        DragGesture(minimumDistance: 25)
+                                        DragGesture(minimumDistance: 40)
                                             .onChanged { value in
                                                 if currentScale > 1.0 {
                                                     // When zoomed: pan the image with immediate visual feedback
@@ -104,9 +104,9 @@ struct FullscreenMediaView: View {
                                                     // When not zoomed: check if this is a horizontal swipe
                                                     let absWidth = abs(value.translation.width)
                                                     let absHeight = abs(value.translation.height)
-                                                    let isPrimarilyHorizontal = absWidth > absHeight * 1.5
+                                                    let isPrimarilyHorizontal = absWidth > absHeight * 2.0
                                                     let hasMultipleImages = allMedia.count > 1
-                                                    
+
                                                     // CRITICAL: For horizontal swipes with multiple images, don't update dragOffset
                                                     // This prevents the gesture from interfering with TabView's swipe
                                                     if !isPrimarilyHorizontal || !hasMultipleImages {
@@ -142,7 +142,7 @@ struct FullscreenMediaView: View {
                                                     let hasMultipleImages = allMedia.count > 1
                                                     
                                                     // Check if swipe is primarily horizontal
-                                                    let isPrimarilyHorizontal = absWidth > absHeight * 1.5
+                                                    let isPrimarilyHorizontal = absWidth > absHeight * 2.0
                                                     
                                                     // CRITICAL: When there are multiple images, completely ignore horizontal swipes
                                                     // Let TabView handle horizontal navigation - only dismiss on vertical/diagonal swipes
@@ -158,9 +158,9 @@ struct FullscreenMediaView: View {
                                                     }
                                                     
                                                     // For vertical/diagonal swipes (or single image), allow dismissal
-                                                    let verticalThreshold: CGFloat = hasMultipleImages ? 200 : 100
-                                                    let diagonalThreshold: CGFloat = hasMultipleImages ? 200 : 100
-                                                    let velocityThreshold: CGFloat = hasMultipleImages ? 1500 : 500
+                                                    let verticalThreshold: CGFloat = hasMultipleImages ? 150 : 100
+                                                    let diagonalThreshold: CGFloat = hasMultipleImages ? 150 : 100
+                                                    let velocityThreshold: CGFloat = hasMultipleImages ? 1200 : 500
                                                     
                                                     // Only allow dismissal for vertical/diagonal swipes when multiple images
                                                     // For single image, allow all directions
