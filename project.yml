@@ -2,7 +2,7 @@ name: SocialFusion
 options:
   bundleIdPrefix: com.socialfusion
   deploymentTarget:
-    iOS: 16.0
+    iOS: 17.0
   xcodeVersion: "14.0"
   generateEmptyDirectories: true
   createIntermediateGroups: true
