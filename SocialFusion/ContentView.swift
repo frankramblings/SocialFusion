@@ -51,33 +51,6 @@ struct ContentView: View {
         ZStack {
             modernTabView
 
-            // Floating compose button for one-handed reachability on large phones
-            if horizontalSizeClass == .compact {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Button {
-                            showComposeView = true
-                        } label: {
-                            Image(systemName: "square.and.pencil")
-                                .font(.system(size: 22, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 56, height: 56)
-                                .background(Color("AppPrimaryColor"))
-                                .clipShape(Circle())
-                                .shadow(color: Color.black.opacity(0.25), radius: 8, x: 0, y: 4)
-                        }
-                        .accessibilityLabel("Compose")
-                        .accessibilityHint("Create a new post")
-                        .accessibilityIdentifier("FloatingComposeButton")
-                        .padding(.trailing, 20)
-                        .padding(.bottom, 16)
-                    }
-                }
-                .zIndex(500)
-            }
-
             if UITestHooks.isEnabled {
                 uiTestAccountSwitchOverlay
                     .zIndex(900)
