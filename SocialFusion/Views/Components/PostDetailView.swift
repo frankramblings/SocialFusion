@@ -704,20 +704,23 @@ struct PostDetailView: View {
     }
     
     private func handleShareAsImage(for post: Post) async {
-        // Fetch thread context if available
-        let threadContext = try? await serviceManager.fetchThreadContext(for: post)
-        
-        // Determine if this is a reply
         let isReply = post.inReplyToID != nil
-        
-        await MainActor.run {
-            // Create view model with post and context
-            shareAsImageViewModel = ShareAsImageViewModel(
+        let shareViewModel = await MainActor.run { () -> ShareAsImageViewModel in
+            let model = ShareAsImageViewModel(
                 post: post,
-                threadContext: threadContext,
+                threadContext: nil,
                 isReply: isReply
             )
+            shareAsImageViewModel = model
             showShareAsImageSheet = true
+            return model
+        }
+
+        // Fetch thread context in the background and refresh once available.
+        if let threadContext = try? await serviceManager.fetchThreadContext(for: post) {
+            await MainActor.run {
+                shareViewModel.updateThreadContext(threadContext)
+            }
         }
     }
 

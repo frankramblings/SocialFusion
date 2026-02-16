@@ -931,24 +931,23 @@ struct PostCardView: View {
     // MARK: - Share as Image
     
     private func handleShareAsImage(for post: Post) async {
-        do {
-            // For feed posts, we may not have thread context, so fetch it optionally
-            let threadContext = try? await serviceManager.fetchThreadContext(for: post)
-            
-            // Determine if this is a reply
-            let isReply = post.inReplyToID != nil
-            
+        let isReply = post.inReplyToID != nil
+        let viewModel = await MainActor.run { () -> ShareAsImageViewModel in
+            let model = ShareAsImageViewModel(
+                post: post,
+                threadContext: nil,
+                isReply: isReply
+            )
+            shareAsImageViewModel = model
+            showShareAsImageSheet = true
+            return model
+        }
+
+        // Fetch thread context in the background and refresh once available.
+        if let threadContext = try? await serviceManager.fetchThreadContext(for: post) {
             await MainActor.run {
-                // Create view model with post and context
-                shareAsImageViewModel = ShareAsImageViewModel(
-                    post: post,
-                    threadContext: threadContext,
-                    isReply: isReply
-                )
-                showShareAsImageSheet = true
+                viewModel.updateThreadContext(threadContext)
             }
-        } catch {
-            NSLog("Failed to build share image view model: %@", error.localizedDescription)
         }
     }
 }

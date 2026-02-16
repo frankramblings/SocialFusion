@@ -8,6 +8,7 @@ public class ShareAsImageViewModel: ObservableObject {
 
     @Published var previewImage: UIImage?
     @Published var isRendering = false
+    @Published var isRefiningPreview = false
     @Published var renderingProgress: String = ""
     @Published var errorMessage: String?
 
@@ -24,7 +25,7 @@ public class ShareAsImageViewModel: ObservableObject {
     // MARK: - Private Properties
 
     private let originalPost: Post
-    private let originalThreadContext: ThreadContext?
+    private var currentThreadContext: ThreadContext?
     public let isReply: Bool  // Whether we're sharing a reply vs a post
     private var cancellables = Set<AnyCancellable>()
     private var previewTask: Task<Void, Never>?
@@ -38,7 +39,7 @@ public class ShareAsImageViewModel: ObservableObject {
         isReply: Bool = false
     ) {
         self.originalPost = post
-        self.originalThreadContext = threadContext
+        self.currentThreadContext = threadContext
         self.isReply = isReply
 
         // Set defaults based on whether sharing a post or reply
@@ -73,6 +74,7 @@ public class ShareAsImageViewModel: ObservableObject {
             $hideUsernames,
             $showWatermark
         )
+        .dropFirst()
         .debounce(for: .milliseconds(300), scheduler: DispatchQueue.main)
         .sink { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -87,20 +89,14 @@ public class ShareAsImageViewModel: ObservableObject {
 
         previewTask = Task {
             isRendering = true
+            isRefiningPreview = false
             errorMessage = nil
-            renderingProgress = "Preparing..."
+            renderingProgress = "Rendering preview..."
 
             // Build updated document with current config
             let updatedDocument = buildDocument()
 
-            // Pre-load images before rendering
-            renderingProgress = "Loading images..."
-            await ShareImagePreloader.preloadImages(for: updatedDocument)
-
-            if Task.isCancelled { return }
-
-            // Render preview with auto-selected preset
-            renderingProgress = "Rendering preview..."
+            // Render immediately for responsive first paint (media may still be placeholders)
             let (image, preset) = ShareImageRenderer.renderAutoPreview(document: updatedDocument)
 
             if let image = image {
@@ -114,19 +110,48 @@ public class ShareAsImageViewModel: ObservableObject {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         previewImage = image
                     }
-                    renderingProgress = ""
                 }
             } else {
                 if !Task.isCancelled {
                     errorMessage = "Failed to generate preview"
-                    renderingProgress = ""
                 }
             }
 
             isRendering = false
+
+            if Task.isCancelled { return }
+
+            // Continue warming media and refresh preview in the background
+            isRefiningPreview = true
+            renderingProgress = "Loading media..."
+            await ShareImagePreloader.preloadImages(for: updatedDocument)
+
+            if Task.isCancelled {
+                isRefiningPreview = false
+                renderingProgress = ""
+                return
+            }
+
+            let (refinedImage, refinedPreset) = ShareImageRenderer.renderAutoPreview(document: updatedDocument)
+            if let refinedImage = refinedImage {
+                autoSelectedPreset = refinedPreset
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    previewImage = refinedImage
+                }
+            }
+
+            isRefiningPreview = false
+            renderingProgress = ""
         }
 
         await previewTask?.value
+    }
+
+    public func updateThreadContext(_ threadContext: ThreadContext) {
+        currentThreadContext = threadContext
+        Task { @MainActor in
+            await updatePreview()
+        }
     }
 
     // MARK: - Export
@@ -204,7 +229,7 @@ public class ShareAsImageViewModel: ObservableObject {
 
         let document: ShareImageDocument
 
-        if isReply, let threadContext = originalThreadContext {
+        if isReply, let threadContext = currentThreadContext {
             // Building from a reply
             document = ShareThreadRenderBuilder.buildDocument(
                 from: originalPost,
@@ -216,7 +241,7 @@ public class ShareAsImageViewModel: ObservableObject {
             // Building from a post
             document = ShareThreadRenderBuilder.buildDocument(
                 from: originalPost,
-                threadContext: originalThreadContext,
+                threadContext: currentThreadContext,
                 config: config,
                 userMapping: &mapping
             )
@@ -247,7 +272,7 @@ public class ShareAsImageViewModel: ObservableObject {
 
         let authorPart = authorHandle.map { " – \($0)" } ?? ""
 
-        return "SocialFusion – \(contextPart)\(authorPart) – \(date).png"
+        return "SocialFusion – \(contextPart)\(authorPart) – \(date).jpg"
     }
 
     private enum ShareContext {

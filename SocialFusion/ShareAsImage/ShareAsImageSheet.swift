@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 import Photos
 
 /// Sheet that presents share-as-image configuration and preview
@@ -8,7 +7,7 @@ public struct ShareAsImageSheet: View {
     @ObservedObject var viewModel: ShareAsImageViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingShareSheet = false
-    @State private var shareImages: [UIImage] = []
+    @State private var shareFileURLs: [URL] = []
     @State private var isSavingToPhotos = false
     @State private var saveToPhotosError: String?
     @State private var saveToPhotosSuccess = false
@@ -78,12 +77,9 @@ public struct ShareAsImageSheet: View {
                     Text(error)
                 }
             }
-            .sheet(isPresented: $showingShareSheet) {
-                if !shareImages.isEmpty {
-                    // Use ImageActivityItemSource for each image
-                    // This ensures "Save to Photos" appears in the share sheet
-                    let items = shareImages.map { ImageActivityItemSource(image: $0) }
-                    ShareSheet(activityItems: items)
+            .sheet(isPresented: $showingShareSheet, onDismiss: cleanupShareFiles) {
+                if !shareFileURLs.isEmpty {
+                    ShareSheet(activityItems: shareFileURLs)
                 }
             }
         }
@@ -92,7 +88,9 @@ public struct ShareAsImageSheet: View {
     // MARK: - Preview Section
 
     private var previewSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let isPreviewBusy = viewModel.isRendering || viewModel.isRefiningPreview
+
+        return VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Preview")
                     .font(.headline)
@@ -116,7 +114,17 @@ public struct ShareAsImageSheet: View {
                 Color(.systemGray6)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                if viewModel.isRendering || viewModel.previewImage == nil {
+                if let image = viewModel.previewImage {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(maxWidth: .infinity)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
+
+                if viewModel.previewImage == nil {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.2)
@@ -135,18 +143,27 @@ public struct ShareAsImageSheet: View {
                     .frame(height: 400)
                 }
 
-                if let image = viewModel.previewImage, !viewModel.isRendering {
-                    Image(uiImage: image)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .shadow(color: .black.opacity(0.1), radius: 4, y: 2)
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                if isPreviewBusy, viewModel.previewImage != nil {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+
+                        Text(viewModel.renderingProgress.isEmpty ? "Updating preview…" : viewModel.renderingProgress)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(12)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
             .frame(height: 400)
             .animation(.easeInOut(duration: 0.2), value: viewModel.previewImage != nil)
+            .animation(.easeInOut(duration: 0.2), value: isPreviewBusy)
 
             if let error = viewModel.errorMessage {
                 VStack(spacing: 8) {
@@ -204,10 +221,14 @@ public struct ShareAsImageSheet: View {
     private func handleShare() async {
         do {
             let result = try await viewModel.exportImages()
-            shareImages = result.images
-            // Use ImageActivityItemSource - same approach as FullscreenMediaView
+            cleanupShareFiles()
+            shareFileURLs = try ShareImageRenderer.saveAllToTempFiles(
+                result.images,
+                baseFilename: "SocialFusion Share.jpg"
+            )
             showingShareSheet = true
         } catch {
+            cleanupShareFiles()
             viewModel.errorMessage = error.localizedDescription
         }
     }
@@ -240,11 +261,20 @@ public struct ShareAsImageSheet: View {
 
         do {
             let result = try await viewModel.exportImages()
+            let fileURLs = try ShareImageRenderer.saveAllToTempFiles(
+                result.images,
+                baseFilename: "SocialFusion Save.jpg"
+            )
+            defer {
+                for fileURL in fileURLs {
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
+            }
 
             // Save all images to Photos library
             try await PHPhotoLibrary.shared().performChanges {
-                for image in result.images {
-                    PHAssetChangeRequest.creationRequestForAsset(from: image)
+                for fileURL in fileURLs {
+                    PHAssetChangeRequest.creationRequestForAssetFromImage(atFileURL: fileURL)
                 }
             }
 
@@ -266,6 +296,13 @@ public struct ShareAsImageSheet: View {
             // Provide haptic feedback
             HapticEngine.error.trigger()
         }
+    }
+
+    private func cleanupShareFiles() {
+        for fileURL in shareFileURLs {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        shareFileURLs = []
     }
 }
 
