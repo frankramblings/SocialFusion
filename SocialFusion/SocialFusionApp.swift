@@ -88,7 +88,6 @@ struct SocialFusionApp: App {
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
                         notificationManager.registerBackgroundTask()
-                        notificationManager.requestAuthorization()
                         if UserDefaults.standard.bool(forKey: "enableNotifications") {
                             notificationManager.scheduleBackgroundRefresh()
                             Task {
