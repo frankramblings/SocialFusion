@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D7FAB90100000002 /* FullscreenMediaGestureUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB90100000001 /* FullscreenMediaGestureUITests.swift */; };
+
+		D7FAB80100000002 /* ReachabilityUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7FAB80100000001 /* ReachabilityUITests.swift */; };
+
 		00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C438E212556823CBF6F53A /* ConnectionManager.swift */; };
 		00E1D91752CF9E7CC13EE9FD /* PostTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673869366E4615124FBBD3E3 /* PostTimestamp.swift */; };
 		0179326E050CE41F40E98303 /* ComposeAutocompleteLatencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77D84E8488E45A74045573C6 /* ComposeAutocompleteLatencyTests.swift */; };
@@ -343,6 +347,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D7FAB90100000001 /* FullscreenMediaGestureUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenMediaGestureUITests.swift; sourceTree = "<group>"; };
+
+		D7FAB80100000001 /* ReachabilityUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReachabilityUITests.swift; sourceTree = "<group>"; };
+
 		001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedEmptyStateView.swift; sourceTree = "<group>"; };
 		022CFA9F095E5B027A26BCE5 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		0380FF70F8415BBC8F2B7D53 /* BlueskyAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyAPIClient.swift; sourceTree = "<group>"; };
@@ -824,6 +832,8 @@
 		50C6830DCE635B5EBB0F870B /* SocialFusionUITests */ = {
 			isa = PBXGroup;
 			children = (
+				D7FAB90100000001 /* FullscreenMediaGestureUITests.swift */,
+				D7FAB80100000001 /* ReachabilityUITests.swift */,
 				FAB4CB762C7C50843586A7E9 /* AutoRefreshInvariantTests.swift */,
 				F5CCB4635D318AED5537EA15 /* DebugViewTests.swift */,
 				86C064274218044A0DE6E20D /* TimelineRefreshUITests.swift */,
@@ -1678,6 +1688,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7FAB90100000002 /* FullscreenMediaGestureUITests.swift in Sources */,
+				D7FAB80100000002 /* ReachabilityUITests.swift in Sources */,
 				74B7D6EB0E0D177B8EFA541F /* AutoRefreshInvariantTests.swift in Sources */,
 				566353C47A36DC815436C9EA /* DebugViewTests.swift in Sources */,
 				357F5C109FE1EA2C5FEC5F22 /* TimelineRefreshUITests.swift in Sources */,
