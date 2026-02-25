@@ -185,7 +185,7 @@ struct UnifiedReplyButton: View {
             value: isReplied
           )
 
-        RollingNumberView(count, font: .caption, color: isReplied ? platformColor : .secondary)
+        RollingNumberView(count, font: Font.caption, color: isReplied ? platformColor : Color.secondary)
       }
       .opacity(isProcessing ? 0.6 : 1.0)
       .scaleEffect(isPressed ? 0.85 : 1.0)
