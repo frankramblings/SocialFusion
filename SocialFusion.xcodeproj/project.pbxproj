@@ -205,6 +205,7 @@
 		A53B8BBBEC52C727BE4FEE8D /* AnimatedGIFView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDF5F076D9F306C7516F540 /* AnimatedGIFView.swift */; };
 		A57FD5D983A4272FC9925755 /* PlatformLogoBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E1F023B9F7AC662A161954 /* PlatformLogoBadge.swift */; };
 		A674B11B90B126CD8500909D /* FetchQuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE89BD2D65D95E7D8B17F95 /* FetchQuotePostView.swift */; };
+		A6F1E8404275863DAE92DF11 /* FeedUpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF50F3B206B639E538B2A1F /* FeedUpdateCoordinator.swift */; };
 		A7C1CB2554801E52296CB6BD /* UnifiedInteractionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */; };
 		A7F5797B1B3016F8F5464AEE /* ShareThreadRenderBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EEA8CF749B19B96BBDB03B1 /* ShareThreadRenderBuilder.swift */; };
 		A83B7FF7CE707664022990C2 /* LaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57D49AB51DF1B47339FF2AD /* LaunchAnimationView.swift */; };
@@ -584,6 +585,11 @@
 		C76C2B4E620B5BCCE5D71307 /* LiquidGlassConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassConfiguration.swift; sourceTree = "<group>"; };
 		C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedInteractionButtons.swift; sourceTree = "<group>"; };
 		C90E39C91D10BA400EB46A09 /* ViewTrackerPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewTrackerPerformanceTests.swift; sourceTree = "<group>"; };
+		C7D54F48831F2ABD51D78820 /* AutocompleteToken.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutocompleteToken.swift; sourceTree = "<group>"; };
+		C82A41B9751F14C5057082D1 /* AutocompleteOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutocompleteOverlay.swift; sourceTree = "<group>"; };
+		C88BB75DEE5ECA60C88E3851 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
+		C9949C594526F64490F5299B /* TimelineCacheWriter.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TimelineCacheWriter.swift; sourceTree = "<group>"; };
+		CA09F7AEDC032D305ED78307 /* MediaDimensionCache.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MediaDimensionCache.swift; sourceTree = "<group>"; };
 		CA61806327EC6FFD9AE8BD96 /* MastodonService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonService.swift; sourceTree = "<group>"; };
 		CB32282E3437339B60C18B22 /* DraftPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DraftPost.swift; sourceTree = "<group>"; };
 		CB89B60860B8FEE52CC8B7B5 /* CanonicalPostResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalPostResolver.swift; sourceTree = "<group>"; };
@@ -1161,6 +1167,7 @@
 				B4F840231A23A53E8D1AD0F4 /* TimelineCard.swift */,
 				28045235113B5D10AA971BD9 /* TimelineFeedPickerPopover.swift */,
 				86024F084AB558F083E194A5 /* ToastNotification.swift */,
+				D89FE4E5B747EBC11984DA88 /* RollingNumberView.swift */,
 				C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */,
 				09865BAC6E267F39F883A07D /* UnifiedMediaGridView.swift */,
 				A8CD47E4FF1460E06550A54C /* VideoVisibilityTracker.swift */,
