@@ -179,6 +179,10 @@ struct ConsolidatedTimelineView: View {
     @State private var showJumpToLastRead = false
     @State private var lastReadPostId: String? = nil
 
+    // Staggered entrance animation
+    @State private var appearedPostIds: Set<String> = []
+    @State private var isInitialLoad = true
+
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -262,7 +266,7 @@ struct ConsolidatedTimelineView: View {
                 positionProcessingTask?.cancel()
                 positionProcessingTask = nil
             }
-            .onChange(of: scenePhase) { phase in
+            .onChange(of: scenePhase) { _, phase in
                 if phase == .background {
                     if #available(iOS 17.0, *) {
                         persistedAnchorId = scrollAnchorId
@@ -272,14 +276,14 @@ struct ConsolidatedTimelineView: View {
                     controller.handleAppForegrounded()
                 }
             }
-            .onChange(of: controller.isLoading) { isLoading in
+            .onChange(of: controller.isLoading) { _, isLoading in
                 guard #available(iOS 17.0, *), isLoading else { return }
                 if !controller.posts.isEmpty {
                     pendingAnchorRestoreId = scrollAnchorId ?? persistedAnchorId
                     logAnchorState("loading started")
                 }
             }
-            .onChange(of: controller.posts) { newPosts in
+            .onChange(of: controller.posts) { _, newPosts in
                 // Anchor + Compensate: Use the anchor captured by the controller
                 // For pull-to-refresh, prefer the pendingAnchorRestoreId we set before refresh
                 // Otherwise use the controller's restoration anchor
@@ -299,11 +303,19 @@ struct ConsolidatedTimelineView: View {
                 lastReadPostId = ViewTracker.shared.getLastReadPostId()
                 updateJumpToLastReadVisibility()
 
+                // Disable staggered entrance after initial load completes
+                if isInitialLoad && !newPosts.isEmpty {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 400_000_000)
+                        isInitialLoad = false
+                    }
+                }
+
                 Task {
                     await handlePostCollectionUpdate(newPosts)
                 }
             }
-            .onChange(of: serviceManager.currentTimelineScope) { _ in
+            .onChange(of: serviceManager.currentTimelineScope) { _, _ in
                 controller.refreshTimeline()
             }
             .onChange(of: controller.error?.localizedDescription) { _, _ in
@@ -701,6 +713,19 @@ struct ConsolidatedTimelineView: View {
                                         )
                                     }
                                 )
+                                .opacity(appearedPostIds.contains(post.stableId) ? 1 : (reduceMotion ? 1 : 0))
+                                .offset(y: appearedPostIds.contains(post.stableId) ? 0 : (reduceMotion ? 0 : 8))
+                                .onAppear {
+                                    if reduceMotion || !isInitialLoad {
+                                        appearedPostIds.insert(post.stableId)
+                                        return
+                                    }
+                                    let staggerIndex = min(index, 5)
+                                    let delay = Double(staggerIndex) * 0.05
+                                    _ = withAnimation(.easeOut(duration: 0.25).delay(delay)) {
+                                        appearedPostIds.insert(post.stableId)
+                                    }
+                                }
 
                             if post.id != controller.posts.last?.id {
                                 Divider()
@@ -742,7 +767,7 @@ struct ConsolidatedTimelineView: View {
                     }
                 }
                 .scrollPosition(id: $scrollAnchorId)
-                .onChange(of: scrollAnchorId) { newValue in
+                .onChange(of: scrollAnchorId) { _, newValue in
                     // During refresh, ignore scroll position changes - let onChange(of: posts) handle it
                     if isRefreshing {
                         return
@@ -847,6 +872,20 @@ struct ConsolidatedTimelineView: View {
                         ForEach(controller.posts, id: \.stableId) { post in
                             postCard(for: post)
                                 .id(scrollIdentifier(for: post))
+                                .opacity(appearedPostIds.contains(post.stableId) ? 1 : (reduceMotion ? 1 : 0))
+                                .offset(y: appearedPostIds.contains(post.stableId) ? 0 : (reduceMotion ? 0 : 8))
+                                .onAppear {
+                                    if reduceMotion || !isInitialLoad {
+                                        appearedPostIds.insert(post.stableId)
+                                        return
+                                    }
+                                    let index = controller.posts.firstIndex(where: { $0.stableId == post.stableId }) ?? 0
+                                    let staggerIndex = min(index, 5)
+                                    let delay = Double(staggerIndex) * 0.05
+                                    _ = withAnimation(.easeOut(duration: 0.25).delay(delay)) {
+                                        appearedPostIds.insert(post.stableId)
+                                    }
+                                }
 
                             if post.id != controller.posts.last?.id {
                                 Divider()
