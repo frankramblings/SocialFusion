@@ -189,6 +189,9 @@ struct ConsolidatedTimelineView: View {
     // Scroll-to-top fade
     @State private var scrollToTopOpacity: Double = 1.0
 
+    // New post highlight glow
+    @State private var highlightedPostIds: Set<String> = []
+
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -732,6 +735,18 @@ struct ConsolidatedTimelineView: View {
                                         appearedPostIds.insert(post.stableId)
                                     }
                                 }
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        .stroke(
+                                            highlightedPostIds.contains(post.stableId)
+                                                ? (post.platform == .mastodon
+                                                    ? Color(red: 99/255, green: 100/255, blue: 255/255)
+                                                    : Color(red: 0, green: 133/255, blue: 255/255))
+                                                : Color.clear,
+                                            lineWidth: 1
+                                        )
+                                        .animation(.easeOut(duration: 1.0), value: highlightedPostIds.contains(post.stableId))
+                                )
 
                             if post.id != controller.posts.last?.id {
                                 Divider()
@@ -861,6 +876,22 @@ struct ConsolidatedTimelineView: View {
                         topId: controller.posts.first.map(scrollIdentifier(for:)),
                         isAtTop: true
                     )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .postPublishedSuccessfully))
+                { notification in
+                    guard let postIds = notification.userInfo?["postIds"] as? [String] else { return }
+                    for id in postIds {
+                        highlightedPostIds.insert(id)
+                    }
+                    // Auto-clear highlight after 2 seconds
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 2_000_000_000)
+                        withAnimation(.easeOut(duration: 1.0)) {
+                            for id in postIds {
+                                highlightedPostIds.remove(id)
+                            }
+                        }
+                    }
                 }
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel("Timeline")

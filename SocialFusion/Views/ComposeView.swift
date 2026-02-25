@@ -2067,6 +2067,14 @@ struct ComposeView: View {
                         // Complete success - dismiss immediately
                         HapticEngine.success.trigger()
 
+                        // Notify timeline of newly published post IDs for highlight glow
+                        let publishedIds = previousPostsByPlatform.values.map { $0.stableId }
+                        NotificationCenter.default.post(
+                            name: .postPublishedSuccessfully,
+                            object: nil,
+                            userInfo: ["postIds": publishedIds]
+                        )
+
                         // Reset the compose view
                         threadPosts = [ThreadPost()]
                         activePostIndex = 0

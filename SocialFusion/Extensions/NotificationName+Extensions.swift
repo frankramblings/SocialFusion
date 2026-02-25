@@ -5,4 +5,5 @@ extension Notification.Name {
     static let accountUpdatedCanonical = Notification.Name("AccountUpdated")
     static let shouldRepresentAddAccount = Notification.Name("shouldRepresentAddAccount")
     static let autofillInterrupted = Notification.Name("autofillInterrupted")
+    static let postPublishedSuccessfully = Notification.Name("postPublishedSuccessfully")
 }
