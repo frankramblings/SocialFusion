@@ -63,7 +63,7 @@ struct UnifiedLikeButton: View {
           .foregroundColor(isLiked ? likeColor : .secondary)
           .scaleEffect(animateLike ? 1.3 : (isLiked ? 1.05 : 1.0))
           .animation(
-            .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
+            reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
             value: isLiked
           )
 
@@ -127,7 +127,7 @@ struct UnifiedRepostButton: View {
           .rotationEffect(.degrees(rotationDegrees))
           .scaleEffect(isReposted ? 1.1 : 1.0)
           .animation(
-            .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
+            reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
             value: isReposted
           )
 
@@ -195,7 +195,7 @@ struct UnifiedReplyButton: View {
           .offset(x: bounceForward ? 2 : 0)
           .scaleEffect(isReplied ? 1.05 : 1.0)
           .animation(
-            .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
+            reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
             value: isReplied
           )
 

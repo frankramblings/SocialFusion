@@ -142,7 +142,7 @@ final class PostActionCoordinator: ObservableObject {
     func follow(for post: Post, shouldFollow: Bool) {
         guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
         let key = post.stableId
-        let currentState = store.ensureState(for: post)
+        _ = store.ensureState(for: post)
         let previousState = store.optimisticFollow(for: key, shouldFollow: shouldFollow)
         guard let previous = previousState else { return }
 
@@ -158,7 +158,7 @@ final class PostActionCoordinator: ObservableObject {
     func mute(for post: Post, shouldMute: Bool) {
         guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
         let key = post.stableId
-        let currentState = store.ensureState(for: post)
+        _ = store.ensureState(for: post)
         let previousState = store.optimisticMute(for: key, shouldMute: shouldMute)
         guard let previous = previousState else { return }
 
@@ -174,7 +174,7 @@ final class PostActionCoordinator: ObservableObject {
     func block(for post: Post, shouldBlock: Bool) {
         guard FeatureFlagManager.isEnabled(.postActionsV2) else { return }
         let key = post.stableId
-        let currentState = store.ensureState(for: post)
+        _ = store.ensureState(for: post)
         let previousState = store.optimisticBlock(for: key, shouldBlock: shouldBlock)
         guard let previous = previousState else { return }
 
@@ -374,6 +374,7 @@ final class PostActionCoordinator: ObservableObject {
         }
 
         if !shouldRequeue {
+            store.markError(for: key)
             ToastManager.shared.show(toastMessage(for: action.intent))
         }
 
