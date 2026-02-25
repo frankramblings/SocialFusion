@@ -186,6 +186,9 @@ struct ConsolidatedTimelineView: View {
     // Ambient unread pulse
     @State private var unreadPulseActive = false
 
+    // Scroll-to-top fade
+    @State private var scrollToTopOpacity: Double = 1.0
+
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -763,6 +766,7 @@ struct ConsolidatedTimelineView: View {
                         }
                     }
                     .scrollTargetLayout()
+                    .opacity(scrollToTopOpacity)
                 }
                 .coordinateSpace(name: "timelineScroll")
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
@@ -1181,14 +1185,36 @@ struct ConsolidatedTimelineView: View {
 
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first.map(scrollIdentifier(for:)) else { return }
-        if #available(iOS 17.0, *) {
-            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
-                scrollAnchorId = topId
+        let isFarFromTop = newPostsAboveCount > 20 || !controller.isNearTop
+
+        if isFarFromTop && !reduceMotion {
+            // Distance-aware: fade out, jump, fade back in
+            withAnimation(.easeOut(duration: 0.15)) {
+                scrollToTopOpacity = 0.3
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                if #available(iOS 17.0, *) {
+                    scrollAnchorId = topId
+                } else {
+                    proxy.scrollTo(topId, anchor: .top)
+                }
+                withAnimation(.easeIn(duration: 0.25)) {
+                    scrollToTopOpacity = 1.0
+                }
+                HapticEngine.tap.trigger()
             }
         } else {
-            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
-                proxy.scrollTo(topId, anchor: .top)
+            // Close to top: smooth animated scroll
+            if #available(iOS 17.0, *) {
+                withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
+                    scrollAnchorId = topId
+                }
+            } else {
+                withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
+                    proxy.scrollTo(topId, anchor: .top)
+                }
             }
+            HapticEngine.tap.trigger()
         }
     }
 
