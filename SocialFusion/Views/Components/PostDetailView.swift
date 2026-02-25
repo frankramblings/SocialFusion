@@ -341,6 +341,7 @@ struct PostDetailView: View {
 
                 Divider()
             }
+            .shadow(color: Color.primary.opacity(0.06), radius: 4, y: 2)
 
             // 4. Replies header
             if !replyPosts.isEmpty {
@@ -363,6 +364,7 @@ struct PostDetailView: View {
             if !replyPosts.isEmpty {
                 ForEach(Array(replyPosts.enumerated()), id: \.offset) { index, post in
                     let isLastReply = index == replyPosts.count - 1
+                    let isDeepReply = post.inReplyToID != nil && post.inReplyToID != viewModel.post.id
 
                     NavigationLink(
                         destination:
@@ -390,10 +392,22 @@ struct PostDetailView: View {
                         )
                     }
                     .buttonStyle(.plain)
+                    .padding(.leading, isDeepReply ? 12 : 0)
+                    .overlay(alignment: .leading) {
+                        if isDeepReply {
+                            let accentColor: Color = post.platform == .mastodon
+                                ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
+                                : Color(red: 0, green: 133 / 255, blue: 255 / 255)
+                            RoundedRectangle(cornerRadius: 1)
+                                .fill(accentColor.opacity(0.4))
+                                .frame(width: 2)
+                                .padding(.vertical, 8)
+                        }
+                    }
 
                     if !isLastReply {
                         Divider()
-                            .padding(.leading, 60)
+                            .padding(.leading, isDeepReply ? 72 : 60)
                             .padding(.trailing, 16)
                     }
                 }
