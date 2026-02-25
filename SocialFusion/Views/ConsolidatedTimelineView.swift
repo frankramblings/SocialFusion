@@ -183,6 +183,9 @@ struct ConsolidatedTimelineView: View {
     @State private var appearedPostIds: Set<String> = []
     @State private var isInitialLoad = true
 
+    // Ambient unread pulse
+    @State private var unreadPulseActive = false
+
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -1054,6 +1057,13 @@ struct ConsolidatedTimelineView: View {
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
+            .opacity(unreadPulseActive ? 1.0 : 0.85)
+            .onAppear { if !reduceMotion { unreadPulseActive = true } }
+            .onDisappear { unreadPulseActive = false }
+            .animation(
+                reduceMotion ? .none : .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                value: unreadPulseActive
+            )
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
