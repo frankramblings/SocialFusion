@@ -10,6 +10,7 @@ final class PostActionStore: ObservableObject {
     @Published private(set) var actions: [ActionKey: PostActionState] = [:]
     @Published private(set) var pendingKeys: Set<ActionKey> = []
     @Published private(set) var inflightKeys: Set<ActionKey> = []
+    @Published private(set) var errorKeys: Set<ActionKey> = []
 
     /// Index from authorId to set of post stableIds for propagating author-level changes
     private var postsByAuthor: [AuthorKey: Set<ActionKey>] = [:]
@@ -392,6 +393,17 @@ final class PostActionStore: ObservableObject {
             inflightKeys.insert(key)
         } else {
             inflightKeys.remove(key)
+        }
+    }
+
+    // MARK: - Error Feedback
+
+    func markError(for key: ActionKey) {
+        errorKeys.insert(key)
+        HapticEngine.error.trigger()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            errorKeys.remove(key)
         }
     }
 }

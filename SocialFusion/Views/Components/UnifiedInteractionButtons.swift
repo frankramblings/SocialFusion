@@ -1,5 +1,19 @@
 import SwiftUI
 
+// MARK: - Shake Effect
+
+struct ShakeEffect: GeometryEffect {
+  var amount: CGFloat = 5
+  var shakesPerUnit = 3
+  var animatableData: CGFloat
+
+  func effectValue(size: CGSize) -> ProjectionTransform {
+    ProjectionTransform(
+      CGAffineTransform(translationX: amount * sin(animatableData * .pi * CGFloat(shakesPerUnit)), y: 0)
+    )
+  }
+}
+
 // MARK: - Unified Like Button
 
 struct UnifiedLikeButton: View {
@@ -315,6 +329,10 @@ struct UnifiedInteractionButtons: View {
     store.pendingKeys.contains(actionKey)
   }
 
+  private var hasError: Bool {
+    store.errorKeys.contains(actionKey)
+  }
+
   var body: some View {
     HStack {
       UnifiedReplyButton(
@@ -324,6 +342,8 @@ struct UnifiedInteractionButtons: View {
         isProcessing: isProcessing,
         onTap: { await onReply() }
       )
+      .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
+      .animation(.default, value: hasError)
       .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
 
       Spacer()
@@ -334,6 +354,8 @@ struct UnifiedInteractionButtons: View {
         isProcessing: isProcessing,
         onTap: { coordinator.toggleRepost(for: post) }
       )
+      .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
+      .animation(.default, value: hasError)
       .accessibilityLabel(state.isReposted ? "Reposted. Double tap to undo repost" : "Repost. Double tap to repost")
 
       Spacer()
@@ -345,6 +367,8 @@ struct UnifiedInteractionButtons: View {
         isProcessing: isProcessing,
         onTap: { coordinator.toggleLike(for: post) }
       )
+      .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
+      .animation(.default, value: hasError)
       .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
 
       Spacer()
@@ -357,6 +381,8 @@ struct UnifiedInteractionButtons: View {
           await onReply()  // Quote uses reply handler for now
         }
       )
+      .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
+      .animation(.default, value: hasError)
       .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
 
       if includeShare {
