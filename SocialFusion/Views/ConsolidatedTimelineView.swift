@@ -192,6 +192,11 @@ struct ConsolidatedTimelineView: View {
     // New post highlight glow
     @State private var highlightedPostIds: Set<String> = []
 
+    // Compose sheet choreography
+    private var isComposePresented: Bool {
+        replyingToPost != nil || quotingToPost != nil
+    }
+
     // MARK: - Accessibility Environment
     @Environment(\.dynamicTypeSize) var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) var reduceMotion
@@ -521,6 +526,9 @@ struct ConsolidatedTimelineView: View {
         switch timelineSurfaceState {
         case .timeline:
             timelineView
+                .scaleEffect(isComposePresented && !reduceMotion ? 0.95 : 1.0)
+                .blur(radius: isComposePresented && !reduceTransparency ? 3 : 0)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComposePresented)
         case .loading:
             SkeletonTimelineView()
                 .transition(.opacity)
