@@ -18,12 +18,14 @@
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
-		<true/>
+		<false/>
 		<key>UISceneConfigurations</key>
 		<dict>
 			<key>UIWindowSceneSessionRoleApplication</key>
@@ -53,88 +55,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>SocialFusion needs access to save images to your photo library.</string>
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.socialfusion.notification-refresh</string>
-	</array>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.socialfusionapp.app</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>socialfusion</string>
-			</array>
-		</dict>
-	</array>
-	<key>SocialFusionTimelineConfiguration</key>
-	<dict>
-		<key>PositionPersistence</key>
-		<dict>
-			<key>Enabled</key>
-			<true/>
-			<key>SmartRestoration</key>
-			<true/>
-			<key>MaxHistorySize</key>
-			<integer>10</integer>
-			<key>AutoSaveInterval</key>
-			<integer>5</integer>
-			<key>CrossSessionSync</key>
-			<true/>
-			<key>iCloudSyncEnabled</key>
-			<true/>
-			<key>FallbackStrategy</key>
-			<string>NearestContent</string>
-		</dict>
-		<key>UnreadTracking</key>
-		<dict>
-			<key>Enabled</key>
-			<true/>
-			<key>ReadOnViewport</key>
-			<true/>
-			<key>ViewportThreshold</key>
-			<real>0.5</real>
-			<key>ReadDelay</key>
-			<real>1.0</real>
-			<key>MaxUnreadHistory</key>
-			<integer>1000</integer>
-		</dict>
-		<key>TimelineCache</key>
-		<dict>
-			<key>MaxCacheSize</key>
-			<integer>500</integer>
-			<key>CacheExpiration</key>
-			<integer>86400</integer>
-			<key>SmartCacheEviction</key>
-			<true/>
-			<key>OfflineMode</key>
-			<true/>
-		</dict>
-		<key>Performance</key>
-		<dict>
-			<key>LazyLoadingEnabled</key>
-			<true/>
-			<key>ScrollBufferSize</key>
-			<integer>20</integer>
-			<key>RenderAheadCount</key>
-			<integer>5</integer>
-			<key>MemoryWarningThreshold</key>
-			<real>0.8</real>
-		</dict>
-		<key>Debug</key>
-		<dict>
-			<key>TimelineLogging</key>
-			<true/>
-			<key>PositionLogging</key>
-			<true/>
-			<key>PerformanceLogging</key>
-			<true/>
-			<key>VerboseMode</key>
-			<true/>
-		</dict>
-	</dict>
 </dict>
 </plist>

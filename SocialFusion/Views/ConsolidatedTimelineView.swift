@@ -501,13 +501,8 @@ struct ConsolidatedTimelineView: View {
         case .timeline:
             timelineView
         case .loading:
-            ConsolidatedTimelineEmptyStateView(
-                state: .loading,
-                onRetry: {
-                    controller.refreshTimeline()
-                },
-                onAddAccount: nil
-            )
+            SkeletonTimelineView()
+                .transition(.opacity)
         case .noAccounts:
             ConsolidatedTimelineEmptyStateView(
                 state: .noAccounts,
