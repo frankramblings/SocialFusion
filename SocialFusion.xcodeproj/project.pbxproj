@@ -224,6 +224,7 @@
 		A62E8DAE3214988753B2A072 /* PresetEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45483DEA8BE7EBD05F3DE872 /* PresetEvaluator.swift */; };
 		A674B11B90B126CD8500909D /* FetchQuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE89BD2D65D95E7D8B17F95 /* FetchQuotePostView.swift */; };
 		A6F1E8404275863DAE92DF11 /* FeedUpdateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF50F3B206B639E538B2A1F /* FeedUpdateCoordinator.swift */; };
+		A7B2DA3645901F63397DC7CE /* RollingNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89FE4E5B747EBC11984DA88 /* RollingNumberView.swift */; };
 		A7C1CB2554801E52296CB6BD /* UnifiedInteractionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */; };
 		A83B7FF7CE707664022990C2 /* LaunchAnimationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D57D49AB51DF1B47339FF2AD /* LaunchAnimationView.swift */; };
 		A8F5DE1DAA02DA8D90FF984A /* String+HTML.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81C1B237A9DF33C99EFF694 /* String+HTML.swift */; };
@@ -634,6 +635,7 @@
 		C63AB2D6B0924D640EEF7522 /* MergeOffsetCompensatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeOffsetCompensatorTests.swift; sourceTree = "<group>"; };
 		C76C2B4E620B5BCCE5D71307 /* LiquidGlassConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassConfiguration.swift; sourceTree = "<group>"; };
 		C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedInteractionButtons.swift; sourceTree = "<group>"; };
+		D89FE4E5B747EBC11984DA88 /* RollingNumberView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RollingNumberView.swift; sourceTree = "<group>"; };
 		C7D54F48831F2ABD51D78820 /* AutocompleteToken.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutocompleteToken.swift; sourceTree = "<group>"; };
 		C82A41B9751F14C5057082D1 /* AutocompleteOverlay.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AutocompleteOverlay.swift; sourceTree = "<group>"; };
 		C88BB75DEE5ECA60C88E3851 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
@@ -1258,6 +1260,7 @@
 				B4F840231A23A53E8D1AD0F4 /* TimelineCard.swift */,
 				28045235113B5D10AA971BD9 /* TimelineFeedPickerPopover.swift */,
 				86024F084AB558F083E194A5 /* ToastNotification.swift */,
+				D89FE4E5B747EBC11984DA88 /* RollingNumberView.swift */,
 				C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */,
 				09865BAC6E267F39F883A07D /* UnifiedMediaGridView.swift */,
 				A8CD47E4FF1460E06550A54C /* VideoVisibilityTracker.swift */,
@@ -1695,6 +1698,7 @@
 				43E33DDD20C14EB492D186FB /* UITestHooks.swift in Sources */,
 				44DFF498E2749B524F269F34 /* URLService.swift in Sources */,
 				2320205A9D432AFF1AD824D3 /* UnifiedAccountsIcon.swift in Sources */,
+				A7B2DA3645901F63397DC7CE /* RollingNumberView.swift in Sources */,
 				A7C1CB2554801E52296CB6BD /* UnifiedInteractionButtons.swift in Sources */,
 				D548EBC7C680F6505FD99127 /* UnifiedMediaGridView.swift in Sources */,
 				0BA4DE9EB936A94E69DC73D9 /* UnifiedPostStore.swift in Sources */,

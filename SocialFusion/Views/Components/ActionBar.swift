@@ -107,6 +107,7 @@ struct ActionBar: View {
             UnifiedLikeButton(
                 isLiked: post.isLiked,
                 count: post.likeCount,
+                platform: post.platform,
                 isProcessing: isLikeProcessing,
                 onTap: {
                     isLikeProcessing = true
@@ -254,6 +255,7 @@ struct ActionBarV2: View {
             UnifiedLikeButton(
                 isLiked: state.isLiked,
                 count: state.likeCount,
+                platform: post.platform,
                 isProcessing: isProcessing,
                 onTap: { coordinator.toggleLike(for: post) }
             )

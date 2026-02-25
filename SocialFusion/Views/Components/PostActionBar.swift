@@ -107,6 +107,7 @@ struct PostActionBar: View {
                 UnifiedLikeButton(
                     isLiked: state.isLiked,
                     count: state.likeCount,
+                    platform: post.platform,
                     isProcessing: isProcessing,
                     onTap: { coordinator.toggleLike(for: post) }
                 )
@@ -154,6 +155,7 @@ struct PostActionBar: View {
                 UnifiedLikeButton(
                     isLiked: isLiked,
                     count: likeCount,
+                    platform: post.platform,
                     isProcessing: false,
                     onTap: onLike
                 )
@@ -227,6 +229,7 @@ struct SmallPostActionBar: View {
                 SmallUnifiedLikeButton(
                     isLiked: state.isLiked,
                     count: state.likeCount,
+                    platform: post.platform,
                     isProcessing: isProcessing,
                     onTap: {
                         coordinator.toggleLike(for: post)
@@ -276,6 +279,7 @@ struct SmallPostActionBar: View {
                 SmallUnifiedLikeButton(
                     isLiked: post.isLiked,
                     count: post.likeCount,
+                    platform: post.platform,
                     isProcessing: false,
                     onTap: {
                         onLike()
@@ -374,6 +378,7 @@ struct PostActionBarWithViewModel: View {
                 UnifiedLikeButton(
                     isLiked: state.isLiked,
                     count: state.likeCount,
+                    platform: viewModel.post.platform,
                     isProcessing: isProcessing,
                     onTap: { coordinator.toggleLike(for: viewModel.post) }
                 )
@@ -421,6 +426,7 @@ struct PostActionBarWithViewModel: View {
                 UnifiedLikeButton(
                     isLiked: viewModel.isLiked,
                     count: viewModel.likeCount,
+                    platform: viewModel.post.platform,
                     isProcessing: viewModel.isLoading,
                     onTap: onLike
                 )
