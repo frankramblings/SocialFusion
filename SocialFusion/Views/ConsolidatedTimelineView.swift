@@ -732,6 +732,12 @@ struct ConsolidatedTimelineView: View {
                                     .padding(.horizontal, 16)
                                     .accessibilityHidden(true)
                             }
+
+                            if let lastReadId = lastReadPostId,
+                               post.stableId == lastReadId,
+                               index > 2 {
+                                CaughtUpMarker()
+                            }
                         }
 
                         if controller.hasNextPage && !controller.posts.isEmpty {
@@ -891,6 +897,14 @@ struct ConsolidatedTimelineView: View {
                                 Divider()
                                     .padding(.horizontal, 16)
                                     .accessibilityHidden(true)
+                            }
+
+                            if let lastReadId = lastReadPostId,
+                               post.stableId == lastReadId {
+                                let postIndex = controller.posts.firstIndex(where: { $0.stableId == post.stableId }) ?? 0
+                                if postIndex > 2 {
+                                    CaughtUpMarker()
+                                }
                             }
                         }
 

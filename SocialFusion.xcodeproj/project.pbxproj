@@ -214,6 +214,7 @@
 		A97A55CBDD406E7E61086DA9 /* TimelineEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC26EDD6FA996C92BDB3898C /* TimelineEntry.swift */; };
 		A997FD4E9533448CC30A62B0 /* RobotsTxtChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157F35ECD85282C4486CCF6 /* RobotsTxtChecker.swift */; };
 		AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5380ACC14D7AA8B3B52C775E /* CachedAsyncImage.swift */; };
+		CC454DB99A7F6F0CBF5EBDB3 /* CaughtUpMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9B56C1DE4FEE7983A7AC7F /* CaughtUpMarker.swift */; };
 		AA29EAA81800A44171BBF6F7 /* AuthWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF143DFD9A254B37F9762F /* AuthWebView.swift */; };
 		AB1A08E3EA9A3D207C262C09 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7971F092BFD3A1DA68989B1A /* AppVersionManager.swift */; };
 		AC2882B4AC67A703B1A89C8C /* UnreadTrackingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3F84FE5B2E7C6E7405296A /* UnreadTrackingTests.swift */; };
@@ -448,6 +449,7 @@
 		515EEFD6EA2AC8D243C307B7 /* AddAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAccountView.swift; sourceTree = "<group>"; };
 		51DFF0908B04B6603944564C /* ChatStreamModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStreamModels.swift; sourceTree = "<group>"; };
 		5380ACC14D7AA8B3B52C775E /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
+		DA9B56C1DE4FEE7983A7AC7F /* CaughtUpMarker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaughtUpMarker.swift; sourceTree = "<group>"; };
 		538483652800B54C0E66D677 /* FollowGraphCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowGraphCache.swift; sourceTree = "<group>"; };
 		54B2A147BCA72B574323D9D9 /* PlatformBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformBadge.swift; sourceTree = "<group>"; };
 		563B10FC6FA5E2D182E97D92 /* OpenMentionsIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenMentionsIntent.swift; sourceTree = "<group>"; };
@@ -1114,6 +1116,7 @@
 				44251B4664912D2054D452ED /* AutocompleteOverlay.swift */,
 				C3473A00930E15E5E41079A5 /* BoostBanner.swift */,
 				5380ACC14D7AA8B3B52C775E /* CachedAsyncImage.swift */,
+				DA9B56C1DE4FEE7983A7AC7F /* CaughtUpMarker.swift */,
 				0901F37DD4950F3E5BEF4AC5 /* ContentWarningEditor.swift */,
 				001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */,
 				4366FC833A6E1A4DFD472205 /* ExpandingReplyBanner.swift */,
@@ -1365,6 +1368,7 @@
 				7E4155789C5E894B1D0549F7 /* BoostBanner.swift in Sources */,
 				6A4024A8FED0BB69620D8BBB /* CacheHydrationPolicy.swift in Sources */,
 				AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */,
+				CC454DB99A7F6F0CBF5EBDB3 /* CaughtUpMarker.swift in Sources */,
 				53E65B535C6E4A5365EDBDFC /* CanonicalPost.swift in Sources */,
 				E680E017602FF623E27FE181 /* CanonicalPostResolver.swift in Sources */,
 				0C2A1C34C726230BBC70531A /* CanonicalPostStore.swift in Sources */,
