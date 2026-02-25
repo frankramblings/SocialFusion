@@ -165,6 +165,7 @@
 		8724BC85B197B76E54F681E8 /* DirectOpenDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 400CBF1067AD4FC7FA6F50BF /* DirectOpenDetector.swift */; };
 		87359C2B012AB2CEA318DFF1 /* AutocompleteRanker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73541E2AA0285DE3FABA6097 /* AutocompleteRanker.swift */; };
 		87597E8B3AC39608D559B8B8 /* NativeYouTubePlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BD574D596E911CA879F1F4F /* NativeYouTubePlayer.swift */; };
+		CCFDBA029AB5B6249E8DF73F /* ParallaxMediaModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6AD0F2D69C8A92E0308D9EA /* ParallaxMediaModifier.swift */; };
 		891381E646BD297FE4BC048A /* AutocompleteOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44251B4664912D2054D452ED /* AutocompleteOverlay.swift */; };
 		8916166C2D2B1024EFDC741A /* UnifiedTimelineContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07C7AE08F6ACA13B80841996 /* UnifiedTimelineContextProvider.swift */; };
 		89508D3882A5043E46197CB8 /* AccountManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37E0D8326AF57D67916ECE43 /* AccountManager.swift */; };
@@ -352,6 +353,7 @@
 		09865BAC6E267F39F883A07D /* UnifiedMediaGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnifiedMediaGridView.swift; sourceTree = "<group>"; };
 		0A0031088E442B86B93B5225 /* MastodonPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonPost.swift; sourceTree = "<group>"; };
 		0BD574D596E911CA879F1F4F /* NativeYouTubePlayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeYouTubePlayer.swift; sourceTree = "<group>"; };
+		F6AD0F2D69C8A92E0308D9EA /* ParallaxMediaModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParallaxMediaModifier.swift; sourceTree = "<group>"; };
 		0CEAD9BB34659AEAA42BEA30 /* AccountPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountPickerView.swift; sourceTree = "<group>"; };
 		0D80D8E657DE7507D5B1D411 /* CanonicalPost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalPost.swift; sourceTree = "<group>"; };
 		0DE6DEAE10E943046F5ED8D6 /* SocialFusionTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SocialFusionTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -1134,6 +1136,7 @@
 				6C31622F358C7506EF057217 /* MediaContainerView.swift */,
 				E1CF2028FCE0C14ED0305812 /* MediaGridView.swift */,
 				0BD574D596E911CA879F1F4F /* NativeYouTubePlayer.swift */,
+				F6AD0F2D69C8A92E0308D9EA /* ParallaxMediaModifier.swift */,
 				39707FACEBD61A89EBA1BB73 /* ParentPostPreview.swift */,
 				CCCDD8B7F253689C0408AD5F /* PerformantLinkPreview.swift */,
 				2C20BC3127C72061501008AC /* PlatformConflictBanner.swift */,
@@ -1453,6 +1456,7 @@
 				9524654D14AB7D8320D0BF4C /* MonitoringService.swift in Sources */,
 				9B0ADB464AC7C261CDAAE66D /* MutedKeywordsView.swift in Sources */,
 				87597E8B3AC39608D559B8B8 /* NativeYouTubePlayer.swift in Sources */,
+				CCFDBA029AB5B6249E8DF73F /* ParallaxMediaModifier.swift in Sources */,
 				3AB08319C3E0EB35C28E786C /* NavBarPillSelector.swift in Sources */,
 				8A7D54870241622C2500CFBE /* NetworkConfig.swift in Sources */,
 				9560ECBE2EC579123A30AF08 /* NetworkService.swift in Sources */,

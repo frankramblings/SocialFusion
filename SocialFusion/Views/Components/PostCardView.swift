@@ -633,6 +633,7 @@ struct PostCardView: View {
                 .padding(.horizontal, 4)
                 .padding(.top, 4)
                 .clipped()
+                .parallaxOnScroll()
             } else {
                 // Fallback to existing implementation
                 UnifiedMediaGridView(attachments: attachmentsToShow, maxHeight: mediaMaxHeight)
@@ -640,6 +641,7 @@ struct PostCardView: View {
                     .padding(.horizontal, 4)
                     .padding(.top, 4)
                     .clipped()
+                    .parallaxOnScroll()
                     .onAppear {
                         DebugLog.verbose("[PostCardView] 📎 Displaying \(attachmentsToShow.count) attachments for post \(post.id)")
                         for (index, att) in attachmentsToShow.enumerated() {
@@ -688,10 +690,10 @@ struct PostCardView: View {
                 }
             }
         }
-        .onChange(of: post.id) { _ in
+        .onChange(of: post.id) { _, _ in
             updateCachedValues()
         }
-        .onChange(of: ObjectIdentifier(post)) { _ in
+        .onChange(of: ObjectIdentifier(post)) { _, _ in
             updateCachedValues()
         }
         .onReceive(post.$poll) { _ in
