@@ -79,7 +79,6 @@ struct TimelineFeedPickerPopover: View {
 
         let accountItems: [NavBarPillDropdownItem] = accounts.map { account in
             let platformIcon = account.platform == .mastodon ? "🐘" : "🦋"
-            let name = account.displayName ?? account.username
             let isAccountActive: Bool = {
                 switch selection {
                 case .mastodon(let id, _): return id == account.id
@@ -89,8 +88,9 @@ struct TimelineFeedPickerPopover: View {
             }()
             return NavBarPillDropdownItem(
                 id: "account-\(account.id)",
-                title: "\(platformIcon) \(name)",
+                title: "\(platformIcon) @\(account.username)",
                 isSelected: isAccountActive,
+                showChevron: true,
                 action: { step = .accountDetail(account) }
             )
         }

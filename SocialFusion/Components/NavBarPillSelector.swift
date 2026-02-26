@@ -58,7 +58,16 @@ struct NavBarPillDropdownItem: Identifiable {
     let id: String
     let title: String
     let isSelected: Bool
+    let showChevron: Bool
     let action: () -> Void
+
+    init(id: String, title: String, isSelected: Bool, showChevron: Bool = false, action: @escaping () -> Void) {
+        self.id = id
+        self.title = title
+        self.isSelected = isSelected
+        self.showChevron = showChevron
+        self.action = action
+    }
 }
 
 struct NavBarPillDropdownSection: Identifiable {
@@ -88,6 +97,7 @@ struct NavBarPillDropdown: View {
                     NavBarPillDropdownRow(
                         title: item.title,
                         isSelected: item.isSelected,
+                        showChevron: item.showChevron,
                         action: item.action
                     )
 
@@ -151,6 +161,7 @@ struct NavBarPillDropdownContainer<Content: View>: View {
 struct NavBarPillDropdownRow: View {
     let title: String
     let isSelected: Bool
+    var showChevron: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -159,10 +170,16 @@ struct NavBarPillDropdownRow: View {
                 Text(title)
                     .font(.subheadline)
                     .foregroundColor(.primary)
+                    .lineLimit(1)
 
                 Spacer()
 
-                if isSelected {
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                } else if isSelected {
                     Image(systemName: "checkmark")
                         .font(.caption)
                         .fontWeight(.semibold)
