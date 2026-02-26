@@ -3,12 +3,15 @@ import SwiftUI
 
 @MainActor
 final class TimelineFeedPickerViewModel: ObservableObject {
-    @Published var mastodonLists: [MastodonList] = []
-    @Published var blueskyFeeds: [BlueskyFeedGenerator] = []
+    @Published var mastodonListsByAccount: [String: [MastodonList]] = [:]
+    @Published var blueskyFeedsByAccount: [String: [BlueskyFeedGenerator]] = [:]
     @Published var recentInstances: [String] = []
     @Published var instanceSearchText: String = ""
-    @Published var isLoadingLists = false
-    @Published var isLoadingFeeds = false
+    @Published var loadingListsForAccount: String? = nil
+    @Published var loadingFeedsForAccount: String? = nil
+
+    var mastodonLists: [MastodonList] { mastodonListsByAccount.values.flatMap { $0 } }
+    var blueskyFeeds: [BlueskyFeedGenerator] { blueskyFeedsByAccount.values.flatMap { $0 } }
 
     private let serviceManager: SocialServiceManager
     private let recentInstancesKey = "recentMastodonInstancesV1"
@@ -20,25 +23,43 @@ final class TimelineFeedPickerViewModel: ObservableObject {
     }
 
     func loadMastodonLists(for account: SocialAccount) async {
-        guard !isLoadingLists else { return }
-        isLoadingLists = true
-        defer { isLoadingLists = false }
+        guard loadingListsForAccount != account.id else { return }
+        guard mastodonListsByAccount[account.id] == nil else { return }
+        loadingListsForAccount = account.id
+        defer { loadingListsForAccount = nil }
         do {
-            mastodonLists = try await serviceManager.fetchMastodonLists(account: account)
+            mastodonListsByAccount[account.id] = try await serviceManager.fetchMastodonLists(account: account)
         } catch {
-            mastodonLists = []
+            mastodonListsByAccount[account.id] = []
         }
     }
 
     func loadBlueskyFeeds(for account: SocialAccount) async {
-        guard !isLoadingFeeds else { return }
-        isLoadingFeeds = true
-        defer { isLoadingFeeds = false }
+        guard loadingFeedsForAccount != account.id else { return }
+        guard blueskyFeedsByAccount[account.id] == nil else { return }
+        loadingFeedsForAccount = account.id
+        defer { loadingFeedsForAccount = nil }
         do {
-            blueskyFeeds = try await serviceManager.fetchBlueskySavedFeeds(account: account)
+            blueskyFeedsByAccount[account.id] = try await serviceManager.fetchBlueskySavedFeeds(account: account)
         } catch {
-            blueskyFeeds = []
+            blueskyFeedsByAccount[account.id] = []
         }
+    }
+
+    func isLoadingLists(for accountId: String) -> Bool {
+        return loadingListsForAccount == accountId
+    }
+
+    func isLoadingFeeds(for accountId: String) -> Bool {
+        return loadingFeedsForAccount == accountId
+    }
+
+    func lists(for accountId: String) -> [MastodonList] {
+        return mastodonListsByAccount[accountId] ?? []
+    }
+
+    func feeds(for accountId: String) -> [BlueskyFeedGenerator] {
+        return blueskyFeedsByAccount[accountId] ?? []
     }
 
     func normalizedInstance(from input: String) -> String? {
