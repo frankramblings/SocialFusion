@@ -444,8 +444,15 @@ struct ConsolidatedTimelineView: View {
                 HStack {
                     Spacer()
 
-                    // TODO: Task 6 will rewire this
-                    EmptyView()
+                    TimelineFeedPickerPopover(
+                        viewModel: feedPickerViewModel,
+                        isPresented: $showFeedPicker,
+                        selection: serviceManager.currentTimelineFeedSelection,
+                        accounts: serviceManager.accounts,
+                        mastodonAccounts: serviceManager.mastodonAccounts,
+                        blueskyAccounts: serviceManager.blueskyAccounts,
+                        onSelect: handleFeedSelection(_:)
+                    )
 
                     Spacer()
                 }
@@ -616,15 +623,6 @@ struct ConsolidatedTimelineView: View {
         }
 
         return nil
-    }
-
-    private var currentScopeAccount: SocialAccount? {
-        switch serviceManager.currentTimelineScope {
-        case .allAccounts:
-            return nil
-        case .account(let id):
-            return serviceManager.accounts.first(where: { $0.id == id })
-        }
     }
 
     private var currentFeedTitle: String {
