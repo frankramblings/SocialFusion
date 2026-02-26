@@ -103,6 +103,32 @@ public final class SocialServiceManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     @Published var error: Error?
 
+    // MARK: - Backward Compatibility Shim
+    // selectedAccountIds is derived from currentTimelineFeedSelection for views
+    // that still reference it. Will be removed once all views are migrated.
+    var selectedAccountIds: Set<String> {
+        get {
+            switch currentTimelineFeedSelection {
+            case .unified, .allMastodon, .allBluesky:
+                return ["all"]
+            case .mastodon(let accountId, _), .bluesky(let accountId, _):
+                return [accountId]
+            }
+        }
+        set {
+            if newValue.contains("all") || newValue.isEmpty {
+                currentTimelineFeedSelection = .unified
+            } else if let id = newValue.first, let account = accounts.first(where: { $0.id == id }) {
+                switch account.platform {
+                case .mastodon:
+                    currentTimelineFeedSelection = .mastodon(accountId: id, feed: .home)
+                case .bluesky:
+                    currentTimelineFeedSelection = .bluesky(accountId: id, feed: .following)
+                }
+            }
+        }
+    }
+
     // Timeline selection state (scope derived from feed selection)
     var currentTimelineScope: TimelineScope {
         switch currentTimelineFeedSelection {
