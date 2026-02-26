@@ -21,6 +21,7 @@ struct ContentView: View {
     @State private var showComposeView = false
     @State private var showValidationView = false
     @State private var showAddAccountView = false
+    @State private var showSettingsView = false
     @State private var composeInitialText: String? = nil
 
     @Environment(\.colorScheme) var colorScheme
@@ -72,6 +73,12 @@ struct ContentView: View {
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
+        }
+        .sheet(isPresented: $showSettingsView) {
+            NavigationStack {
+                SettingsView()
+                    .environmentObject(serviceManager)
+            }
         }
         .sheet(isPresented: $showComposeView, onDismiss: {
             composeInitialText = nil
@@ -258,9 +265,19 @@ struct ContentView: View {
 
     private var profileMenuButton: some View {
         Menu {
-            if let account = contextualAccount {
+            if isMultiAccountMode {
                 Section {
-                    Text(account.displayName ?? account.username)
+                    ForEach(serviceManager.accounts) { account in
+                        Label {
+                            Text("@\(account.username)")
+                        } icon: {
+                            Image(account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
+                        }
+                    }
+                }
+            } else if let account = contextualAccount {
+                Section {
+                    Text("@\(account.username)")
                         .font(.subheadline)
                 }
             }
@@ -271,7 +288,7 @@ struct ContentView: View {
                     Label("Add Account", systemImage: "plus")
                 }
                 Button {
-                    selectedTab = 4  // Switch to Profile/Settings tab
+                    showSettingsView = true
                 } label: {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -283,6 +300,13 @@ struct ContentView: View {
         .accessibilityLabel("Profile and settings")
     }
 
+    private var isMultiAccountMode: Bool {
+        switch serviceManager.currentTimelineFeedSelection {
+        case .unified, .allMastodon, .allBluesky: return true
+        case .mastodon, .bluesky: return false
+        }
+    }
+
     private var contextualAccount: SocialAccount? {
         switch serviceManager.currentTimelineFeedSelection {
         case .mastodon(let accountId, _):
@@ -290,7 +314,7 @@ struct ContentView: View {
         case .bluesky(let accountId, _):
             return serviceManager.accounts.first(where: { $0.id == accountId })
         default:
-            return serviceManager.accounts.first
+            return nil
         }
     }
 
