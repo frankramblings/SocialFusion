@@ -200,7 +200,7 @@ struct NavBarPillDropdownRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
+            .background(Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())

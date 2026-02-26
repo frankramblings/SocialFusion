@@ -159,6 +159,7 @@ public final class SocialServiceManager: ObservableObject {
     @Published var isComposing: Bool = false
     private var lastTimelineUpdate: Date = Date.distantPast
     private var shouldMergeOnRefresh: Bool = false  // Track if current refresh should merge (pull-to-refresh at top)
+    private var shouldReplaceTimelineOnNextRefresh: Bool = false  // Force replace on feed switch
 
     // Strong refresh control with circuit breaker pattern
     private var isRefreshInProgress: Bool = false
@@ -430,9 +431,13 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     func setTimelineFeedSelection(_ selection: TimelineFeedSelection) {
+        let changed = currentTimelineFeedSelection != selection
         currentTimelineFeedSelection = selection
         persistTimelineFeedSelection()
         resetPagination()
+        if changed {
+            shouldReplaceTimelineOnNextRefresh = true
+        }
     }
 
     func resolveTimelineFetchPlan() -> TimelineFetchPlan? {
@@ -1777,10 +1782,17 @@ public final class SocialServiceManager: ObservableObject {
         if let generation, !shouldCommitRefresh(generation: generation, stage: "apply_\(source)") {
             return canonicalPostStore.timelinePosts(for: canonicalUnifiedTimelineID)
         }
+        // Feed switch: force replace to clear old feed's posts
+        let forceReplace = shouldReplaceTimelineOnNextRefresh
+        if forceReplace {
+            shouldReplaceTimelineOnNextRefresh = false
+        }
+
         let sourceContext = TimelineSourceContext(source: source)
         // When shouldMerge is true (pull-to-refresh at top), always use processIncomingPosts for smooth merging
+        // Feed switch overrides merge to ensure clean slate
         // Otherwise, use replaceTimeline when replyFiltering is enabled to ensure clean state
-        if shouldMerge || !FeatureFlagManager.isEnabled(.replyFiltering) {
+        if !forceReplace && (shouldMerge || !FeatureFlagManager.isEnabled(.replyFiltering)) {
             canonicalPostStore.processIncomingPosts(
                 filteredPosts,
                 timelineID: canonicalUnifiedTimelineID,

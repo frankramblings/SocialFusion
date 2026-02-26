@@ -223,10 +223,21 @@ struct ConsolidatedTimelineView: View {
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .overlay {
+                if showFeedPicker {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showFeedPicker = false
+                            }
+                        }
+                }
+            }
             .overlay(alignment: .top) {
                 if showFeedPicker {
                     feedPickerOverlay
-                        .offset(y: -78)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .sheet(item: $replyingToPost) { post in
@@ -438,25 +449,15 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var feedPickerOverlay: some View {
-        ZStack(alignment: .top) {
-            Color.black.opacity(0.001)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showFeedPicker = false
-                    }
-                }
-
-            TimelineFeedPickerPopover(
-                viewModel: feedPickerViewModel,
-                isPresented: $showFeedPicker,
-                selection: serviceManager.currentTimelineFeedSelection,
-                accounts: serviceManager.accounts,
-                mastodonAccounts: serviceManager.mastodonAccounts,
-                blueskyAccounts: serviceManager.blueskyAccounts,
-                onSelect: handleFeedSelection(_:)
-            )
-        }
+        TimelineFeedPickerPopover(
+            viewModel: feedPickerViewModel,
+            isPresented: $showFeedPicker,
+            selection: serviceManager.currentTimelineFeedSelection,
+            accounts: serviceManager.accounts,
+            mastodonAccounts: serviceManager.mastodonAccounts,
+            blueskyAccounts: serviceManager.blueskyAccounts,
+            onSelect: handleFeedSelection(_:)
+        )
         .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
     }
 

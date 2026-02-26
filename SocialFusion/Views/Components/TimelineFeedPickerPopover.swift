@@ -22,7 +22,7 @@ struct TimelineFeedPickerPopover: View {
     private let width: CGFloat = 260
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             switch step {
             case .root:
                 NavBarPillDropdown(sections: rootSections, width: width)
