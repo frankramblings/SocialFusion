@@ -17,7 +17,6 @@ struct ContentView: View {
 
     // UI control states
     @State private var showAccountPicker = false
-    @State private var showAccountDropdown = false
 
     @State private var showComposeView = false
     @State private var showValidationView = false
@@ -222,11 +221,8 @@ struct ContentView: View {
     private var notificationsTabContent: some View {
         NavigationStack {
             NotificationsView(
-                showAccountDropdown: $showAccountDropdown,
                 showComposeView: $showComposeView,
-                showValidationView: $showValidationView,
-                selectedAccountId: $selectedAccountId,
-                previousAccountId: $previousAccountId
+                showValidationView: $showValidationView
             )
             .environmentObject(serviceManager)
         }
@@ -235,11 +231,8 @@ struct ContentView: View {
     private var searchTabContent: some View {
         NavigationStack {
             SearchView(
-                showAccountDropdown: $showAccountDropdown,
                 showComposeView: $showComposeView,
-                showValidationView: $showValidationView,
-                selectedAccountId: $selectedAccountId,
-                previousAccountId: $previousAccountId
+                showValidationView: $showValidationView
             )
             .environmentObject(serviceManager)
         }
@@ -248,11 +241,8 @@ struct ContentView: View {
     private var messagesTabContent: some View {
         NavigationStack {
             DirectMessagesView(
-                showAccountDropdown: $showAccountDropdown,
                 showComposeView: $showComposeView,
-                showValidationView: $showValidationView,
-                selectedAccountId: $selectedAccountId,
-                previousAccountId: $previousAccountId
+                showValidationView: $showValidationView
             )
             .environmentObject(serviceManager)
         }
@@ -382,12 +372,7 @@ struct ContentView: View {
             Color(UIColor.systemBackground).ignoresSafeArea()
             if let account = getCurrentAccount() {
                 ProfileView(
-                    account: account,
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
+                    account: account
                 ).environmentObject(serviceManager)
             } else {
                 noAccountView
@@ -528,7 +513,6 @@ struct ContentView: View {
     // Helper function to switch accounts and track previous selection
     private func switchToAccount(id: String?) {
         guard selectedAccountId != id else {
-            showAccountDropdown = false
             return
         }
 
@@ -536,7 +520,6 @@ struct ContentView: View {
         previousAccountId = selectedAccountId
         // Update to new selection
         selectedAccountId = id
-        showAccountDropdown = false
 
         // Update the selected account IDs in the service manager
         if let id = id {
@@ -591,147 +574,10 @@ struct ContentView: View {
         serviceManager.seedAccountSwitchFixturesForUITests()
         selectedAccountId = nil
         previousAccountId = nil
-        showAccountDropdown = false
     }
 
     private func handleHomeTabDoubleTap() {
         // Implementation of handleHomeTabDoubleTap method
-    }
-}
-
-// MARK: - SimpleAccountDropdown (kept for backward compatibility with other views)
-
-struct SimpleAccountDropdown: View {
-    @Binding var selectedAccountId: String?
-    @Binding var previousAccountId: String?
-    @Binding var isVisible: Bool
-    @Binding var showAddAccountView: Bool
-    var onSelectAccount: ((String?) -> Void)? = nil
-    @EnvironmentObject var serviceManager: SocialServiceManager
-    @Environment(\.colorScheme) var colorScheme
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // "All Accounts" option
-            Button(action: {
-                selectAccount(nil)
-            }) {
-                HStack {
-                    Text("All Accounts")
-                        .font(.system(size: 16))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    if selectedAccountId == nil {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14))
-                            .foregroundColor(.blue)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-
-            if !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty {
-                Divider().padding(.horizontal, 8)
-            }
-
-            // Individual accounts
-            ForEach(serviceManager.mastodonAccounts + serviceManager.blueskyAccounts, id: \.id) {
-                account in
-                Button(action: {
-                    selectAccount(account.id)
-                }) {
-                    HStack {
-                        ProfileImageView(account: account)
-                            .frame(width: 24, height: 24)
-                            .clipShape(Circle())
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            EmojiDisplayNameText(
-                                account.displayName ?? account.username,
-                                emojiMap: account.displayNameEmojiMap,
-                                font: .system(size: 15, weight: .medium),
-                                fontWeight: .medium,
-                                foregroundColor: .primary,
-                                lineLimit: 1
-                            )
-
-                            Text("@\(account.username)")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        if selectedAccountId == account.id {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 14))
-                                .foregroundColor(.blue)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-
-                if account.id
-                    != (serviceManager.mastodonAccounts + serviceManager.blueskyAccounts).last?.id
-                {
-                    Divider().padding(.horizontal, 8)
-                }
-            }
-
-            if !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty {
-                Divider().padding(.horizontal, 8)
-            }
-
-            // "Add Account" option
-            Button(action: {
-                showAddAccountView = true
-                isVisible = false
-            }) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.blue)
-                        .padding(.trailing, 4)
-                    Text("Add Account")
-                        .font(.system(size: 16))
-                        .foregroundColor(.blue)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white)
-                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-        )
-        .frame(width: 220)
-        .scaleEffect(isVisible ? 1.0 : 0.8)
-        .opacity(isVisible ? 1.0 : 0.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVisible)
-    }
-
-    private func selectAccount(_ id: String?) {
-        if let onSelectAccount {
-            onSelectAccount(id)
-            return
-        }
-
-        previousAccountId = selectedAccountId
-        selectedAccountId = id
-        serviceManager.selectedAccountIds = id.map { [$0] } ?? ["all"]
-        isVisible = false
-        Task {
-            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
-        }
     }
 }
 
