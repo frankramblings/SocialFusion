@@ -19,34 +19,17 @@ private struct SearchStoreWrapper<Content: View>: View {
 
 struct SearchView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
-    @Binding var showAccountDropdown: Bool
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
-    @Binding var selectedAccountId: String?
-    @Binding var previousAccountId: String?
-    
+
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
     @State private var searchStore: SearchStore?
-    
+
     @State private var showAddAccountView = false
     @State private var trendingTags: [SearchTag] = []
     @State private var isLoadingTrending = false
     @State private var replyingToPost: Post? = nil
     @State private var quotingToPost: Post? = nil
-    
-    init(
-        showAccountDropdown: Binding<Bool>,
-        showComposeView: Binding<Bool>,
-        showValidationView: Binding<Bool>,
-        selectedAccountId: Binding<String?>,
-        previousAccountId: Binding<String?>
-    ) {
-        self._showAccountDropdown = showAccountDropdown
-        self._showComposeView = showComposeView
-        self._showValidationView = showValidationView
-        self._selectedAccountId = selectedAccountId
-        self._previousAccountId = previousAccountId
-    }
     
     var body: some View {
         VStack(spacing: 0) {
@@ -186,22 +169,14 @@ struct SearchView: View {
         }
         .navigationTitle("Search")
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                accountButton
-            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 composeButton
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .overlay(alignment: .topLeading) {
-            if showAccountDropdown {
-                accountDropdownOverlay
-            }
-        }
         .task {
             // Initialize SearchStore with proper provider
-            let accountId = selectedAccountId ?? serviceManager.selectedAccountIds.first ?? "all"
+            let accountId = serviceManager.selectedAccountIds.first ?? "all"
             let networkSelection = determineNetworkSelection()
             searchStore = serviceManager.createSearchStore(
                 networkSelection: networkSelection,
@@ -476,18 +451,6 @@ struct SearchView: View {
         return .unified
     }
     
-    private var accountButton: some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showAccountDropdown.toggle()
-            }
-        }) {
-            getCurrentAccountImage()
-                .frame(width: 24, height: 24)
-        }
-        .accessibilityLabel("Account selector")
-    }
-    
     private var composeButton: some View {
         Button {
             showComposeView = true
@@ -507,34 +470,6 @@ struct SearchView: View {
         }
     }
     
-    private var accountDropdownOverlay: some View {
-        ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showAccountDropdown = false
-                    }
-                }
-            VStack {
-                HStack {
-                    SimpleAccountDropdown(
-                        selectedAccountId: $selectedAccountId,
-                        previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown,
-                        showAddAccountView: $showAddAccountView
-                    )
-                    .environmentObject(serviceManager)
-                    Spacer()
-                }
-                .padding(.leading, 16)
-                .padding(.top, 8)
-                Spacer()
-            }
-        }
-        .zIndex(1000)
-    }
-    
     private func report(_ post: Post) {
         Task {
             do {
@@ -545,23 +480,6 @@ struct SearchView: View {
         }
     }
     
-    private func getCurrentAccount() -> SocialAccount? {
-        guard let selectedId = selectedAccountId else { return nil }
-        return serviceManager.mastodonAccounts.first(where: { $0.id == selectedId })
-            ?? serviceManager.blueskyAccounts.first(where: { $0.id == selectedId })
-    }
-    
-    @ViewBuilder
-    private func getCurrentAccountImage() -> some View {
-        if selectedAccountId != nil, let account = getCurrentAccount() {
-            ProfileImageView(account: account)
-        } else {
-            UnifiedAccountsIcon(
-                mastodonAccounts: serviceManager.mastodonAccounts,
-                blueskyAccounts: serviceManager.blueskyAccounts
-            )
-        }
-    }
 }
 
 // MARK: - Direct Open Row

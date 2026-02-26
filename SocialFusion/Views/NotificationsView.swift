@@ -2,11 +2,8 @@ import SwiftUI
 
 struct NotificationsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
-    @Binding var showAccountDropdown: Bool
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
-    @Binding var selectedAccountId: String?
-    @Binding var previousAccountId: String?
     
     @State private var notifications: [AppNotification] = []
     @State private var isLoading = false
@@ -172,9 +169,6 @@ struct NotificationsView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                accountButton
-            }
             ToolbarItem(placement: .principal) {
                 NavBarPillSelector(
                     title: filterTitle,
@@ -195,29 +189,12 @@ struct NotificationsView: View {
                 await fetchNotifications()
             }
         }
-        .overlay(alignment: .topLeading) {
-            if showAccountDropdown {
-                accountDropdownOverlay
-            }
-        }
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
         }
     }
-    
-    private var accountButton: some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showAccountDropdown.toggle()
-            }
-        }) {
-            getCurrentAccountImage()
-                .frame(width: 24, height: 24)
-        }
-        .accessibilityLabel("Account selector")
-    }
-    
+
     private var composeButton: some View {
         Button {
             showComposeView = true
@@ -234,52 +211,6 @@ struct NotificationsView: View {
         .accessibilityIdentifier("ComposeToolbarButton")
         .onLongPressGesture(minimumDuration: 1.0) {
             showValidationView = true
-        }
-    }
-    
-    private var accountDropdownOverlay: some View {
-        ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showAccountDropdown = false
-                    }
-                }
-            VStack {
-                HStack {
-                    SimpleAccountDropdown(
-                        selectedAccountId: $selectedAccountId,
-                        previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown,
-                        showAddAccountView: $showAddAccountView
-                    )
-                    .environmentObject(serviceManager)
-                    Spacer()
-                }
-                .padding(.leading, 16)
-                .padding(.top, 8)
-                Spacer()
-            }
-        }
-        .zIndex(1000)
-    }
-    
-    private func getCurrentAccount() -> SocialAccount? {
-        guard let selectedId = selectedAccountId else { return nil }
-        return serviceManager.mastodonAccounts.first(where: { $0.id == selectedId })
-            ?? serviceManager.blueskyAccounts.first(where: { $0.id == selectedId })
-    }
-    
-    @ViewBuilder
-    private func getCurrentAccountImage() -> some View {
-        if selectedAccountId != nil, let account = getCurrentAccount() {
-            ProfileImageView(account: account)
-        } else {
-            UnifiedAccountsIcon(
-                mastodonAccounts: serviceManager.mastodonAccounts,
-                blueskyAccounts: serviceManager.blueskyAccounts
-            )
         }
     }
     
@@ -472,11 +403,8 @@ struct NotificationRow: View {
 struct DirectMessagesView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject var chatStreamService: ChatStreamService
-    @Binding var showAccountDropdown: Bool
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
-    @Binding var selectedAccountId: String?
-    @Binding var previousAccountId: String?
     
     @State private var conversations: [DMConversation] = []
     @State private var isLoading = false
@@ -544,19 +472,12 @@ struct DirectMessagesView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                accountButton
-            }
             ToolbarItem(placement: .navigationBarTrailing) {
                 composeButton
             }
         }
+        .navigationTitle("Messages")
         .navigationBarTitleDisplayMode(.inline)
-        .overlay(alignment: .topLeading) {
-            if showAccountDropdown {
-                accountDropdownOverlay
-            }
-        }
         .sheet(isPresented: $showComposeView) {
             ComposeView().environmentObject(serviceManager)
         }
@@ -614,18 +535,6 @@ struct DirectMessagesView: View {
         }
     }
     
-    private var accountButton: some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showAccountDropdown.toggle()
-            }
-        }) {
-            getCurrentAccountImage()
-                .frame(width: 24, height: 24)
-        }
-        .accessibilityLabel("Account selector")
-    }
-    
     private var composeButton: some View {
         Image(systemName: "square.and.pencil")
             .font(.system(size: 18))
@@ -637,53 +546,7 @@ struct DirectMessagesView: View {
                 showValidationView = true
             }
     }
-    
-    private var accountDropdownOverlay: some View {
-        ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showAccountDropdown = false
-                    }
-                }
-            VStack {
-                HStack {
-                    SimpleAccountDropdown(
-                        selectedAccountId: $selectedAccountId,
-                        previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown,
-                        showAddAccountView: $showAddAccountView
-                    )
-                    .environmentObject(serviceManager)
-                    Spacer()
-                }
-                .padding(.leading, 16)
-                .padding(.top, 8)
-                Spacer()
-            }
-        }
-        .zIndex(1000)
-    }
-    
-    private func getCurrentAccount() -> SocialAccount? {
-        guard let selectedId = selectedAccountId else { return nil }
-        return serviceManager.mastodonAccounts.first(where: { $0.id == selectedId })
-            ?? serviceManager.blueskyAccounts.first(where: { $0.id == selectedId })
-    }
-    
-    @ViewBuilder
-    private func getCurrentAccountImage() -> some View {
-        if selectedAccountId != nil, let account = getCurrentAccount() {
-            ProfileImageView(account: account)
-        } else {
-            UnifiedAccountsIcon(
-                mastodonAccounts: serviceManager.mastodonAccounts,
-                blueskyAccounts: serviceManager.blueskyAccounts
-            )
-        }
-    }
-    
+
     private func fetchConversations() async {
         isLoading = true
         errorMessage = nil

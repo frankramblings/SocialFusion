@@ -1,13 +1,24 @@
 import SwiftUI
 
-struct NavBarPillSelector: View {
+struct NavBarPillSelector<LeadingContent: View>: View {
     let title: String
     let isExpanded: Bool
     let action: () -> Void
+    let leadingContent: LeadingContent?
+
+    init(title: String, isExpanded: Bool, action: @escaping () -> Void, @ViewBuilder leadingContent: () -> LeadingContent) {
+        self.title = title
+        self.isExpanded = isExpanded
+        self.action = action
+        self.leadingContent = leadingContent()
+    }
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
+                if let leadingContent {
+                    leadingContent
+                }
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -34,11 +45,31 @@ struct NavBarPillSelector: View {
     }
 }
 
+extension NavBarPillSelector where LeadingContent == EmptyView {
+    init(title: String, isExpanded: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.isExpanded = isExpanded
+        self.action = action
+        self.leadingContent = nil
+    }
+}
+
 struct NavBarPillDropdownItem: Identifiable {
     let id: String
+    let icon: String?
     let title: String
     let isSelected: Bool
+    let showChevron: Bool
     let action: () -> Void
+
+    init(id: String, icon: String? = nil, title: String, isSelected: Bool, showChevron: Bool = false, action: @escaping () -> Void) {
+        self.id = id
+        self.icon = icon
+        self.title = title
+        self.isSelected = isSelected
+        self.showChevron = showChevron
+        self.action = action
+    }
 }
 
 struct NavBarPillDropdownSection: Identifiable {
@@ -66,8 +97,10 @@ struct NavBarPillDropdown: View {
 
                 ForEach(Array(section.items.enumerated()), id: \.element.id) { itemIndex, item in
                     NavBarPillDropdownRow(
+                        icon: item.icon,
                         title: item.title,
                         isSelected: item.isSelected,
+                        showChevron: item.showChevron,
                         action: item.action
                     )
 
@@ -129,20 +162,36 @@ struct NavBarPillDropdownContainer<Content: View>: View {
 }
 
 struct NavBarPillDropdownRow: View {
+    var icon: String? = nil
     let title: String
     let isSelected: Bool
+    var showChevron: Bool = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                if let icon {
+                    Image(icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(.primary)
+                }
                 Text(title)
                     .font(.subheadline)
                     .foregroundColor(.primary)
+                    .lineLimit(1)
 
                 Spacer()
 
-                if isSelected {
+                if showChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+                } else if isSelected {
                     Image(systemName: "checkmark")
                         .font(.caption)
                         .fontWeight(.semibold)
@@ -151,7 +200,7 @@ struct NavBarPillDropdownRow: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(isSelected ? Color.blue.opacity(0.1) : Color.clear)
+            .background(Color.clear)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())

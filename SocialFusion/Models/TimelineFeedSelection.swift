@@ -64,12 +64,16 @@ enum BlueskyTimelineFeed: Hashable, Codable {
 
 enum TimelineFeedSelection: Hashable, Codable {
     case unified
-    case mastodon(MastodonTimelineFeed)
-    case bluesky(BlueskyTimelineFeed)
+    case allMastodon
+    case allBluesky
+    case mastodon(accountId: String, feed: MastodonTimelineFeed)
+    case bluesky(accountId: String, feed: BlueskyTimelineFeed)
 }
 
 enum TimelineFetchPlan {
     case unified(accounts: [SocialAccount])
+    case allMastodon(accounts: [SocialAccount])
+    case allBluesky(accounts: [SocialAccount])
     case mastodon(account: SocialAccount, feed: MastodonTimelineFeed)
     case bluesky(account: SocialAccount, feed: BlueskyTimelineFeed)
 }

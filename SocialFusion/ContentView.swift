@@ -17,13 +17,12 @@ struct ContentView: View {
 
     // UI control states
     @State private var showAccountPicker = false
-    @State private var showAccountDropdown = false
 
     @State private var showComposeView = false
     @State private var showValidationView = false
     @State private var showAddAccountView = false
+    @State private var showSettingsView = false
     @State private var composeInitialText: String? = nil
-    @State private var isSwitchingAccounts = false
 
     @Environment(\.colorScheme) var colorScheme
 
@@ -74,6 +73,12 @@ struct ContentView: View {
         .sheet(isPresented: $showAddAccountView) {
             AddAccountView()
                 .environmentObject(serviceManager)
+        }
+        .sheet(isPresented: $showSettingsView) {
+            NavigationStack {
+                SettingsView()
+                    .environmentObject(serviceManager)
+            }
         }
         .sheet(isPresented: $showComposeView, onDismiss: {
             composeInitialText = nil
@@ -208,44 +213,23 @@ struct ContentView: View {
 
     private var homeTabContent: some View {
         NavigationStack {
-            ZStack {
-                ConsolidatedTimelineView(serviceManager: serviceManager)
-                if showAccountDropdown {
-                    accountDropdownOverlay
-                }
-                if isSwitchingAccounts {
-                    VStack {
-                        ProgressView("Switching account…")
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
-                        Spacer()
+            ConsolidatedTimelineView(serviceManager: serviceManager)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        profileMenuButton
                     }
-                    .padding(.top, 8)
-                    .transition(.opacity)
-                    .zIndex(10)
-                    .allowsHitTesting(false)
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        composeButton
+                    }
                 }
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    accountButton
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    composeButton
-                }
-            }
         }
     }
 
     private var notificationsTabContent: some View {
         NavigationStack {
             NotificationsView(
-                showAccountDropdown: $showAccountDropdown,
                 showComposeView: $showComposeView,
-                showValidationView: $showValidationView,
-                selectedAccountId: $selectedAccountId,
-                previousAccountId: $previousAccountId
+                showValidationView: $showValidationView
             )
             .environmentObject(serviceManager)
         }
@@ -254,11 +238,8 @@ struct ContentView: View {
     private var searchTabContent: some View {
         NavigationStack {
             SearchView(
-                showAccountDropdown: $showAccountDropdown,
                 showComposeView: $showComposeView,
-                showValidationView: $showValidationView,
-                selectedAccountId: $selectedAccountId,
-                previousAccountId: $previousAccountId
+                showValidationView: $showValidationView
             )
             .environmentObject(serviceManager)
         }
@@ -267,11 +248,8 @@ struct ContentView: View {
     private var messagesTabContent: some View {
         NavigationStack {
             DirectMessagesView(
-                showAccountDropdown: $showAccountDropdown,
                 showComposeView: $showComposeView,
-                showValidationView: $showValidationView,
-                selectedAccountId: $selectedAccountId,
-                previousAccountId: $previousAccountId
+                showValidationView: $showValidationView
             )
             .environmentObject(serviceManager)
         }
@@ -283,16 +261,73 @@ struct ContentView: View {
         }
     }
 
-    private var accountButton: some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                showAccountDropdown.toggle()
+    // MARK: - Profile Menu Button (replaces old account dropdown)
+
+    private var profileMenuButton: some View {
+        Menu {
+            if isMultiAccountMode {
+                Section {
+                    ForEach(serviceManager.accounts) { account in
+                        Label {
+                            Text("@\(account.username)")
+                        } icon: {
+                            Image(account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
+                        }
+                    }
+                }
+            } else if let account = contextualAccount {
+                Section {
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                }
             }
-        }) {
-            getCurrentAccountImage()
-                .frame(width: 24, height: 24)
+            Section {
+                Button {
+                    showAddAccountView = true
+                } label: {
+                    Label("Add Account", systemImage: "plus")
+                }
+                Button {
+                    showSettingsView = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            }
+        } label: {
+            contextualAvatarView
+                .frame(width: 28, height: 28)
         }
-        .accessibilityLabel("Account selector")
+        .accessibilityLabel("Profile and settings")
+    }
+
+    private var isMultiAccountMode: Bool {
+        switch serviceManager.currentTimelineFeedSelection {
+        case .unified, .allMastodon, .allBluesky: return true
+        case .mastodon, .bluesky: return false
+        }
+    }
+
+    private var contextualAccount: SocialAccount? {
+        switch serviceManager.currentTimelineFeedSelection {
+        case .mastodon(let accountId, _):
+            return serviceManager.accounts.first(where: { $0.id == accountId })
+        case .bluesky(let accountId, _):
+            return serviceManager.accounts.first(where: { $0.id == accountId })
+        default:
+            return nil
+        }
+    }
+
+    @ViewBuilder
+    private var contextualAvatarView: some View {
+        if let account = contextualAccount {
+            ProfileImageView(account: account)
+        } else {
+            UnifiedAccountsIcon(
+                mastodonAccounts: serviceManager.mastodonAccounts,
+                blueskyAccounts: serviceManager.blueskyAccounts
+            )
+        }
     }
 
     private var composeButton: some View {
@@ -356,46 +391,12 @@ struct ContentView: View {
         .allowsHitTesting(true)
     }
 
-    private var accountDropdownOverlay: some View {
-        ZStack {
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showAccountDropdown = false
-                    }
-                }
-            VStack {
-                HStack {
-                    SimpleAccountDropdown(
-                        selectedAccountId: $selectedAccountId,
-                        previousAccountId: $previousAccountId,
-                        isVisible: $showAccountDropdown,
-                        showAddAccountView: $showAddAccountView,
-                        onSelectAccount: { switchToAccount(id: $0) }
-                    )
-                    .environmentObject(serviceManager)
-                    Spacer()
-                }
-                .padding(.leading, 16)
-                .padding(.top, 8)
-                Spacer()
-            }
-        }
-        .zIndex(1000)
-    }
-
     private var profileContent: some View {
         ZStack {
             Color(UIColor.systemBackground).ignoresSafeArea()
             if let account = getCurrentAccount() {
                 ProfileView(
-                    account: account,
-                    showAccountDropdown: $showAccountDropdown,
-                    showComposeView: $showComposeView,
-                    showValidationView: $showValidationView,
-                    selectedAccountId: $selectedAccountId,
-                    previousAccountId: $previousAccountId
+                    account: account
                 ).environmentObject(serviceManager)
             } else {
                 noAccountView
@@ -403,15 +404,10 @@ struct ContentView: View {
         }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                accountButton
+                profileMenuButton
             }
             ToolbarItem(placement: .navigationBarTrailing) {
                 composeButton
-            }
-        }
-        .overlay(alignment: .topLeading) {
-            if showAccountDropdown {
-                accountDropdownOverlay
             }
         }
     }
@@ -479,21 +475,6 @@ struct ContentView: View {
             ?? serviceManager.blueskyAccounts.first(where: { $0.id == selectedId })
     }
 
-    // Helper to get account image for the picker button
-    @ViewBuilder
-    private func getCurrentAccountImage() -> some View {
-        if selectedAccountId != nil, let account = getCurrentAccount() {
-            // Show the selected account avatar
-            ProfileImageView(account: account)
-        } else {
-            // Show the "All" icon (unified view)
-            UnifiedAccountsIcon(
-                mastodonAccounts: serviceManager.mastodonAccounts,
-                blueskyAccounts: serviceManager.blueskyAccounts
-            )
-        }
-    }
-
     // Helper function to switch to the previous account
     private func switchToPreviousAccount() {
         if let prevId = previousAccountId {
@@ -556,7 +537,6 @@ struct ContentView: View {
     // Helper function to switch accounts and track previous selection
     private func switchToAccount(id: String?) {
         guard selectedAccountId != id else {
-            showAccountDropdown = false
             return
         }
 
@@ -564,8 +544,6 @@ struct ContentView: View {
         previousAccountId = selectedAccountId
         // Update to new selection
         selectedAccountId = id
-        showAccountDropdown = false
-        isSwitchingAccounts = true
 
         // Update the selected account IDs in the service manager
         if let id = id {
@@ -577,13 +555,11 @@ struct ContentView: View {
         }
 
         if UITestHooks.isEnabled {
-            isSwitchingAccounts = false
             return
         }
 
         // Refresh timeline with new account selection
         Task { @MainActor in
-            defer { isSwitchingAccounts = false }
             try? await serviceManager.refreshTimeline(intent: .manualRefresh)
         }
     }
@@ -622,387 +598,10 @@ struct ContentView: View {
         serviceManager.seedAccountSwitchFixturesForUITests()
         selectedAccountId = nil
         previousAccountId = nil
-        showAccountDropdown = false
-        isSwitchingAccounts = false
     }
 
     private func handleHomeTabDoubleTap() {
         // Implementation of handleHomeTabDoubleTap method
-    }
-}
-
-// Simple account dropdown using SwiftUI's natural layout
-struct SimpleAccountDropdown: View {
-    @Binding var selectedAccountId: String?
-    @Binding var previousAccountId: String?
-    @Binding var isVisible: Bool
-    @Binding var showAddAccountView: Bool
-    var onSelectAccount: ((String?) -> Void)? = nil
-    @EnvironmentObject var serviceManager: SocialServiceManager
-    @Environment(\.colorScheme) var colorScheme
-
-    var body: some View {
-        VStack(spacing: 0) {
-            // "All Accounts" option
-            Button(action: {
-                selectAccount(nil)
-            }) {
-                HStack {
-                    Text("All Accounts")
-                        .font(.system(size: 16))
-                        .foregroundColor(.primary)
-                    Spacer()
-                    if selectedAccountId == nil {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 14))
-                            .foregroundColor(.blue)
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-
-            if !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty {
-                Divider().padding(.horizontal, 8)
-            }
-
-            // Individual accounts
-            ForEach(serviceManager.mastodonAccounts + serviceManager.blueskyAccounts, id: \.id) {
-                account in
-                Button(action: {
-                    selectAccount(account.id)
-                }) {
-                    HStack {
-                        ProfileImageView(account: account)
-                            .frame(width: 24, height: 24)
-                            .clipShape(Circle())
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            EmojiDisplayNameText(
-                                account.displayName ?? account.username,
-                                emojiMap: account.displayNameEmojiMap,
-                                font: .system(size: 15, weight: .medium),
-                                fontWeight: .medium,
-                                foregroundColor: .primary,
-                                lineLimit: 1
-                            )
-
-                            Text("@\(account.username)")
-                                .font(.system(size: 13))
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        Spacer()
-                        if selectedAccountId == account.id {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 14))
-                                .foregroundColor(.blue)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-
-                if account.id
-                    != (serviceManager.mastodonAccounts + serviceManager.blueskyAccounts).last?.id
-                {
-                    Divider().padding(.horizontal, 8)
-                }
-            }
-
-            if !serviceManager.mastodonAccounts.isEmpty || !serviceManager.blueskyAccounts.isEmpty {
-                Divider().padding(.horizontal, 8)
-            }
-
-            // "Add Account" option
-            Button(action: {
-                showAddAccountView = true
-                isVisible = false
-            }) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.blue)
-                        .padding(.trailing, 4)
-                    Text("Add Account")
-                        .font(.system(size: 16))
-                        .foregroundColor(.blue)
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white)
-                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-        )
-        .frame(width: 220)
-        .scaleEffect(isVisible ? 1.0 : 0.8)
-        .opacity(isVisible ? 1.0 : 0.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVisible)
-    }
-
-    private func selectAccount(_ id: String?) {
-        if let onSelectAccount {
-            onSelectAccount(id)
-            return
-        }
-
-        previousAccountId = selectedAccountId
-        selectedAccountId = id
-        serviceManager.selectedAccountIds = id.map { [$0] } ?? ["all"]
-        isVisible = false
-        Task {
-            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
-        }
-    }
-}
-
-// Account dropdown overlay with improved design (DEPRECATED - keeping for reference)
-struct AccountDropdownView: View {
-    @Binding var selectedAccountId: String?
-    @Binding var previousAccountId: String?
-    @Binding var isVisible: Bool
-    @EnvironmentObject var serviceManager: SocialServiceManager
-    @Environment(\.colorScheme) var colorScheme
-    @State private var showAddAccountView = false
-
-    let position: CGPoint
-    @State private var dropdownSize: CGSize = .zero
-
-    var body: some View {
-        ZStack {
-            // Dismiss when tapping outside the dropdown
-            Color.clear
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    isVisible = false
-                }
-
-            VStack(spacing: 0) {
-                // Dropdown arrow at the top
-                Image(systemName: "arrowtriangle.up.fill")
-                    .font(.system(size: 12))
-                    .foregroundColor(
-                        colorScheme == .dark
-                            ? Color(UIColor.secondarySystemBackground) : Color.white
-                    )
-                    .offset(y: 5)
-                    .zIndex(1)
-
-                // Main dropdown content
-                VStack(spacing: 0) {
-                    // "All Accounts" option with checkmark
-                    Button(action: {
-                        // Switch to All Accounts
-                        previousAccountId = selectedAccountId
-                        selectedAccountId = nil
-
-                        // Update selected accounts in service manager
-                        serviceManager.selectedAccountIds = ["all"]
-
-                        // Hide the dropdown
-                        isVisible = false
-
-                        // Refresh the timeline
-                        Task {
-                            try? await serviceManager.refreshTimeline(intent: .manualRefresh)
-                        }
-                    }) {
-                        HStack {
-                            Text("All Accounts")
-                                .font(.system(size: 16))
-                                .foregroundColor(.primary)
-
-                            Spacer()
-
-                            // Show checkmark if selected
-                            if selectedAccountId == nil {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.blue)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-                    Divider()
-                        .padding(.horizontal, 8)
-
-                    // Individual accounts
-                    ForEach(
-                        serviceManager.mastodonAccounts + serviceManager.blueskyAccounts, id: \.id
-                    ) { account in
-                        Button(action: {
-                            // Switch to specific account
-                            previousAccountId = selectedAccountId
-                            selectedAccountId = account.id
-
-                            // Update selected accounts in service manager
-                            serviceManager.selectedAccountIds = [account.id]
-
-                            // Hide the dropdown
-                            isVisible = false
-
-                            // Refresh the timeline
-                            Task {
-                                try? await serviceManager.refreshTimeline(intent: .manualRefresh)
-                            }
-                        }) {
-                            HStack {
-                                ProfileImageView(account: account)
-                                    .frame(width: 24, height: 24)
-                                    .clipShape(Circle())
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    EmojiDisplayNameText(
-                                        account.displayName ?? account.username,
-                                        emojiMap: account.displayNameEmojiMap,
-                                        font: .system(size: 15, weight: .medium),
-                                        fontWeight: .medium,
-                                        foregroundColor: .primary,
-                                        lineLimit: 1
-                                    )
-
-                                    Text("@\(account.username)")
-                                        .font(.system(size: 13))
-                                        .foregroundColor(.secondary)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer()
-
-                                // Show checkmark if selected
-                                if selectedAccountId == account.id {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 14))
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        if account.id
-                            != (serviceManager.mastodonAccounts + serviceManager.blueskyAccounts)
-                            .last?.id
-                        {
-                            Divider()
-                                .padding(.horizontal, 8)
-                        }
-                    }
-
-                    if !serviceManager.mastodonAccounts.isEmpty
-                        || !serviceManager.blueskyAccounts.isEmpty
-                    {
-                        Divider()
-                            .padding(.horizontal, 8)
-                    }
-
-                    // "Add Account" option
-                    Button(action: {
-                        showAddAccountView = true
-                        isVisible = false
-                    }) {
-                        HStack {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 16))
-                                .foregroundColor(.blue)
-                                .padding(.trailing, 4)
-
-                            Text("Add Account")
-                                .font(.system(size: 16))
-                                .foregroundColor(.blue)
-
-                            Spacer()
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
-                .background(
-                    colorScheme == .dark ? Color(UIColor.secondarySystemBackground) : Color.white
-                )
-                .cornerRadius(12)
-                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-                )
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.onAppear {
-                            dropdownSize = geo.size
-                        }
-                    }
-                )
-            }
-            .position(adjustedPosition)
-            .frame(width: 220)
-            .scaleEffect(isVisible ? 1.0 : 0.8)
-            .opacity(isVisible ? 1.0 : 0.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isVisible)
-        }
-        .ignoresSafeArea()
-        .sheet(isPresented: $showAddAccountView) {
-            AddAccountView()
-                .environmentObject(serviceManager)
-        }
-        .onReceive(
-            NotificationCenter.default.publisher(
-                for: Notification.Name("shouldRepresentAddAccount"))
-        ) { notification in
-            // PHASE 3+: Removed notification handler to prevent AttributeGraph cycles
-            // Account management will be handled through normal UI flow instead
-        }
-    }
-
-    // Calculate position that keeps the dropdown on screen
-    private var adjustedPosition: CGPoint {
-        let screenWidth = UIScreen.main.bounds.width
-        let safeAreaInsets: UIEdgeInsets
-
-        // Get safe area insets using modern approach
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-            let window = windowScene.windows.first
-        {
-            safeAreaInsets = window.safeAreaInsets
-        } else {
-            safeAreaInsets = .zero
-        }
-
-        // Get dropdown dimensions - use fixed values if geometry hasn't calculated yet
-        let dropdownWidth: CGFloat = 220
-
-        // Position dropdown below the button, accounting for navigation bar
-        let buttonX: CGFloat = 80  // Approximate button position from left
-        let buttonY: CGFloat = safeAreaInsets.top + 44 + 30  // Below navigation bar
-
-        var x = buttonX
-        var y = buttonY
-
-        // Center horizontally on the button
-        x = max(dropdownWidth / 2 + 16, min(screenWidth - dropdownWidth / 2 - 16, x))
-
-        // Position below the button with some padding
-        y = buttonY + 20
-
-        return CGPoint(x: x, y: y)
     }
 }
 

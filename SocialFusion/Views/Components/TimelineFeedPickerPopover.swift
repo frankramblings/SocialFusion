@@ -3,16 +3,18 @@ import SwiftUI
 struct TimelineFeedPickerPopover: View {
     enum Step: Equatable {
         case root
-        case mastodonLists
-        case blueskyFeeds
-        case instanceBrowser
+        case accountDetail(SocialAccount)
+        case mastodonLists(SocialAccount)
+        case blueskyFeeds(SocialAccount)
+        case instanceBrowser(SocialAccount)
     }
 
     @ObservedObject var viewModel: TimelineFeedPickerViewModel
     @Binding var isPresented: Bool
-    let scope: TimelineScope
     let selection: TimelineFeedSelection
-    let account: SocialAccount?
+    let accounts: [SocialAccount]
+    let mastodonAccounts: [SocialAccount]
+    let blueskyAccounts: [SocialAccount]
     let onSelect: (TimelineFeedSelection) -> Void
 
     @State private var step: Step = .root
@@ -20,24 +22,20 @@ struct TimelineFeedPickerPopover: View {
     private let width: CGFloat = 260
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             switch step {
             case .root:
                 NavBarPillDropdown(sections: rootSections, width: width)
-                    .onAppear {
-                        viewModel.instanceSearchText = ""
-                    }
-            case .mastodonLists:
-                listsView
-            case .blueskyFeeds:
-                feedsView
-            case .instanceBrowser:
-                instanceBrowserView
+                    .onAppear { viewModel.instanceSearchText = "" }
+            case .accountDetail(let account):
+                accountDetailView(for: account)
+            case .mastodonLists(let account):
+                listsView(for: account)
+            case .blueskyFeeds(let account):
+                feedsView(for: account)
+            case .instanceBrowser(let account):
+                instanceBrowserView(for: account)
             }
-        }
-        .onChange(of: scope) { _, _ in
-            step = .root
-            viewModel.instanceSearchText = ""
         }
         .onChange(of: isPresented) { _, presented in
             if presented {
@@ -47,175 +45,215 @@ struct TimelineFeedPickerPopover: View {
         }
     }
 
+    // MARK: - Root Level
+
     private var rootSections: [NavBarPillDropdownSection] {
-        switch scope {
-        case .allAccounts:
-            return [
-                NavBarPillDropdownSection(
-                    id: "timeline-unified",
-                    header: nil,
-                    items: [
-                        NavBarPillDropdownItem(
-                            id: "timeline-unified",
-                            title: "Unified",
-                            isSelected: selection == .unified,
-                            action: { select(.unified) }
-                        )
-                    ]
-                )
-            ]
-        case .account:
-            if let account = account, account.platform == .mastodon {
-                return [
-                    NavBarPillDropdownSection(
-                        id: "timeline-mastodon",
-                        header: nil,
-                        items: [
-                            NavBarPillDropdownItem(
-                                id: "timeline-mastodon-home",
-                                title: "Home",
-                                isSelected: isSelectedMastodon(.home),
-                                action: { select(.mastodon(.home)) }
-                            ),
-                            NavBarPillDropdownItem(
-                                id: "timeline-mastodon-local",
-                                title: "Local",
-                                isSelected: isSelectedMastodon(.local),
-                                action: { select(.mastodon(.local)) }
-                            ),
-                            NavBarPillDropdownItem(
-                                id: "timeline-mastodon-federated",
-                                title: "Federated",
-                                isSelected: isSelectedMastodon(.federated),
-                                action: { select(.mastodon(.federated)) }
-                            ),
-                            NavBarPillDropdownItem(
-                                id: "timeline-mastodon-lists",
-                                title: "Lists...",
-                                isSelected: false,
-                                action: { openLists() }
-                            ),
-                            NavBarPillDropdownItem(
-                                id: "timeline-mastodon-instance",
-                                title: "Browse Instance Timeline...",
-                                isSelected: false,
-                                action: { step = .instanceBrowser }
-                            ),
-                        ]
-                    )
-                ]
-            }
+        var topItems: [NavBarPillDropdownItem] = [
+            NavBarPillDropdownItem(
+                id: "unified",
+                title: "Unified",
+                isSelected: selection == .unified,
+                action: { select(.unified) }
+            )
+        ]
 
-            if let account = account, account.platform == .bluesky {
-                return [
-                    NavBarPillDropdownSection(
-                        id: "timeline-bluesky",
-                        header: nil,
-                        items: [
-                            NavBarPillDropdownItem(
-                                id: "timeline-bluesky-following",
-                                title: "Following",
-                                isSelected: isSelectedBluesky(.following),
-                                action: { select(.bluesky(.following)) }
-                            ),
-                            NavBarPillDropdownItem(
-                                id: "timeline-bluesky-feeds",
-                                title: "My Feeds...",
-                                isSelected: false,
-                                action: { openFeeds() }
-                            ),
-                        ]
-                    )
-                ]
-            }
+        if mastodonAccounts.count >= 2 {
+            topItems.append(NavBarPillDropdownItem(
+                id: "all-mastodon",
+                title: "All Mastodon",
+                isSelected: selection == .allMastodon,
+                action: { select(.allMastodon) }
+            ))
+        }
 
-            return []
+        if blueskyAccounts.count >= 2 {
+            topItems.append(NavBarPillDropdownItem(
+                id: "all-bluesky",
+                title: "All Bluesky",
+                isSelected: selection == .allBluesky,
+                action: { select(.allBluesky) }
+            ))
+        }
+
+        var sections = [NavBarPillDropdownSection(id: "top", header: nil, items: topItems)]
+
+        let accountItems: [NavBarPillDropdownItem] = accounts.map { account in
+            let logoAsset = account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo"
+            let isAccountActive: Bool = {
+                switch selection {
+                case .mastodon(let id, _): return id == account.id
+                case .bluesky(let id, _): return id == account.id
+                default: return false
+                }
+            }()
+            return NavBarPillDropdownItem(
+                id: "account-\(account.id)",
+                icon: logoAsset,
+                title: "@\(account.username)",
+                isSelected: isAccountActive,
+                showChevron: true,
+                action: { step = .accountDetail(account) }
+            )
+        }
+
+        if !accountItems.isEmpty {
+            sections.append(NavBarPillDropdownSection(id: "accounts", header: nil, items: accountItems))
+        }
+
+        return sections
+    }
+
+    // MARK: - Account Detail (drill-in)
+
+    private func accountDetailView(for account: SocialAccount) -> some View {
+        NavBarPillDropdownContainer(width: width) {
+            drillInHeader(title: account.displayName ?? account.username, backTo: .root)
+            Divider().padding(.horizontal, 12)
+
+            if account.platform == .mastodon {
+                mastodonFeedItems(for: account)
+            } else {
+                blueskyFeedItems(for: account)
+            }
         }
     }
 
-    private var listsView: some View {
-        NavBarPillDropdownContainer(width: width) {
-            drillInHeader(title: "Lists")
-            Divider()
-                .padding(.horizontal, 12)
+    @ViewBuilder
+    private func mastodonFeedItems(for account: SocialAccount) -> some View {
+        let aid = account.id
+        NavBarPillDropdownRow(
+            title: "Home",
+            isSelected: selection == .mastodon(accountId: aid, feed: .home),
+            action: { select(.mastodon(accountId: aid, feed: .home)) }
+        )
+        Divider().padding(.horizontal, 12)
+        NavBarPillDropdownRow(
+            title: "Local",
+            isSelected: selection == .mastodon(accountId: aid, feed: .local),
+            action: { select(.mastodon(accountId: aid, feed: .local)) }
+        )
+        Divider().padding(.horizontal, 12)
+        NavBarPillDropdownRow(
+            title: "Federated",
+            isSelected: selection == .mastodon(accountId: aid, feed: .federated),
+            action: { select(.mastodon(accountId: aid, feed: .federated)) }
+        )
+        Divider().padding(.horizontal, 12)
+        NavBarPillDropdownRow(
+            title: "Lists…",
+            isSelected: false,
+            action: { step = .mastodonLists(account) }
+        )
+        Divider().padding(.horizontal, 12)
+        NavBarPillDropdownRow(
+            title: "Browse Instance…",
+            isSelected: false,
+            action: { step = .instanceBrowser(account) }
+        )
+    }
 
-            if viewModel.isLoadingLists {
+    @ViewBuilder
+    private func blueskyFeedItems(for account: SocialAccount) -> some View {
+        let aid = account.id
+        NavBarPillDropdownRow(
+            title: "Following",
+            isSelected: selection == .bluesky(accountId: aid, feed: .following),
+            action: { select(.bluesky(accountId: aid, feed: .following)) }
+        )
+        Divider().padding(.horizontal, 12)
+        NavBarPillDropdownRow(
+            title: "My Feeds…",
+            isSelected: false,
+            action: { step = .blueskyFeeds(account) }
+        )
+    }
+
+    // MARK: - Lists (Mastodon)
+
+    private func listsView(for account: SocialAccount) -> some View {
+        NavBarPillDropdownContainer(width: width, maxHeight: 400) {
+            drillInHeader(title: "Lists", backTo: .accountDetail(account))
+            Divider().padding(.horizontal, 12)
+
+            if viewModel.isLoadingLists(for: account.id) {
                 ProgressView()
                     .padding(.vertical, 16)
-            } else if viewModel.mastodonLists.isEmpty {
+            } else if viewModel.lists(for: account.id).isEmpty {
                 Text("No lists found")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.vertical, 16)
             } else {
-                ForEach(Array(viewModel.mastodonLists.enumerated()), id: \.element.id) {
-                    index, list in
-                    NavBarPillDropdownRow(
-                        title: list.title,
-                        isSelected: isSelectedMastodonList(list.id),
-                        action: {
-                            select(.mastodon(.list(id: list.id, title: list.title)))
+                let lists = viewModel.lists(for: account.id)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(lists.enumerated()), id: \.element.id) { index, list in
+                            NavBarPillDropdownRow(
+                                title: list.title,
+                                isSelected: isSelectedList(accountId: account.id, listId: list.id),
+                                action: {
+                                    select(.mastodon(accountId: account.id, feed: .list(id: list.id, title: list.title)))
+                                }
+                            )
+                            if index < lists.count - 1 {
+                                Divider().padding(.horizontal, 12)
+                            }
                         }
-                    )
-
-                    if index < viewModel.mastodonLists.count - 1 {
-                        Divider()
-                            .padding(.horizontal, 12)
                     }
                 }
             }
         }
         .onAppear {
-            if let account = account {
-                Task { await viewModel.loadMastodonLists(for: account) }
-            }
+            Task { await viewModel.loadMastodonLists(for: account) }
         }
     }
 
-    private var feedsView: some View {
-        NavBarPillDropdownContainer(width: width) {
-            drillInHeader(title: "My Feeds")
-            Divider()
-                .padding(.horizontal, 12)
+    // MARK: - Feeds (Bluesky)
 
-            if viewModel.isLoadingFeeds {
+    private func feedsView(for account: SocialAccount) -> some View {
+        NavBarPillDropdownContainer(width: width, maxHeight: 400) {
+            drillInHeader(title: "My Feeds", backTo: .accountDetail(account))
+            Divider().padding(.horizontal, 12)
+
+            if viewModel.isLoadingFeeds(for: account.id) {
                 ProgressView()
                     .padding(.vertical, 16)
-            } else if viewModel.blueskyFeeds.isEmpty {
+            } else if viewModel.feeds(for: account.id).isEmpty {
                 Text("No feeds found")
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .padding(.vertical, 16)
             } else {
-                ForEach(Array(viewModel.blueskyFeeds.enumerated()), id: \.element.uri) {
-                    index, feed in
-                    NavBarPillDropdownRow(
-                        title: feed.displayName,
-                        isSelected: isSelectedBlueskyFeed(feed.uri),
-                        action: {
-                            select(.bluesky(.custom(uri: feed.uri, name: feed.displayName)))
+                let feeds = viewModel.feeds(for: account.id)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(feeds.enumerated()), id: \.element.uri) { index, feed in
+                            NavBarPillDropdownRow(
+                                title: feed.displayName,
+                                isSelected: isSelectedFeed(accountId: account.id, feedUri: feed.uri),
+                                action: {
+                                    select(.bluesky(accountId: account.id, feed: .custom(uri: feed.uri, name: feed.displayName)))
+                                }
+                            )
+                            if index < feeds.count - 1 {
+                                Divider().padding(.horizontal, 12)
+                            }
                         }
-                    )
-
-                    if index < viewModel.blueskyFeeds.count - 1 {
-                        Divider()
-                            .padding(.horizontal, 12)
                     }
                 }
             }
         }
         .onAppear {
-            if let account = account {
-                Task { await viewModel.loadBlueskyFeeds(for: account) }
-            }
+            Task { await viewModel.loadBlueskyFeeds(for: account) }
         }
     }
 
-    private var instanceBrowserView: some View {
+    // MARK: - Instance Browser
+
+    private func instanceBrowserView(for account: SocialAccount) -> some View {
         NavBarPillDropdownContainer(width: width, maxHeight: 360) {
-            drillInHeader(title: "Browse Instance")
-            Divider()
-                .padding(.horizontal, 12)
+            drillInHeader(title: "Browse Instance", backTo: .accountDetail(account))
+            Divider().padding(.horizontal, 12)
 
             VStack(alignment: .leading, spacing: 10) {
                 TextField("mastodon.social", text: $viewModel.instanceSearchText)
@@ -228,17 +266,16 @@ struct TimelineFeedPickerPopover: View {
                     .cornerRadius(10)
                     .padding(.horizontal, 16)
                     .onSubmit {
-                        if let server = viewModel.normalizedInstance(from: viewModel.instanceSearchText)
-                        {
-                            selectInstance(server)
+                        if let server = viewModel.normalizedInstance(from: viewModel.instanceSearchText) {
+                            selectInstance(server, for: account)
                         }
                     }
 
                 if let server = viewModel.normalizedInstance(from: viewModel.instanceSearchText) {
                     NavBarPillDropdownRow(
                         title: "Instance: \(server)",
-                        isSelected: isSelectedMastodonInstance(server),
-                        action: { selectInstance(server) }
+                        isSelected: isSelectedInstance(accountId: account.id, server: server),
+                        action: { selectInstance(server, for: account) }
                     )
                 }
 
@@ -250,17 +287,14 @@ struct TimelineFeedPickerPopover: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 4)
 
-                    ForEach(Array(viewModel.recentInstances.enumerated()), id: \.element) {
-                        index, server in
+                    ForEach(Array(viewModel.recentInstances.enumerated()), id: \.element) { index, server in
                         NavBarPillDropdownRow(
                             title: "Instance: \(server)",
-                            isSelected: isSelectedMastodonInstance(server),
-                            action: { selectInstance(server) }
+                            isSelected: isSelectedInstance(accountId: account.id, server: server),
+                            action: { selectInstance(server, for: account) }
                         )
-
                         if index < viewModel.recentInstances.count - 1 {
-                            Divider()
-                                .padding(.horizontal, 12)
+                            Divider().padding(.horizontal, 12)
                         }
                     }
                 }
@@ -269,9 +303,11 @@ struct TimelineFeedPickerPopover: View {
         }
     }
 
-    private func drillInHeader(title: String) -> some View {
+    // MARK: - Helpers
+
+    private func drillInHeader(title: String, backTo: Step) -> some View {
         HStack(spacing: 8) {
-            Button(action: { step = .root }) {
+            Button(action: { step = backTo }) {
                 Image(systemName: "chevron.left")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -289,22 +325,14 @@ struct TimelineFeedPickerPopover: View {
         .padding(.vertical, 12)
     }
 
-    private func openLists() {
-        step = .mastodonLists
-    }
-
-    private func openFeeds() {
-        step = .blueskyFeeds
-    }
-
     private func select(_ selection: TimelineFeedSelection) {
         onSelect(selection)
         dismiss()
     }
 
-    private func selectInstance(_ server: String) {
+    private func selectInstance(_ server: String, for account: SocialAccount) {
         viewModel.recordRecentInstance(server)
-        onSelect(.mastodon(.instance(server: server)))
+        onSelect(.mastodon(accountId: account.id, feed: .instance(server: server)))
         dismiss()
     }
 
@@ -314,37 +342,23 @@ struct TimelineFeedPickerPopover: View {
         }
     }
 
-    private func isSelectedMastodon(_ feed: MastodonTimelineFeed) -> Bool {
-        if case .mastodon(let current) = selection {
-            return current == feed
+    private func isSelectedList(accountId: String, listId: String) -> Bool {
+        if case .mastodon(let id, .list(let lid, _)) = selection {
+            return id == accountId && lid == listId
         }
         return false
     }
 
-    private func isSelectedMastodonList(_ listId: String) -> Bool {
-        if case .mastodon(.list(let id, _)) = selection {
-            return id == listId
+    private func isSelectedFeed(accountId: String, feedUri: String) -> Bool {
+        if case .bluesky(let id, .custom(let uri, _)) = selection {
+            return id == accountId && uri == feedUri
         }
         return false
     }
 
-    private func isSelectedMastodonInstance(_ server: String) -> Bool {
-        if case .mastodon(.instance(let current)) = selection {
-            return current == server
-        }
-        return false
-    }
-
-    private func isSelectedBluesky(_ feed: BlueskyTimelineFeed) -> Bool {
-        if case .bluesky(let current) = selection {
-            return current == feed
-        }
-        return false
-    }
-
-    private func isSelectedBlueskyFeed(_ uri: String) -> Bool {
-        if case .bluesky(.custom(let current, _)) = selection {
-            return current == uri
+    private func isSelectedInstance(accountId: String, server: String) -> Bool {
+        if case .mastodon(let id, .instance(let s)) = selection {
+            return id == accountId && s == server
         }
         return false
     }

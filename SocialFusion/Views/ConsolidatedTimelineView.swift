@@ -231,13 +231,31 @@ struct ConsolidatedTimelineView: View {
                                 showFeedPicker.toggle()
                             }
                         }
-                    )
+                    ) {
+                        if let account = currentFeedAccount {
+                            ProfileImageView(account: account)
+                                .frame(width: 18, height: 18)
+                                .clipShape(Circle())
+                        }
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
+            .overlay {
+                if showFeedPicker {
+                    Color.black.opacity(0.001)
+                        .ignoresSafeArea()
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showFeedPicker = false
+                            }
+                        }
+                }
+            }
             .overlay(alignment: .top) {
                 if showFeedPicker {
                     feedPickerOverlay
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .sheet(item: $replyingToPost) { post in
@@ -457,36 +475,16 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var feedPickerOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.001)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showFeedPicker = false
-                    }
-                }
-
-            VStack {
-                HStack {
-                    Spacer()
-
-                    TimelineFeedPickerPopover(
-                        viewModel: feedPickerViewModel,
-                        isPresented: $showFeedPicker,
-                        scope: serviceManager.currentTimelineScope,
-                        selection: serviceManager.currentTimelineFeedSelection,
-                        account: currentScopeAccount,
-                        onSelect: handleFeedSelection(_:)
-                    )
-
-                    Spacer()
-                }
-                .padding(.top, 2)
-
-                Spacer()
-            }
-        }
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        TimelineFeedPickerPopover(
+            viewModel: feedPickerViewModel,
+            isPresented: $showFeedPicker,
+            selection: serviceManager.currentTimelineFeedSelection,
+            accounts: serviceManager.accounts,
+            mastodonAccounts: serviceManager.mastodonAccounts,
+            blueskyAccounts: serviceManager.blueskyAccounts,
+            onSelect: handleFeedSelection(_:)
+        )
+        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
     }
 
     private var debugOverlay: some View {
@@ -648,21 +646,18 @@ struct ConsolidatedTimelineView: View {
         return nil
     }
 
-    private var currentScopeAccount: SocialAccount? {
-        switch serviceManager.currentTimelineScope {
-        case .allAccounts:
-            return nil
-        case .account(let id):
-            return serviceManager.accounts.first(where: { $0.id == id })
-        }
+    private var currentFeedTitle: String {
+        return feedTitle(for: serviceManager.currentTimelineFeedSelection)
     }
 
-    private var currentFeedTitle: String {
-        switch serviceManager.currentTimelineScope {
-        case .allAccounts:
-            return "Unified"
-        case .account:
-            return feedTitle(for: serviceManager.currentTimelineFeedSelection)
+    private var currentFeedAccount: SocialAccount? {
+        switch serviceManager.currentTimelineFeedSelection {
+        case .mastodon(let id, _):
+            return serviceManager.accounts.first(where: { $0.id == id })
+        case .bluesky(let id, _):
+            return serviceManager.accounts.first(where: { $0.id == id })
+        default:
+            return nil
         }
     }
 
@@ -670,7 +665,11 @@ struct ConsolidatedTimelineView: View {
         switch selection {
         case .unified:
             return "Unified"
-        case .mastodon(let feed):
+        case .allMastodon:
+            return "All Mastodon"
+        case .allBluesky:
+            return "All Bluesky"
+        case .mastodon(_, let feed):
             switch feed {
             case .home:
                 return "Home"
@@ -689,7 +688,7 @@ struct ConsolidatedTimelineView: View {
             case .instance(let server):
                 return "Instance: \(server)"
             }
-        case .bluesky(let feed):
+        case .bluesky(_, let feed):
             switch feed {
             case .following:
                 return "Following"
