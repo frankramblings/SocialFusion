@@ -444,14 +444,8 @@ struct ConsolidatedTimelineView: View {
                 HStack {
                     Spacer()
 
-                    TimelineFeedPickerPopover(
-                        viewModel: feedPickerViewModel,
-                        isPresented: $showFeedPicker,
-                        scope: serviceManager.currentTimelineScope,
-                        selection: serviceManager.currentTimelineFeedSelection,
-                        account: currentScopeAccount,
-                        onSelect: handleFeedSelection(_:)
-                    )
+                    // TODO: Task 6 will rewire this
+                    EmptyView()
 
                     Spacer()
                 }
@@ -634,19 +628,18 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var currentFeedTitle: String {
-        switch serviceManager.currentTimelineScope {
-        case .allAccounts:
-            return "Unified"
-        case .account:
-            return feedTitle(for: serviceManager.currentTimelineFeedSelection)
-        }
+        return feedTitle(for: serviceManager.currentTimelineFeedSelection)
     }
 
     private func feedTitle(for selection: TimelineFeedSelection) -> String {
         switch selection {
         case .unified:
             return "Unified"
-        case .mastodon(let feed):
+        case .allMastodon:
+            return "All Mastodon"
+        case .allBluesky:
+            return "All Bluesky"
+        case .mastodon(_, let feed):
             switch feed {
             case .home:
                 return "Home"
@@ -665,7 +658,7 @@ struct ConsolidatedTimelineView: View {
             case .instance(let server):
                 return "Instance: \(server)"
             }
-        case .bluesky(let feed):
+        case .bluesky(_, let feed):
             switch feed {
             case .following:
                 return "Following"
