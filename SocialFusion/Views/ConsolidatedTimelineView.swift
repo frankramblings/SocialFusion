@@ -226,6 +226,7 @@ struct ConsolidatedTimelineView: View {
             .overlay(alignment: .top) {
                 if showFeedPicker {
                     feedPickerOverlay
+                        .offset(y: -78)
                 }
             }
             .sheet(item: $replyingToPost) { post in
@@ -437,7 +438,7 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var feedPickerOverlay: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color.black.opacity(0.001)
                 .ignoresSafeArea()
                 .onTapGesture {
@@ -446,28 +447,17 @@ struct ConsolidatedTimelineView: View {
                     }
                 }
 
-            VStack {
-                HStack {
-                    Spacer()
-
-                    TimelineFeedPickerPopover(
-                        viewModel: feedPickerViewModel,
-                        isPresented: $showFeedPicker,
-                        selection: serviceManager.currentTimelineFeedSelection,
-                        accounts: serviceManager.accounts,
-                        mastodonAccounts: serviceManager.mastodonAccounts,
-                        blueskyAccounts: serviceManager.blueskyAccounts,
-                        onSelect: handleFeedSelection(_:)
-                    )
-
-                    Spacer()
-                }
-                .padding(.top, 2)
-
-                Spacer()
-            }
+            TimelineFeedPickerPopover(
+                viewModel: feedPickerViewModel,
+                isPresented: $showFeedPicker,
+                selection: serviceManager.currentTimelineFeedSelection,
+                accounts: serviceManager.accounts,
+                mastodonAccounts: serviceManager.mastodonAccounts,
+                blueskyAccounts: serviceManager.blueskyAccounts,
+                onSelect: handleFeedSelection(_:)
+            )
         }
-        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
     }
 
     private var debugOverlay: some View {

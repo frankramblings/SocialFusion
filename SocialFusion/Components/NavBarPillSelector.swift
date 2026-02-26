@@ -56,13 +56,15 @@ extension NavBarPillSelector where LeadingContent == EmptyView {
 
 struct NavBarPillDropdownItem: Identifiable {
     let id: String
+    let icon: String?
     let title: String
     let isSelected: Bool
     let showChevron: Bool
     let action: () -> Void
 
-    init(id: String, title: String, isSelected: Bool, showChevron: Bool = false, action: @escaping () -> Void) {
+    init(id: String, icon: String? = nil, title: String, isSelected: Bool, showChevron: Bool = false, action: @escaping () -> Void) {
         self.id = id
+        self.icon = icon
         self.title = title
         self.isSelected = isSelected
         self.showChevron = showChevron
@@ -95,6 +97,7 @@ struct NavBarPillDropdown: View {
 
                 ForEach(Array(section.items.enumerated()), id: \.element.id) { itemIndex, item in
                     NavBarPillDropdownRow(
+                        icon: item.icon,
                         title: item.title,
                         isSelected: item.isSelected,
                         showChevron: item.showChevron,
@@ -159,6 +162,7 @@ struct NavBarPillDropdownContainer<Content: View>: View {
 }
 
 struct NavBarPillDropdownRow: View {
+    var icon: String? = nil
     let title: String
     let isSelected: Bool
     var showChevron: Bool = false
@@ -166,7 +170,15 @@ struct NavBarPillDropdownRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                if let icon {
+                    Image(icon)
+                        .resizable()
+                        .renderingMode(.template)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 16, height: 16)
+                        .foregroundColor(.primary)
+                }
                 Text(title)
                     .font(.subheadline)
                     .foregroundColor(.primary)

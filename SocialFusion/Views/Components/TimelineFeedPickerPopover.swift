@@ -78,7 +78,7 @@ struct TimelineFeedPickerPopover: View {
         var sections = [NavBarPillDropdownSection(id: "top", header: nil, items: topItems)]
 
         let accountItems: [NavBarPillDropdownItem] = accounts.map { account in
-            let platformIcon = account.platform == .mastodon ? "🐘" : "🦋"
+            let logoAsset = account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo"
             let isAccountActive: Bool = {
                 switch selection {
                 case .mastodon(let id, _): return id == account.id
@@ -88,7 +88,8 @@ struct TimelineFeedPickerPopover: View {
             }()
             return NavBarPillDropdownItem(
                 id: "account-\(account.id)",
-                title: "\(platformIcon) @\(account.username)",
+                icon: logoAsset,
+                title: "@\(account.username)",
                 isSelected: isAccountActive,
                 showChevron: true,
                 action: { step = .accountDetail(account) }
@@ -170,7 +171,7 @@ struct TimelineFeedPickerPopover: View {
     // MARK: - Lists (Mastodon)
 
     private func listsView(for account: SocialAccount) -> some View {
-        NavBarPillDropdownContainer(width: width) {
+        NavBarPillDropdownContainer(width: width, maxHeight: 400) {
             drillInHeader(title: "Lists", backTo: .accountDetail(account))
             Divider().padding(.horizontal, 12)
 
@@ -184,16 +185,20 @@ struct TimelineFeedPickerPopover: View {
                     .padding(.vertical, 16)
             } else {
                 let lists = viewModel.lists(for: account.id)
-                ForEach(Array(lists.enumerated()), id: \.element.id) { index, list in
-                    NavBarPillDropdownRow(
-                        title: list.title,
-                        isSelected: isSelectedList(accountId: account.id, listId: list.id),
-                        action: {
-                            select(.mastodon(accountId: account.id, feed: .list(id: list.id, title: list.title)))
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(lists.enumerated()), id: \.element.id) { index, list in
+                            NavBarPillDropdownRow(
+                                title: list.title,
+                                isSelected: isSelectedList(accountId: account.id, listId: list.id),
+                                action: {
+                                    select(.mastodon(accountId: account.id, feed: .list(id: list.id, title: list.title)))
+                                }
+                            )
+                            if index < lists.count - 1 {
+                                Divider().padding(.horizontal, 12)
+                            }
                         }
-                    )
-                    if index < lists.count - 1 {
-                        Divider().padding(.horizontal, 12)
                     }
                 }
             }
@@ -206,7 +211,7 @@ struct TimelineFeedPickerPopover: View {
     // MARK: - Feeds (Bluesky)
 
     private func feedsView(for account: SocialAccount) -> some View {
-        NavBarPillDropdownContainer(width: width) {
+        NavBarPillDropdownContainer(width: width, maxHeight: 400) {
             drillInHeader(title: "My Feeds", backTo: .accountDetail(account))
             Divider().padding(.horizontal, 12)
 
@@ -220,16 +225,20 @@ struct TimelineFeedPickerPopover: View {
                     .padding(.vertical, 16)
             } else {
                 let feeds = viewModel.feeds(for: account.id)
-                ForEach(Array(feeds.enumerated()), id: \.element.uri) { index, feed in
-                    NavBarPillDropdownRow(
-                        title: feed.displayName,
-                        isSelected: isSelectedFeed(accountId: account.id, feedUri: feed.uri),
-                        action: {
-                            select(.bluesky(accountId: account.id, feed: .custom(uri: feed.uri, name: feed.displayName)))
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(feeds.enumerated()), id: \.element.uri) { index, feed in
+                            NavBarPillDropdownRow(
+                                title: feed.displayName,
+                                isSelected: isSelectedFeed(accountId: account.id, feedUri: feed.uri),
+                                action: {
+                                    select(.bluesky(accountId: account.id, feed: .custom(uri: feed.uri, name: feed.displayName)))
+                                }
+                            )
+                            if index < feeds.count - 1 {
+                                Divider().padding(.horizontal, 12)
+                            }
                         }
-                    )
-                    if index < feeds.count - 1 {
-                        Divider().padding(.horizontal, 12)
                     }
                 }
             }
