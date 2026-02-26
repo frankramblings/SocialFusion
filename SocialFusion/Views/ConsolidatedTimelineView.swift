@@ -213,7 +213,13 @@ struct ConsolidatedTimelineView: View {
                                 showFeedPicker.toggle()
                             }
                         }
-                    )
+                    ) {
+                        if let account = currentFeedAccount {
+                            ProfileImageView(account: account)
+                                .frame(width: 18, height: 18)
+                                .clipShape(Circle())
+                        }
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -627,6 +633,17 @@ struct ConsolidatedTimelineView: View {
 
     private var currentFeedTitle: String {
         return feedTitle(for: serviceManager.currentTimelineFeedSelection)
+    }
+
+    private var currentFeedAccount: SocialAccount? {
+        switch serviceManager.currentTimelineFeedSelection {
+        case .mastodon(let id, _):
+            return serviceManager.accounts.first(where: { $0.id == id })
+        case .bluesky(let id, _):
+            return serviceManager.accounts.first(where: { $0.id == id })
+        default:
+            return nil
+        }
     }
 
     private func feedTitle(for selection: TimelineFeedSelection) -> String {

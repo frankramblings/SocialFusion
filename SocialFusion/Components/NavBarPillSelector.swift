@@ -1,13 +1,24 @@
 import SwiftUI
 
-struct NavBarPillSelector: View {
+struct NavBarPillSelector<LeadingContent: View>: View {
     let title: String
     let isExpanded: Bool
     let action: () -> Void
+    let leadingContent: LeadingContent?
+
+    init(title: String, isExpanded: Bool, action: @escaping () -> Void, @ViewBuilder leadingContent: () -> LeadingContent) {
+        self.title = title
+        self.isExpanded = isExpanded
+        self.action = action
+        self.leadingContent = leadingContent()
+    }
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
+                if let leadingContent {
+                    leadingContent
+                }
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.medium)
@@ -31,6 +42,15 @@ struct NavBarPillSelector: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+}
+
+extension NavBarPillSelector where LeadingContent == EmptyView {
+    init(title: String, isExpanded: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.isExpanded = isExpanded
+        self.action = action
+        self.leadingContent = nil
     }
 }
 
