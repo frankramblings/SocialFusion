@@ -222,7 +222,10 @@
 		AC595326FB7EA4B95B90835E /* SetActiveAccountIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DFDEFBF6E26CDD022D54C9A /* SetActiveAccountIntent.swift */; };
 		ACD5E70372436888FF750539 /* AutocompleteToken.swift in Sources */ = {isa = PBXBuildFile; fileRef = 623471C0CB10485A71E64794 /* AutocompleteToken.swift */; };
 		ADBB6E38E036719FF92B2763 /* PostPollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E7DB0D4A4C268E9FD11655 /* PostPollView.swift */; };
-		AE6491049D7BAE45DC20D148 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B430DD931CA18326730A91 /* ChatView.swift */; };
+		DA6E7F8A9B0C1D2E3F4A5B6C /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7F8A9B0C1D2E3F4A5B6C7D /* ChatView.swift */; };
+		DA8A9B0C1D2E3F4A5B6C7D8E /* DirectMessagesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9B0C1D2E3F4A5B6C7D8E9F /* DirectMessagesView.swift */; };
+		DA0C1D2E3F4A5B6C7D8E9F0A /* MessagesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1D2E3F4A5B6C7D8E9F0A1B /* MessagesViewModel.swift */; };
+		DA3F4A5B6C7D8E9F0A1B2C3D /* NewConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA2E3F4A5B6C7D8E9F0A1B2C /* NewConversationView.swift */; };
 		AEF7B951C882745282C27C24 /* TimelineRefreshCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E01A504F27970720237E48 /* TimelineRefreshCoordinatorTests.swift */; };
 		B164E4D9B23D42FEA3813C18 /* ComposerTextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A0985AFE75C0DCFC06BB270 /* ComposerTextModel.swift */; };
 		B19DC4A198FD6DFF0BB90953 /* DateParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67AC5082405C3F276EADD6AC /* DateParser.swift */; };
@@ -410,7 +413,10 @@
 		3586DD4A1AE05084A7129489 /* KeyboardNavigationModifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyboardNavigationModifier.swift; sourceTree = "<group>"; };
 		36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineV2ValidationRunner.swift; sourceTree = "<group>"; };
 		37E0D8326AF57D67916ECE43 /* AccountManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountManager.swift; sourceTree = "<group>"; };
-		38B430DD931CA18326730A91 /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		DA7F8A9B0C1D2E3F4A5B6C7D /* ChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatView.swift; sourceTree = "<group>"; };
+		DA9B0C1D2E3F4A5B6C7D8E9F /* DirectMessagesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectMessagesView.swift; sourceTree = "<group>"; };
+		DA1D2E3F4A5B6C7D8E9F0A1B /* MessagesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessagesViewModel.swift; sourceTree = "<group>"; };
+		DA2E3F4A5B6C7D8E9F0A1B2C /* NewConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewConversationView.swift; sourceTree = "<group>"; };
 		39707FACEBD61A89EBA1BB73 /* ParentPostPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParentPostPreview.swift; sourceTree = "<group>"; };
 		3A6F5AFDC0B0B4E1580FD2F8 /* MediaConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaConfiguration.swift; sourceTree = "<group>"; };
 		3AB5D5F2EE7FA9395F3BA275 /* CacheHydrationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheHydrationPolicy.swift; sourceTree = "<group>"; };
@@ -711,6 +717,7 @@
 			isa = PBXGroup;
 			children = (
 				A1888888858E76320C038D17 /* FullscreenMediaCoordinator.swift */,
+				DA1D2E3F4A5B6C7D8E9F0A1B /* MessagesViewModel.swift */,
 				D1361C49DB68F7EC3C6FDD2C /* PostViewModel.swift */,
 				58605A02901DF9DC232663F0 /* RelationshipViewModel.swift */,
 				96854ABAFE6185E7CC37C677 /* TimelineFeedPickerViewModel.swift */,
@@ -921,7 +928,6 @@
 				515EEFD6EA2AC8D243C307B7 /* AddAccountView.swift */,
 				A9EDEC87F79BA4F393769206 /* AsyncImageFromProvider.swift */,
 				4CFF143DFD9A254B37F9762F /* AuthWebView.swift */,
-				38B430DD931CA18326730A91 /* ChatView.swift */,
 				B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */,
 				E37E76858D25CD4D7AE1179B /* ComposeViewLifecycleModifier.swift */,
 				789A5C219B9818CD0A7651B5 /* ConsolidatedTimelineView.swift */,
@@ -1204,8 +1210,11 @@
 		DA3B4C5D6E7F8A9B0C1D2E3F /* Messages */ = {
 			isa = PBXGroup;
 			children = (
+				DA7F8A9B0C1D2E3F4A5B6C7D /* ChatView.swift */,
+				DA9B0C1D2E3F4A5B6C7D8E9F /* DirectMessagesView.swift */,
 				DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */,
 				DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */,
+				DA2E3F4A5B6C7D8E9F0A1B2C /* NewConversationView.swift */,
 			);
 			path = Messages;
 			sourceTree = "<group>";
@@ -1394,7 +1403,7 @@
 				E72589213D83F59015636EA4 /* ChatStreamModels.swift in Sources */,
 				216CBE42F83BBB6A30DEE937 /* ChatStreamProvider.swift in Sources */,
 				DEF3AB9AD89EF8F615F0D3C3 /* ChatStreamService.swift in Sources */,
-				AE6491049D7BAE45DC20D148 /* ChatView.swift in Sources */,
+				DA6E7F8A9B0C1D2E3F4A5B6C /* ChatView.swift in Sources */,
 				C65481E13024F427F66E6C28 /* Color+Theme.swift in Sources */,
 				8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */,
 				8AEDD54ECC9BE4DDB828616A /* ComposeViewLifecycleModifier.swift in Sources */,
@@ -1410,8 +1419,11 @@
 				11491516E1B9F31BE7165DBF /* DebugOptionsView.swift in Sources */,
 				8724BC85B197B76E54F681E8 /* DirectOpenDetector.swift in Sources */,
 				E8C4F601B27848208B59093C /* DirectTokenEntryView.swift in Sources */,
+				DA8A9B0C1D2E3F4A5B6C7D8E /* DirectMessagesView.swift in Sources */,
 				DA2B3C4D5E6F7A8B9C0D1E2F /* DMConversationRow.swift in Sources */,
 				DA4C5D6E7F8A9B0C1D2E3F4A /* MessageBubble.swift in Sources */,
+				DA3F4A5B6C7D8E9F0A1B2C3D /* NewConversationView.swift in Sources */,
+				DA0C1D2E3F4A5B6C7D8E9F0A /* MessagesViewModel.swift in Sources */,
 				B8B0E9EBE7098023E1149457 /* DraftPersistenceQueue.swift in Sources */,
 				0D4365E9F93BA2434747926B /* DraftPost.swift in Sources */,
 				D114001BE22758C96F42E45B /* DraftStore.swift in Sources */,

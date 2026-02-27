@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct MessagesListView: View {
+struct DirectMessagesView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @EnvironmentObject var chatStreamService: ChatStreamService
   @StateObject private var viewModel = MessagesViewModel()
@@ -22,7 +22,7 @@ struct MessagesListView: View {
           emptyState
         } else {
           ForEach(viewModel.conversations) { conversation in
-            NavigationLink(destination: ChatDetailView(conversation: conversation)) {
+            NavigationLink(destination: ChatView(conversation: conversation)) {
               DMConversationRow(conversation: conversation)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -106,9 +106,4 @@ struct MessagesListView: View {
     .frame(maxWidth: .infinity)
     .padding(.top, 100)
   }
-}
-
-// Placeholder — replaced in Task 8
-struct NewConversationView: View {
-  var body: some View { Text("New Conversation — Coming Soon").padding() }
 }
