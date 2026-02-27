@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ChatDetailView: View {
+struct ChatView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @EnvironmentObject var chatStreamService: ChatStreamService
   let conversation: DMConversation
@@ -17,77 +17,8 @@ struct ChatDetailView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      ScrollViewReader { proxy in
-        ScrollView {
-          LazyVStack(spacing: 0) {
-            if isLoading && messages.isEmpty {
-              ProgressView().padding(.top, 40)
-            } else {
-              ForEach(Array(groupedMessages.enumerated()), id: \.offset) { _, section in
-                dateHeader(for: section.date)
-
-                ForEach(Array(section.groups.enumerated()), id: \.offset) { _, group in
-                  ForEach(Array(group.messages.enumerated()), id: \.element.id) { msgIndex, message in
-                    let isFirst = msgIndex == 0
-                    let isLast = msgIndex == group.messages.count - 1
-                    MessageBubble(
-                      message: message,
-                      isFromMe: group.isFromMe,
-                      platform: conversation.platform,
-                      isFirstInGroup: isFirst,
-                      isLastInGroup: isLast,
-                      showAvatar: !group.isFromMe,
-                      avatarURL: conversation.participant.avatarURL
-                    )
-                    .padding(.horizontal, 12)
-                    .padding(.top, isFirst ? 8 : 2)
-                    .padding(.bottom, isLast ? 8 : 2)
-                    .id(message.id)
-                  }
-                }
-              }
-            }
-          }
-        }
-        .onChange(of: messages.count) { _ in
-          if let last = messages.last {
-            withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-          }
-        }
-      }
-
-      // Input bar
-      VStack(spacing: 0) {
-        Divider()
-        HStack(spacing: 12) {
-          TextField("Message...", text: $newMessageText, axis: .vertical)
-            .lineLimit(1...5)
-            .padding(10)
-            .background(Color(.systemGray6))
-            .cornerRadius(20)
-
-          Button(action: sendMessage) {
-            if isSending {
-              ProgressView()
-                .scaleEffect(0.8)
-                .foregroundColor(.white)
-                .padding(10)
-                .background(platformColor)
-                .clipShape(Circle())
-            } else {
-              Image(systemName: "paperplane.fill")
-                .foregroundColor(.white)
-                .padding(10)
-                .background(newMessageText.isEmpty ? Color.gray : platformColor)
-                .clipShape(Circle())
-            }
-          }
-          .disabled(newMessageText.isEmpty || isLoading || isSending)
-        }
-        .padding(.horizontal)
-        .padding(.vertical, 8)
-        .background(Color(.systemBackground))
-      }
+      messagesList
+      inputBar
     }
     .navigationTitle(conversation.participant.displayName ?? conversation.participant.username)
     .navigationBarTitleDisplayMode(.inline)
@@ -118,21 +49,93 @@ struct ChatDetailView: View {
       chatStreamService.stopAllStreaming()
     }
     .onReceive(chatStreamService.$recentEvents) { events in
-      for event in events {
-        guard event.conversationId == conversation.id else { continue }
-        switch event {
-        case .newMessage(let msg):
-          guard !messages.contains(where: { $0.id == msg.id }) else { continue }
-          if let unified = msg.unifiedMessage {
-            messages.append(unified)
+      handleStreamEvents(events)
+    }
+  }
+
+  // MARK: - Subviews
+
+  private var messagesList: some View {
+    ScrollViewReader { proxy in
+      ScrollView {
+        LazyVStack(spacing: 0) {
+          if isLoading && messages.isEmpty {
+            ProgressView().padding(.top, 40)
+          } else {
+            ForEach(Array(groupedMessages.enumerated()), id: \.offset) { _, section in
+              dateHeader(for: section.date)
+              ForEach(Array(section.groups.enumerated()), id: \.offset) { _, group in
+                messageGroupView(group)
+              }
+            }
           }
-        case .deletedMessage(let del):
-          messages.removeAll { $0.id == del.messageId }
-        default:
-          break
+        }
+      }
+      .onChange(of: messages.count) { _ in
+        if let last = messages.last {
+          withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private func messageGroupView(_ group: MessageGroup) -> some View {
+    ForEach(Array(group.messages.enumerated()), id: \.element.id) { msgIndex, message in
+      let isFirst = msgIndex == 0
+      let isLast = msgIndex == group.messages.count - 1
+      MessageBubble(
+        message: message,
+        isFromMe: group.isFromMe,
+        platform: conversation.platform,
+        isFirstInGroup: isFirst,
+        isLastInGroup: isLast,
+        showAvatar: !group.isFromMe,
+        avatarURL: conversation.participant.avatarURL
+      )
+      .padding(.horizontal, 12)
+      .padding(.top, isFirst ? 8 : 2)
+      .padding(.bottom, isLast ? 8 : 2)
+      .id(message.id)
+    }
+  }
+
+  private var inputBar: some View {
+    VStack(spacing: 0) {
+      Divider()
+      HStack(spacing: 12) {
+        TextField("Message...", text: $newMessageText, axis: .vertical)
+          .lineLimit(1...5)
+          .padding(10)
+          .background(Color(.systemGray6))
+          .cornerRadius(20)
+
+        sendButton
+      }
+      .padding(.horizontal)
+      .padding(.vertical, 8)
+      .background(Color(.systemBackground))
+    }
+  }
+
+  private var sendButton: some View {
+    Button(action: sendMessage) {
+      if isSending {
+        ProgressView()
+          .scaleEffect(0.8)
+          .foregroundColor(.white)
+          .padding(10)
+          .background(platformColor)
+          .clipShape(Circle())
+      } else {
+        Image(systemName: "paperplane.fill")
+          .foregroundColor(.white)
+          .padding(10)
+          .background(newMessageText.isEmpty ? Color.gray : platformColor)
+          .clipShape(Circle())
+      }
+    }
+    .disabled(newMessageText.isEmpty || isLoading || isSending)
   }
 
   // MARK: - Message Grouping
@@ -238,6 +241,23 @@ struct ChatDetailView: View {
 
   private func isFromMe(_ message: UnifiedChatMessage) -> Bool {
     serviceManager.accounts.contains { $0.platformSpecificId == message.authorId }
+  }
+
+  private func handleStreamEvents(_ events: [UnifiedChatEvent]) {
+    for event in events {
+      guard event.conversationId == conversation.id else { continue }
+      switch event {
+      case .newMessage(let msg):
+        guard !messages.contains(where: { $0.id == msg.id }) else { continue }
+        if let unified = msg.unifiedMessage {
+          messages.append(unified)
+        }
+      case .deletedMessage(let del):
+        messages.removeAll { $0.id == del.messageId }
+      default:
+        break
+      }
+    }
   }
 
   private func loadMessages() {
