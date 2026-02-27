@@ -325,6 +325,7 @@
 		FDB4435670702C877875D7E9 /* SimpleEdgeCaseHandling.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */; };
 		FFBBB8242855FA25B8DB113A /* AutoPresetPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632CEEE180D335AD3C8B35B6 /* AutoPresetPicker.swift */; };
 		DA2B3C4D5E6F7A8B9C0D1E2F /* DMConversationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */; };
+		DA4C5D6E7F8A9B0C1D2E3F4A /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -665,6 +666,7 @@
 		FE8AEF3436E829C336FBE0A8 /* ChatStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStreamProvider.swift; sourceTree = "<group>"; };
 		FF122B28E26B160CB454EE3F /* MastodonSearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonSearchProvider.swift; sourceTree = "<group>"; };
 		DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMConversationRow.swift; sourceTree = "<group>"; };
+		DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1203,6 +1205,7 @@
 			isa = PBXGroup;
 			children = (
 				DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */,
+				DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */,
 			);
 			path = Messages;
 			sourceTree = "<group>";
@@ -1408,6 +1411,7 @@
 				8724BC85B197B76E54F681E8 /* DirectOpenDetector.swift in Sources */,
 				E8C4F601B27848208B59093C /* DirectTokenEntryView.swift in Sources */,
 				DA2B3C4D5E6F7A8B9C0D1E2F /* DMConversationRow.swift in Sources */,
+				DA4C5D6E7F8A9B0C1D2E3F4A /* MessageBubble.swift in Sources */,
 				B8B0E9EBE7098023E1149457 /* DraftPersistenceQueue.swift in Sources */,
 				0D4365E9F93BA2434747926B /* DraftPost.swift in Sources */,
 				D114001BE22758C96F42E45B /* DraftStore.swift in Sources */,

@@ -20,9 +20,20 @@ struct ChatView: View {
                             ProgressView()
                                 .padding()
                         } else {
-                            ForEach(messages) { message in
-                                MessageBubble(message: message, isFromMe: isFromMe(message))
-                                    .id(message.id)
+                            ForEach(Array(messages.enumerated()), id: \.element.id) { index, message in
+                                let fromMe = isFromMe(message)
+                                let prevSame = index > 0 && messages[index - 1].authorId == message.authorId
+                                let nextSame = index < messages.count - 1 && messages[index + 1].authorId == message.authorId
+                                MessageBubble(
+                                    message: message,
+                                    isFromMe: fromMe,
+                                    platform: conversation.platform,
+                                    isFirstInGroup: !prevSame,
+                                    isLastInGroup: !nextSame,
+                                    showAvatar: !fromMe,
+                                    avatarURL: conversation.participant.avatarURL
+                                )
+                                .id(message.id)
                             }
                         }
                     }
@@ -169,40 +180,5 @@ struct ChatView: View {
     }
 }
 
-struct MessageBubble: View {
-    let message: UnifiedChatMessage
-    let isFromMe: Bool
-    
-    var body: some View {
-        HStack {
-            if isFromMe { Spacer() }
-            
-            VStack(alignment: isFromMe ? .trailing : .leading, spacing: 4) {
-                messageContentView
-                    .padding(12)
-                    .background(isFromMe ? Color.blue : Color(.systemGray5))
-                    .foregroundColor(isFromMe ? .white : .primary)
-                    .cornerRadius(18)
-                
-                Text(message.sentAt, style: .time)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            
-            if !isFromMe { Spacer() }
-        }
-    }
-    
-    @ViewBuilder
-    private var messageContentView: some View {
-        // UnifiedChatMessage.text now handles HTML conversion for Mastodon
-        if message.text.isEmpty || message.text == "(Empty message)" {
-            Text("(Empty message)")
-                .italic()
-                .foregroundColor(.secondary)
-        } else {
-            Text(message.text)
-        }
-    }
-}
+
 
