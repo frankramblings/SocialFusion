@@ -40,14 +40,17 @@ struct SearchView: View {
                     SearchChipRow(
                         model: chipModel,
                         onNetworkChange: { selection in
-                            observedStore.networkSelection = selection
                             let accountId = serviceManager.selectedAccountIds.first ?? "all"
+                            let oldText = observedStore.text
+                            let oldScope = observedStore.scope
+                            let oldSort = observedStore.sort
                             searchStore = serviceManager.createSearchStore(
                                 networkSelection: selection,
                                 accountId: accountId
                             )
-                            searchStore?.text = observedStore.text
-                            searchStore?.scope = observedStore.scope
+                            searchStore?.text = oldText
+                            searchStore?.scope = oldScope
+                            searchStore?.sort = oldSort
                             searchStore?.performSearch()
                         },
                         onSortChange: { sort in
@@ -209,10 +212,19 @@ struct SearchView: View {
         .onChange(of: serviceManager.accounts.count) {
             let accountId = serviceManager.selectedAccountIds.first ?? "all"
             let networkSelection = searchStore?.networkSelection ?? determineNetworkSelection()
+            let oldText = searchStore?.text ?? ""
+            let oldScope = searchStore?.scope ?? .posts
+            let oldSort = searchStore?.sort ?? .latest
             searchStore = serviceManager.createSearchStore(
                 networkSelection: networkSelection,
                 accountId: accountId
             )
+            if !oldText.isEmpty {
+                searchStore?.text = oldText
+                searchStore?.scope = oldScope
+                searchStore?.sort = oldSort
+                searchStore?.performSearch()
+            }
         }
         .sheet(item: $replyingToPost) { post in
             ComposeView(replyingTo: post)

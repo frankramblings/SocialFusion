@@ -133,7 +133,8 @@ public class SearchStore: ObservableObject {
       let query = SearchQuery(
         text: text,
         scope: scope,
-        networkSelection: networkSelection
+        networkSelection: networkSelection,
+        sort: sort
       )
 
       let page: SearchPage
@@ -152,8 +153,8 @@ public class SearchStore: ObservableObject {
       isLoadingNextPage = false
       updateChipRowModel()
     } catch {
+      // Keep existing results visible on pagination failure
       isLoadingNextPage = false
-      phase = .error(error.localizedDescription)
     }
   }
   
@@ -254,7 +255,8 @@ public class SearchStore: ObservableObject {
     let query = SearchQuery(
       text: text,
       scope: scope,
-      networkSelection: networkSelection
+      networkSelection: networkSelection,
+      sort: sort
     )
 
     let cacheKey = query.cacheKey(accountId: accountId)
