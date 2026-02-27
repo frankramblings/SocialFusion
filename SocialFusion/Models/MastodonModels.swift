@@ -299,6 +299,19 @@ public struct MastodonMention: Codable {
 public struct MastodonTag: Codable {
     public let name: String
     public let url: String
+    public let history: [MastodonTagHistory]?
+
+    /// Total uses over the last 2 days of history
+    public var totalRecentUses: Int {
+        guard let history = history else { return 0 }
+        return history.prefix(2).compactMap { Int($0.uses) }.reduce(0, +)
+    }
+}
+
+public struct MastodonTagHistory: Codable {
+    public let day: String
+    public let uses: String
+    public let accounts: String
 }
 
 // Search Results

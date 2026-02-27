@@ -29,7 +29,7 @@ public class MastodonSearchProvider: SearchProviding {
   // MARK: - SearchProviding Implementation
   
   public func searchPosts(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
-    print("🔍 [MastodonSearch] Searching posts for query: '\(query.text)'")
+    DebugLog.verbose("🔍 [MastodonSearch] Searching posts for query: '\(query.text)'")
     let result = try await mastodonService.search(
       query: query.text,
       account: account,
@@ -37,14 +37,14 @@ public class MastodonSearchProvider: SearchProviding {
       limit: 20
     )
     
-    print("🔍 [MastodonSearch] API returned \(result.statuses.count) statuses")
+    DebugLog.verbose("🔍 [MastodonSearch] API returned \(result.statuses.count) statuses")
     
     // Convert MastodonStatus to Post
     let posts = result.statuses.map { status in
       mastodonService.convertMastodonStatusToPost(status, account: account)
     }
     
-    print("🔍 [MastodonSearch] Converted to \(posts.count) posts")
+    DebugLog.verbose("🔍 [MastodonSearch] Converted to \(posts.count) posts")
     
     // Update capabilities based on results
     let hasResults = !posts.isEmpty
@@ -67,7 +67,7 @@ public class MastodonSearchProvider: SearchProviding {
   }
   
   public func searchUsers(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
-    print("🔍 [MastodonSearch] Searching users for query: '\(query.text)'")
+    DebugLog.verbose("🔍 [MastodonSearch] Searching users for query: '\(query.text)'")
     do {
       // First try with type=accounts parameter
       let result = try await mastodonService.search(
@@ -77,7 +77,7 @@ public class MastodonSearchProvider: SearchProviding {
         limit: 20
       )
       
-      print("🔍 [MastodonSearch] API returned \(result.accounts.count) accounts")
+      DebugLog.verbose("🔍 [MastodonSearch] API returned \(result.accounts.count) accounts")
       
       let users = result.accounts.map { account in
         SearchUser(
@@ -106,7 +106,7 @@ public class MastodonSearchProvider: SearchProviding {
       // Some instances don't support the type parameter but still return accounts in the result
       let errorMessage = error.localizedDescription
       if errorMessage.contains("500") || errorMessage.contains("status 500") {
-        print("⚠️ [MastodonSearch] User search with type=accounts failed (500), trying without type parameter")
+        DebugLog.verbose("⚠️ [MastodonSearch] User search with type=accounts failed (500), trying without type parameter")
         do {
           let result = try await mastodonService.search(
             query: query.text,
@@ -115,7 +115,7 @@ public class MastodonSearchProvider: SearchProviding {
             limit: 20
           )
           
-          print("🔍 [MastodonSearch] Fallback search returned \(result.accounts.count) accounts")
+          DebugLog.verbose("🔍 [MastodonSearch] Fallback search returned \(result.accounts.count) accounts")
           
           // If we got accounts, return them
           if !result.accounts.isEmpty {
@@ -142,16 +142,16 @@ public class MastodonSearchProvider: SearchProviding {
             return SearchPage(items: items, nextPageTokens: [:], hasMore: false)
           } else {
             // No accounts in result, try extracting from posts
-            print("⚠️ [MastodonSearch] Fallback search returned 0 accounts, trying post extraction")
+            DebugLog.verbose("⚠️ [MastodonSearch] Fallback search returned 0 accounts, trying post extraction")
             // Throw an error to trigger the post extraction fallback
             throw NSError(domain: "MastodonSearch", code: 0, userInfo: [NSLocalizedDescriptionKey: "No accounts in search result"])
           }
         } catch let fallbackError {
-          print("⚠️ [MastodonSearch] Fallback user search also failed: \(fallbackError.localizedDescription)")
+          DebugLog.verbose("⚠️ [MastodonSearch] Fallback user search also failed: \(fallbackError.localizedDescription)")
           
           // Final attempt: Extract users from post search results
           // This works for instances that don't support user search but return user info in posts
-          print("🔍 [MastodonSearch] Attempting to extract users from post search results")
+          DebugLog.verbose("🔍 [MastodonSearch] Attempting to extract users from post search results")
           do {
             // Search for posts and extract account information from authors
             let postResult = try await mastodonService.search(
@@ -161,7 +161,7 @@ public class MastodonSearchProvider: SearchProviding {
               limit: 20
             )
             
-            print("🔍 [MastodonSearch] Post search returned \(postResult.statuses.count) posts, extracting users")
+            DebugLog.verbose("🔍 [MastodonSearch] Post search returned \(postResult.statuses.count) posts, extracting users")
             
             // Extract unique accounts from post authors
             // Include all unique users from posts - they're relevant because they posted about the topic
@@ -185,7 +185,7 @@ public class MastodonSearchProvider: SearchProviding {
             }
             
             if !users.isEmpty {
-              print("🔍 [MastodonSearch] Extracted \(users.count) unique users from post search results")
+              DebugLog.verbose("🔍 [MastodonSearch] Extracted \(users.count) unique users from post search results")
               
               // Update capabilities
               capabilitiesStorage.updateCapabilities(
@@ -198,18 +198,18 @@ public class MastodonSearchProvider: SearchProviding {
               let items = users.map { SearchResultItem.user($0) }
               return SearchPage(items: items, nextPageTokens: [:], hasMore: false)
             } else {
-              print("⚠️ [MastodonSearch] No users found in post search results")
+              DebugLog.verbose("⚠️ [MastodonSearch] No users found in post search results")
             }
           } catch let postSearchError {
             // Ignore errors from this final attempt
-            print("⚠️ [MastodonSearch] Final fallback attempt also failed: \(postSearchError.localizedDescription)")
+            DebugLog.verbose("⚠️ [MastodonSearch] Final fallback attempt also failed: \(postSearchError.localizedDescription)")
           }
           
           // Return empty results instead of throwing - unified search will still show Bluesky users
           return SearchPage(items: [], nextPageTokens: [:], hasMore: false)
         }
       } else {
-        print("⚠️ [MastodonSearch] User search failed: \(error.localizedDescription)")
+        DebugLog.verbose("⚠️ [MastodonSearch] User search failed: \(error.localizedDescription)")
         // Return empty results instead of throwing - unified search will still show Bluesky users
         return SearchPage(items: [], nextPageTokens: [:], hasMore: false)
       }

@@ -304,15 +304,27 @@ public struct SearchUser: Identifiable, Sendable {
     }
 }
 
-public struct SearchTag: Identifiable, Sendable {
+public struct SearchTag: Identifiable, Sendable, Hashable {
     public let id: String
     public let name: String
     public let platform: SocialPlatform
+    public let usageCount: Int?
 
-    public init(id: String, name: String, platform: SocialPlatform) {
+    public init(id: String, name: String, platform: SocialPlatform, usageCount: Int? = nil) {
         self.id = id
         self.name = name
         self.platform = platform
+        self.usageCount = usageCount
+    }
+
+    /// Format usage count for display (e.g. 1200 -> "1.2K")
+    public var formattedUsageCount: String? {
+        guard let count = usageCount, count > 0 else { return nil }
+        if count >= 1000 {
+            let k = Double(count) / 1000.0
+            return String(format: "%.1fK", k)
+        }
+        return "\(count)"
     }
 }
 

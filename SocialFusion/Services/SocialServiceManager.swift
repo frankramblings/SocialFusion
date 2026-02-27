@@ -1890,19 +1890,49 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
-    /// Fetch trending tags across platforms
+    /// Fetch trending tags across platforms, filtering NSFW content unless the user opted in
     public func fetchTrendingTags() async throws -> [SearchTag] {
-        guard let account = mastodonAccounts.first else { return [] }
+        guard let account = mastodonAccounts.first else {
+            return []
+        }
+
+        let showSensitive = UserDefaults.standard.bool(forKey: "showSensitiveTrending")
 
         do {
-            let tags = try await mastodonService.fetchTrendingTags(account: account)
-            return tags.map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon) }
+            // Request extra tags to compensate for NSFW filtering, then cap at 10
+            let tags = try await mastodonService.fetchTrendingTags(account: account, limit: showSensitive ? 10 : 30)
+            return Array(tags
+                .filter { showSensitive || !Self.isNSFWTag($0.name) }
+                .map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon, usageCount: $0.totalRecentUses) }
+                .prefix(10))
         } catch {
             ErrorHandler.shared.handleError(error)
-            DebugLog.verbose("Failed to fetch trending tags: \(error)")
             return []
         }
     }
+
+    /// Check if a tag name contains NSFW terms that shouldn't appear on the discovery surface
+    private static func isNSFWTag(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        return nsfwTerms.contains { lowered.contains($0) }
+    }
+
+    private static let nsfwTerms: Set<String> = [
+        // Explicit sexual content
+        "porn", "xxx", "nsfw", "nude", "naked", "boobs", "tits", "titties",
+        "cock", "dick", "penis", "vagina", "pussy", "anal", "blowjob",
+        "handjob", "cum", "milf", "dilf", "hentai", "rule34", "r34",
+        "bdsm", "bondage", "fetish", "dominatrix", "femdom", "maledom",
+        "camgirl", "onlyfans", "fansly", "orgasm", "masturbat",
+        "dildo", "vibrator", "buttplug", "creampie", "gangbang",
+        // Sexually explicit terms
+        "slut", "whore", "hooker", "escort", "stripper",
+        "horny", "erotic", "erotica", "lewd", "smut",
+        // Common NSFW hashtag roots
+        "naughty", "kinky", "suck", "fuck", "ass", "butt",
+        "egirl", "thot", "simp", "footfetish", "ahegao",
+        "sexwork", "sugarbaby", "sugardaddy", "findom",
+    ]
 
     /// Search for content across platforms
     public func search(

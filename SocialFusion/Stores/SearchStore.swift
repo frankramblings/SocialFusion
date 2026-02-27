@@ -29,7 +29,16 @@ public class SearchStore: ObservableObject {
       }
     }
   }
-  
+
+  @Published public var sort: SearchSort = .latest {
+    didSet {
+      if sort != oldValue {
+        updateChipRowModel()
+        performSearch()
+      }
+    }
+  }
+
   @Published public var phase: SearchPhase = .idle
   
   @Published public var results: [SearchResultItem] = []
@@ -39,7 +48,9 @@ public class SearchStore: ObservableObject {
   @Published public var chipRowModel: SearchChipRowModel?
   
   @Published public var directOpenTarget: DirectOpenTarget?
-  
+
+  @Published public var isLoadingNextPage: Bool = false
+
   @Published public var recentSearches: [String] = []
   
   @Published public var pinnedSearches: [SavedSearch] = []
@@ -112,28 +123,38 @@ public class SearchStore: ObservableObject {
   
   /// Load next page of results
   public func loadNextPage() async {
-    guard !nextPageTokens.isEmpty, phase != .loading else {
+    guard !nextPageTokens.isEmpty, !isLoadingNextPage else {
       return
     }
-    
-    phase = .loading
-    
+
+    isLoadingNextPage = true
+
     do {
       let query = SearchQuery(
         text: text,
         scope: scope,
-        networkSelection: networkSelection
+        networkSelection: networkSelection,
+        sort: sort
       )
-      
-      let page = try await searchProvider.searchPosts(query: query, page: nextPageTokens.values.first)
-      
+
+      let page: SearchPage
+      switch scope {
+      case .posts:
+        page = try await searchProvider.searchPosts(query: query, page: nextPageTokens.values.first)
+      case .users:
+        page = try await searchProvider.searchUsers(query: query, page: nextPageTokens.values.first)
+      case .tags:
+        page = try await searchProvider.searchTags(query: query, page: nextPageTokens.values.first)
+      }
+
       results.append(contentsOf: page.items)
       nextPageTokens.merge(page.nextPageTokens) { _, new in new }
-      
-      phase = .loaded
+
+      isLoadingNextPage = false
       updateChipRowModel()
     } catch {
-      phase = .error(error.localizedDescription)
+      // Keep existing results visible on pagination failure
+      isLoadingNextPage = false
     }
   }
   
@@ -166,6 +187,10 @@ public class SearchStore: ObservableObject {
     loadRecentSearches()
   }
   
+  public func updateSort(_ newSort: SearchSort) {
+    sort = newSort
+  }
+
   /// Return search suggestions based on recent and pinned searches, optionally filtered by prefix.
   public func suggestions(for prefix: String) -> [String] {
     let pinned = pinnedSearches.map(\.query)
@@ -220,6 +245,9 @@ public class SearchStore: ObservableObject {
       return
     }
 
+    // Show chip row while searching
+    updateChipRowModel()
+
     // Increment generation so stale responses are discarded.
     searchGeneration &+= 1
     let myGeneration = searchGeneration
@@ -227,7 +255,8 @@ public class SearchStore: ObservableObject {
     let query = SearchQuery(
       text: text,
       scope: scope,
-      networkSelection: networkSelection
+      networkSelection: networkSelection,
+      sort: sort
     )
 
     let cacheKey = query.cacheKey(accountId: accountId)
@@ -299,11 +328,11 @@ public class SearchStore: ObservableObject {
     } else {
       instanceDomain = nil
     }
-    
+
     chipRowModel = SearchChipRowModel(
       network: networkSelection,
       scope: scope,
-      sort: nil,
+      sort: sort,
       instanceDomain: instanceDomain,
       showInstanceInfo: searchProvider.capabilities.shouldShowStatusSearchWarning && scope == .posts
     )

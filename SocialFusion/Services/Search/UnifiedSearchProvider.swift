@@ -41,7 +41,7 @@ public class UnifiedSearchProvider: SearchProviding {
     var allItems: [SearchResultItem] = []
     var nextPageTokens: [String: SearchPageToken] = [:]
     
-    print("🔍 [UnifiedSearch] Searching posts with \(mastodonProviders.count) Mastodon providers, \(blueskyProviders.count) Bluesky providers")
+    DebugLog.verbose("🔍 [UnifiedSearch] Searching posts with \(mastodonProviders.count) Mastodon providers, \(blueskyProviders.count) Bluesky providers")
     
     // Search all providers in parallel
     await withTaskGroup(of: (String, SearchPage).self) { group in
@@ -51,11 +51,11 @@ public class UnifiedSearchProvider: SearchProviding {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchPosts(query: query, page: token)
-            print("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) posts")
+            DebugLog.verbose("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) posts")
             return (providerId, page)
           } catch {
             let providerId = provider.providerId
-            print("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
+            DebugLog.verbose("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
@@ -67,11 +67,11 @@ public class UnifiedSearchProvider: SearchProviding {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchPosts(query: query, page: token)
-            print("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) posts")
+            DebugLog.verbose("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) posts")
             return (providerId, page)
           } catch {
             let providerId = provider.providerId
-            print("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
+            DebugLog.verbose("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
@@ -83,7 +83,7 @@ public class UnifiedSearchProvider: SearchProviding {
       }
     }
     
-    print("🔍 [UnifiedSearch] Combined \(allItems.count) posts from all providers")
+    DebugLog.verbose("🔍 [UnifiedSearch] Combined \(allItems.count) posts from all providers")
     
     // Sort by date descending (most recent first)
     allItems.sort { item1, item2 in
@@ -154,7 +154,7 @@ public class UnifiedSearchProvider: SearchProviding {
     var sections: [SearchResultsSection] = []
     var nextPageTokens: [String: SearchPageToken] = [:]
     
-    print("🔍 [UnifiedSearch] Searching users with \(mastodonProviders.count) Mastodon providers, \(blueskyProviders.count) Bluesky providers")
+    DebugLog.verbose("🔍 [UnifiedSearch] Searching users with \(mastodonProviders.count) Mastodon providers, \(blueskyProviders.count) Bluesky providers")
     
     await withTaskGroup(of: (String, SearchPage).self) { group in
       for provider in mastodonProviders {
@@ -163,11 +163,11 @@ public class UnifiedSearchProvider: SearchProviding {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchUsers(query: query, page: token)
-            print("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) users")
+            DebugLog.verbose("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) users")
             return (providerId, page)
           } catch {
             let providerId = provider.providerId
-            print("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
+            DebugLog.verbose("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
@@ -179,11 +179,11 @@ public class UnifiedSearchProvider: SearchProviding {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchUsers(query: query, page: token)
-            print("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) users")
+            DebugLog.verbose("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) users")
             return (providerId, page)
           } catch {
             let providerId = provider.providerId
-            print("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
+            DebugLog.verbose("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
@@ -204,7 +204,7 @@ public class UnifiedSearchProvider: SearchProviding {
     
     // Flatten for unified view
     let allItems = sections.flatMap { $0.items }
-    print("🔍 [UnifiedSearch] Combined \(allItems.count) users from all providers")
+    DebugLog.verbose("🔍 [UnifiedSearch] Combined \(allItems.count) users from all providers")
     let hasMore = !nextPageTokens.isEmpty
     return SearchPage(items: allItems, nextPageTokens: nextPageTokens, hasMore: hasMore)
   }
@@ -213,7 +213,7 @@ public class UnifiedSearchProvider: SearchProviding {
     var allItems: [SearchResultItem] = []
     var nextPageTokens: [String: SearchPageToken] = [:]
     
-    print("🔍 [UnifiedSearch] Searching tags with \(mastodonProviders.count) Mastodon providers, \(blueskyProviders.count) Bluesky providers")
+    DebugLog.verbose("🔍 [UnifiedSearch] Searching tags with \(mastodonProviders.count) Mastodon providers, \(blueskyProviders.count) Bluesky providers")
     
     await withTaskGroup(of: (String, SearchPage).self) { group in
       for provider in mastodonProviders {
@@ -222,11 +222,11 @@ public class UnifiedSearchProvider: SearchProviding {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchTags(query: query, page: token)
-            print("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) tags")
+            DebugLog.verbose("🔍 [UnifiedSearch] Mastodon provider \(providerId) returned \(page.items.count) tags")
             return (providerId, page)
           } catch {
             let providerId = provider.providerId
-            print("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
+            DebugLog.verbose("⚠️ [UnifiedSearch] Mastodon provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
@@ -238,11 +238,11 @@ public class UnifiedSearchProvider: SearchProviding {
             let providerId = provider.providerId
             let token = page != nil ? nextPageTokens[providerId] : nil
             let page = try await provider.searchTags(query: query, page: token)
-            print("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) tags")
+            DebugLog.verbose("🔍 [UnifiedSearch] Bluesky provider \(providerId) returned \(page.items.count) tags")
             return (providerId, page)
           } catch {
             let providerId = provider.providerId
-            print("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
+            DebugLog.verbose("⚠️ [UnifiedSearch] Bluesky provider \(providerId) failed: \(error.localizedDescription)")
             return (providerId, SearchPage.empty)
           }
         }
@@ -267,7 +267,7 @@ public class UnifiedSearchProvider: SearchProviding {
       return true
     }
     
-    print("🔍 [UnifiedSearch] Combined \(allItems.count) tags from all providers (after deduplication)")
+    DebugLog.verbose("🔍 [UnifiedSearch] Combined \(allItems.count) tags from all providers (after deduplication)")
     let hasMore = !nextPageTokens.isEmpty
     return SearchPage(items: allItems, nextPageTokens: nextPageTokens, hasMore: hasMore)
   }

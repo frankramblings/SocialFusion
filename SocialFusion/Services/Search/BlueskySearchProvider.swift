@@ -30,7 +30,7 @@ public class BlueskySearchProvider: SearchProviding {
   // MARK: - SearchProviding Implementation
   
   public func searchPosts(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
-    print("🔍 [BlueskySearch] Searching posts for query: '\(query.text)'")
+    DebugLog.verbose("🔍 [BlueskySearch] Searching posts for query: '\(query.text)'")
     let response = try await blueskyService.searchPosts(
       query: query.text,
       account: account,
@@ -38,10 +38,10 @@ public class BlueskySearchProvider: SearchProviding {
       cursor: page
     )
     
-    print("🔍 [BlueskySearch] API returned \(response.posts.count) posts")
+    DebugLog.verbose("🔍 [BlueskySearch] API returned \(response.posts.count) posts")
     
     // Convert BlueskyPostDTO to Post
-    print("🔍 [BlueskySearch] Converting \(response.posts.count) posts from search results")
+    DebugLog.verbose("🔍 [BlueskySearch] Converting \(response.posts.count) posts from search results")
     var conversionFailures = 0
     let posts = response.posts.compactMap { postDTO -> Post? in
       // Convert postDTO to dictionary format for conversion
@@ -49,7 +49,7 @@ public class BlueskySearchProvider: SearchProviding {
       guard let jsonData = try? JSONEncoder().encode(postDTO),
             let jsonDict = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
         conversionFailures += 1
-        print("⚠️ [BlueskySearch] Failed to convert postDTO to dictionary for post: \(postDTO.uri)")
+        DebugLog.verbose("⚠️ [BlueskySearch] Failed to convert postDTO to dictionary for post: \(postDTO.uri)")
         return nil
       }
       
@@ -60,7 +60,7 @@ public class BlueskySearchProvider: SearchProviding {
         return post
       } else {
         conversionFailures += 1
-        print("⚠️ [BlueskySearch] Failed to convert dictionary to Post for URI: \(postDTO.uri)")
+        DebugLog.verbose("⚠️ [BlueskySearch] Failed to convert dictionary to Post for URI: \(postDTO.uri)")
         // Try wrapping in "post" key as fallback
         let wrappedDict = ["post": jsonDict]
         if let post = blueskyService.convertBlueskyPostJSONToPost(wrappedDict, account: account) {
@@ -71,9 +71,9 @@ public class BlueskySearchProvider: SearchProviding {
     }
     
     if conversionFailures > 0 {
-      print("⚠️ [BlueskySearch] \(conversionFailures) out of \(response.posts.count) posts failed to convert")
+      DebugLog.verbose("⚠️ [BlueskySearch] \(conversionFailures) out of \(response.posts.count) posts failed to convert")
     }
-    print("🔍 [BlueskySearch] Successfully converted \(posts.count) posts")
+    DebugLog.verbose("🔍 [BlueskySearch] Successfully converted \(posts.count) posts")
     
     let items = posts.map { SearchResultItem.post($0) }
     let nextPageTokens = response.cursor != nil ? [providerId: response.cursor!] : [:]
@@ -87,7 +87,7 @@ public class BlueskySearchProvider: SearchProviding {
   }
   
   public func searchUsers(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
-    print("🔍 [BlueskySearch] Searching users for query: '\(query.text)'")
+    DebugLog.verbose("🔍 [BlueskySearch] Searching users for query: '\(query.text)'")
     let response = try await blueskyService.searchActors(
       query: query.text,
       account: account,
@@ -95,7 +95,7 @@ public class BlueskySearchProvider: SearchProviding {
       cursor: page
     )
     
-    print("🔍 [BlueskySearch] API returned \(response.actors.count) actors")
+    DebugLog.verbose("🔍 [BlueskySearch] API returned \(response.actors.count) actors")
     
     let users = response.actors.map { actor in
       SearchUser(
@@ -113,7 +113,7 @@ public class BlueskySearchProvider: SearchProviding {
   }
   
   public func searchTags(query: SearchQuery, page: SearchPageToken?) async throws -> SearchPage {
-    print("🔍 [BlueskySearch] Searching tags for query: '\(query.text)'")
+    DebugLog.verbose("🔍 [BlueskySearch] Searching tags for query: '\(query.text)'")
     // Bluesky doesn't have a dedicated tag search endpoint
     // Tags are typically embedded in posts, so we'll search posts and extract tags
     do {
@@ -124,7 +124,7 @@ public class BlueskySearchProvider: SearchProviding {
         cursor: page
       )
       
-      print("🔍 [BlueskySearch] API returned \(response.posts.count) posts for tag extraction")
+      DebugLog.verbose("🔍 [BlueskySearch] API returned \(response.posts.count) posts for tag extraction")
       
       // Extract unique tags from posts
       var tagSet = Set<String>()
@@ -139,13 +139,13 @@ public class BlueskySearchProvider: SearchProviding {
         SearchTag(id: tagName, name: tagName, platform: .bluesky)
       }
       
-      print("🔍 [BlueskySearch] Extracted \(tags.count) unique tags")
+      DebugLog.verbose("🔍 [BlueskySearch] Extracted \(tags.count) unique tags")
       
       let items = tags.map { SearchResultItem.tag($0) }
       // Tags don't have pagination in Bluesky
       return SearchPage(items: items, nextPageTokens: [:], hasMore: false)
     } catch {
-      print("⚠️ [BlueskySearch] Tag search failed: \(error.localizedDescription)")
+      DebugLog.verbose("⚠️ [BlueskySearch] Tag search failed: \(error.localizedDescription)")
       // Return empty results instead of throwing - unified search will still show Mastodon tags
       return SearchPage(items: [], nextPageTokens: [:], hasMore: false)
     }

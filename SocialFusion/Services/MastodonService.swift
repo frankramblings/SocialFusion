@@ -1431,7 +1431,7 @@ public final class MastodonService: @unchecked Sendable {
         -> [MastodonTag]
     {
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
-        let url = URL(string: "\(serverUrl)/api/v1/trending/tags?limit=\(limit)")!
+        let url = URL(string: "\(serverUrl)/api/v1/trends/tags?limit=\(limit)")!
 
         let request = try await createAuthenticatedRequest(
             url: url, method: "GET", account: account)
