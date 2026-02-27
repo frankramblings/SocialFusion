@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("refreshInterval") private var refreshInterval = 2  // minutes
     @AppStorage("showContentWarnings") private var showContentWarnings = true
     @AppStorage("enableNotifications") private var enableNotifications = true
+    @AppStorage("showSensitiveTrending") private var showSensitiveTrending = false
 
     @State private var showingAbout = false
     @State private var showingPrivacyPolicy = false
@@ -84,6 +85,14 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                         }
                     }
+
+                    Toggle("Show Sensitive Trending Tags", isOn: $showSensitiveTrending)
+
+                    Text(
+                        "When disabled, adult content is filtered from trending tags on the Search screen."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
 
                 Section(header: Text("Posting")) {
