@@ -4452,6 +4452,33 @@ extension BlueskyService {
         return response.convos
     }
 
+    /// Get or create a conversation with specific members
+    internal func getConvoForMembers(memberDids: [String], for account: SocialAccount) async throws -> BlueskyConvo {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getConvoForMembers"
+        var components = URLComponents(string: apiURL)!
+        components.queryItems = memberDids.map { URLQueryItem(name: "members", value: $0) }
+
+        guard let url = components.url else {
+            throw BlueskyTokenError.invalidServerURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, _) = try await session.data(for: request)
+
+        struct ConvoForMembersResponse: Codable {
+            let convo: BlueskyConvo
+        }
+        let response = try JSONDecoder().decode(ConvoForMembersResponse.self, from: data)
+        return response.convo
+    }
+
     /// Fetch messages for a specific conversation
     internal func fetchMessages(convoId: String, for account: SocialAccount) async throws
         -> [BlueskyChatMessage]

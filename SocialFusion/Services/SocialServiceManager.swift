@@ -3883,6 +3883,58 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Start or find an existing Bluesky DM conversation with a user
+    public func startOrFindBlueskyConversation(withDid did: String) async throws -> DMConversation {
+        guard let account = accounts.first(where: { $0.platform == .bluesky }) else {
+            throw ServiceError.invalidAccount(reason: "No Bluesky account found")
+        }
+
+        let convo = try await blueskyService.getConvoForMembers(memberDids: [did], for: account)
+
+        let otherMember = convo.members.first { $0.did != account.platformSpecificId } ?? convo.members.first!
+        let participant = NotificationAccount(
+            id: otherMember.did,
+            username: otherMember.handle,
+            displayName: otherMember.displayName,
+            avatarURL: otherMember.avatar
+        )
+
+        let lastMsg: DirectMessage
+        if case .message(let view) = convo.lastMessage {
+            let sender = NotificationAccount(
+                id: view.sender.did,
+                username: view.sender.handle,
+                displayName: view.sender.displayName,
+                avatarURL: view.sender.avatar
+            )
+            lastMsg = DirectMessage(
+                id: view.id,
+                sender: sender,
+                recipient: participant,
+                content: view.text,
+                createdAt: ISO8601DateFormatter().date(from: view.sentAt) ?? Date(),
+                platform: .bluesky
+            )
+        } else {
+            lastMsg = DirectMessage(
+                id: UUID().uuidString,
+                sender: participant,
+                recipient: participant,
+                content: "",
+                createdAt: Date(),
+                platform: .bluesky
+            )
+        }
+
+        return DMConversation(
+            id: convo.id,
+            participant: participant,
+            lastMessage: lastMsg,
+            unreadCount: convo.unreadCount,
+            platform: .bluesky
+        )
+    }
+
     // MARK: - Offline Queue Management
 
     private func setupNetworkMonitoring() {
