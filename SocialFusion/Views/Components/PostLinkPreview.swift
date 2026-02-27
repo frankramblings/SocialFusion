@@ -13,26 +13,29 @@ struct PostLinkPreview: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Preview image if available
                 if let imageURL = imageURL {
-                    AsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .empty:
-                            ProgressView()
-                                .frame(height: 200)
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(height: 200)
-                                .clipped()
-                        case .failure:
-                            Image(systemName: "link")
-                                .font(.largeTitle)
-                                .frame(height: 200)
-                                .foregroundColor(.secondary)
-                        @unknown default:
-                            EmptyView()
+                    GeometryReader { geo in
+                        AsyncImage(url: imageURL) { phase in
+                            switch phase {
+                            case .empty:
+                                ProgressView()
+                                    .frame(width: geo.size.width, height: 200)
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: geo.size.width, height: 200)
+                                    .clipped()
+                            case .failure:
+                                Image(systemName: "link")
+                                    .font(.largeTitle)
+                                    .frame(width: geo.size.width, height: 200)
+                                    .foregroundColor(.secondary)
+                            @unknown default:
+                                EmptyView()
+                            }
                         }
                     }
+                    .frame(height: 200)
                     .id(imageURL.absoluteString)
                 }
 

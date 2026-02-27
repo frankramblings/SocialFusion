@@ -321,19 +321,21 @@ private struct StabilizedLinkRichContentView: View {
                 // Image Section - ZERO LAYOUT SHIFT: Always use fixed height
                 ZStack {
                     if let imageURL = imageURL ?? passedThumbnailURL {
-                        AsyncImage(url: imageURL) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: linkPreviewImageHeight)
-                                    .clipped()
-                            default:
-                                imagePlaceholder
+                        GeometryReader { geo in
+                            AsyncImage(url: imageURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: geo.size.width, height: linkPreviewImageHeight)
+                                        .clipped()
+                                default:
+                                    imagePlaceholder
+                                }
                             }
                         }
+                        .frame(height: linkPreviewImageHeight)
                     } else if let iconURL = iconURL {
                         // Use icon in large slot if no featured image (Bluesky/Ivory style)
                         ZStack {
