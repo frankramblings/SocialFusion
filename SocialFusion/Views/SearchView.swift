@@ -245,6 +245,20 @@ struct SearchView: View {
                     .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
                 }
             }
+
+            // Bottom pagination indicator
+            if store.isLoadingNextPage {
+                HStack(spacing: 12) {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Loading more...")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+                .listRowSeparator(.hidden)
+            }
         }
         .listStyle(PlainListStyle())
     }
