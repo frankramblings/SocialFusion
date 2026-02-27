@@ -78,6 +78,18 @@ struct DirectMessagesView: View {
     .onReceive(chatStreamService.$recentEvents) { events in
       viewModel.handleStreamEvents(events, serviceManager: serviceManager)
     }
+    .alert("Error", isPresented: Binding(
+      get: { viewModel.errorMessage != nil },
+      set: { if !$0 { viewModel.errorMessage = nil } }
+    )) {
+      Button("OK") { viewModel.errorMessage = nil }
+      Button("Retry") {
+        viewModel.errorMessage = nil
+        Task { await viewModel.fetchConversations(serviceManager: serviceManager) }
+      }
+    } message: {
+      if let error = viewModel.errorMessage { Text(error) }
+    }
   }
 
   private var emptyState: some View {

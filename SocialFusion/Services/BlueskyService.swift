@@ -4459,7 +4459,9 @@ extension BlueskyService {
         }
 
         let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getConvoForMembers"
-        var components = URLComponents(string: apiURL)!
+        guard var components = URLComponents(string: apiURL) else {
+            throw BlueskyTokenError.invalidServerURL
+        }
         components.queryItems = memberDids.map { URLQueryItem(name: "members", value: $0) }
 
         guard let url = components.url else {
@@ -4470,13 +4472,17 @@ extension BlueskyService {
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
-        let (data, _) = try await session.data(for: request)
+        let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200...299).contains(httpResponse.statusCode) {
+            throw ServiceError.apiError("getConvoForMembers failed with status \(httpResponse.statusCode)")
+        }
 
         struct ConvoForMembersResponse: Codable {
             let convo: BlueskyConvo
         }
-        let response = try JSONDecoder().decode(ConvoForMembersResponse.self, from: data)
-        return response.convo
+        let decoded = try JSONDecoder().decode(ConvoForMembersResponse.self, from: data)
+        return decoded.convo
     }
 
     /// Fetch messages for a specific conversation

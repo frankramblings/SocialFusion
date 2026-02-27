@@ -1,5 +1,4 @@
 import SwiftUI
-import Combine
 
 @MainActor
 class MessagesViewModel: ObservableObject {
@@ -7,8 +6,6 @@ class MessagesViewModel: ObservableObject {
   @Published var isLoading = false
   @Published var errorMessage: String?
   @Published var showNewConversation = false
-
-  private var cancellables = Set<AnyCancellable>()
 
   func fetchConversations(serviceManager: SocialServiceManager) async {
     isLoading = true

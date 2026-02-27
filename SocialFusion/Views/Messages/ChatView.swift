@@ -27,13 +27,14 @@ struct ChatView: View {
         navAvatar
       }
     }
-    .alert("Error", isPresented: .constant(errorMessage != nil)) {
+    .alert("Error", isPresented: Binding(
+      get: { errorMessage != nil },
+      set: { if !$0 { errorMessage = nil } }
+    )) {
       Button("OK") { errorMessage = nil }
-      if errorMessage != nil {
-        Button("Retry") {
-          errorMessage = nil
-          loadMessages()
-        }
+      Button("Retry") {
+        errorMessage = nil
+        loadMessages()
       }
     } message: {
       if let error = errorMessage { Text(error) }
@@ -71,7 +72,7 @@ struct ChatView: View {
           }
         }
       }
-      .onChange(of: messages.count) { _ in
+      .onChange(of: messages.count) { _, _ in
         if let last = messages.last {
           withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
         }
@@ -203,6 +204,13 @@ struct ChatView: View {
     }
   }
 
+  private static let dateSectionFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateStyle = .medium
+    f.timeStyle = .none
+    return f
+  }()
+
   // MARK: - Helpers
 
   @ViewBuilder
@@ -211,10 +219,7 @@ struct ChatView: View {
     let text: String = {
       if calendar.isDateInToday(date) { return "Today" }
       if calendar.isDateInYesterday(date) { return "Yesterday" }
-      let formatter = DateFormatter()
-      formatter.dateStyle = .medium
-      formatter.timeStyle = .none
-      return formatter.string(from: date)
+      return Self.dateSectionFormatter.string(from: date)
     }()
 
     Text(text)
