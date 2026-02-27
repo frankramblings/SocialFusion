@@ -194,6 +194,14 @@ struct SearchView: View {
                 isLoadingTrending = false
             }
         }
+        .onChange(of: serviceManager.accounts.count) {
+            let accountId = serviceManager.selectedAccountIds.first ?? "all"
+            let networkSelection = searchStore?.networkSelection ?? determineNetworkSelection()
+            searchStore = serviceManager.createSearchStore(
+                networkSelection: networkSelection,
+                accountId: accountId
+            )
+        }
         .sheet(item: $replyingToPost) { post in
             ComposeView(replyingTo: post)
                 .environmentObject(serviceManager)
