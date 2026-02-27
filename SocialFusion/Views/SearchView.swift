@@ -357,68 +357,44 @@ struct SearchView: View {
     }
     
     // MARK: - Empty State View
-    
+
     private func emptyStateView(store: SearchStore) -> some View {
         ScrollView {
-            VStack(spacing: 20) {
-                // Pinned Searches
-                if !store.pinnedSearches.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Pinned Searches")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        
-                        ForEach(store.pinnedSearches) { savedSearch in
-                            Button(action: {
-                                store.text = savedSearch.query
-                                store.scope = savedSearch.scope
-                                store.networkSelection = savedSearch.networkSelection
-                                store.performSearch()
-                            }) {
-                                HStack {
-                                    Image(systemName: "pin.fill")
-                                        .foregroundColor(.secondary)
-                                    Text(savedSearch.displayName)
-                                    Spacer()
-                                }
-                                .padding()
-                                .background(Color(.systemGray6))
-                                .cornerRadius(8)
-                            }
-                            .padding(.horizontal)
-                        }
-                    }
-                }
-                
+            VStack(spacing: 24) {
                 // Recent Searches
                 if !store.recentSearches.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            Text("Recent Searches")
+                            Text("Recent")
                                 .font(.headline)
                             Spacer()
                             Button("Clear") {
                                 store.clearRecentSearches()
                             }
-                            .font(.caption)
-                            .foregroundColor(.blue)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
                         }
                         .padding(.horizontal)
-                        
+
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 10) {
                                 ForEach(store.recentSearches, id: \.self) { query in
                                     Button(action: {
                                         store.text = query
                                         store.performSearch()
                                     }) {
-                                        Text(query)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(Color(.systemGray5))
-                                            .cornerRadius(20)
-                                            .font(.subheadline)
-                                            .foregroundColor(.primary)
+                                        HStack(spacing: 6) {
+                                            Image(systemName: "magnifyingglass")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+                                            Text(query)
+                                                .font(.subheadline)
+                                                .foregroundColor(.primary)
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 9)
+                                        .background(.ultraThinMaterial)
+                                        .cornerRadius(20)
                                     }
                                 }
                             }
@@ -426,54 +402,163 @@ struct SearchView: View {
                         }
                     }
                 }
-                
-                // Trending Tags
-                if !trendingTags.isEmpty {
+
+                // Pinned Searches
+                if !store.pinnedSearches.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Trending")
+                        Text("Pinned")
                             .font(.headline)
                             .padding(.horizontal)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(trendingTags) { tag in
-                                    NavigationLink(destination: TagDetailView(tag: tag)) {
-                                        Text("#\(tag.name)")
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 8)
-                                            .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(20)
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(store.pinnedSearches.enumerated()), id: \.element.id) { index, savedSearch in
+                                Button(action: {
+                                    store.text = savedSearch.query
+                                    store.scope = savedSearch.scope
+                                    store.networkSelection = savedSearch.networkSelection
+                                    store.performSearch()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "pin.fill")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                        Text(savedSearch.displayName)
                                             .font(.subheadline)
+                                            .foregroundColor(.primary)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption2)
+                                            .foregroundStyle(.quaternary)
                                     }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                }
+                                if index < store.pinnedSearches.count - 1 {
+                                    Divider().padding(.leading, 40)
                                 }
                             }
-                            .padding(.horizontal)
                         }
+                        .background(Color(.secondarySystemGroupedBackground))
+                        .cornerRadius(12)
+                        .padding(.horizontal)
                     }
                 }
-                
-                // Default empty state (only shown when no other content)
-                if store.pinnedSearches.isEmpty && store.recentSearches.isEmpty && trendingTags.isEmpty {
-                    VStack(spacing: 20) {
-                        Spacer()
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 50))
-                            .foregroundColor(.gray.opacity(0.3))
-                        Text("Search")
-                            .font(.title3)
-                            .fontWeight(.medium)
-                        Text("Search for people, posts, and hashtags")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 40)
-                        Spacer()
+
+                // Trending Tags
+                if !trendingTags.isEmpty {
+                    trendingTagsSection
+                } else if isLoadingTrending {
+                    trendingTagsPlaceholder
+                }
+
+                // No-accounts fallback
+                if store.pinnedSearches.isEmpty && store.recentSearches.isEmpty && trendingTags.isEmpty && !isLoadingTrending {
+                    noAccountsEmptyState
+                }
+            }
+            .padding(.top, 8)
+        }
+    }
+
+    // MARK: - Trending Tags Section
+
+    private var trendingTagsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Trending on Mastodon")
+                .font(.headline)
+                .padding(.horizontal)
+
+            VStack(spacing: 0) {
+                ForEach(Array(trendingTags.enumerated()), id: \.element.id) { index, tag in
+                    NavigationLink(destination: TagDetailView(tag: tag).environmentObject(serviceManager)) {
+                        HStack {
+                            Text("#\(tag.name)")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.primary)
+                            Spacer()
+                            if let count = tag.formattedUsageCount {
+                                Text(count)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            Image(systemName: "chevron.right")
+                                .font(.caption2)
+                                .foregroundStyle(.quaternary)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                    }
+                    if index < trendingTags.count - 1 {
+                        Divider().padding(.leading, 16)
                     }
                 }
             }
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+            .padding(.horizontal)
         }
     }
-    
+
+    // MARK: - Trending Placeholder (Shimmer)
+
+    private var trendingTagsPlaceholder: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Trending on Mastodon")
+                .font(.headline)
+                .padding(.horizontal)
+
+            VStack(spacing: 0) {
+                ForEach(0..<5, id: \.self) { index in
+                    HStack {
+                        Text("#placeholder")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("0.0K")
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    if index < 4 {
+                        Divider().padding(.leading, 16)
+                    }
+                }
+            }
+            .redacted(reason: .placeholder)
+            .background(Color(.secondarySystemGroupedBackground))
+            .cornerRadius(12)
+            .padding(.horizontal)
+        }
+    }
+
+    // MARK: - No Accounts Empty State
+
+    private var noAccountsEmptyState: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "person.crop.circle.badge.plus")
+                .font(.system(size: 44))
+                .foregroundColor(.secondary)
+                .padding(.top, 40)
+
+            Text("Add an account to discover\ntrending topics")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            Button(action: { showAddAccountView = true }) {
+                Text("Add Account")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.blue)
+                    .cornerRadius(20)
+            }
+        }
+    }
+
     // MARK: - Direct Open Handling
     
     private func handleDirectOpen(_ target: DirectOpenTarget) {
