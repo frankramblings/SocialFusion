@@ -36,11 +36,23 @@ struct SearchView: View {
             if let store = searchStore {
                 SearchStoreWrapper(store: store) { observedStore in
                 // Chip Row (when results are available)
-                if let chipModel = observedStore.chipRowModel, observedStore.phase.hasResults {
+                if let chipModel = observedStore.chipRowModel, !observedStore.text.isEmpty {
                     SearchChipRow(
                         model: chipModel,
-                        onNetworkTap: nil,
-                        onSortTap: nil
+                        onNetworkChange: { selection in
+                            observedStore.networkSelection = selection
+                            let accountId = serviceManager.selectedAccountIds.first ?? "all"
+                            searchStore = serviceManager.createSearchStore(
+                                networkSelection: selection,
+                                accountId: accountId
+                            )
+                            searchStore?.text = observedStore.text
+                            searchStore?.scope = observedStore.scope
+                            searchStore?.performSearch()
+                        },
+                        onSortChange: { sort in
+                            observedStore.updateSort(sort)
+                        }
                     )
                     .padding(.vertical, 8)
                 }
@@ -173,7 +185,7 @@ struct SearchView: View {
                 composeButton
             }
         }
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarTitleDisplayMode(.large)
         .task {
             // Initialize SearchStore with proper provider
             let accountId = serviceManager.selectedAccountIds.first ?? "all"
@@ -428,21 +440,23 @@ struct SearchView: View {
                     }
                 }
                 
-                // Default empty state
-                VStack(spacing: 20) {
-                    Spacer()
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 50))
-                        .foregroundColor(.gray.opacity(0.3))
-                    Text("Search")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                    Text("Search for people, posts, and hashtags")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                    Spacer()
+                // Default empty state (only shown when no other content)
+                if store.pinnedSearches.isEmpty && store.recentSearches.isEmpty && trendingTags.isEmpty {
+                    VStack(spacing: 20) {
+                        Spacer()
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 50))
+                            .foregroundColor(.gray.opacity(0.3))
+                        Text("Search")
+                            .font(.title3)
+                            .fontWeight(.medium)
+                        Text("Search for people, posts, and hashtags")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 40)
+                        Spacer()
+                    }
                 }
             }
         }

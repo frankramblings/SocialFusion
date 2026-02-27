@@ -29,7 +29,16 @@ public class SearchStore: ObservableObject {
       }
     }
   }
-  
+
+  @Published public var sort: SearchSort = .latest {
+    didSet {
+      if sort != oldValue {
+        updateChipRowModel()
+        performSearch()
+      }
+    }
+  }
+
   @Published public var phase: SearchPhase = .idle
   
   @Published public var results: [SearchResultItem] = []
@@ -177,6 +186,10 @@ public class SearchStore: ObservableObject {
     loadRecentSearches()
   }
   
+  public func updateSort(_ newSort: SearchSort) {
+    sort = newSort
+  }
+
   /// Return search suggestions based on recent and pinned searches, optionally filtered by prefix.
   public func suggestions(for prefix: String) -> [String] {
     let pinned = pinnedSearches.map(\.query)
@@ -230,6 +243,9 @@ public class SearchStore: ObservableObject {
       phase = .idle
       return
     }
+
+    // Show chip row while searching
+    updateChipRowModel()
 
     // Increment generation so stale responses are discarded.
     searchGeneration &+= 1
@@ -310,11 +326,11 @@ public class SearchStore: ObservableObject {
     } else {
       instanceDomain = nil
     }
-    
+
     chipRowModel = SearchChipRowModel(
       network: networkSelection,
       scope: scope,
-      sort: nil,
+      sort: sort,
       instanceDomain: instanceDomain,
       showInstanceInfo: searchProvider.capabilities.shouldShowStatusSearchWarning && scope == .posts
     )
