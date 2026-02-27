@@ -39,7 +39,9 @@ public class SearchStore: ObservableObject {
   @Published public var chipRowModel: SearchChipRowModel?
   
   @Published public var directOpenTarget: DirectOpenTarget?
-  
+
+  @Published public var isLoadingNextPage: Bool = false
+
   @Published public var recentSearches: [String] = []
   
   @Published public var pinnedSearches: [SavedSearch] = []
@@ -112,27 +114,36 @@ public class SearchStore: ObservableObject {
   
   /// Load next page of results
   public func loadNextPage() async {
-    guard !nextPageTokens.isEmpty, phase != .loading else {
+    guard !nextPageTokens.isEmpty, !isLoadingNextPage else {
       return
     }
-    
-    phase = .loading
-    
+
+    isLoadingNextPage = true
+
     do {
       let query = SearchQuery(
         text: text,
         scope: scope,
         networkSelection: networkSelection
       )
-      
-      let page = try await searchProvider.searchPosts(query: query, page: nextPageTokens.values.first)
-      
+
+      let page: SearchPage
+      switch scope {
+      case .posts:
+        page = try await searchProvider.searchPosts(query: query, page: nextPageTokens.values.first)
+      case .users:
+        page = try await searchProvider.searchUsers(query: query, page: nextPageTokens.values.first)
+      case .tags:
+        page = try await searchProvider.searchTags(query: query, page: nextPageTokens.values.first)
+      }
+
       results.append(contentsOf: page.items)
       nextPageTokens.merge(page.nextPageTokens) { _, new in new }
-      
-      phase = .loaded
+
+      isLoadingNextPage = false
       updateChipRowModel()
     } catch {
+      isLoadingNextPage = false
       phase = .error(error.localizedDescription)
     }
   }
