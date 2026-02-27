@@ -1899,10 +1899,12 @@ public final class SocialServiceManager: ObservableObject {
         let showSensitive = UserDefaults.standard.bool(forKey: "showSensitiveTrending")
 
         do {
-            let tags = try await mastodonService.fetchTrendingTags(account: account)
-            return tags
+            // Request extra tags to compensate for NSFW filtering, then cap at 10
+            let tags = try await mastodonService.fetchTrendingTags(account: account, limit: showSensitive ? 10 : 30)
+            return Array(tags
                 .filter { showSensitive || !Self.isNSFWTag($0.name) }
                 .map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon, usageCount: $0.totalRecentUses) }
+                .prefix(10))
         } catch {
             ErrorHandler.shared.handleError(error)
             return []
