@@ -1896,7 +1896,7 @@ public final class SocialServiceManager: ObservableObject {
 
         do {
             let tags = try await mastodonService.fetchTrendingTags(account: account)
-            return tags.map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon) }
+            return tags.map { SearchTag(id: $0.name, name: $0.name, platform: .mastodon, usageCount: $0.totalRecentUses) }
         } catch {
             ErrorHandler.shared.handleError(error)
             DebugLog.verbose("Failed to fetch trending tags: \(error)")
