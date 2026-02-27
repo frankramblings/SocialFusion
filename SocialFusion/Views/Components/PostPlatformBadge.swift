@@ -7,52 +7,28 @@ struct PostPlatformBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Image(systemName: platformIcon)
-                .font(.caption2)
-                .foregroundColor(platformColor)
+            Image(platform.icon)
+                .resizable()
+                .renderingMode(.template)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 12, height: 12)
+                .foregroundColor(platform.swiftUIColor)
 
-            Text(platformName)
+            Text(platform == .bluesky ? "Bluesky" : "Mastodon")
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundColor(platformColor)
+                .foregroundColor(platform.swiftUIColor)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(
             Capsule()
-                .fill(platformColor.opacity(0.1))
+                .fill(platform.swiftUIColor.opacity(0.1))
                 .overlay(
                     Capsule()
-                        .stroke(platformColor.opacity(0.3), lineWidth: 0.5)
+                        .stroke(platform.swiftUIColor.opacity(0.3), lineWidth: 0.5)
                 )
         )
-    }
-
-    private var platformColor: Color {
-        switch platform {
-        case .bluesky:
-            return .blue
-        case .mastodon:
-            return .purple
-        }
-    }
-
-    private var platformIcon: String {
-        switch platform {
-        case .bluesky:
-            return "b.square.fill"
-        case .mastodon:
-            return "m.square.fill"
-        }
-    }
-
-    private var platformName: String {
-        switch platform {
-        case .bluesky:
-            return "Bluesky"
-        case .mastodon:
-            return "Mastodon"
-        }
     }
 }
 
