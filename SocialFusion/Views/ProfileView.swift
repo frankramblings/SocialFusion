@@ -12,6 +12,7 @@ struct ProfileView: View {
   @State private var showEditProfile = false
   @State private var replyingToPost: Post? = nil
   @State private var isAvatarDocked = false
+  @State private var scrollOffset: CGFloat = 0
 
   // MARK: - Initializers
 
@@ -31,6 +32,15 @@ struct ProfileView: View {
 
   var body: some View {
     ScrollView {
+      GeometryReader { geo in
+        Color.clear
+          .preference(
+            key: ProfileScrollOffsetKey.self,
+            value: geo.frame(in: .named("profileScroll")).minY
+          )
+      }
+      .frame(height: 0)
+
       LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
         // Profile header (or skeleton/error)
         if let profile = viewModel.profile {
@@ -67,6 +77,9 @@ struct ProfileView: View {
       }
     }
     .coordinateSpace(name: "profileScroll")
+    .onPreferenceChange(ProfileScrollOffsetKey.self) { value in
+      scrollOffset = value
+    }
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .principal) {
