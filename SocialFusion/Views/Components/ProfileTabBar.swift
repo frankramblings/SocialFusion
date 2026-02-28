@@ -45,16 +45,18 @@ struct ProfileTabBar: View {
     }
     .background(
       GeometryReader { geo in
+        let safeTop = geo.safeAreaInsets.top
+        // Nav bar is ~44pt; pinned when tab bar's global minY is near safe area + nav bar
+        let threshold = safeTop + 44 + 4  // 4pt tolerance
         Color(.systemBackground)
           .preference(
             key: TabBarPinnedKey.self,
-            value: geo.frame(in: .global).minY
+            value: TabBarPinnedValue(minY: geo.frame(in: .global).minY, threshold: threshold)
           )
       }
     )
-    .onPreferenceChange(TabBarPinnedKey.self) { minY in
-      // Tab bar is pinned when it's near the top of the screen (safe area ~59pt on modern iPhones)
-      let pinned = minY < 100
+    .onPreferenceChange(TabBarPinnedKey.self) { value in
+      let pinned = value.minY <= value.threshold
       if pinned != isPinned {
         withAnimation(.easeOut(duration: 0.15)) {
           isPinned = pinned
@@ -69,10 +71,18 @@ struct ProfileTabBar: View {
   }
 }
 
+private struct TabBarPinnedValue: Equatable {
+  let minY: CGFloat
+  let threshold: CGFloat
+}
+
 private struct TabBarPinnedKey: PreferenceKey {
-  static var defaultValue: CGFloat = .infinity
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = min(value, nextValue())
+  static var defaultValue = TabBarPinnedValue(minY: .infinity, threshold: 100)
+  static func reduce(value: inout TabBarPinnedValue, nextValue: () -> TabBarPinnedValue) {
+    let next = nextValue()
+    if next.minY < value.minY {
+      value = next
+    }
   }
 }
 

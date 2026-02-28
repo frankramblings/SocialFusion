@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 
 /// Sticky banner that stays pinned behind scrolling content.
 /// Progressively blurs and darkens as content scrolls over it.
@@ -10,43 +9,43 @@ struct StickyProfileBanner: View {
   let scrollOffset: CGFloat
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private enum Layout {
-    static let bannerHeight: CGFloat = 200
-  }
+  static let bannerHeight: CGFloat = 200
 
   var body: some View {
     let scrollUp = max(0, -scrollOffset)
     let overscroll = max(0, scrollOffset)
     // Rubber-band: decelerating stretch
     let stretchAmount = reduceMotion ? 0 : overscroll * 0.6
-    let blurAmount = reduceMotion ? 0 : min(20, scrollUp / Layout.bannerHeight * 20)
-    let darkenAmount = reduceMotion ? 0 : min(0.3, scrollUp / Layout.bannerHeight * 0.3)
+    let blurAmount = reduceMotion ? 0 : min(20, scrollUp / Self.bannerHeight * 20)
+    let darkenAmount = reduceMotion ? 0 : min(0.3, scrollUp / Self.bannerHeight * 0.3)
 
-    ZStack {
-      if let headerURLString = headerURL,
-         let url = URL(string: headerURLString) {
-        CachedAsyncImage(url: url, priority: .high) { image in
-          image
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(
-              width: UIScreen.main.bounds.width,
-              height: Layout.bannerHeight + stretchAmount
-            )
-            .clipped()
-        } placeholder: {
+    GeometryReader { geo in
+      ZStack {
+        if let headerURLString = headerURL,
+           let url = URL(string: headerURLString) {
+          CachedAsyncImage(url: url, priority: .high) { image in
+            image
+              .resizable()
+              .aspectRatio(contentMode: .fill)
+              .frame(
+                width: geo.size.width,
+                height: Self.bannerHeight + stretchAmount
+              )
+              .clipped()
+          } placeholder: {
+            bannerGradient
+              .frame(height: Self.bannerHeight + stretchAmount)
+          }
+        } else {
           bannerGradient
-            .frame(height: Layout.bannerHeight + stretchAmount)
+            .frame(height: Self.bannerHeight + stretchAmount)
         }
-      } else {
-        bannerGradient
-          .frame(height: Layout.bannerHeight + stretchAmount)
       }
+      .blur(radius: blurAmount)
+      .overlay(Color.black.opacity(darkenAmount))
+      .frame(width: geo.size.width, height: Self.bannerHeight + stretchAmount)
     }
-    .blur(radius: blurAmount)
-    .overlay(Color.black.opacity(darkenAmount))
-    .frame(height: Layout.bannerHeight + stretchAmount)
-    .frame(maxWidth: .infinity)
+    .frame(height: Self.bannerHeight + stretchAmount)
     .clipped()
   }
 
@@ -154,6 +153,9 @@ struct ProfileHeaderView: View {
       .onChange(of: isDocked) { _, newValue in
         if newValue != isAvatarDocked {
           isAvatarDocked = newValue
+          if newValue && !reduceMotion {
+            HapticEngine.selection.trigger()
+          }
         }
       }
     }

@@ -54,7 +54,7 @@ struct ProfileView: View {
 
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
           // Spacer so content starts below the banner
-          Color.clear.frame(height: 200)
+          Color.clear.frame(height: StickyProfileBanner.bannerHeight)
 
           // Profile header content (avatar, bio, stats -- no banner)
           if let profile = viewModel.profile {
