@@ -11,9 +11,14 @@ struct ChatView: View {
   @State private var errorMessage: String?
   @State private var isSending = false
   @State private var lastReadByOther: Date?
+  @State private var reactions: [String: [String: Set<String>]] = [:]
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
+  }
+
+  private var myAccountIds: Set<String> {
+    Set(serviceManager.accounts.map(\.platformSpecificId))
   }
 
   var body: some View {
@@ -88,6 +93,7 @@ struct ChatView: View {
       let isFirst = msgIndex == 0
       let isLast = msgIndex == group.messages.count - 1
       let showSeen = isLast && group.isFromMe && isSeenMessage(message)
+      let msgReactions = reactionsForMessage(message.id)
       MessageBubble(
         message: message,
         isFromMe: group.isFromMe,
@@ -96,7 +102,15 @@ struct ChatView: View {
         isLastInGroup: isLast,
         showAvatar: !group.isFromMe,
         avatarURL: conversation.participant.avatarURL,
-        showSeenIndicator: showSeen
+        showSeenIndicator: showSeen,
+        reactions: msgReactions,
+        myAccountIds: myAccountIds,
+        onReactionTap: { emoji, isFromMe in
+          toggleReaction(messageId: message.id, emoji: emoji, alreadyReacted: isFromMe)
+        },
+        onReactionAdd: { emoji in
+          toggleReaction(messageId: message.id, emoji: emoji, alreadyReacted: false)
+        }
       )
       .padding(.horizontal, 12)
       .padding(.top, isFirst ? 8 : 2)
@@ -258,6 +272,38 @@ struct ChatView: View {
     return message.sentAt <= readDate
   }
 
+  private func reactionsForMessage(_ messageId: String) -> [MessageReaction] {
+    guard let msgReactions = reactions[messageId] else { return [] }
+    return msgReactions.map { emoji, senderIds in
+      MessageReaction(emoji: emoji, senderIds: senderIds)
+    }.sorted { $0.emoji < $1.emoji }
+  }
+
+  private func toggleReaction(messageId: String, emoji: String, alreadyReacted: Bool) {
+    if alreadyReacted {
+      for myId in myAccountIds {
+        reactions[messageId, default: [:]][emoji]?.remove(myId)
+      }
+      if reactions[messageId]?[emoji]?.isEmpty == true {
+        reactions[messageId]?[emoji] = nil
+      }
+    } else {
+      let myId = myAccountIds.first ?? ""
+      reactions[messageId, default: [:]][emoji, default: Set()].insert(myId)
+    }
+    Task {
+      do {
+        if alreadyReacted {
+          try await serviceManager.removeReaction(conversation: conversation, messageId: messageId, emoji: emoji)
+        } else {
+          try await serviceManager.addReaction(conversation: conversation, messageId: messageId, emoji: emoji)
+        }
+      } catch {
+        print("[Reactions] Failed to toggle reaction: \(error.localizedDescription)")
+      }
+    }
+  }
+
   private func handleStreamEvents(_ events: [UnifiedChatEvent]) {
     for event in events {
       guard event.conversationId == conversation.id else { continue }
@@ -271,6 +317,20 @@ struct ChatView: View {
         messages.removeAll { $0.id == del.messageId }
       case .readReceipt:
         lastReadByOther = Date()
+      case .reactionAdded(let r):
+        var msgReactions = reactions[r.messageId, default: [:]]
+        var senders = msgReactions[r.value, default: Set()]
+        senders.insert(r.senderId)
+        msgReactions[r.value] = senders
+        reactions[r.messageId] = msgReactions
+      case .reactionRemoved(let r):
+        reactions[r.messageId, default: [:]][r.value]?.remove(r.senderId)
+        if reactions[r.messageId]?[r.value]?.isEmpty == true {
+          reactions[r.messageId]?[r.value] = nil
+        }
+        if reactions[r.messageId]?.isEmpty == true {
+          reactions[r.messageId] = nil
+        }
       default:
         break
       }

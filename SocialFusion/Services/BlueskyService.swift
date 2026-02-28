@@ -4586,4 +4586,48 @@ extension BlueskyService {
             )
         }
     }
+
+  /// Add an emoji reaction to a message
+  internal func addReaction(convoId: String, messageId: String, value: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else {
+      throw BlueskyTokenError.noAccessToken
+    }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.addReaction"
+    guard let url = URL(string: apiURL) else {
+      throw BlueskyTokenError.invalidServerURL
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    let body: [String: Any] = ["convoId": convoId, "messageId": messageId, "value": value]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to add reaction"]))
+    }
+  }
+
+  /// Remove an emoji reaction from a message
+  internal func removeReaction(convoId: String, messageId: String, value: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else {
+      throw BlueskyTokenError.noAccessToken
+    }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.removeReaction"
+    guard let url = URL(string: apiURL) else {
+      throw BlueskyTokenError.invalidServerURL
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    let body: [String: Any] = ["convoId": convoId, "messageId": messageId, "value": value]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to remove reaction"]))
+    }
+  }
 }

@@ -3946,6 +3946,20 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+  /// Add a reaction to a message (Bluesky only)
+  public func addReaction(conversation: DMConversation, messageId: String, emoji: String) async throws {
+    guard conversation.platform == .bluesky,
+          let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+    try await blueskyService.addReaction(convoId: conversation.id, messageId: messageId, value: emoji, for: account)
+  }
+
+  /// Remove a reaction from a message (Bluesky only)
+  public func removeReaction(conversation: DMConversation, messageId: String, emoji: String) async throws {
+    guard conversation.platform == .bluesky,
+          let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+    try await blueskyService.removeReaction(convoId: conversation.id, messageId: messageId, value: emoji, for: account)
+  }
+
     // MARK: - Offline Queue Management
 
     private func setupNetworkMonitoring() {

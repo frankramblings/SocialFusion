@@ -329,6 +329,7 @@
 		FFBBB8242855FA25B8DB113A /* AutoPresetPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 632CEEE180D335AD3C8B35B6 /* AutoPresetPicker.swift */; };
 		DA2B3C4D5E6F7A8B9C0D1E2F /* DMConversationRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */; };
 		DA4C5D6E7F8A9B0C1D2E3F4A /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */; };
+		DA6F7A8B9C0D1E2F3A4B5C6D /* MessageReactionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA7A8B9C0D1E2F3A4B5C6D7E /* MessageReactionView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -673,6 +674,7 @@
 		FF122B28E26B160CB454EE3F /* MastodonSearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonSearchProvider.swift; sourceTree = "<group>"; };
 		DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DMConversationRow.swift; sourceTree = "<group>"; };
 		DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
+		DA7A8B9C0D1E2F3A4B5C6D7E /* MessageReactionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageReactionView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1214,6 +1216,7 @@
 				DA9B0C1D2E3F4A5B6C7D8E9F /* DirectMessagesView.swift */,
 				DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */,
 				DA5D6E7F8A9B0C1D2E3F4A5B /* MessageBubble.swift */,
+				DA7A8B9C0D1E2F3A4B5C6D7E /* MessageReactionView.swift */,
 				DA2E3F4A5B6C7D8E9F0A1B2C /* NewConversationView.swift */,
 			);
 			path = Messages;
@@ -1422,6 +1425,7 @@
 				DA8A9B0C1D2E3F4A5B6C7D8E /* DirectMessagesView.swift in Sources */,
 				DA2B3C4D5E6F7A8B9C0D1E2F /* DMConversationRow.swift in Sources */,
 				DA4C5D6E7F8A9B0C1D2E3F4A /* MessageBubble.swift in Sources */,
+				DA6F7A8B9C0D1E2F3A4B5C6D /* MessageReactionView.swift in Sources */,
 				DA3F4A5B6C7D8E9F0A1B2C3D /* NewConversationView.swift in Sources */,
 				DA0C1D2E3F4A5B6C7D8E9F0A /* MessagesViewModel.swift in Sources */,
 				B8B0E9EBE7098023E1149457 /* DraftPersistenceQueue.swift in Sources */,

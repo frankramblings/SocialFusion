@@ -67,6 +67,12 @@ struct MessageBubble: View {
   let showAvatar: Bool
   let avatarURL: String?
   var showSeenIndicator: Bool = false
+  var reactions: [MessageReaction] = []
+  var myAccountIds: Set<String> = []
+  var onReactionTap: ((String, Bool) -> Void)?
+  var onReactionAdd: ((String) -> Void)?
+
+  private static let quickReactions = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F525}"]
 
   private var bubbleColor: Color {
     if isFromMe {
@@ -94,6 +100,28 @@ struct MessageBubble: View {
           .background(bubbleColor)
           .foregroundColor(isFromMe ? .white : .primary)
           .clipShape(BubbleShape(isFromMe: isFromMe, hasTail: isLastInGroup))
+          .contextMenu {
+            if platform == .bluesky {
+              ForEach(Self.quickReactions, id: \.self) { emoji in
+                Button {
+                  onReactionAdd?(emoji)
+                } label: {
+                  Text(emoji)
+                }
+              }
+            }
+          }
+
+        if !reactions.isEmpty {
+          MessageReactionView(
+            reactions: reactions,
+            platform: platform,
+            myAccountIds: myAccountIds
+          ) { emoji, isFromMe in
+            onReactionTap?(emoji, isFromMe)
+          }
+          .frame(maxWidth: 200)
+        }
 
         if isLastInGroup {
           HStack(spacing: 4) {
