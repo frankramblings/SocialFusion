@@ -1598,4 +1598,17 @@ public enum UnifiedChatMessage: Identifiable, @unchecked Sendable {
         case .mastodon(let post): return post.authorId
         }
     }
+
+    /// Media attachments from the underlying message (Mastodon DMs are posts with attachments)
+    public var mediaAttachments: [Post.Attachment] {
+        switch self {
+        case .mastodon(let post): return post.attachments
+        case .bluesky: return [] // Bluesky chat doesn't support media embeds yet
+        }
+    }
+
+    /// Whether this message contains any media attachments
+    public var hasMedia: Bool {
+        !mediaAttachments.isEmpty
+    }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 
 struct ChatView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
@@ -17,6 +18,7 @@ struct ChatView: View {
   @State private var isOtherTyping = false
   @State private var typingDismissTask: Task<Void, Never>?
   @State private var showSettings = false
+  @State private var selectedMedia: [PhotosPickerItem] = []
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
@@ -189,7 +191,14 @@ struct ChatView: View {
         .padding(.vertical, 6)
         .background(Color(.systemGray6))
       }
+      ChatMediaPickerBar(selectedItems: $selectedMedia)
       HStack(spacing: 12) {
+        PhotosPicker(selection: $selectedMedia, maxSelectionCount: 4, matching: .images) {
+          Image(systemName: "plus.circle.fill")
+            .font(.system(size: 24))
+            .foregroundColor(.secondary)
+        }
+
         TextField("Message...", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
           .padding(10)

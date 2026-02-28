@@ -170,12 +170,53 @@ struct MessageBubble: View {
 
   @ViewBuilder
   private var messageContent: some View {
-    if message.text.isEmpty || message.text == "(Empty message)" {
-      Text("(Empty message)")
-        .italic()
-        .foregroundColor(isFromMe ? .white.opacity(0.7) : .secondary)
-    } else {
-      Text(message.text)
+    VStack(alignment: .leading, spacing: 6) {
+      if message.hasMedia {
+        mediaPreview
+      }
+      if message.text.isEmpty || message.text == "(Empty message)" {
+        if !message.hasMedia {
+          Text("(Empty message)")
+            .italic()
+            .foregroundColor(isFromMe ? .white.opacity(0.7) : .secondary)
+        }
+      } else {
+        Text(message.text)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var mediaPreview: some View {
+    let attachments = message.mediaAttachments.filter { $0.type == .image || $0.type == .gifv }
+    if attachments.count == 1, let attachment = attachments.first {
+      singleMediaImage(attachment)
+    } else if attachments.count > 1 {
+      let columns = [GridItem(.flexible(), spacing: 4), GridItem(.flexible(), spacing: 4)]
+      LazyVGrid(columns: columns, spacing: 4) {
+        ForEach(attachments.prefix(4)) { attachment in
+          singleMediaImage(attachment)
+        }
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func singleMediaImage(_ attachment: Post.Attachment) -> some View {
+    let urlString = attachment.thumbnailURL ?? attachment.url
+    if let url = URL(string: urlString) {
+      CachedAsyncImage(url: url, priority: .normal) { image in
+        image
+          .resizable()
+          .aspectRatio(contentMode: .fill)
+      } placeholder: {
+        RoundedRectangle(cornerRadius: 8)
+          .fill(Color(.systemGray4))
+          .overlay(ProgressView().scaleEffect(0.6))
+      }
+      .frame(maxWidth: 200)
+      .frame(height: 150)
+      .clipShape(RoundedRectangle(cornerRadius: 8))
     }
   }
 
