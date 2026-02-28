@@ -1534,16 +1534,18 @@ public struct DMConversation: Identifiable, Codable, Sendable {
     public let lastMessage: DirectMessage
     public let unreadCount: Int
     public let platform: SocialPlatform
+    public let isMuted: Bool
 
     public init(
         id: String, participant: NotificationAccount, lastMessage: DirectMessage, unreadCount: Int,
-        platform: SocialPlatform
+        platform: SocialPlatform, isMuted: Bool = false
     ) {
         self.id = id
         self.participant = participant
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount
         self.platform = platform
+        self.isMuted = isMuted
     }
 }
 

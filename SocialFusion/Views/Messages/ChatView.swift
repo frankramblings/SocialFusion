@@ -16,6 +16,7 @@ struct ChatView: View {
   @State private var deleteConfirmMessage: UnifiedChatMessage?
   @State private var isOtherTyping = false
   @State private var typingDismissTask: Task<Void, Never>?
+  @State private var showSettings = false
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
@@ -36,6 +37,20 @@ struct ChatView: View {
       ToolbarItem(placement: .topBarLeading) {
         navAvatar
       }
+      ToolbarItem(placement: .topBarTrailing) {
+        Button {
+          showSettings = true
+        } label: {
+          Image(systemName: "info.circle")
+            .foregroundColor(.secondary)
+        }
+      }
+    }
+    .sheet(isPresented: $showSettings) {
+      ConversationSettingsView(conversation: conversation) {
+        // onLeave — handled by navigation pop
+      }
+      .environmentObject(serviceManager)
     }
     .alert("Error", isPresented: Binding(
       get: { errorMessage != nil },

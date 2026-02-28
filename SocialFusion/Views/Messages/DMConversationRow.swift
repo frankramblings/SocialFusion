@@ -37,6 +37,12 @@ struct DMConversationRow: View {
           Text(conversation.lastMessage.createdAt, style: .relative)
             .font(.subheadline)
             .foregroundColor(.secondary)
+
+          if conversation.isMuted {
+            Image(systemName: "speaker.slash.fill")
+              .font(.caption2)
+              .foregroundColor(.secondary)
+          }
         }
 
         HStack {

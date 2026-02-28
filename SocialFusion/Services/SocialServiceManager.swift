@@ -3755,7 +3755,8 @@ public final class SocialServiceManager: ObservableObject {
                             participant: participant,
                             lastMessage: dm,
                             unreadCount: convo.unreadCount,
-                            platform: .bluesky
+                            platform: .bluesky,
+                            isMuted: convo.muted
                         )
                     }
                     allConversations.append(contentsOf: mappedConvos)
@@ -3931,7 +3932,8 @@ public final class SocialServiceManager: ObservableObject {
             participant: participant,
             lastMessage: lastMsg,
             unreadCount: convo.unreadCount,
-            platform: .bluesky
+            platform: .bluesky,
+            isMuted: convo.muted
         )
     }
 
@@ -3981,6 +3983,32 @@ public final class SocialServiceManager: ObservableObject {
     try await mastodonService.editPost(
       id: messageId, content: content, visibility: "direct", account: account
     )
+  }
+
+  public func muteConversation(_ conversation: DMConversation) async throws {
+    guard let account = accounts.first(where: { $0.platform == conversation.platform }) else { return }
+    switch conversation.platform {
+    case .bluesky:
+      try await blueskyService.muteConvo(convoId: conversation.id, for: account)
+    case .mastodon:
+      break // Mastodon doesn't have conversation mute in the same way
+    }
+  }
+
+  public func unmuteConversation(_ conversation: DMConversation) async throws {
+    guard let account = accounts.first(where: { $0.platform == conversation.platform }) else { return }
+    switch conversation.platform {
+    case .bluesky:
+      try await blueskyService.unmuteConvo(convoId: conversation.id, for: account)
+    case .mastodon:
+      break
+    }
+  }
+
+  public func leaveConversation(_ conversation: DMConversation) async throws {
+    guard conversation.platform == .bluesky,
+          let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+    try await blueskyService.leaveConvo(convoId: conversation.id, for: account)
   }
 
     // MARK: - Offline Queue Management

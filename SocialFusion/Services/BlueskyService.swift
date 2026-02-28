@@ -4652,4 +4652,52 @@ extension BlueskyService {
       throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to delete message"]))
     }
   }
+
+  internal func muteConvo(convoId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else { throw BlueskyTokenError.noAccessToken }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.muteConvo"
+    guard let url = URL(string: apiURL) else { throw BlueskyTokenError.invalidServerURL }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["convoId": convoId])
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to mute conversation"]))
+    }
+  }
+
+  internal func unmuteConvo(convoId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else { throw BlueskyTokenError.noAccessToken }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.unmuteConvo"
+    guard let url = URL(string: apiURL) else { throw BlueskyTokenError.invalidServerURL }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["convoId": convoId])
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to unmute conversation"]))
+    }
+  }
+
+  internal func leaveConvo(convoId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else { throw BlueskyTokenError.noAccessToken }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.leaveConvo"
+    guard let url = URL(string: apiURL) else { throw BlueskyTokenError.invalidServerURL }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["convoId": convoId])
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to leave conversation"]))
+    }
+  }
 }

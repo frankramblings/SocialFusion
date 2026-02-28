@@ -54,10 +54,28 @@ class MessagesViewModel: ObservableObject {
         }
       case .conversationUpdated(let update):
         switch update.kind {
-        case .began:
+        case .began, .accepted:
           Task { await fetchConversations(serviceManager: serviceManager) }
-        default:
-          break
+        case .muted:
+          if let index = conversations.firstIndex(where: { $0.id == update.conversationId }) {
+            let conv = conversations[index]
+            conversations[index] = DMConversation(
+              id: conv.id, participant: conv.participant,
+              lastMessage: conv.lastMessage, unreadCount: conv.unreadCount,
+              platform: conv.platform, isMuted: true
+            )
+          }
+        case .unmuted:
+          if let index = conversations.firstIndex(where: { $0.id == update.conversationId }) {
+            let conv = conversations[index]
+            conversations[index] = DMConversation(
+              id: conv.id, participant: conv.participant,
+              lastMessage: conv.lastMessage, unreadCount: conv.unreadCount,
+              platform: conv.platform, isMuted: false
+            )
+          }
+        case .left:
+          conversations.removeAll { $0.id == update.conversationId }
         }
       case .readReceipt(let receipt):
         readStates[receipt.conversationId] = Date()
