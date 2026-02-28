@@ -31,54 +31,70 @@ struct ProfileView: View {
   // MARK: - Body
 
   var body: some View {
-    ScrollView {
-      GeometryReader { geo in
-        Color.clear
-          .preference(
-            key: ProfileScrollOffsetKey.self,
-            value: geo.frame(in: .named("profileScroll")).minY
-          )
+    ZStack(alignment: .top) {
+      // Layer 0: Sticky banner (pinned behind content)
+      if let profile = viewModel.profile {
+        StickyProfileBanner(
+          headerURL: profile.headerURL,
+          platform: profile.platform,
+          scrollOffset: scrollOffset
+        )
       }
-      .frame(height: 0)
 
-      LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
-        // Profile header (or skeleton/error)
-        if let profile = viewModel.profile {
-          ProfileHeaderView(
-            profile: profile,
-            isOwnProfile: viewModel.isOwnProfile,
-            onEditProfile: { showEditProfile = true },
-            relationshipState: relationshipState,
-            onFollow: { Task { await relationshipViewModel?.follow() } },
-            onUnfollow: { Task { await relationshipViewModel?.unfollow() } },
-            onMute: { Task { await relationshipViewModel?.mute() } },
-            onUnmute: { Task { await relationshipViewModel?.unmute() } },
-            onBlock: { Task { await relationshipViewModel?.block() } },
-            onUnblock: { Task { await relationshipViewModel?.unblock() } },
-            isAvatarDocked: $isAvatarDocked
-          )
-        } else if viewModel.isLoadingProfile {
-          profileSkeleton
-        } else if viewModel.profileError != nil {
-          profileErrorView
+      // Layer 1: Scrollable content
+      ScrollView {
+        GeometryReader { geo in
+          Color.clear
+            .preference(
+              key: ProfileScrollOffsetKey.self,
+              value: geo.frame(in: .named("profileScroll")).minY
+            )
         }
+        .frame(height: 0)
 
-        // Tabs (pinned section header) + content
-        Section {
-          tabContent
-        } header: {
-          if viewModel.profile != nil {
-            ProfileTabBar(selectedTab: $viewModel.selectedTab)
-              .padding(.vertical, 4)
-              .background(Color(.systemBackground))
-              .shadow(color: .black.opacity(0.06), radius: 3, y: 2)
+        LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
+          // Spacer so content starts below the banner
+          Color.clear.frame(height: 200)
+
+          // Profile header content (avatar, bio, stats -- no banner)
+          if let profile = viewModel.profile {
+            ProfileHeaderView(
+              profile: profile,
+              isOwnProfile: viewModel.isOwnProfile,
+              onEditProfile: { showEditProfile = true },
+              relationshipState: relationshipState,
+              onFollow: { Task { await relationshipViewModel?.follow() } },
+              onUnfollow: { Task { await relationshipViewModel?.unfollow() } },
+              onMute: { Task { await relationshipViewModel?.mute() } },
+              onUnmute: { Task { await relationshipViewModel?.unmute() } },
+              onBlock: { Task { await relationshipViewModel?.block() } },
+              onUnblock: { Task { await relationshipViewModel?.unblock() } },
+              isAvatarDocked: $isAvatarDocked,
+              scrollOffset: scrollOffset
+            )
+          } else if viewModel.isLoadingProfile {
+            profileSkeleton
+          } else if viewModel.profileError != nil {
+            profileErrorView
+          }
+
+          // Tabs (pinned section header) + content
+          Section {
+            tabContent
+          } header: {
+            if viewModel.profile != nil {
+              ProfileTabBar(selectedTab: $viewModel.selectedTab)
+                .padding(.vertical, 4)
+                .background(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 3, y: 2)
+            }
           }
         }
       }
-    }
-    .coordinateSpace(name: "profileScroll")
-    .onPreferenceChange(ProfileScrollOffsetKey.self) { value in
-      scrollOffset = value
+      .coordinateSpace(name: "profileScroll")
+      .onPreferenceChange(ProfileScrollOffsetKey.self) { value in
+        scrollOffset = value
+      }
     }
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {

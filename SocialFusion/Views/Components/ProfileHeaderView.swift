@@ -1,9 +1,76 @@
 import SwiftUI
 import UIKit
 
-/// Profile header component displaying banner, avatar, bio, fields, and stats.
-/// Features cinematic depth effects: multi-layer parallax on the banner,
-/// 3D tilt on the avatar during overscroll, and progressive blur on collapse.
+/// Sticky banner that stays pinned behind scrolling content.
+/// Progressively blurs and darkens as content scrolls over it.
+/// Stretches with rubber-band tension on pull-down overscroll.
+struct StickyProfileBanner: View {
+  let headerURL: String?
+  let platform: SocialPlatform
+  let scrollOffset: CGFloat
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  private enum Layout {
+    static let bannerHeight: CGFloat = 200
+  }
+
+  var body: some View {
+    let scrollUp = max(0, -scrollOffset)
+    let overscroll = max(0, scrollOffset)
+    // Rubber-band: decelerating stretch
+    let stretchAmount = reduceMotion ? 0 : overscroll * 0.6
+    let blurAmount = reduceMotion ? 0 : min(20, scrollUp / Layout.bannerHeight * 20)
+    let darkenAmount = reduceMotion ? 0 : min(0.3, scrollUp / Layout.bannerHeight * 0.3)
+
+    ZStack {
+      if let headerURLString = headerURL,
+         let url = URL(string: headerURLString) {
+        CachedAsyncImage(url: url, priority: .high) { image in
+          image
+            .resizable()
+            .aspectRatio(contentMode: .fill)
+            .frame(
+              width: UIScreen.main.bounds.width,
+              height: Layout.bannerHeight + stretchAmount
+            )
+            .clipped()
+        } placeholder: {
+          bannerGradient
+            .frame(height: Layout.bannerHeight + stretchAmount)
+        }
+      } else {
+        bannerGradient
+          .frame(height: Layout.bannerHeight + stretchAmount)
+      }
+    }
+    .blur(radius: blurAmount)
+    .overlay(Color.black.opacity(darkenAmount))
+    .frame(height: Layout.bannerHeight + stretchAmount)
+    .frame(maxWidth: .infinity)
+    .clipped()
+  }
+
+  private var bannerGradient: some View {
+    LinearGradient(
+      colors: platformGradientColors,
+      startPoint: .topLeading,
+      endPoint: .bottomTrailing
+    )
+  }
+
+  private var platformGradientColors: [Color] {
+    switch platform {
+    case .mastodon:
+      return [Color.mastodonColor.opacity(0.8), Color.mastodonColor.opacity(0.4)]
+    case .bluesky:
+      return [Color.blueskyColor.opacity(0.8), Color.blueskyColor.opacity(0.4)]
+    }
+  }
+}
+
+/// Profile header component displaying avatar, bio, fields, and stats.
+/// Features cinematic depth effects: 3D tilt on the avatar during overscroll.
+/// The banner is now handled separately by StickyProfileBanner in a ZStack layer.
 struct ProfileHeaderView: View {
   let profile: UserProfile
   let isOwnProfile: Bool
@@ -17,6 +84,7 @@ struct ProfileHeaderView: View {
   var onUnblock: (() -> Void)?
   /// Binding that the header sets to true when the avatar has scrolled past the nav bar
   @Binding var isAvatarDocked: Bool
+  var scrollOffset: CGFloat = 0
 
   @State private var bioExpanded = false
   @State private var showBlockConfirmation = false
@@ -39,7 +107,6 @@ struct ProfileHeaderView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      bannerSection
       avatarRow
         .padding(.top, -Layout.avatarOverlap)
         .zIndex(1)
@@ -47,71 +114,6 @@ struct ProfileHeaderView: View {
       bioSection
       fieldsSection
       statsRow
-    }
-  }
-
-  // MARK: - Banner
-
-  private var bannerSection: some View {
-    GeometryReader { geo in
-      let minY = geo.frame(in: .named("profileScroll")).minY
-      let overscroll = max(0, minY)
-      // Parallax: banner moves at 0.5x on pull-down, creating depth
-      let bannerOffset = overscroll > 0 ? -overscroll * 0.5 : 0.0
-      // Banner stretches on pull-down
-      let bannerHeight = Layout.bannerHeight + overscroll
-      // Progressive blur as banner scrolls under nav bar
-      let scrollUp = max(0, -minY)
-      let blurProgress = min(1, scrollUp / Layout.bannerHeight)
-
-      ZStack {
-        if let headerURLString = profile.headerURL,
-           let headerURL = URL(string: headerURLString) {
-          CachedAsyncImage(url: headerURL, priority: .high) { image in
-            image
-              .resizable()
-              .aspectRatio(contentMode: .fill)
-              .frame(width: geo.size.width, height: bannerHeight)
-              .clipped()
-          } placeholder: {
-            bannerGradient
-              .frame(width: geo.size.width, height: bannerHeight)
-          }
-        } else {
-          bannerGradient
-            .frame(width: geo.size.width, height: bannerHeight)
-        }
-
-        // Progressive blur overlay as banner scrolls up
-        if blurProgress > 0.1 {
-          Rectangle()
-            .fill(.ultraThinMaterial)
-            .opacity(Double(min(1, blurProgress * 1.5)))
-        }
-
-        // Subtle darkening
-        Color.black.opacity(Double(blurProgress * 0.25))
-      }
-      .offset(y: bannerOffset)
-    }
-    .frame(height: Layout.bannerHeight)
-    .accessibilityHidden(true)
-  }
-
-  private var bannerGradient: some View {
-    LinearGradient(
-      colors: platformGradientColors,
-      startPoint: .topLeading,
-      endPoint: .bottomTrailing
-    )
-  }
-
-  private var platformGradientColors: [Color] {
-    switch profile.platform {
-    case .mastodon:
-      return [Color.mastodonColor.opacity(0.8), Color.mastodonColor.opacity(0.4)]
-    case .bluesky:
-      return [Color.blueskyColor.opacity(0.8), Color.blueskyColor.opacity(0.4)]
     }
   }
 
@@ -610,7 +612,8 @@ struct ProfileScrollOffsetKey: PreferenceKey {
       onUnmute: {},
       onBlock: {},
       onUnblock: {},
-      isAvatarDocked: .constant(false)
+      isAvatarDocked: .constant(false),
+      scrollOffset: 0
     )
   }
   .coordinateSpace(name: "profileScroll")
@@ -635,7 +638,8 @@ struct ProfileScrollOffsetKey: PreferenceKey {
       relationshipState: (isFollowing: false, isFollowedBy: false, isMuting: false, isBlocking: false),
       onFollow: {},
       onUnfollow: {},
-      isAvatarDocked: .constant(false)
+      isAvatarDocked: .constant(false),
+      scrollOffset: 0
     )
   }
   .coordinateSpace(name: "profileScroll")
@@ -658,7 +662,8 @@ struct ProfileScrollOffsetKey: PreferenceKey {
       ),
       isOwnProfile: true,
       onEditProfile: { print("Edit profile tapped") },
-      isAvatarDocked: .constant(false)
+      isAvatarDocked: .constant(false),
+      scrollOffset: 0
     )
   }
   .coordinateSpace(name: "profileScroll")
