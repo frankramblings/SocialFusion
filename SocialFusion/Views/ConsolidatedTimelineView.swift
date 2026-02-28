@@ -453,7 +453,7 @@ struct ConsolidatedTimelineView: View {
                 )
             ) {
                 if let user = navigationEnvironment.selectedUser {
-                    UserDetailView(user: user)
+                    ProfileView(user: user, serviceManager: serviceManager)
                         .environmentObject(serviceManager)
                 }
             }

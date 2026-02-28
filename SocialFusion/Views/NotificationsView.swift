@@ -83,7 +83,7 @@ struct NotificationsView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                 } else if notification.type == .follow {
-                                    NavigationLink(destination: UserDetailView(user: SearchUser(id: notification.fromAccount.id, username: notification.fromAccount.username, displayName: notification.fromAccount.displayName, avatarURL: notification.fromAccount.avatarURL, platform: notification.account.platform))) {
+                                    NavigationLink(destination: ProfileView(user: SearchUser(id: notification.fromAccount.id, username: notification.fromAccount.username, displayName: notification.fromAccount.displayName, avatarURL: notification.fromAccount.avatarURL, platform: notification.account.platform), serviceManager: serviceManager).environmentObject(serviceManager)) {
                                         NotificationRow(notification: notification)
                                             .padding(.horizontal, 16)
                                     }
