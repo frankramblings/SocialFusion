@@ -1264,7 +1264,8 @@ public final class MastodonService: @unchecked Sendable {
 
     /// Fetch a user's profile timeline
     public func fetchUserTimeline(
-        userId: String, for account: SocialAccount, limit: Int = 40, maxId: String? = nil
+        userId: String, for account: SocialAccount, limit: Int = 40, maxId: String? = nil,
+        excludeReplies: Bool = false, onlyMedia: Bool = false, pinned: Bool = false
     ) async throws -> [Post] {
         logger.info(
             "🔍 MASTODON: Fetching user timeline for userId: \(userId), account: \(account.username)"
@@ -1287,6 +1288,15 @@ public final class MastodonService: @unchecked Sendable {
         var urlString = "\(serverUrl)/api/v1/accounts/\(userId)/statuses?limit=\(limit)"
         if let maxId = maxId {
             urlString += "&max_id=\(maxId)"
+        }
+        if excludeReplies {
+            urlString += "&exclude_replies=true"
+        }
+        if onlyMedia {
+            urlString += "&only_media=true"
+        }
+        if pinned {
+            urlString += "&pinned=true"
         }
 
         logger.info("🔍 MASTODON: Request URL: \(urlString)")
