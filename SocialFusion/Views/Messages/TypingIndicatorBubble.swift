@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct TypingIndicatorBubble: View {
-  @State private var animationPhase = 0
+  @State private var isAnimating = false
 
   private let dotSize: CGFloat = 8
   private let dotColor = Color.secondary
@@ -15,7 +15,13 @@ struct TypingIndicatorBubble: View {
           Circle()
             .fill(dotColor)
             .frame(width: dotSize, height: dotSize)
-            .offset(y: animationPhase == index ? -4 : 0)
+            .offset(y: isAnimating ? -4 : 0)
+            .animation(
+              .easeInOut(duration: 0.4)
+              .repeatForever(autoreverses: true)
+              .delay(Double(index) * 0.15),
+              value: isAnimating
+            )
         }
       }
       .padding(.horizontal, 14)
@@ -27,15 +33,6 @@ struct TypingIndicatorBubble: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 4)
-    .onAppear { startAnimation() }
-  }
-
-  private func startAnimation() {
-    // Use a repeating timer to cycle through the dots
-    Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { _ in
-      withAnimation(.easeInOut(duration: 0.25)) {
-        animationPhase = (animationPhase + 1) % 3
-      }
-    }
+    .onAppear { isAnimating = true }
   }
 }

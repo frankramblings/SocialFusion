@@ -3,15 +3,16 @@ import PhotosUI
 
 struct ChatMediaPickerBar: View {
   @Binding var selectedItems: [PhotosPickerItem]
-  @State private var thumbnails: [Int: Image] = [:]
+  @State private var thumbnails: [String: Image] = [:]
 
   var body: some View {
     if !selectedItems.isEmpty {
       ScrollView(.horizontal, showsIndicators: false) {
         HStack(spacing: 8) {
-          ForEach(Array(selectedItems.enumerated()), id: \.offset) { index, item in
+          ForEach(Array(selectedItems.enumerated()), id: \.element.itemIdentifier) { index, item in
+            let key = item.itemIdentifier ?? "\(index)"
             ZStack(alignment: .topTrailing) {
-              if let thumb = thumbnails[index] {
+              if let thumb = thumbnails[key] {
                 thumb
                   .resizable()
                   .aspectRatio(contentMode: .fill)
@@ -25,8 +26,8 @@ struct ChatMediaPickerBar: View {
               }
 
               Button {
+                thumbnails.removeValue(forKey: key)
                 selectedItems.remove(at: index)
-                thumbnails.removeValue(forKey: index)
               } label: {
                 Image(systemName: "xmark.circle.fill")
                   .font(.system(size: 18))
@@ -37,7 +38,7 @@ struct ChatMediaPickerBar: View {
             .task(id: item.itemIdentifier) {
               if let data = try? await item.loadTransferable(type: Data.self),
                  let uiImage = UIImage(data: data) {
-                thumbnails[index] = Image(uiImage: uiImage)
+                thumbnails[key] = Image(uiImage: uiImage)
               }
             }
           }
