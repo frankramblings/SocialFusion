@@ -122,22 +122,28 @@ struct ProfileHeaderView: View {
   private var avatarRow: some View {
     GeometryReader { geo in
       let minY = geo.frame(in: .named("profileScroll")).minY
-      let overscroll = max(0, minY - (Layout.bannerHeight - Layout.avatarOverlap))
+      let overscroll = max(0, scrollOffset)
 
-      // Shrink progress: 0 = full size, 1 = docked size
-      // Start shrinking when avatar row is ~140pt from top, fully shrunk at ~40pt
-      let shrinkStart: CGFloat = 140
-      let shrinkEnd: CGFloat = 40
-      let shrinkProgress = minY < shrinkStart
-        ? CGFloat(min(1, max(0, (shrinkStart - minY) / (shrinkStart - shrinkEnd))))
-        : 0
+      // Docking threshold: avatar docks when it approaches the nav bar area
+      let dockThreshold: CGFloat = 50
+      let fadeStart: CGFloat = dockThreshold + 30  // Start fading 30pt before dock point
+      let fadeEnd: CGFloat = dockThreshold
 
-      let currentScale = 1 - shrinkProgress * (1 - Layout.avatarDockedSize / Layout.avatarSize)
+      // Crossfade progress: 0 = fully visible, 1 = fully docked
+      let crossfadeProgress: CGFloat = {
+        if minY >= fadeStart { return 0 }
+        if minY <= fadeEnd { return 1 }
+        return (fadeStart - minY) / (fadeStart - fadeEnd)
+      }()
 
-      let isDocked = minY < shrinkEnd
+      let isDocked = crossfadeProgress >= 1.0
+      let contentAvatarOpacity = 1.0 - Double(crossfadeProgress)
+      let contentAvatarScale = 1.0 - Double(crossfadeProgress) * 0.3  // 1.0 -> 0.7
 
       HStack(alignment: .bottom, spacing: 12) {
-        avatarView(overscroll: overscroll, scale: currentScale, docked: isDocked)
+        avatarView(overscroll: overscroll, tiltEnabled: crossfadeProgress == 0)
+          .scaleEffect(contentAvatarScale, anchor: .topLeading)
+          .opacity(contentAvatarOpacity)
         Spacer()
         actionButton
           .padding(.bottom, 4)
@@ -146,21 +152,19 @@ struct ProfileHeaderView: View {
       .onChange(of: isDocked) { _, newValue in
         if newValue != isAvatarDocked {
           isAvatarDocked = newValue
-          if newValue {
-            HapticEngine.selection.trigger()
-          }
         }
       }
     }
     .frame(height: Layout.avatarSize)
   }
 
-  private func avatarView(overscroll: CGFloat, scale: CGFloat, docked: Bool) -> some View {
-    // 3D tilt on overscroll pull-down
-    let tiltAmount = max(0, overscroll)
-    let tiltAngle = min(Double(tiltAmount) * 0.1, 15) // max 15 degrees
-    let tiltX = sin(Double(tiltAmount) * 0.025)
-    let tiltY = cos(Double(tiltAmount) * 0.025)
+  private func avatarView(overscroll: CGFloat, tiltEnabled: Bool) -> some View {
+    let tiltAngle: Double = {
+      guard tiltEnabled, overscroll > 0 else { return 0 }
+      return min(8, sqrt(Double(overscroll)) * 1.2)
+    }()
+    let shadowRadius = tiltEnabled ? min(8, overscroll * 0.1) : 0
+    let shadowY = tiltEnabled ? min(4, overscroll * 0.05) : 0
 
     return ZStack(alignment: .bottomTrailing) {
       if let avatarURLString = profile.avatarURL,
@@ -186,20 +190,17 @@ struct ProfileHeaderView: View {
         size: Layout.badgeSize,
         shadowEnabled: true
       )
-      .scaleEffect(scale, anchor: .bottomTrailing)
       .offset(x: 2, y: 2)
     }
-    .scaleEffect(scale, anchor: .topLeading)
-    .opacity(docked ? 0 : 1)
     .rotation3DEffect(
       .degrees(tiltAngle),
-      axis: (x: tiltX, y: tiltY, z: 0),
+      axis: (x: 1, y: 0, z: 0),
       perspective: 0.4
     )
     .shadow(
-      color: .black.opacity(tiltAmount > 0 ? min(Double(tiltAmount) * 0.004, 0.3) : 0),
-      radius: tiltAmount > 0 ? min(tiltAmount * 0.12, 10) : 0,
-      y: tiltAmount > 0 ? min(tiltAmount * 0.06, 5) : 0
+      color: .black.opacity(overscroll > 0 && tiltEnabled ? min(Double(overscroll) * 0.004, 0.3) : 0),
+      radius: shadowRadius,
+      y: shadowY
     )
     .accessibilityLabel("\(profile.displayName ?? profile.username)'s profile picture")
   }

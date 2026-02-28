@@ -103,8 +103,8 @@ struct ProfileView: View {
           if let profile = viewModel.profile {
             navBarAvatar(profile: profile)
               .opacity(isAvatarDocked ? 1 : 0)
-              .scaleEffect(isAvatarDocked ? 1 : 0.5)
-              .animation(.easeInOut(duration: 0.2), value: isAvatarDocked)
+              .scaleEffect(isAvatarDocked ? 1 : 0.6, anchor: .leading)
+              .animation(.easeInOut(duration: 0.25), value: isAvatarDocked)
           }
           Text(navigationTitle)
             .font(.subheadline)
