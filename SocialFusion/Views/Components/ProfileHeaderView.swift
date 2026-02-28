@@ -93,9 +93,7 @@ struct ProfileHeaderView: View {
   // MARK: - Constants
 
   private enum Layout {
-    static let bannerHeight: CGFloat = 200
     static let avatarSize: CGFloat = 72
-    static let avatarDockedSize: CGFloat = 28
     static let avatarBorderWidth: CGFloat = 3
     static let avatarOverlap: CGFloat = 24
     static let badgeSize: CGFloat = 24
