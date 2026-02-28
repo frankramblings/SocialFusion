@@ -88,6 +88,7 @@ struct ProfileHeaderView: View {
 
   @State private var bioExpanded = false
   @State private var showBlockConfirmation = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   // MARK: - Constants
 
@@ -131,6 +132,9 @@ struct ProfileHeaderView: View {
 
       // Crossfade progress: 0 = fully visible, 1 = fully docked
       let crossfadeProgress: CGFloat = {
+        if reduceMotion {
+          return minY <= fadeEnd ? 1 : 0
+        }
         if minY >= fadeStart { return 0 }
         if minY <= fadeEnd { return 1 }
         return (fadeStart - minY) / (fadeStart - fadeEnd)
@@ -160,7 +164,7 @@ struct ProfileHeaderView: View {
 
   private func avatarView(overscroll: CGFloat, tiltEnabled: Bool) -> some View {
     let tiltAngle: Double = {
-      guard tiltEnabled, overscroll > 0 else { return 0 }
+      guard tiltEnabled, !reduceMotion, overscroll > 0 else { return 0 }
       return min(8, sqrt(Double(overscroll)) * 1.2)
     }()
     let shadowRadius = tiltEnabled ? min(8, overscroll * 0.1) : 0
