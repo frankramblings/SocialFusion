@@ -12,6 +12,8 @@ struct ChatView: View {
   @State private var isSending = false
   @State private var lastReadByOther: Date?
   @State private var reactions: [String: [String: Set<String>]] = [:]
+  @State private var editingMessage: UnifiedChatMessage?
+  @State private var deleteConfirmMessage: UnifiedChatMessage?
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
@@ -44,6 +46,19 @@ struct ChatView: View {
       }
     } message: {
       if let error = errorMessage { Text(error) }
+    }
+    .alert("Delete Message", isPresented: Binding(
+      get: { deleteConfirmMessage != nil },
+      set: { if !$0 { deleteConfirmMessage = nil } }
+    )) {
+      Button("Delete", role: .destructive) {
+        if let msg = deleteConfirmMessage {
+          performDelete(msg)
+        }
+      }
+      Button("Cancel", role: .cancel) { deleteConfirmMessage = nil }
+    } message: {
+      Text("This message will be deleted. This can't be undone.")
     }
     .onAppear {
       loadMessages()
@@ -110,6 +125,13 @@ struct ChatView: View {
         },
         onReactionAdd: { emoji in
           toggleReaction(messageId: message.id, emoji: emoji, alreadyReacted: false)
+        },
+        onDelete: {
+          deleteConfirmMessage = message
+        },
+        onEdit: {
+          editingMessage = message
+          newMessageText = message.text
         }
       )
       .padding(.horizontal, 12)
@@ -122,6 +144,31 @@ struct ChatView: View {
   private var inputBar: some View {
     VStack(spacing: 0) {
       Divider()
+      if let editing = editingMessage {
+        HStack {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Editing")
+              .font(.caption)
+              .fontWeight(.semibold)
+              .foregroundColor(platformColor)
+            Text(editing.text)
+              .font(.caption)
+              .foregroundColor(.secondary)
+              .lineLimit(1)
+          }
+          Spacer()
+          Button {
+            editingMessage = nil
+            newMessageText = ""
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundColor(.secondary)
+          }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 6)
+        .background(Color(.systemGray6))
+      }
       HStack(spacing: 12) {
         TextField("Message...", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
@@ -355,6 +402,29 @@ struct ChatView: View {
   private func sendMessage() {
     guard !newMessageText.isEmpty, !isSending else { return }
     let text = newMessageText
+
+    // Handle editing mode
+    if let editing = editingMessage {
+      newMessageText = ""
+      editingMessage = nil
+      isSending = true
+      errorMessage = nil
+      Task {
+        do {
+          try await serviceManager.editChatMessage(
+            conversation: conversation, messageId: editing.id, newText: text)
+          self.isSending = false
+          loadMessages()
+        } catch {
+          self.errorMessage = "Failed to edit message: \(error.localizedDescription)"
+          self.newMessageText = text
+          self.editingMessage = editing
+          self.isSending = false
+        }
+      }
+      return
+    }
+
     newMessageText = ""
     isSending = true
     errorMessage = nil
@@ -367,6 +437,20 @@ struct ChatView: View {
         self.errorMessage = "Failed to send message: \(error.localizedDescription)"
         self.newMessageText = text
         self.isSending = false
+      }
+    }
+  }
+
+  private func performDelete(_ message: UnifiedChatMessage) {
+    withAnimation {
+      messages.removeAll { $0.id == message.id }
+    }
+    Task {
+      do {
+        try await serviceManager.deleteChatMessage(conversation: conversation, messageId: message.id)
+      } catch {
+        loadMessages()
+        errorMessage = "Failed to delete message"
       }
     }
   }

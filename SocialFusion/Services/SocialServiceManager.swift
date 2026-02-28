@@ -3960,6 +3960,29 @@ public final class SocialServiceManager: ObservableObject {
     try await blueskyService.removeReaction(convoId: conversation.id, messageId: messageId, value: emoji, for: account)
   }
 
+  /// Delete a message in a conversation
+  public func deleteChatMessage(conversation: DMConversation, messageId: String) async throws {
+    guard let account = accounts.first(where: { $0.platform == conversation.platform }) else {
+      throw ServiceError.invalidAccount(reason: "No account found for \(conversation.platform.rawValue)")
+    }
+    switch conversation.platform {
+    case .bluesky:
+      try await blueskyService.deleteMessage(convoId: conversation.id, messageId: messageId, for: account)
+    case .mastodon:
+      try await mastodonService.deletePost(id: messageId, account: account)
+    }
+  }
+
+  /// Edit a chat message (Mastodon only — DMs are statuses)
+  public func editChatMessage(conversation: DMConversation, messageId: String, newText: String) async throws {
+    guard conversation.platform == .mastodon,
+          let account = accounts.first(where: { $0.platform == .mastodon }) else { return }
+    let content = "@\(conversation.participant.username) \(newText)"
+    try await mastodonService.editPost(
+      id: messageId, content: content, visibility: "direct", account: account
+    )
+  }
+
     // MARK: - Offline Queue Management
 
     private func setupNetworkMonitoring() {

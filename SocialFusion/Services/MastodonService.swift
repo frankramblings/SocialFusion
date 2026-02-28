@@ -3767,6 +3767,71 @@ public final class MastodonService: @unchecked Sendable {
 
         return try JSONDecoder().decode([MastodonAccount].self, from: data)
     }
+
+    // MARK: - Delete / Edit Status
+
+    /// Delete a status by ID
+    func deletePost(id: String, account: SocialAccount) async throws {
+        let serverUrl = formatServerURL(
+            account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(id)") else {
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or status ID"])
+        }
+        let request = try await createAuthenticatedRequest(
+            url: url, method: "DELETE", account: account)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw NSError(
+                    domain: "MastodonService",
+                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                    userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
+            }
+            throw NSError(
+                domain: "MastodonService",
+                code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to delete status"])
+        }
+    }
+
+    /// Edit a status by ID (Mastodon v3.5+)
+    func editPost(
+        id: String,
+        content: String,
+        visibility: String = "direct",
+        account: SocialAccount
+    ) async throws {
+        let serverUrl = formatServerURL(
+            account.serverURL?.absoluteString ?? "")
+        guard let url = URL(string: "\(serverUrl)/api/v1/statuses/\(id)") else {
+            throw NSError(
+                domain: "MastodonService", code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid server URL or status ID"])
+        }
+        let parameters: [String: Any] = [
+            "status": content,
+            "visibility": visibility,
+        ]
+        let request = try await createJSONRequest(
+            url: url, method: "PUT", account: account, body: parameters)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                throw NSError(
+                    domain: "MastodonService",
+                    code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                    userInfo: [NSLocalizedDescriptionKey: errorResponse.error])
+            }
+            throw NSError(
+                domain: "MastodonService",
+                code: (response as? HTTPURLResponse)?.statusCode ?? 0,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to edit status"])
+        }
+    }
 }
 
 // MARK: - Mastodon Status Context Models

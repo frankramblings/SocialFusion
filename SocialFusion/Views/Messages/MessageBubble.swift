@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Bubble Shape
 
@@ -71,6 +72,8 @@ struct MessageBubble: View {
   var myAccountIds: Set<String> = []
   var onReactionTap: ((String, Bool) -> Void)?
   var onReactionAdd: ((String) -> Void)?
+  var onDelete: (() -> Void)?
+  var onEdit: (() -> Void)?
 
   private static let quickReactions = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F525}"]
 
@@ -102,13 +105,36 @@ struct MessageBubble: View {
           .clipShape(BubbleShape(isFromMe: isFromMe, hasTail: isLastInGroup))
           .contextMenu {
             if platform == .bluesky {
-              ForEach(Self.quickReactions, id: \.self) { emoji in
-                Button {
-                  onReactionAdd?(emoji)
-                } label: {
-                  Text(emoji)
+              Section("React") {
+                ForEach(Self.quickReactions, id: \.self) { emoji in
+                  Button {
+                    onReactionAdd?(emoji)
+                  } label: {
+                    Text(emoji)
+                  }
                 }
               }
+            }
+
+            if isFromMe {
+              if platform == .mastodon {
+                Button {
+                  onEdit?()
+                } label: {
+                  Label("Edit Message", systemImage: "pencil")
+                }
+              }
+              Button(role: .destructive) {
+                onDelete?()
+              } label: {
+                Label("Delete Message", systemImage: "trash")
+              }
+            }
+
+            Button {
+              UIPasteboard.general.string = message.text
+            } label: {
+              Label("Copy Text", systemImage: "doc.on.doc")
             }
           }
 
