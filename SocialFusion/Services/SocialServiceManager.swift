@@ -2226,6 +2226,40 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Fetch filtered posts for a user profile tab
+    public func fetchFilteredUserPosts(
+        user: SearchUser, account: SocialAccount, limit: Int = 20, cursor: String? = nil,
+        excludeReplies: Bool = false, onlyMedia: Bool = false
+    ) async throws -> ([Post], String?) {
+        switch user.platform {
+        case .mastodon:
+            var userId = user.id
+            if userId.isEmpty {
+                let mastodonAccount = try await mastodonService.verifyCredentials(account: account)
+                userId = mastodonAccount.id
+                account.platformSpecificId = userId
+            }
+            let posts = try await mastodonService.fetchUserTimeline(
+                userId: userId, for: account, limit: limit, maxId: cursor,
+                excludeReplies: excludeReplies, onlyMedia: onlyMedia)
+            let nextCursor = posts.last?.platformSpecificId
+            return (posts, nextCursor)
+
+        case .bluesky:
+            let filter: String?
+            if onlyMedia {
+                filter = "posts_with_media"
+            } else if excludeReplies {
+                filter = "posts_no_replies"
+            } else {
+                filter = nil
+            }
+            let result = try await blueskyService.fetchAuthorFeed(
+                actor: user.id, for: account, limit: limit, cursor: cursor, filter: filter)
+            return (result.posts, result.pagination.nextPageToken)
+        }
+    }
+
     /// Fetch profile details for a user
     public func fetchUserProfile(user: SearchUser, account: SocialAccount) async throws
         -> UserProfile
@@ -2261,7 +2295,17 @@ public final class SocialServiceManager: ObservableObject {
                 following: relationship?.following,
                 followedBy: relationship?.followedBy,
                 muting: relationship?.muting,
-                blocking: relationship?.blocking
+                blocking: relationship?.blocking,
+                fields: mAccount.fields?.map { field in
+                    ProfileField(
+                        name: field.name,
+                        value: field.value,
+                        isVerified: field.verifiedAt != nil
+                    )
+                },
+                displayNameEmojiMap: mAccount.emojis?.reduce(into: [String: String]()) { map, emoji in
+                    map[emoji.shortcode] = emoji.url
+                }
             )
 
         case .bluesky:
