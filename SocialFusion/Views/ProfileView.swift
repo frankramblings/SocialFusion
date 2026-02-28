@@ -86,7 +86,6 @@ struct ProfileView: View {
               ProfileTabBar(selectedTab: $viewModel.selectedTab)
                 .padding(.vertical, 4)
                 .background(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.06), radius: 3, y: 2)
             }
           }
         }
