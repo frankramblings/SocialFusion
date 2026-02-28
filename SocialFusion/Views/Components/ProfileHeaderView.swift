@@ -74,6 +74,7 @@ struct ProfileHeaderView: View {
       .offset(y: offset)
     }
     .frame(height: Layout.bannerHeight)
+    .accessibilityHidden(true)
   }
 
   private var bannerGradient: some View {
@@ -132,6 +133,7 @@ struct ProfileHeaderView: View {
       )
       .offset(x: 2, y: 2)
     }
+    .accessibilityLabel("\(profile.displayName ?? profile.username)'s profile picture")
   }
 
   private var avatarPlaceholder: some View {
@@ -394,6 +396,17 @@ struct ProfileHeaderView: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 10)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(fieldAccessibilityLabel(field))
+  }
+
+  private func fieldAccessibilityLabel(_ field: ProfileField) -> String {
+    let strippedValue = field.value.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+    if field.isVerified {
+      return "\(field.name), \(strippedValue), verified"
+    } else {
+      return "\(field.name), \(strippedValue)"
+    }
   }
 
   // MARK: - Stats
@@ -408,6 +421,8 @@ struct ProfileHeaderView: View {
     .padding(.horizontal, Layout.horizontalPadding)
     .padding(.top, 12)
     .padding(.bottom, 8)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(profile.statusesCount) posts, \(profile.followingCount) following, \(profile.followersCount) followers")
   }
 
   private func statItem(count: Int, label: String) -> some View {

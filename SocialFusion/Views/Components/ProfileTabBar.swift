@@ -23,8 +23,10 @@ struct ProfileTabBar: View {
           }
         }
         .frame(maxWidth: .infinity)
+        .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
       }
     }
+    .accessibilityElement(children: .contain)
     .padding(.horizontal, 16)
     .background(Color(.systemBackground))
   }
