@@ -566,6 +566,17 @@ private struct AsyncHTMLText: View {
   }
 }
 
+// MARK: - Scroll Offset Tracking
+
+/// Tracks the scroll offset within the profile scroll view.
+/// Used by the banner, avatar, and tab bar to drive cinematic transitions.
+struct ProfileScrollOffsetKey: PreferenceKey {
+  static var defaultValue: CGFloat = 0
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
 // MARK: - Previews
 
 #Preview("Mastodon Profile") {
