@@ -337,10 +337,8 @@ struct ProfileHeaderView: View {
   @ViewBuilder
   private func bioContent(_ bio: String) -> some View {
     if profile.platform == .mastodon {
-      // Mastodon bios are HTML
-      Text.html(bio, fontSize: 15.0)
-        .font(.subheadline)
-        .foregroundColor(.primary)
+      // Mastodon bios are HTML — parse asynchronously to avoid AttributeGraph crash
+      AsyncHTMLText(html: bio, font: .subheadline, foregroundColor: .primary)
     } else {
       // Bluesky bios are plain text
       Text(bio)
@@ -387,11 +385,8 @@ struct ProfileHeaderView: View {
             .foregroundColor(.green)
         }
 
-        // Field values may contain HTML links (Mastodon)
-        Text.html(field.value, fontSize: 13.0)
-          .font(.caption)
-          .foregroundColor(.primary)
-          .lineLimit(1)
+        // Field values may contain HTML links (Mastodon) — parse asynchronously
+        AsyncHTMLText(html: field.value, font: .caption, foregroundColor: .primary, lineLimit: 1)
       }
     }
     .padding(.horizontal, 12)
@@ -457,6 +452,55 @@ struct ProfileHeaderView: View {
 }
 
 // MARK: - Preview
+
+// MARK: - Async HTML Text
+
+/// Renders HTML content asynchronously to avoid AttributeGraph crashes.
+/// Shows plain text immediately, swaps in parsed AttributedString once ready.
+private struct AsyncHTMLText: View {
+  let html: String
+  var font: Font = .subheadline
+  var foregroundColor: Color = .primary
+  var lineLimit: Int? = nil
+
+  @State private var attributedString: AttributedString?
+
+  var body: some View {
+    Group {
+      if let attributed = attributedString {
+        Text(attributed)
+      } else {
+        Text(plainText)
+      }
+    }
+    .font(font)
+    .foregroundColor(foregroundColor)
+    .lineLimit(lineLimit)
+    .task(id: html) {
+      let htmlString = HTMLString(raw: html)
+      let result = await Task.detached(priority: .userInitiated) {
+        await EmojiTextApp.buildAttributedString(
+          htmlString: htmlString,
+          font: .subheadline,
+          foregroundColor: .primary,
+          mentions: [],
+          tags: []
+        )
+      }.value
+      attributedString = result
+    }
+  }
+
+  private var plainText: String {
+    html.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+      .replacingOccurrences(of: "&amp;", with: "&")
+      .replacingOccurrences(of: "&lt;", with: "<")
+      .replacingOccurrences(of: "&gt;", with: ">")
+      .replacingOccurrences(of: "&quot;", with: "\"")
+      .replacingOccurrences(of: "&#39;", with: "'")
+      .replacingOccurrences(of: "&nbsp;", with: " ")
+  }
+}
 
 #Preview("Mastodon Profile") {
   ScrollView {
