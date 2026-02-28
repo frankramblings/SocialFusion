@@ -396,7 +396,8 @@ struct ContentView: View {
             Color(UIColor.systemBackground).ignoresSafeArea()
             if let account = getCurrentAccount() {
                 ProfileView(
-                    account: account
+                    account: account,
+                    serviceManager: serviceManager
                 ).environmentObject(serviceManager)
             } else {
                 noAccountView
