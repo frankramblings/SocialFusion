@@ -3715,17 +3715,17 @@ public final class SocialServiceManager: ObservableObject {
                 case .bluesky:
                     let blueskyConvos = try await blueskyService.fetchConvos(for: account)
                     let mappedConvos = blueskyConvos.map { convo -> DMConversation in
-                        // Get the other participant (not the account itself)
-                        let otherParticipant =
-                            convo.members.first { $0.did != account.platformSpecificId }
-                            ?? convo.members.first!
-
-                        let participant = NotificationAccount(
-                            id: otherParticipant.did,
-                            username: otherParticipant.handle,
-                            displayName: otherParticipant.displayName,
-                            avatarURL: otherParticipant.avatar
-                        )
+                        // Get all other participants (not the account itself)
+                        let otherParticipants = convo.members
+                            .filter { $0.did != account.platformSpecificId }
+                            .map { member in
+                                NotificationAccount(
+                                    id: member.did,
+                                    username: member.handle,
+                                    displayName: member.displayName,
+                                    avatarURL: member.avatar
+                                )
+                            }
 
                         let currentUserAccount = NotificationAccount(
                             id: account.platformSpecificId,
@@ -3733,6 +3733,8 @@ public final class SocialServiceManager: ObservableObject {
                             displayName: account.displayName,
                             avatarURL: account.profileImageURL?.absoluteString
                         )
+
+                        let firstParticipant = otherParticipants.first ?? currentUserAccount
 
                         let lastMsg = convo.lastMessage
                         let content: String
@@ -3748,9 +3750,11 @@ public final class SocialServiceManager: ObservableObject {
                                 ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
                             if view.sender.did == account.platformSpecificId {
                                 sender = currentUserAccount
-                                recipient = participant
+                                recipient = firstParticipant
                             } else {
-                                sender = participant
+                                // Find the sender among participants
+                                sender = otherParticipants.first { $0.id == view.sender.did }
+                                    ?? firstParticipant
                                 recipient = currentUserAccount
                             }
                         case .deleted(let view):
@@ -3759,15 +3763,16 @@ public final class SocialServiceManager: ObservableObject {
                                 ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
                             if view.sender.did == account.platformSpecificId {
                                 sender = currentUserAccount
-                                recipient = participant
+                                recipient = firstParticipant
                             } else {
-                                sender = participant
+                                sender = otherParticipants.first { $0.id == view.sender.did }
+                                    ?? firstParticipant
                                 recipient = currentUserAccount
                             }
                         case .none:
                             content = "No messages"
                             createdAt = Date.distantPast
-                            sender = participant
+                            sender = firstParticipant
                             recipient = currentUserAccount
                         }
 
@@ -3782,10 +3787,11 @@ public final class SocialServiceManager: ObservableObject {
 
                         return DMConversation(
                             id: convo.id,
-                            participant: participant,
+                            participants: otherParticipants,
                             lastMessage: dm,
                             unreadCount: convo.unreadCount,
-                            platform: .bluesky
+                            platform: .bluesky,
+                            isMuted: convo.muted
                         )
                     }
                     allConversations.append(contentsOf: mappedConvos)
@@ -3912,6 +3918,144 @@ public final class SocialServiceManager: ObservableObject {
             return .bluesky(.message(sentMessage))
         }
     }
+
+    /// Start or find an existing Bluesky DM conversation with a user
+    public func startOrFindBlueskyConversation(withDid did: String) async throws -> DMConversation {
+        return try await startOrFindBlueskyConversation(withDids: [did])
+    }
+
+    public func startOrFindBlueskyConversation(withDids dids: [String]) async throws -> DMConversation {
+        guard let account = accounts.first(where: { $0.platform == .bluesky }) else {
+            throw ServiceError.invalidAccount(reason: "No Bluesky account found")
+        }
+
+        let convo = try await blueskyService.getConvoForMembers(memberDids: dids, for: account)
+
+        let otherParticipants = convo.members
+            .filter { $0.did != account.platformSpecificId }
+            .map { member in
+                NotificationAccount(
+                    id: member.did,
+                    username: member.handle,
+                    displayName: member.displayName,
+                    avatarURL: member.avatar
+                )
+            }
+
+        let firstParticipant = otherParticipants.first ?? NotificationAccount(
+            id: "", username: "unknown", displayName: nil, avatarURL: nil
+        )
+
+        let lastMsg: DirectMessage
+        if case .message(let view) = convo.lastMessage {
+            let sender = NotificationAccount(
+                id: view.sender.did,
+                username: view.sender.handle,
+                displayName: view.sender.displayName,
+                avatarURL: view.sender.avatar
+            )
+            lastMsg = DirectMessage(
+                id: view.id,
+                sender: sender,
+                recipient: firstParticipant,
+                content: view.text,
+                createdAt: ISO8601DateFormatter().date(from: view.sentAt) ?? Date(),
+                platform: .bluesky
+            )
+        } else {
+            lastMsg = DirectMessage(
+                id: UUID().uuidString,
+                sender: firstParticipant,
+                recipient: firstParticipant,
+                content: "",
+                createdAt: Date(),
+                platform: .bluesky
+            )
+        }
+
+        return DMConversation(
+            id: convo.id,
+            participants: otherParticipants,
+            lastMessage: lastMsg,
+            unreadCount: convo.unreadCount,
+            platform: .bluesky,
+            isMuted: convo.muted
+        )
+    }
+
+    /// Mark a conversation as read (Bluesky only)
+    public func markConversationRead(conversation: DMConversation) async {
+        guard conversation.platform == .bluesky,
+              let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+        do {
+            try await blueskyService.updateRead(convoId: conversation.id, for: account)
+        } catch {
+            print("[Messages] Failed to mark conversation read: \(error.localizedDescription)")
+        }
+    }
+
+  /// Add a reaction to a message (Bluesky only)
+  public func addReaction(conversation: DMConversation, messageId: String, emoji: String) async throws {
+    guard conversation.platform == .bluesky,
+          let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+    try await blueskyService.addReaction(convoId: conversation.id, messageId: messageId, value: emoji, for: account)
+  }
+
+  /// Remove a reaction from a message (Bluesky only)
+  public func removeReaction(conversation: DMConversation, messageId: String, emoji: String) async throws {
+    guard conversation.platform == .bluesky,
+          let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+    try await blueskyService.removeReaction(convoId: conversation.id, messageId: messageId, value: emoji, for: account)
+  }
+
+  /// Delete a message in a conversation
+  public func deleteChatMessage(conversation: DMConversation, messageId: String) async throws {
+    guard let account = accounts.first(where: { $0.platform == conversation.platform }) else {
+      throw ServiceError.invalidAccount(reason: "No account found for \(conversation.platform.rawValue)")
+    }
+    switch conversation.platform {
+    case .bluesky:
+      try await blueskyService.deleteMessage(convoId: conversation.id, messageId: messageId, for: account)
+    case .mastodon:
+      try await mastodonService.deletePost(id: messageId, account: account)
+    }
+  }
+
+  /// Edit a chat message (Mastodon only — DMs are statuses)
+  public func editChatMessage(conversation: DMConversation, messageId: String, newText: String) async throws {
+    guard conversation.platform == .mastodon,
+          let account = accounts.first(where: { $0.platform == .mastodon }) else { return }
+    let content = "@\(conversation.participant.username) \(newText)"
+    try await mastodonService.editPost(
+      id: messageId, content: content, visibility: "direct", account: account
+    )
+  }
+
+  public func muteConversation(_ conversation: DMConversation) async throws {
+    guard let account = accounts.first(where: { $0.platform == conversation.platform }) else { return }
+    switch conversation.platform {
+    case .bluesky:
+      try await blueskyService.muteConvo(convoId: conversation.id, for: account)
+    case .mastodon:
+      break // Mastodon doesn't have conversation mute in the same way
+    }
+  }
+
+  public func unmuteConversation(_ conversation: DMConversation) async throws {
+    guard let account = accounts.first(where: { $0.platform == conversation.platform }) else { return }
+    switch conversation.platform {
+    case .bluesky:
+      try await blueskyService.unmuteConvo(convoId: conversation.id, for: account)
+    case .mastodon:
+      break
+    }
+  }
+
+  public func leaveConversation(_ conversation: DMConversation) async throws {
+    guard conversation.platform == .bluesky,
+          let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+    try await blueskyService.leaveConvo(convoId: conversation.id, for: account)
+  }
 
     // MARK: - Offline Queue Management
 

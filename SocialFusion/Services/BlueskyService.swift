@@ -4452,6 +4452,39 @@ extension BlueskyService {
         return response.convos
     }
 
+    /// Get or create a conversation with specific members
+    internal func getConvoForMembers(memberDids: [String], for account: SocialAccount) async throws -> BlueskyConvo {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.getConvoForMembers"
+        guard var components = URLComponents(string: apiURL) else {
+            throw BlueskyTokenError.invalidServerURL
+        }
+        components.queryItems = memberDids.map { URLQueryItem(name: "members", value: $0) }
+
+        guard let url = components.url else {
+            throw BlueskyTokenError.invalidServerURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200...299).contains(httpResponse.statusCode) {
+            throw ServiceError.apiError("getConvoForMembers failed with status \(httpResponse.statusCode)")
+        }
+
+        struct ConvoForMembersResponse: Codable {
+            let convo: BlueskyConvo
+        }
+        let decoded = try JSONDecoder().decode(ConvoForMembersResponse.self, from: data)
+        return decoded.convo
+    }
+
     /// Fetch messages for a specific conversation
     internal func fetchMessages(convoId: String, for account: SocialAccount) async throws
         -> [BlueskyChatMessage]
@@ -4527,4 +4560,144 @@ extension BlueskyService {
         let (data, _) = try await session.data(for: request)
         return try JSONDecoder().decode(BlueskyGetLogResponse.self, from: data)
     }
+
+    /// Mark a conversation as read on Bluesky
+    internal func updateRead(convoId: String, for account: SocialAccount) async throws {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.updateRead"
+        guard let url = URL(string: apiURL) else {
+            throw BlueskyTokenError.invalidServerURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = ["convoId": convoId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw BlueskyTokenError.networkError(
+                NSError(domain: "BlueskyChat", code: code,
+                        userInfo: [NSLocalizedDescriptionKey: "updateRead failed with status \(code)"])
+            )
+        }
+    }
+
+  /// Add an emoji reaction to a message
+  internal func addReaction(convoId: String, messageId: String, value: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else {
+      throw BlueskyTokenError.noAccessToken
+    }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.addReaction"
+    guard let url = URL(string: apiURL) else {
+      throw BlueskyTokenError.invalidServerURL
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    let body: [String: Any] = ["convoId": convoId, "messageId": messageId, "value": value]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to add reaction"]))
+    }
+  }
+
+  /// Remove an emoji reaction from a message
+  internal func removeReaction(convoId: String, messageId: String, value: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else {
+      throw BlueskyTokenError.noAccessToken
+    }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.removeReaction"
+    guard let url = URL(string: apiURL) else {
+      throw BlueskyTokenError.invalidServerURL
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    let body: [String: Any] = ["convoId": convoId, "messageId": messageId, "value": value]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to remove reaction"]))
+    }
+  }
+
+  /// Delete a chat message
+  internal func deleteMessage(convoId: String, messageId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else {
+      throw BlueskyTokenError.noAccessToken
+    }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.deleteMessageForSelf"
+    guard let url = URL(string: apiURL) else {
+      throw BlueskyTokenError.invalidServerURL
+    }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    let body: [String: Any] = ["convoId": convoId, "messageId": messageId]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to delete message"]))
+    }
+  }
+
+  internal func muteConvo(convoId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else { throw BlueskyTokenError.noAccessToken }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.muteConvo"
+    guard let url = URL(string: apiURL) else { throw BlueskyTokenError.invalidServerURL }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["convoId": convoId])
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to mute conversation"]))
+    }
+  }
+
+  internal func unmuteConvo(convoId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else { throw BlueskyTokenError.noAccessToken }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.unmuteConvo"
+    guard let url = URL(string: apiURL) else { throw BlueskyTokenError.invalidServerURL }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["convoId": convoId])
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to unmute conversation"]))
+    }
+  }
+
+  internal func leaveConvo(convoId: String, for account: SocialAccount) async throws {
+    guard let accessToken = account.accessToken else { throw BlueskyTokenError.noAccessToken }
+    let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.leaveConvo"
+    guard let url = URL(string: apiURL) else { throw BlueskyTokenError.invalidServerURL }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.httpBody = try JSONSerialization.data(withJSONObject: ["convoId": convoId])
+    let (_, response) = try await session.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse,
+          (200...299).contains(httpResponse.statusCode) else {
+      throw BlueskyTokenError.networkError(NSError(domain: "BlueskyService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to leave conversation"]))
+    }
+  }
 }
