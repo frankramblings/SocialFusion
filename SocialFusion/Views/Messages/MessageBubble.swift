@@ -67,6 +67,7 @@ struct MessageBubble: View {
   let isLastInGroup: Bool
   let showAvatar: Bool
   let avatarURL: String?
+  var senderName: String?
   var showSeenIndicator: Bool = false
   var reactions: [MessageReaction] = []
   var myAccountIds: Set<String> = []
@@ -97,6 +98,12 @@ struct MessageBubble: View {
       if isFromMe { Spacer(minLength: 60) }
 
       VStack(alignment: isFromMe ? .trailing : .leading, spacing: 2) {
+        if let name = senderName, isFirstInGroup {
+          Text(name)
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 4)
+        }
         messageContent
           .padding(.horizontal, 12)
           .padding(.vertical, 8)

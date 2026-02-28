@@ -1530,22 +1530,51 @@ public struct DirectMessage: Identifiable, Codable, Sendable {
 
 public struct DMConversation: Identifiable, Codable, Sendable {
     public let id: String
-    public let participant: NotificationAccount
+    public let participants: [NotificationAccount]
     public let lastMessage: DirectMessage
     public let unreadCount: Int
     public let platform: SocialPlatform
     public let isMuted: Bool
 
+    /// Convenience for 1-on-1 conversations (backward compatibility)
+    public var participant: NotificationAccount {
+        participants.first ?? NotificationAccount(
+            id: "", username: "unknown", displayName: "Unknown", avatarURL: nil
+        )
+    }
+
+    public var isGroup: Bool { participants.count > 1 }
+
+    public var title: String? {
+        guard isGroup else { return nil }
+        let names = participants.compactMap(\.displayName).prefix(3)
+        if names.isEmpty {
+            return participants.map(\.username).prefix(3).joined(separator: ", ")
+        }
+        return names.joined(separator: ", ")
+    }
+
     public init(
-        id: String, participant: NotificationAccount, lastMessage: DirectMessage, unreadCount: Int,
-        platform: SocialPlatform, isMuted: Bool = false
+        id: String, participants: [NotificationAccount], lastMessage: DirectMessage,
+        unreadCount: Int, platform: SocialPlatform, isMuted: Bool = false
     ) {
         self.id = id
-        self.participant = participant
+        self.participants = participants
         self.lastMessage = lastMessage
         self.unreadCount = unreadCount
         self.platform = platform
         self.isMuted = isMuted
+    }
+
+    /// Backward-compatible convenience init
+    public init(
+        id: String, participant: NotificationAccount, lastMessage: DirectMessage,
+        unreadCount: Int, platform: SocialPlatform, isMuted: Bool = false
+    ) {
+        self.init(
+            id: id, participants: [participant], lastMessage: lastMessage,
+            unreadCount: unreadCount, platform: platform, isMuted: isMuted
+        )
     }
 }
 

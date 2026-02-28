@@ -44,7 +44,7 @@ class MessagesViewModel: ObservableObject {
           )
           conv = DMConversation(
             id: conv.id,
-            participant: conv.participant,
+            participants: conv.participants,
             lastMessage: newLastMessage,
             unreadCount: conv.unreadCount + 1,
             platform: conv.platform
@@ -60,7 +60,7 @@ class MessagesViewModel: ObservableObject {
           if let index = conversations.firstIndex(where: { $0.id == update.conversationId }) {
             let conv = conversations[index]
             conversations[index] = DMConversation(
-              id: conv.id, participant: conv.participant,
+              id: conv.id, participants: conv.participants,
               lastMessage: conv.lastMessage, unreadCount: conv.unreadCount,
               platform: conv.platform, isMuted: true
             )
@@ -69,7 +69,7 @@ class MessagesViewModel: ObservableObject {
           if let index = conversations.firstIndex(where: { $0.id == update.conversationId }) {
             let conv = conversations[index]
             conversations[index] = DMConversation(
-              id: conv.id, participant: conv.participant,
+              id: conv.id, participants: conv.participants,
               lastMessage: conv.lastMessage, unreadCount: conv.unreadCount,
               platform: conv.platform, isMuted: false
             )

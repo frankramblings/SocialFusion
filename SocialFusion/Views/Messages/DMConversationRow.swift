@@ -9,14 +9,22 @@ struct DMConversationRow: View {
 
       VStack(alignment: .leading, spacing: 4) {
         HStack {
-          EmojiDisplayNameText(
-            conversation.participant.displayName ?? conversation.participant.username,
-            emojiMap: conversation.participant.displayNameEmojiMap,
-            font: .headline,
-            fontWeight: .semibold,
-            foregroundColor: .primary,
-            lineLimit: 1
-          )
+          if conversation.isGroup, let title = conversation.title {
+            Text(title)
+              .font(.headline)
+              .fontWeight(.semibold)
+              .foregroundColor(.primary)
+              .lineLimit(1)
+          } else {
+            EmojiDisplayNameText(
+              conversation.participant.displayName ?? conversation.participant.username,
+              emojiMap: conversation.participant.displayNameEmojiMap,
+              font: .headline,
+              fontWeight: .semibold,
+              foregroundColor: .primary,
+              lineLimit: 1
+            )
+          }
 
           Spacer()
 
@@ -25,10 +33,17 @@ struct DMConversationRow: View {
         }
 
         HStack(spacing: 4) {
-          Text("@\(conversation.participant.username)")
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-            .lineLimit(1)
+          if conversation.isGroup {
+            Text("\(conversation.participants.count) members")
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+              .lineLimit(1)
+          } else {
+            Text("@\(conversation.participant.username)")
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+              .lineLimit(1)
+          }
 
           Text("\u{00B7}")
             .font(.subheadline)
@@ -46,10 +61,17 @@ struct DMConversationRow: View {
         }
 
         HStack {
-          Text(conversation.lastMessage.content)
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-            .lineLimit(2)
+          if conversation.isGroup {
+            Text("\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)")
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+              .lineLimit(2)
+          } else {
+            Text(conversation.lastMessage.content)
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+              .lineLimit(2)
+          }
 
           Spacer()
 
@@ -66,7 +88,9 @@ struct DMConversationRow: View {
 
   @ViewBuilder
   private var avatarView: some View {
-    if let avatarURL = conversation.participant.avatarURL,
+    if conversation.isGroup {
+      GroupAvatarStack(participants: conversation.participants, size: 48)
+    } else if let avatarURL = conversation.participant.avatarURL,
        let url = URL(string: avatarURL) {
       CachedAsyncImage(url: url, priority: .high) { image in
         image.resizable()

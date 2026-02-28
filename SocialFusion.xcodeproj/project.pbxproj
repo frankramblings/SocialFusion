@@ -333,6 +333,7 @@
 		DA8B9C0D1E2F3A4B5C6D7E8F /* TypingIndicatorBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA9C0D1E2F3A4B5C6D7E8F9A /* TypingIndicatorBubble.swift */; };
 		DAA1B2C3D4E5F6A7B8C9D0E1 /* ConversationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAB1C2D3E4F5A6B7C8D9E0F1 /* ConversationSettingsView.swift */; };
 		DAC2D3E4F5A6B7C8D9E0F1A2 /* ChatMediaPickerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD3E4F5A6B7C8D9E0F1A2B3 /* ChatMediaPickerBar.swift */; };
+		DAE4F5A6B7C8D9E0F1A2B3C4 /* GroupAvatarStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF5A6B7C8D9E0F1A2B3C4D5 /* GroupAvatarStack.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -681,6 +682,7 @@
 		DA9C0D1E2F3A4B5C6D7E8F9A /* TypingIndicatorBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TypingIndicatorBubble.swift; sourceTree = "<group>"; };
 		DAB1C2D3E4F5A6B7C8D9E0F1 /* ConversationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationSettingsView.swift; sourceTree = "<group>"; };
 		DAD3E4F5A6B7C8D9E0F1A2B3 /* ChatMediaPickerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMediaPickerBar.swift; sourceTree = "<group>"; };
+		DAF5A6B7C8D9E0F1A2B3C4D5 /* GroupAvatarStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroupAvatarStack.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1220,6 +1222,7 @@
 			children = (
 				DAD3E4F5A6B7C8D9E0F1A2B3 /* ChatMediaPickerBar.swift */,
 				DA7F8A9B0C1D2E3F4A5B6C7D /* ChatView.swift */,
+				DAF5A6B7C8D9E0F1A2B3C4D5 /* GroupAvatarStack.swift */,
 				DAB1C2D3E4F5A6B7C8D9E0F1 /* ConversationSettingsView.swift */,
 				DA9B0C1D2E3F4A5B6C7D8E9F /* DirectMessagesView.swift */,
 				DA1B2C3D4E5F6A7B8C9D0E1F /* DMConversationRow.swift */,
@@ -1439,6 +1442,7 @@
 				DA8B9C0D1E2F3A4B5C6D7E8F /* TypingIndicatorBubble.swift in Sources */,
 				DAA1B2C3D4E5F6A7B8C9D0E1 /* ConversationSettingsView.swift in Sources */,
 				DAC2D3E4F5A6B7C8D9E0F1A2 /* ChatMediaPickerBar.swift in Sources */,
+				DAE4F5A6B7C8D9E0F1A2B3C4 /* GroupAvatarStack.swift in Sources */,
 				DA0C1D2E3F4A5B6C7D8E9F0A /* MessagesViewModel.swift in Sources */,
 				B8B0E9EBE7098023E1149457 /* DraftPersistenceQueue.swift in Sources */,
 				0D4365E9F93BA2434747926B /* DraftPost.swift in Sources */,

@@ -84,7 +84,7 @@ struct ChatView: View {
       messagesList
       inputBar
     }
-    .navigationTitle(conversation.participant.displayName ?? conversation.participant.username)
+    .navigationTitle(conversation.isGroup ? (conversation.title ?? "Group") : (conversation.participant.displayName ?? conversation.participant.username))
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
@@ -203,6 +203,13 @@ struct ChatView: View {
 
   @ViewBuilder
   private func messageGroupView(_ group: MessageGroup) -> some View {
+    let senderName: String? = conversation.isGroup && !group.isFromMe
+      ? conversation.participants.first(where: { $0.id == group.messages.first?.authorId })?.displayName
+        ?? conversation.participants.first(where: { $0.id == group.messages.first?.authorId })?.username
+      : nil
+    let groupAvatarURL: String? = conversation.isGroup && !group.isFromMe
+      ? conversation.participants.first(where: { $0.id == group.messages.first?.authorId })?.avatarURL
+      : conversation.participant.avatarURL
     ForEach(Array(group.messages.enumerated()), id: \.element.id) { msgIndex, message in
       let isFirst = msgIndex == 0
       let isLast = msgIndex == group.messages.count - 1
@@ -215,7 +222,8 @@ struct ChatView: View {
         isFirstInGroup: isFirst,
         isLastInGroup: isLast,
         showAvatar: !group.isFromMe,
-        avatarURL: conversation.participant.avatarURL,
+        avatarURL: groupAvatarURL,
+        senderName: isFirst ? senderName : nil,
         showSeenIndicator: showSeen,
         reactions: msgReactions,
         myAccountIds: myAccountIds,
@@ -410,7 +418,9 @@ struct ChatView: View {
 
   @ViewBuilder
   private var navAvatar: some View {
-    if let urlString = conversation.participant.avatarURL,
+    if conversation.isGroup {
+      GroupAvatarStack(participants: conversation.participants, size: 28)
+    } else if let urlString = conversation.participant.avatarURL,
        let url = URL(string: urlString) {
       CachedAsyncImage(url: url, priority: .high) { image in
         image.resizable().aspectRatio(contentMode: .fill)

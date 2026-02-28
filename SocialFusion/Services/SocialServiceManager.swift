@@ -3685,17 +3685,17 @@ public final class SocialServiceManager: ObservableObject {
                 case .bluesky:
                     let blueskyConvos = try await blueskyService.fetchConvos(for: account)
                     let mappedConvos = blueskyConvos.map { convo -> DMConversation in
-                        // Get the other participant (not the account itself)
-                        let otherParticipant =
-                            convo.members.first { $0.did != account.platformSpecificId }
-                            ?? convo.members.first!
-
-                        let participant = NotificationAccount(
-                            id: otherParticipant.did,
-                            username: otherParticipant.handle,
-                            displayName: otherParticipant.displayName,
-                            avatarURL: otherParticipant.avatar
-                        )
+                        // Get all other participants (not the account itself)
+                        let otherParticipants = convo.members
+                            .filter { $0.did != account.platformSpecificId }
+                            .map { member in
+                                NotificationAccount(
+                                    id: member.did,
+                                    username: member.handle,
+                                    displayName: member.displayName,
+                                    avatarURL: member.avatar
+                                )
+                            }
 
                         let currentUserAccount = NotificationAccount(
                             id: account.platformSpecificId,
@@ -3703,6 +3703,8 @@ public final class SocialServiceManager: ObservableObject {
                             displayName: account.displayName,
                             avatarURL: account.profileImageURL?.absoluteString
                         )
+
+                        let firstParticipant = otherParticipants.first ?? currentUserAccount
 
                         let lastMsg = convo.lastMessage
                         let content: String
@@ -3718,9 +3720,11 @@ public final class SocialServiceManager: ObservableObject {
                                 ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
                             if view.sender.did == account.platformSpecificId {
                                 sender = currentUserAccount
-                                recipient = participant
+                                recipient = firstParticipant
                             } else {
-                                sender = participant
+                                // Find the sender among participants
+                                sender = otherParticipants.first { $0.id == view.sender.did }
+                                    ?? firstParticipant
                                 recipient = currentUserAccount
                             }
                         case .deleted(let view):
@@ -3729,15 +3733,16 @@ public final class SocialServiceManager: ObservableObject {
                                 ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
                             if view.sender.did == account.platformSpecificId {
                                 sender = currentUserAccount
-                                recipient = participant
+                                recipient = firstParticipant
                             } else {
-                                sender = participant
+                                sender = otherParticipants.first { $0.id == view.sender.did }
+                                    ?? firstParticipant
                                 recipient = currentUserAccount
                             }
                         case .none:
                             content = "No messages"
                             createdAt = Date.distantPast
-                            sender = participant
+                            sender = firstParticipant
                             recipient = currentUserAccount
                         }
 
@@ -3752,7 +3757,7 @@ public final class SocialServiceManager: ObservableObject {
 
                         return DMConversation(
                             id: convo.id,
-                            participant: participant,
+                            participants: otherParticipants,
                             lastMessage: dm,
                             unreadCount: convo.unreadCount,
                             platform: .bluesky,
@@ -3886,18 +3891,29 @@ public final class SocialServiceManager: ObservableObject {
 
     /// Start or find an existing Bluesky DM conversation with a user
     public func startOrFindBlueskyConversation(withDid did: String) async throws -> DMConversation {
+        return try await startOrFindBlueskyConversation(withDids: [did])
+    }
+
+    public func startOrFindBlueskyConversation(withDids dids: [String]) async throws -> DMConversation {
         guard let account = accounts.first(where: { $0.platform == .bluesky }) else {
             throw ServiceError.invalidAccount(reason: "No Bluesky account found")
         }
 
-        let convo = try await blueskyService.getConvoForMembers(memberDids: [did], for: account)
+        let convo = try await blueskyService.getConvoForMembers(memberDids: dids, for: account)
 
-        let otherMember = convo.members.first { $0.did != account.platformSpecificId } ?? convo.members.first!
-        let participant = NotificationAccount(
-            id: otherMember.did,
-            username: otherMember.handle,
-            displayName: otherMember.displayName,
-            avatarURL: otherMember.avatar
+        let otherParticipants = convo.members
+            .filter { $0.did != account.platformSpecificId }
+            .map { member in
+                NotificationAccount(
+                    id: member.did,
+                    username: member.handle,
+                    displayName: member.displayName,
+                    avatarURL: member.avatar
+                )
+            }
+
+        let firstParticipant = otherParticipants.first ?? NotificationAccount(
+            id: "", username: "unknown", displayName: nil, avatarURL: nil
         )
 
         let lastMsg: DirectMessage
@@ -3911,7 +3927,7 @@ public final class SocialServiceManager: ObservableObject {
             lastMsg = DirectMessage(
                 id: view.id,
                 sender: sender,
-                recipient: participant,
+                recipient: firstParticipant,
                 content: view.text,
                 createdAt: ISO8601DateFormatter().date(from: view.sentAt) ?? Date(),
                 platform: .bluesky
@@ -3919,8 +3935,8 @@ public final class SocialServiceManager: ObservableObject {
         } else {
             lastMsg = DirectMessage(
                 id: UUID().uuidString,
-                sender: participant,
-                recipient: participant,
+                sender: firstParticipant,
+                recipient: firstParticipant,
                 content: "",
                 createdAt: Date(),
                 platform: .bluesky
@@ -3929,7 +3945,7 @@ public final class SocialServiceManager: ObservableObject {
 
         return DMConversation(
             id: convo.id,
-            participant: participant,
+            participants: otherParticipants,
             lastMessage: lastMsg,
             unreadCount: convo.unreadCount,
             platform: .bluesky,

@@ -12,62 +12,97 @@ struct NewConversationView: View {
   @State private var navigateToChat = false
   @State private var searchTask: Task<Void, Never>?
   @State private var errorMessage: String?
+  @State private var selectedParticipants: [BlueskyActor] = []
 
   var body: some View {
     NavigationStack {
-      List {
-        if isSearching {
-          HStack {
-            Spacer()
-            ProgressView()
-            Spacer()
+      VStack(spacing: 0) {
+        if !selectedParticipants.isEmpty {
+          ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+              ForEach(selectedParticipants, id: \.did) { actor in
+                HStack(spacing: 4) {
+                  Text(actor.displayName ?? actor.handle)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                  Button {
+                    selectedParticipants.removeAll { $0.did == actor.did }
+                  } label: {
+                    Image(systemName: "xmark.circle.fill")
+                      .font(.caption)
+                      .foregroundColor(.secondary)
+                  }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color(.systemGray5)))
+              }
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
           }
-          .listRowBackground(Color.clear)
         }
 
-        if !blueskyResults.isEmpty {
-          Section("Bluesky") {
-            ForEach(blueskyResults, id: \.did) { actor in
-              Button {
-                startBlueskyConversation(with: actor)
-              } label: {
-                userRow(
-                  avatarURL: actor.avatar,
-                  displayName: actor.displayName,
-                  handle: actor.handle,
-                  platform: .bluesky
-                )
+        List {
+          if isSearching {
+            HStack {
+              Spacer()
+              ProgressView()
+              Spacer()
+            }
+            .listRowBackground(Color.clear)
+          }
+
+          if !blueskyResults.isEmpty {
+            Section("Bluesky") {
+              ForEach(blueskyResults, id: \.did) { actor in
+                Button {
+                  toggleBlueskySelection(actor)
+                } label: {
+                  HStack {
+                    userRow(
+                      avatarURL: actor.avatar,
+                      displayName: actor.displayName,
+                      handle: actor.handle,
+                      platform: .bluesky
+                    )
+                    if selectedParticipants.contains(where: { $0.did == actor.did }) {
+                      Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.blue)
+                    }
+                  }
+                }
               }
             }
           }
-        }
 
-        if !mastodonResults.isEmpty {
-          Section("Mastodon") {
-            ForEach(mastodonResults, id: \.id) { account in
-              Button {
-                // Mastodon DMs are posts with direct visibility
-                // For now, just dismiss — user can use compose
-                dismiss()
-              } label: {
-                userRow(
-                  avatarURL: account.avatar,
-                  displayName: account.displayName,
-                  handle: account.acct,
-                  platform: .mastodon
-                )
+          if !mastodonResults.isEmpty {
+            Section("Mastodon") {
+              ForEach(mastodonResults, id: \.id) { account in
+                Button {
+                  // Mastodon DMs are posts with direct visibility
+                  // For now, just dismiss — user can use compose
+                  dismiss()
+                } label: {
+                  userRow(
+                    avatarURL: account.avatar,
+                    displayName: account.displayName,
+                    handle: account.acct,
+                    platform: .mastodon
+                  )
+                }
               }
             }
           }
-        }
 
-        if !isSearching && searchText.count >= 2
-            && blueskyResults.isEmpty && mastodonResults.isEmpty {
-          ContentUnavailableView(
-            "No results",
-            systemImage: "magnifyingglass",
-            description: Text("No users found for \"\(searchText)\"")
-          )
+          if !isSearching && searchText.count >= 2
+              && blueskyResults.isEmpty && mastodonResults.isEmpty {
+            ContentUnavailableView(
+              "No results",
+              systemImage: "magnifyingglass",
+              description: Text("No users found for \"\(searchText)\"")
+            )
+          }
         }
       }
       .searchable(text: $searchText, prompt: "Search people...")
@@ -89,6 +124,13 @@ struct NewConversationView: View {
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          if !selectedParticipants.isEmpty {
+            Button(selectedParticipants.count > 1 ? "Create Group" : "Start Chat") {
+              startConversationWithSelected()
+            }
+          }
         }
       }
       .navigationDestination(isPresented: $navigateToChat) {
@@ -188,12 +230,23 @@ struct NewConversationView: View {
     }
   }
 
+  // MARK: - Selection
+
+  private func toggleBlueskySelection(_ actor: BlueskyActor) {
+    if selectedParticipants.contains(where: { $0.did == actor.did }) {
+      selectedParticipants.removeAll { $0.did == actor.did }
+    } else {
+      selectedParticipants.append(actor)
+    }
+  }
+
   // MARK: - Conversation Creation
 
-  private func startBlueskyConversation(with actor: BlueskyActor) {
+  private func startConversationWithSelected() {
     Task {
       do {
-        let conversation = try await serviceManager.startOrFindBlueskyConversation(withDid: actor.did)
+        let dids = selectedParticipants.map(\.did)
+        let conversation = try await serviceManager.startOrFindBlueskyConversation(withDids: dids)
         selectedConversation = conversation
         navigateToChat = true
       } catch {
