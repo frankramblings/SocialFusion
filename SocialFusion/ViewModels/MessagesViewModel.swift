@@ -6,6 +6,7 @@ class MessagesViewModel: ObservableObject {
   @Published var isLoading = false
   @Published var errorMessage: String?
   @Published var showNewConversation = false
+  @Published var readStates: [String: Date] = [:]
 
   func fetchConversations(serviceManager: SocialServiceManager) async {
     isLoading = true
@@ -51,8 +52,15 @@ class MessagesViewModel: ObservableObject {
           conversations[index] = conv
           conversations.sort { $0.lastMessage.createdAt > $1.lastMessage.createdAt }
         }
-      case .conversationUpdated(let update) where update.kind == .began:
-        Task { await fetchConversations(serviceManager: serviceManager) }
+      case .conversationUpdated(let update):
+        switch update.kind {
+        case .began:
+          Task { await fetchConversations(serviceManager: serviceManager) }
+        default:
+          break
+        }
+      case .readReceipt(let receipt):
+        readStates[receipt.conversationId] = Date()
       default:
         break
       }

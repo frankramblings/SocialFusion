@@ -3935,6 +3935,17 @@ public final class SocialServiceManager: ObservableObject {
         )
     }
 
+    /// Mark a conversation as read (Bluesky only)
+    public func markConversationRead(conversation: DMConversation) async {
+        guard conversation.platform == .bluesky,
+              let account = accounts.first(where: { $0.platform == .bluesky }) else { return }
+        do {
+            try await blueskyService.updateRead(convoId: conversation.id, for: account)
+        } catch {
+            print("[Messages] Failed to mark conversation read: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Offline Queue Management
 
     private func setupNetworkMonitoring() {

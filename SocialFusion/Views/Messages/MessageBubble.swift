@@ -66,6 +66,7 @@ struct MessageBubble: View {
   let isLastInGroup: Bool
   let showAvatar: Bool
   let avatarURL: String?
+  var showSeenIndicator: Bool = false
 
   private var bubbleColor: Color {
     if isFromMe {
@@ -95,10 +96,17 @@ struct MessageBubble: View {
           .clipShape(BubbleShape(isFromMe: isFromMe, hasTail: isLastInGroup))
 
         if isLastInGroup {
-          Text(message.sentAt, style: .time)
-            .font(.caption2)
-            .foregroundColor(.secondary)
-            .padding(.horizontal, 4)
+          HStack(spacing: 4) {
+            Text(message.sentAt, style: .time)
+              .font(.caption2)
+              .foregroundColor(.secondary)
+            if showSeenIndicator {
+              Text("Seen")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+            }
+          }
+          .padding(.horizontal, 4)
         }
       }
 

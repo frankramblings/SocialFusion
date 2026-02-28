@@ -10,6 +10,7 @@ struct ChatView: View {
   @State private var isLoading = false
   @State private var errorMessage: String?
   @State private var isSending = false
+  @State private var lastReadByOther: Date?
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
@@ -45,6 +46,7 @@ struct ChatView: View {
         conversation: conversation,
         accounts: serviceManager.accounts
       )
+      Task { await serviceManager.markConversationRead(conversation: conversation) }
     }
     .onDisappear {
       chatStreamService.stopAllStreaming()
@@ -85,6 +87,7 @@ struct ChatView: View {
     ForEach(Array(group.messages.enumerated()), id: \.element.id) { msgIndex, message in
       let isFirst = msgIndex == 0
       let isLast = msgIndex == group.messages.count - 1
+      let showSeen = isLast && group.isFromMe && isSeenMessage(message)
       MessageBubble(
         message: message,
         isFromMe: group.isFromMe,
@@ -92,7 +95,8 @@ struct ChatView: View {
         isFirstInGroup: isFirst,
         isLastInGroup: isLast,
         showAvatar: !group.isFromMe,
-        avatarURL: conversation.participant.avatarURL
+        avatarURL: conversation.participant.avatarURL,
+        showSeenIndicator: showSeen
       )
       .padding(.horizontal, 12)
       .padding(.top, isFirst ? 8 : 2)
@@ -248,6 +252,12 @@ struct ChatView: View {
     serviceManager.accounts.contains { $0.platformSpecificId == message.authorId }
   }
 
+  private func isSeenMessage(_ message: UnifiedChatMessage) -> Bool {
+    guard conversation.platform == .bluesky,
+          let readDate = lastReadByOther else { return false }
+    return message.sentAt <= readDate
+  }
+
   private func handleStreamEvents(_ events: [UnifiedChatEvent]) {
     for event in events {
       guard event.conversationId == conversation.id else { continue }
@@ -259,6 +269,8 @@ struct ChatView: View {
         }
       case .deletedMessage(let del):
         messages.removeAll { $0.id == del.messageId }
+      case .readReceipt:
+        lastReadByOther = Date()
       default:
         break
       }

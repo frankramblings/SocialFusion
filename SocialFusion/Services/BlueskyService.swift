@@ -4560,4 +4560,30 @@ extension BlueskyService {
         let (data, _) = try await session.data(for: request)
         return try JSONDecoder().decode(BlueskyGetLogResponse.self, from: data)
     }
+
+    /// Mark a conversation as read on Bluesky
+    internal func updateRead(convoId: String, for account: SocialAccount) async throws {
+        guard let accessToken = account.accessToken else {
+            throw BlueskyTokenError.noAccessToken
+        }
+        let apiURL = "\(getChatProxyURL(for: account))/chat.bsky.convo.updateRead"
+        guard let url = URL(string: apiURL) else {
+            throw BlueskyTokenError.invalidServerURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = ["convoId": convoId]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw BlueskyTokenError.networkError(
+                NSError(domain: "BlueskyChat", code: code,
+                        userInfo: [NSLocalizedDescriptionKey: "updateRead failed with status \(code)"])
+            )
+        }
+    }
 }
