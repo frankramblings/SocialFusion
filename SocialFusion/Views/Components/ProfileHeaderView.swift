@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 /// Profile header component displaying banner, avatar, bio, fields, and stats.
-/// Designed for reuse across Mastodon and Bluesky profile screens.
+/// Features cinematic depth effects: multi-layer parallax on the banner,
+/// 3D tilt on the avatar during overscroll, and progressive blur on collapse.
 struct ProfileHeaderView: View {
   let profile: UserProfile
   let isOwnProfile: Bool
@@ -13,9 +15,10 @@ struct ProfileHeaderView: View {
   var onUnmute: (() -> Void)?
   var onBlock: (() -> Void)?
   var onUnblock: (() -> Void)?
+  /// Binding that the header sets to true when the avatar has scrolled past the nav bar
+  @Binding var isAvatarDocked: Bool
 
   @State private var bioExpanded = false
-  @State private var showFollowingMenu = false
   @State private var showBlockConfirmation = false
 
   // MARK: - Constants
@@ -23,6 +26,7 @@ struct ProfileHeaderView: View {
   private enum Layout {
     static let bannerHeight: CGFloat = 200
     static let avatarSize: CGFloat = 72
+    static let avatarDockedSize: CGFloat = 28
     static let avatarBorderWidth: CGFloat = 3
     static let avatarOverlap: CGFloat = 24
     static let badgeSize: CGFloat = 24
@@ -38,6 +42,7 @@ struct ProfileHeaderView: View {
       bannerSection
       avatarRow
         .padding(.top, -Layout.avatarOverlap)
+        .zIndex(1)
       identitySection
       bioSection
       fieldsSection
@@ -50,8 +55,14 @@ struct ProfileHeaderView: View {
   private var bannerSection: some View {
     GeometryReader { geo in
       let minY = geo.frame(in: .named("profileScroll")).minY
-      let offset = minY > 0 ? -minY * 0.5 : 0
-      let height = minY > 0 ? Layout.bannerHeight + minY : Layout.bannerHeight
+      let overscroll = max(0, minY)
+      // Parallax: banner moves at 0.5x on pull-down, creating depth
+      let bannerOffset = overscroll > 0 ? -overscroll * 0.5 : 0.0
+      // Banner stretches on pull-down
+      let bannerHeight = Layout.bannerHeight + overscroll
+      // Progressive blur as banner scrolls under nav bar
+      let scrollUp = max(0, -minY)
+      let blurProgress = min(1, scrollUp / Layout.bannerHeight)
 
       ZStack {
         if let headerURLString = profile.headerURL,
@@ -60,18 +71,28 @@ struct ProfileHeaderView: View {
             image
               .resizable()
               .aspectRatio(contentMode: .fill)
-              .frame(width: geo.size.width, height: height)
+              .frame(width: geo.size.width, height: bannerHeight)
               .clipped()
           } placeholder: {
             bannerGradient
-              .frame(width: geo.size.width, height: height)
+              .frame(width: geo.size.width, height: bannerHeight)
           }
         } else {
           bannerGradient
-            .frame(width: geo.size.width, height: height)
+            .frame(width: geo.size.width, height: bannerHeight)
         }
+
+        // Progressive blur overlay as banner scrolls up
+        if blurProgress > 0.1 {
+          Rectangle()
+            .fill(.ultraThinMaterial)
+            .opacity(Double(min(1, blurProgress * 1.5)))
+        }
+
+        // Subtle darkening
+        Color.black.opacity(Double(blurProgress * 0.25))
       }
-      .offset(y: offset)
+      .offset(y: bannerOffset)
     }
     .frame(height: Layout.bannerHeight)
     .accessibilityHidden(true)
@@ -97,17 +118,49 @@ struct ProfileHeaderView: View {
   // MARK: - Avatar Row
 
   private var avatarRow: some View {
-    HStack(alignment: .bottom, spacing: 12) {
-      avatarView
-      Spacer()
-      actionButton
-        .padding(.bottom, 4)
+    GeometryReader { geo in
+      let minY = geo.frame(in: .named("profileScroll")).minY
+      let overscroll = max(0, minY - (Layout.bannerHeight - Layout.avatarOverlap))
+
+      // Shrink progress: 0 = full size, 1 = docked size
+      // Start shrinking when avatar row is ~140pt from top, fully shrunk at ~40pt
+      let shrinkStart: CGFloat = 140
+      let shrinkEnd: CGFloat = 40
+      let shrinkProgress = minY < shrinkStart
+        ? CGFloat(min(1, max(0, (shrinkStart - minY) / (shrinkStart - shrinkEnd))))
+        : 0
+
+      let currentScale = 1 - shrinkProgress * (1 - Layout.avatarDockedSize / Layout.avatarSize)
+
+      let isDocked = minY < shrinkEnd
+
+      HStack(alignment: .bottom, spacing: 12) {
+        avatarView(overscroll: overscroll, scale: currentScale, docked: isDocked)
+        Spacer()
+        actionButton
+          .padding(.bottom, 4)
+      }
+      .padding(.horizontal, Layout.horizontalPadding)
+      .onChange(of: isDocked) { _, newValue in
+        if newValue != isAvatarDocked {
+          isAvatarDocked = newValue
+          if newValue {
+            HapticEngine.selection.trigger()
+          }
+        }
+      }
     }
-    .padding(.horizontal, Layout.horizontalPadding)
+    .frame(height: Layout.avatarSize)
   }
 
-  private var avatarView: some View {
-    ZStack(alignment: .bottomTrailing) {
+  private func avatarView(overscroll: CGFloat, scale: CGFloat, docked: Bool) -> some View {
+    // 3D tilt on overscroll pull-down
+    let tiltAmount = max(0, overscroll)
+    let tiltAngle = min(Double(tiltAmount) * 0.1, 15) // max 15 degrees
+    let tiltX = sin(Double(tiltAmount) * 0.025)
+    let tiltY = cos(Double(tiltAmount) * 0.025)
+
+    return ZStack(alignment: .bottomTrailing) {
       if let avatarURLString = profile.avatarURL,
          let avatarURL = URL(string: avatarURLString) {
         CachedAsyncImage(url: avatarURL, priority: .high) { image in
@@ -131,8 +184,21 @@ struct ProfileHeaderView: View {
         size: Layout.badgeSize,
         shadowEnabled: true
       )
+      .scaleEffect(scale, anchor: .bottomTrailing)
       .offset(x: 2, y: 2)
     }
+    .scaleEffect(scale, anchor: .topLeading)
+    .opacity(docked ? 0 : 1)
+    .rotation3DEffect(
+      .degrees(tiltAngle),
+      axis: (x: tiltX, y: tiltY, z: 0),
+      perspective: 0.4
+    )
+    .shadow(
+      color: .black.opacity(tiltAmount > 0 ? min(Double(tiltAmount) * 0.004, 0.3) : 0),
+      radius: tiltAmount > 0 ? min(tiltAmount * 0.12, 10) : 0,
+      y: tiltAmount > 0 ? min(tiltAmount * 0.06, 5) : 0
+    )
     .accessibilityLabel("\(profile.displayName ?? profile.username)'s profile picture")
   }
 
@@ -451,8 +517,6 @@ struct ProfileHeaderView: View {
   }
 }
 
-// MARK: - Preview
-
 // MARK: - Async HTML Text
 
 /// Renders HTML content asynchronously to avoid AttributeGraph crashes.
@@ -502,6 +566,8 @@ private struct AsyncHTMLText: View {
   }
 }
 
+// MARK: - Previews
+
 #Preview("Mastodon Profile") {
   ScrollView {
     ProfileHeaderView(
@@ -532,7 +598,8 @@ private struct AsyncHTMLText: View {
       onMute: {},
       onUnmute: {},
       onBlock: {},
-      onUnblock: {}
+      onUnblock: {},
+      isAvatarDocked: .constant(false)
     )
   }
   .coordinateSpace(name: "profileScroll")
@@ -556,7 +623,8 @@ private struct AsyncHTMLText: View {
       isOwnProfile: false,
       relationshipState: (isFollowing: false, isFollowedBy: false, isMuting: false, isBlocking: false),
       onFollow: {},
-      onUnfollow: {}
+      onUnfollow: {},
+      isAvatarDocked: .constant(false)
     )
   }
   .coordinateSpace(name: "profileScroll")
@@ -578,7 +646,8 @@ private struct AsyncHTMLText: View {
         platform: .mastodon
       ),
       isOwnProfile: true,
-      onEditProfile: { print("Edit profile tapped") }
+      onEditProfile: { print("Edit profile tapped") },
+      isAvatarDocked: .constant(false)
     )
   }
   .coordinateSpace(name: "profileScroll")

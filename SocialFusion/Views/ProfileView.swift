@@ -11,6 +11,7 @@ struct ProfileView: View {
   @State private var relationshipViewModel: RelationshipViewModel?
   @State private var showEditProfile = false
   @State private var replyingToPost: Post? = nil
+  @State private var isAvatarDocked = false
 
   // MARK: - Initializers
 
@@ -43,7 +44,8 @@ struct ProfileView: View {
             onMute: { Task { await relationshipViewModel?.mute() } },
             onUnmute: { Task { await relationshipViewModel?.unmute() } },
             onBlock: { Task { await relationshipViewModel?.block() } },
-            onUnblock: { Task { await relationshipViewModel?.unblock() } }
+            onUnblock: { Task { await relationshipViewModel?.unblock() } },
+            isAvatarDocked: $isAvatarDocked
           )
         } else if viewModel.isLoadingProfile {
           profileSkeleton
@@ -59,13 +61,29 @@ struct ProfileView: View {
             ProfileTabBar(selectedTab: $viewModel.selectedTab)
               .padding(.vertical, 4)
               .background(Color(.systemBackground))
+              .shadow(color: .black.opacity(0.06), radius: 3, y: 2)
           }
         }
       }
     }
     .coordinateSpace(name: "profileScroll")
-    .navigationTitle(navigationTitle)
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .principal) {
+        HStack(spacing: 8) {
+          if let profile = viewModel.profile {
+            navBarAvatar(profile: profile)
+              .opacity(isAvatarDocked ? 1 : 0)
+              .scaleEffect(isAvatarDocked ? 1 : 0.5)
+              .animation(.easeInOut(duration: 0.2), value: isAvatarDocked)
+          }
+          Text(navigationTitle)
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .lineLimit(1)
+        }
+      }
+    }
     .task {
       await viewModel.loadProfile()
       await viewModel.loadPostsForCurrentTab()
@@ -126,6 +144,35 @@ struct ProfileView: View {
       }
     }
     return plainText.trimmingCharacters(in: .whitespaces)
+  }
+
+  // MARK: - Nav Bar Avatar
+
+  @ViewBuilder
+  private func navBarAvatar(profile: UserProfile) -> some View {
+    if let avatarURLString = profile.avatarURL,
+       let avatarURL = URL(string: avatarURLString) {
+      CachedAsyncImage(url: avatarURL, priority: .high) { image in
+        image
+          .resizable()
+          .aspectRatio(contentMode: .fill)
+          .frame(width: 28, height: 28)
+          .clipShape(Circle())
+      } placeholder: {
+        Circle()
+          .fill(profile.platform.swiftUIColor.opacity(0.4))
+          .frame(width: 28, height: 28)
+      }
+    } else {
+      Circle()
+        .fill(profile.platform.swiftUIColor.opacity(0.4))
+        .frame(width: 28, height: 28)
+        .overlay {
+          Text(String((profile.displayName ?? profile.username).prefix(1)).uppercased())
+            .font(.system(size: 13, weight: .semibold, design: .rounded))
+            .foregroundColor(.white)
+        }
+    }
   }
 
   // MARK: - Relationship State
