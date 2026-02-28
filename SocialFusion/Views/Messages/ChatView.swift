@@ -19,6 +19,9 @@ struct ChatView: View {
   @State private var typingDismissTask: Task<Void, Never>?
   @State private var showSettings = false
   @State private var selectedMedia: [PhotosPickerItem] = []
+  @State private var isSearching = false
+  @State private var searchText = ""
+  @State private var currentMatchIndex = 0
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
@@ -28,8 +31,56 @@ struct ChatView: View {
     Set(serviceManager.accounts.map(\.platformSpecificId))
   }
 
+  private var matchingMessageIds: [String] {
+    guard !searchText.isEmpty else { return [] }
+    return messages.filter {
+      $0.text.localizedCaseInsensitiveContains(searchText)
+    }.map(\.id)
+  }
+
   var body: some View {
     VStack(spacing: 0) {
+      if isSearching {
+        HStack(spacing: 8) {
+          Image(systemName: "magnifyingglass")
+            .foregroundColor(.secondary)
+          TextField("Search messages...", text: $searchText)
+            .textFieldStyle(.plain)
+            .onChange(of: searchText) { _, _ in
+              currentMatchIndex = 0
+            }
+
+          if !matchingMessageIds.isEmpty {
+            Text("\(currentMatchIndex + 1) of \(matchingMessageIds.count)")
+              .font(.caption)
+              .foregroundColor(.secondary)
+              .fixedSize()
+
+            Button {
+              if currentMatchIndex > 0 { currentMatchIndex -= 1 }
+            } label: {
+              Image(systemName: "chevron.up")
+                .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary)
+            }
+            .disabled(currentMatchIndex == 0)
+
+            Button {
+              if currentMatchIndex < matchingMessageIds.count - 1 { currentMatchIndex += 1 }
+            } label: {
+              Image(systemName: "chevron.down")
+                .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary)
+            }
+            .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
+          } else if !searchText.isEmpty {
+            Text("No results")
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(.systemGray6))
+      }
       messagesList
       inputBar
     }
@@ -38,6 +89,18 @@ struct ChatView: View {
     .toolbar {
       ToolbarItem(placement: .topBarLeading) {
         navAvatar
+      }
+      ToolbarItem(placement: .topBarTrailing) {
+        Button {
+          withAnimation { isSearching.toggle() }
+          if !isSearching {
+            searchText = ""
+            currentMatchIndex = 0
+          }
+        } label: {
+          Image(systemName: isSearching ? "xmark" : "magnifyingglass")
+            .foregroundColor(.secondary)
+        }
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
@@ -121,6 +184,20 @@ struct ChatView: View {
           withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
         }
       }
+      .onChange(of: currentMatchIndex) { _, newIndex in
+        if matchingMessageIds.indices.contains(newIndex) {
+          withAnimation {
+            proxy.scrollTo(matchingMessageIds[newIndex], anchor: .center)
+          }
+        }
+      }
+      .onChange(of: searchText) { _, _ in
+        if let firstMatch = matchingMessageIds.first {
+          withAnimation {
+            proxy.scrollTo(firstMatch, anchor: .center)
+          }
+        }
+      }
     }
   }
 
@@ -155,6 +232,13 @@ struct ChatView: View {
           editingMessage = message
           newMessageText = message.text
         }
+      )
+      .opacity(!searchText.isEmpty && !matchingMessageIds.contains(message.id) ? 0.3 : 1.0)
+      .background(
+        RoundedRectangle(cornerRadius: 12)
+          .fill(matchingMessageIds.indices.contains(currentMatchIndex) && matchingMessageIds[currentMatchIndex] == message.id
+                ? Color.yellow.opacity(0.2) : Color.clear)
+          .padding(.horizontal, 8)
       )
       .padding(.horizontal, 12)
       .padding(.top, isFirst ? 8 : 2)
