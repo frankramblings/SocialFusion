@@ -19,6 +19,7 @@ enum UnifiedChatEvent: Identifiable {
   case readReceipt(ChatEventReadReceipt)
   case reactionAdded(ChatEventReaction)
   case reactionRemoved(ChatEventReaction)
+  case typingIndicator(ChatEventTypingIndicator)
 
   var id: String {
     switch self {
@@ -28,6 +29,7 @@ enum UnifiedChatEvent: Identifiable {
     case .readReceipt(let r): return "read-\(r.conversationId)-\(r.accountId)"
     case .reactionAdded(let r): return "react-add-\(r.messageId)-\(r.value)"
     case .reactionRemoved(let r): return "react-rm-\(r.messageId)-\(r.value)"
+    case .typingIndicator(let t): return "typing-\(t.conversationId)-\(t.senderId)"
     }
   }
 
@@ -39,6 +41,7 @@ enum UnifiedChatEvent: Identifiable {
     case .readReceipt(let r): return r.conversationId
     case .reactionAdded(let r): return r.conversationId
     case .reactionRemoved(let r): return r.conversationId
+    case .typingIndicator(let t): return t.conversationId
     }
   }
 }
@@ -82,6 +85,12 @@ struct ChatEventReaction {
   let messageId: String
   let conversationId: String
   let value: String
+  let senderId: String
+  let platform: SocialPlatform
+}
+
+struct ChatEventTypingIndicator {
+  let conversationId: String
   let senderId: String
   let platform: SocialPlatform
 }

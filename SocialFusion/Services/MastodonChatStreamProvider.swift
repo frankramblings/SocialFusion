@@ -37,6 +37,10 @@ final class MastodonChatStreamProvider: ChatStreamProvider, @unchecked Sendable 
     connectionState = .disconnected
   }
 
+  func sendTypingIndicator(conversationId: String, account: SocialAccount) async {
+    // No Mastodon API for typing indicators yet
+  }
+
   // MARK: - WebSocket Connection
 
   private func connect(account: SocialAccount) async {

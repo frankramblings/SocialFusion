@@ -14,6 +14,8 @@ struct ChatView: View {
   @State private var reactions: [String: [String: Set<String>]] = [:]
   @State private var editingMessage: UnifiedChatMessage?
   @State private var deleteConfirmMessage: UnifiedChatMessage?
+  @State private var isOtherTyping = false
+  @State private var typingDismissTask: Task<Void, Never>?
 
   private var platformColor: Color {
     conversation.platform == .bluesky ? .blue : .purple
@@ -90,6 +92,9 @@ struct ChatView: View {
               ForEach(Array(section.groups.enumerated()), id: \.offset) { _, group in
                 messageGroupView(group)
               }
+            }
+            if isOtherTyping {
+              TypingIndicatorBubble()
             }
           }
         }
@@ -377,6 +382,14 @@ struct ChatView: View {
         }
         if reactions[r.messageId]?.isEmpty == true {
           reactions[r.messageId] = nil
+        }
+      case .typingIndicator:
+        isOtherTyping = true
+        typingDismissTask?.cancel()
+        typingDismissTask = Task {
+          try? await Task.sleep(for: .seconds(5))
+          guard !Task.isCancelled else { return }
+          isOtherTyping = false
         }
       default:
         break

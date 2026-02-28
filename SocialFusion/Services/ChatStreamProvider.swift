@@ -5,5 +5,6 @@ import Foundation
 protocol ChatStreamProvider {
   func eventStream(for account: SocialAccount, conversationId: String?) -> AsyncStream<UnifiedChatEvent>
   func stop()
+  func sendTypingIndicator(conversationId: String, account: SocialAccount) async
   var connectionState: ChatConnectionState { get }
 }

@@ -45,6 +45,10 @@ final class BlueskyPollStreamProvider: ChatStreamProvider, @unchecked Sendable {
     connectionState = .disconnected
   }
 
+  func sendTypingIndicator(conversationId: String, account: SocialAccount) async {
+    // No Bluesky API for typing indicators yet
+  }
+
   func updatePollInterval(activeChat: Bool) {
     pollInterval = activeChat ? Self.activeChatInterval : Self.listViewInterval
     currentConversationId = activeChat ? currentConversationId : nil
