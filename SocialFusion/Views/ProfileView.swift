@@ -33,6 +33,7 @@ struct ProfileView: View {
   var body: some View {
     ZStack(alignment: .top) {
       // Layer 0: Sticky banner (pinned behind content)
+      // Extends behind nav bar for color wash effect
       if let profile = viewModel.profile {
         StickyProfileBanner(
           headerURL: profile.headerURL,
@@ -43,17 +44,8 @@ struct ProfileView: View {
 
       // Layer 1: Scrollable content
       ScrollView {
-        GeometryReader { geo in
-          Color.clear
-            .preference(
-              key: ProfileScrollOffsetKey.self,
-              value: geo.frame(in: .named("profileScroll")).minY
-            )
-        }
-        .frame(height: 0)
-
         LazyVStack(alignment: .leading, spacing: 0, pinnedViews: .sectionHeaders) {
-          // Spacer so content starts below the banner
+          // Transparent spacer so content starts below the banner
           Color.clear.frame(height: StickyProfileBanner.bannerHeight)
 
           // Profile header content (avatar, bio, stats -- no banner)
@@ -89,13 +81,27 @@ struct ProfileView: View {
             }
           }
         }
-      }
-      .coordinateSpace(name: "profileScroll")
-      .onPreferenceChange(ProfileScrollOffsetKey.self) { value in
-        scrollOffset = value
+        .background {
+          // UIKit KVO observer — fires every frame during scrolling.
+          // PreferenceKey doesn't propagate through ScrollView during scroll.
+          ScrollOffsetTracker { offset in
+            scrollOffset = offset
+          }
+        }
       }
     }
+    .ignoresSafeArea(edges: .top)
+    // DEBUG: Remove after verifying scroll offset works
+    .overlay(alignment: .bottomTrailing) {
+      Text("offset: \(Int(scrollOffset))")
+        .font(.caption2.monospaced())
+        .padding(6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+        .padding(8)
+    }
     .navigationBarTitleDisplayMode(.inline)
+    .toolbarBackground(.hidden, for: .navigationBar)
+    .toolbarColorScheme(.dark, for: .navigationBar)
     .toolbar {
       ToolbarItem(placement: .principal) {
         HStack(spacing: 8) {
@@ -103,13 +109,14 @@ struct ProfileView: View {
             navBarAvatar(profile: profile)
               .opacity(isAvatarDocked ? 1 : 0)
               .scaleEffect(isAvatarDocked ? 1 : 0.6, anchor: .leading)
-              .animation(.easeInOut(duration: 0.25), value: isAvatarDocked)
           }
           Text(navigationTitle)
             .font(.subheadline)
             .fontWeight(.semibold)
             .lineLimit(1)
+            .opacity(isAvatarDocked ? 1 : 0)
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isAvatarDocked)
       }
     }
     .task {
@@ -576,6 +583,67 @@ struct EditProfileView: View {
           self.error = error.localizedDescription
           isLoading = false
         }
+      }
+    }
+  }
+}
+
+// MARK: - Scroll Offset Tracker (UIKit KVO)
+
+/// Observes the nearest UIScrollView's contentOffset via KVO.
+/// SwiftUI's PreferenceKey system doesn't propagate through ScrollView during
+/// scroll events, so we drop to UIKit for reliable per-frame offset tracking.
+private struct ScrollOffsetTracker: UIViewRepresentable {
+  var onScroll: (CGFloat) -> Void
+
+  func makeCoordinator() -> Coordinator { Coordinator(onScroll: onScroll) }
+
+  func makeUIView(context: Context) -> UIView {
+    let view = UIView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+    view.backgroundColor = .clear
+    view.isUserInteractionEnabled = false
+    return view
+  }
+
+  func updateUIView(_ uiView: UIView, context: Context) {
+    // Defer setup until the view is in the hierarchy with a parent scroll view
+    DispatchQueue.main.async {
+      context.coordinator.setupIfNeeded(for: uiView)
+    }
+  }
+
+  class Coordinator {
+    let onScroll: (CGFloat) -> Void
+    private var observation: NSKeyValueObservation?
+    private var isSetUp = false
+    private var initialY: CGFloat?
+
+    init(onScroll: @escaping (CGFloat) -> Void) {
+      self.onScroll = onScroll
+    }
+
+    func setupIfNeeded(for view: UIView) {
+      guard !isSetUp else { return }
+      // Walk up the view hierarchy to find the enclosing UIScrollView
+      var current: UIView? = view
+      while let v = current {
+        if let scrollView = v as? UIScrollView {
+          isSetUp = true
+          // Capture initial offset (includes content inset from safe area + nav bar)
+          // so we can normalize: 0 = at rest, negative = scrolled up, positive = overscroll
+          observation = scrollView.observe(\.contentOffset, options: [.initial, .new]) { [weak self] _, change in
+            guard let y = change.newValue?.y else { return }
+            if self?.initialY == nil {
+              self?.initialY = y
+            }
+            let delta = -(y - (self?.initialY ?? 0))
+            Task { @MainActor in
+              self?.onScroll(delta)
+            }
+          }
+          return
+        }
+        current = v.superview
       }
     }
   }

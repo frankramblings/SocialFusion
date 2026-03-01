@@ -14,13 +14,18 @@ struct StickyProfileBanner: View {
   var body: some View {
     let scrollUp = max(0, -scrollOffset)
     let overscroll = max(0, scrollOffset)
-    // Rubber-band: decelerating stretch
+    // Rubber-band: decelerating stretch on pull-down
     let stretchAmount = reduceMotion ? 0 : overscroll * 0.6
+    // Ken Burns drift: subtle scale-up as you scroll, creating life in the banner
+    let scrollScale = reduceMotion ? 1.0 : 1.0 + min(0.15, Double(scrollUp) / Double(Self.bannerHeight) * 0.15)
+    // Pull-down zoom: gentle zoom on overscroll instead of just stretching
+    let pullScale = reduceMotion ? 1.0 : 1.0 + min(0.08, Double(overscroll) * 0.001)
+    let totalScale = scrollScale * pullScale
     let blurAmount = reduceMotion ? 0 : min(20, scrollUp / Self.bannerHeight * 20)
-    let darkenAmount = reduceMotion ? 0 : min(0.3, scrollUp / Self.bannerHeight * 0.3)
+    let darkenAmount = reduceMotion ? 0 : min(0.35, scrollUp / Self.bannerHeight * 0.35)
 
     GeometryReader { geo in
-      ZStack {
+      ZStack(alignment: .bottom) {
         if let headerURLString = headerURL,
            let url = URL(string: headerURLString) {
           CachedAsyncImage(url: url, priority: .high) { image in
@@ -31,6 +36,7 @@ struct StickyProfileBanner: View {
                 width: geo.size.width,
                 height: Self.bannerHeight + stretchAmount
               )
+              .scaleEffect(totalScale, anchor: .center)
               .clipped()
           } placeholder: {
             bannerGradient
@@ -40,6 +46,14 @@ struct StickyProfileBanner: View {
           bannerGradient
             .frame(height: Self.bannerHeight + stretchAmount)
         }
+
+        // Bottom gradient: soft fade into content area
+        LinearGradient(
+          colors: [.clear, Color(.systemBackground).opacity(0.6)],
+          startPoint: .top,
+          endPoint: .bottom
+        )
+        .frame(height: 60)
       }
       .blur(radius: blurAmount)
       .overlay(Color.black.opacity(darkenAmount))
@@ -60,9 +74,9 @@ struct StickyProfileBanner: View {
   private var platformGradientColors: [Color] {
     switch platform {
     case .mastodon:
-      return [Color.mastodonColor.opacity(0.8), Color.mastodonColor.opacity(0.4)]
+      return [Color.mastodonColor, Color.mastodonColor.opacity(0.6)]
     case .bluesky:
-      return [Color.blueskyColor.opacity(0.8), Color.blueskyColor.opacity(0.4)]
+      return [Color.blueskyColor, Color.blueskyColor.opacity(0.5)]
     }
   }
 }
@@ -122,6 +136,12 @@ struct ProfileHeaderView: View {
       statsRow
     }
     .background(Color(.systemBackground))
+    // Depth shadow: content lifts off the banner as you scroll
+    .shadow(
+      color: .black.opacity(scrollOffset < 0 ? min(0.12, Double(-scrollOffset) / 200.0 * 0.12) : 0),
+      radius: scrollOffset < 0 ? min(8, -scrollOffset / 200.0 * 8) : 0,
+      y: scrollOffset < 0 ? min(-3, scrollOffset / 200.0 * 3) : 0
+    )
   }
 
   // MARK: - Avatar Row
