@@ -91,14 +91,6 @@ struct ProfileView: View {
       }
     }
     .ignoresSafeArea(edges: .top)
-    // DEBUG: Remove after verifying scroll offset works
-    .overlay(alignment: .bottomTrailing) {
-      Text("offset: \(Int(scrollOffset))")
-        .font(.caption2.monospaced())
-        .padding(6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
-        .padding(8)
-    }
     .navigationBarTitleDisplayMode(.inline)
     .toolbarBackground(.hidden, for: .navigationBar)
     .toolbarColorScheme(.dark, for: .navigationBar)
