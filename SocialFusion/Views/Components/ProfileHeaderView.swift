@@ -104,52 +104,54 @@ struct ProfileHeaderView: View {
   // MARK: - Body
 
   var body: some View {
+    // Opaque surface that content sits on — starts at banner bottom edge
     VStack(alignment: .leading, spacing: 0) {
-      avatarRow
-        .padding(.top, -Layout.avatarOverlap)
-        .zIndex(1)
+      // Avatar + action button row — avatar protrudes upward into banner
+      HStack(alignment: .bottom) {
+        avatarRow
+        Spacer()
+        actionButton
+      }
+      .padding(.horizontal, Layout.horizontalPadding)
+      .padding(.top, -Layout.avatarOverlap)  // Pull avatar up into banner
+      .zIndex(1)
+
       identitySection
       bioSection
       fieldsSection
       statsRow
     }
+    .background(Color(.systemBackground))
   }
 
   // MARK: - Avatar Row
 
   private var avatarRow: some View {
-    GeometryReader { geo in
-      let minY = geo.frame(in: .named("profileScroll")).minY
-      let overscroll = max(0, scrollOffset)
+    let overscroll = max(0, scrollOffset)
+    let scrollUp = max(0, -scrollOffset)
 
-      // Docking threshold: avatar docks when it approaches the nav bar area
-      let dockThreshold: CGFloat = 50
-      let fadeStart: CGFloat = dockThreshold + 30  // Start fading 30pt before dock point
-      let fadeEnd: CGFloat = dockThreshold
+    // Docking: based on how far the header has scrolled up
+    // Banner is 200pt, avatar overlaps by 24pt, so avatar starts at ~176pt
+    // Dock when it would reach the nav bar area
+    let dockStart: CGFloat = 130   // Start fading
+    let dockEnd: CGFloat = 160     // Fully docked
 
-      // Crossfade progress: 0 = fully visible, 1 = fully docked
-      let crossfadeProgress: CGFloat = {
-        if reduceMotion {
-          return minY <= fadeEnd ? 1 : 0
-        }
-        if minY >= fadeStart { return 0 }
-        if minY <= fadeEnd { return 1 }
-        return (fadeStart - minY) / (fadeStart - fadeEnd)
-      }()
-
-      let isDocked = crossfadeProgress >= 1.0
-      let contentAvatarOpacity = 1.0 - Double(crossfadeProgress)
-      let contentAvatarScale = 1.0 - Double(crossfadeProgress) * 0.3  // 1.0 -> 0.7
-
-      HStack(alignment: .bottom, spacing: 12) {
-        avatarView(overscroll: overscroll, tiltEnabled: crossfadeProgress == 0)
-          .scaleEffect(contentAvatarScale, anchor: .topLeading)
-          .opacity(contentAvatarOpacity)
-        Spacer()
-        actionButton
-          .padding(.bottom, 4)
+    let crossfadeProgress: CGFloat = {
+      if reduceMotion {
+        return scrollUp >= dockEnd ? 1 : 0
       }
-      .padding(.horizontal, Layout.horizontalPadding)
+      if scrollUp <= dockStart { return 0 }
+      if scrollUp >= dockEnd { return 1 }
+      return (scrollUp - dockStart) / (dockEnd - dockStart)
+    }()
+
+    let isDocked = crossfadeProgress >= 1.0
+    let contentAvatarOpacity = 1.0 - Double(crossfadeProgress)
+    let contentAvatarScale = 1.0 - Double(crossfadeProgress) * 0.3
+
+    return avatarView(overscroll: overscroll, tiltEnabled: crossfadeProgress == 0)
+      .scaleEffect(contentAvatarScale, anchor: .topLeading)
+      .opacity(contentAvatarOpacity)
       .onChange(of: isDocked) { _, newValue in
         if newValue != isAvatarDocked {
           isAvatarDocked = newValue
@@ -158,8 +160,6 @@ struct ProfileHeaderView: View {
           }
         }
       }
-    }
-    .frame(height: Layout.avatarSize)
   }
 
   private func avatarView(overscroll: CGFloat, tiltEnabled: Bool) -> some View {
