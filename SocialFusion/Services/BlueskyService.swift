@@ -954,7 +954,8 @@ public final class BlueskyService: Sendable {
 
     /// Fetch a user's author feed from Bluesky
     public func fetchAuthorFeed(
-        actor: String, for account: SocialAccount, limit: Int = 40, cursor: String? = nil
+        actor: String, for account: SocialAccount, limit: Int = 40, cursor: String? = nil,
+        filter: String? = nil
     ) async throws -> TimelineResult {
         let accessToken = try await account.getValidAccessToken()
 
@@ -966,6 +967,9 @@ public final class BlueskyService: Sendable {
         ]
         if let cursor = cursor {
             queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        if let filter = filter {
+            queryItems.append(URLQueryItem(name: "filter", value: filter))
         }
         components.queryItems = queryItems
 

@@ -221,6 +221,19 @@ public final class UnifiedReplyTargetResolver: ReplyTargetResolver, @unchecked S
     }
 }
 
+/// Normalized profile field (from Mastodon's key-value metadata)
+public struct ProfileField: Codable, Sendable {
+    public let name: String
+    public let value: String  // May contain HTML (Mastodon)
+    public let isVerified: Bool
+
+    public init(name: String, value: String, isVerified: Bool = false) {
+        self.name = name
+        self.value = value
+        self.isVerified = isVerified
+    }
+}
+
 /// Generic user profile information
 public struct UserProfile: Codable, Sendable {
     public let id: String
@@ -237,6 +250,8 @@ public struct UserProfile: Codable, Sendable {
     public var followedBy: Bool?
     public var muting: Bool?
     public var blocking: Bool?
+    public var fields: [ProfileField]?
+    public var displayNameEmojiMap: [String: String]?
 
     public init(
         id: String,
@@ -252,7 +267,9 @@ public struct UserProfile: Codable, Sendable {
         following: Bool? = nil,
         followedBy: Bool? = nil,
         muting: Bool? = nil,
-        blocking: Bool? = nil
+        blocking: Bool? = nil,
+        fields: [ProfileField]? = nil,
+        displayNameEmojiMap: [String: String]? = nil
     ) {
         self.id = id
         self.username = username
@@ -268,6 +285,8 @@ public struct UserProfile: Codable, Sendable {
         self.followedBy = followedBy
         self.muting = muting
         self.blocking = blocking
+        self.fields = fields
+        self.displayNameEmojiMap = displayNameEmojiMap
     }
 }
 
