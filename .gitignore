@@ -63,7 +63,26 @@ temp/
 .cursor/
 .continue/
 .gemini/
+.vscode/
 buildServer.json
+
+# AI agent config files
+CLAUDE.md
+AGENTS.md
+WARP.md
+GEMINI.md
+
+# Xcode project backups
+*.xcodeproj.backup*
+
+# TestFlight notes
+TESTFLIGHT_*.txt
+
+# Debug/dev scripts
+debug_deployment.sh
+
+# Design files
+*.psd
 
 # Download fragments
 *.mp4.part
@@ -76,3 +95,19 @@ COMMIT_MESSAGE.md
 COMMIT_NOTES.md
 temp_module.swift
 INTEGRATION_EXAMPLE.swift
+
+# Internal docs and plans
+Docs/
+PLAN-*.md
+run_tests.sh
+
+# Stale root-level source dirs (migrated into SocialFusion/)
+/Networking/
+/Views/
+/ViewModels/
+/Sources/
+package.swift
+project.yml
+
+# Claude Code worktrees
+.claude/

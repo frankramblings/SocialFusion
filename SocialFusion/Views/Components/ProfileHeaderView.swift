@@ -675,8 +675,8 @@ struct ProfileScrollOffsetKey: PreferenceKey {
     ProfileHeaderView(
       profile: UserProfile(
         id: "3",
-        username: "frank@mastodon.social",
-        displayName: "Frank",
+        username: "user@mastodon.social",
+        displayName: "John Mastodon",
         avatarURL: nil,
         headerURL: nil,
         bio: "Making things.",
