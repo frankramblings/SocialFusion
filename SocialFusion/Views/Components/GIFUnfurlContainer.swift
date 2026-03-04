@@ -42,7 +42,7 @@ private class AnimatedImageCoordinator {
                     var frameCount = 0
                     
                     // Safely access images array with exception handling
-                    try? autoreleasepool {
+                    autoreleasepool {
                         frames = image.images
                         frameCount = frames?.count ?? 0
                     }

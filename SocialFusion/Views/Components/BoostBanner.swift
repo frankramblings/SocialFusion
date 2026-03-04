@@ -257,7 +257,7 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
         )
         .background(liquidGlassBackground)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        .onChange(of: isExpanded) { newValue in
+        .onChange(of: isExpanded) { _, newValue in
             withAnimation(newValue ? expandAnimation : collapseAnimation) {
                 showContent = newValue
             }

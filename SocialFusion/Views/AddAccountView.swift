@@ -56,7 +56,7 @@ struct AddAccountView: View {
                             action: { selectedPlatform = .bluesky }
                         )
                     }
-                    .onChange(of: selectedPlatform) { _ in
+                    .onChange(of: selectedPlatform) {
                         // Clear any error when platform changes
                         errorMessage = nil
 
@@ -201,7 +201,7 @@ struct AddAccountView: View {
                 UserDefaults.standard.set(
                     true, forKey: "AddAccountView.WasPresentedDuringBackground")
             }
-            .onChange(of: scenePhase) { newPhase in
+            .onChange(of: scenePhase) { _, newPhase in
                 handleScenePhaseChange(newPhase)
             }
             .overlay {

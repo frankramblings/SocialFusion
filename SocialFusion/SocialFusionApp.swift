@@ -31,6 +31,9 @@ struct SocialFusionApp: App {
     // Chat stream service for real-time messaging
     @StateObject private var chatStreamService = ChatStreamService()
 
+    // MetricKit crash reporting
+    @StateObject private var crashReporting = CrashReportingService.shared
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -109,10 +112,14 @@ struct SocialFusionApp: App {
     private func handleURL(_ url: URL) {
         // Handle OAuth callback URLs
         if url.scheme == "socialfusion" && url.host == "oauth" {
+            #if DEBUG
             print("Received OAuth callback URL: \(url)")
+            #endif
             handleOAuthCallback(url: url)
         } else {
+            #if DEBUG
             print("Received deep link or universal link: \(url)")
+            #endif
             navigationEnvironment.handleDeepLink(url, serviceManager: serviceManager)
         }
     }

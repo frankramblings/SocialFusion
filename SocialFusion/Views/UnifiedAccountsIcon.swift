@@ -55,9 +55,11 @@ public struct UnifiedAccountsIcon: View {
         }
         .id(refreshTrigger)
         .onAppear {
+            #if DEBUG
             print(
                 "UnifiedAccountsIcon appeared with \(mastodonAccounts.count) Mastodon accounts and \(blueskyAccounts.count) Bluesky accounts"
             )
+            #endif
         }
         .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
             notification in

@@ -122,7 +122,7 @@ public enum NetworkError: Error {
 }
 
 /// A centralized service for handling all network requests
-public class NetworkService {
+public class NetworkService: @unchecked Sendable {
     // MARK: - Properties
 
     public static let shared = NetworkService()

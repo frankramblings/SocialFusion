@@ -102,7 +102,9 @@ class HTMLFormatter {
 
             return mutableString
         } catch {
+            #if DEBUG
             print("Error parsing HTML: \(error)")
+            #endif
             return NSAttributedString(string: html)
         }
     }

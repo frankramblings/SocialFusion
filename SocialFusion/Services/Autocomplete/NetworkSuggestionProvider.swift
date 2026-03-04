@@ -68,7 +68,9 @@ public final class NetworkSuggestionProvider: SuggestionProvider, @unchecked Sen
         }
       } catch {
         // Network error - log but continue to other destinations
+        #if DEBUG
         print("❌ NetworkSuggestionProvider: Error searching \(platform.rawValue): \(error.localizedDescription)")
+        #endif
         // Continue to next destination
       }
     }
@@ -100,10 +102,14 @@ public final class NetworkSuggestionProvider: SuggestionProvider, @unchecked Sen
         // If 500 error, try without type parameter (fallback logic)
         let errorMessage = error.localizedDescription
         if errorMessage.contains("500") || errorMessage.contains("status 500") {
+          #if DEBUG
           print("⚠️ NetworkSuggestionProvider: Mastodon search with type=accounts failed (500), trying without type parameter")
+          #endif
           do {
             let result = try await service.search(query: query, account: account, type: nil, limit: 20)
+            #if DEBUG
             print("✅ NetworkSuggestionProvider: Fallback Mastodon search returned \(result.accounts.count) accounts")
+            #endif
             return result.accounts.map { account in
               let searchUser = SearchUser(
                 id: account.id,
@@ -116,7 +122,9 @@ public final class NetworkSuggestionProvider: SuggestionProvider, @unchecked Sen
             }
           } catch {
             // If fallback also fails, return empty
+            #if DEBUG
             print("❌ NetworkSuggestionProvider: Fallback Mastodon search also failed: \(error.localizedDescription)")
+            #endif
             return []
           }
         } else {

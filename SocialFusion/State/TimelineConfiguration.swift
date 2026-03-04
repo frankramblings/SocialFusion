@@ -13,13 +13,17 @@ class TimelineConfiguration {
             let plist = NSDictionary(contentsOfFile: path),
             let timelineConfig = plist["SocialFusionTimelineConfiguration"] as? [String: Any]
         else {
+            #if DEBUG
             print("⚠️ Timeline configuration not found in Info.plist, using defaults")
+            #endif
             self.config = [:]
             return
         }
 
         self.config = timelineConfig
+        #if DEBUG
         print("✅ Timeline configuration loaded successfully")
+        #endif
     }
 
     // MARK: - Position Persistence Settings
@@ -172,14 +176,30 @@ class TimelineConfiguration {
 
     func logConfiguration() {
         if verboseMode {
+            #if DEBUG
             print("📋 Timeline Configuration:")
+            #endif
+            #if DEBUG
             print("  Position Persistence: \(positionPersistenceEnabled)")
+            #endif
+            #if DEBUG
             print("  Smart Restoration: \(smartRestorationEnabled)")
+            #endif
+            #if DEBUG
             print("  Cross Session Sync: \(crossSessionSyncEnabled)")
+            #endif
+            #if DEBUG
             print("  iCloud Sync: \(iCloudSyncEnabled)")
+            #endif
+            #if DEBUG
             print("  Fallback Strategy: \(fallbackStrategy)")
+            #endif
+            #if DEBUG
             print("  Max Cache Size: \(maxCacheSize)")
+            #endif
+            #if DEBUG
             print("  Scroll Buffer: \(scrollBufferSize)")
+            #endif
         }
     }
 }

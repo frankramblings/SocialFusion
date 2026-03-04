@@ -35,9 +35,11 @@ public final class AppVersionManager: ObservableObject {
         userDefaults.set(currentVersion, forKey: lastVersionKey)
         userDefaults.set(currentBuild, forKey: lastBuildKey)
 
+        #if DEBUG
         print(
             "AppVersionManager: Current: \(currentVersion) (\(currentBuild)), Last: \(lastVersion ?? "none") (\(lastBuild ?? "none")), Always showing launch animation for premium UX"
         )
+        #endif
     }
 
     /// Get the current app version from bundle

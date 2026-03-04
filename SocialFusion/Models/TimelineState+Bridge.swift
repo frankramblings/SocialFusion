@@ -42,7 +42,9 @@ extension TimelineState {
         let cachedPosts = serviceManager.cachedPosts
         if !cachedPosts.isEmpty {
             updateFromPosts(cachedPosts, preservePosition: false)
+            #if DEBUG
             print("📱 TimelineState: Loaded \(cachedPosts.count) cached posts for immediate display")
+            #endif
         }
     }
     
@@ -75,7 +77,9 @@ extension TimelineState {
         }
         
         updateUnreadCount()
+        #if DEBUG
         print("📱 TimelineState: Updated with \(entries.count) entries from existing TimelineEntry array, \(unreadCount) unread")
+        #endif
     }
     
     /// Bridge method that uses the existing SocialServiceManager.makeTimelineEntries method
@@ -87,7 +91,9 @@ extension TimelineState {
         // Convert these to enhanced entries
         updateFromExistingTimelineEntries(timelineEntries, preservePosition: isRefresh)
         
+        #if DEBUG
         print("📱 TimelineState: Updated using existing makeTimelineEntries logic - \(entries.count) entries, \(unreadCount) unread")
+        #endif
     }
 }
 
@@ -190,22 +196,36 @@ extension TimelineState {
     
     /// Print current state for debugging
     func debugPrint() {
+        #if DEBUG
         print(getStateSummary())
+        #endif
         
         let newCount = entries.filter { $0.isNew }.count
         let readCount = entries.filter { $0.isRead }.count
         
+        #if DEBUG
         print("📊 Breakdown:")
+        #endif
+        #if DEBUG
         print("  - New posts: \(newCount)")
+        #endif
+        #if DEBUG
         print("  - Read posts: \(readCount)")
+        #endif
+        #if DEBUG
         print("  - Unread posts: \(unreadCount)")
+        #endif
         
         if let firstEntry = entries.first {
+            #if DEBUG
             print("  - First post: \(firstEntry.post.author.displayName) - \(firstEntry.post.content.prefix(50))...")
+            #endif
         }
         
         if let scrollPos = scrollPosition {
+            #if DEBUG
             print("  - Scroll position: \(scrollPos)")
+            #endif
         }
     }
 }

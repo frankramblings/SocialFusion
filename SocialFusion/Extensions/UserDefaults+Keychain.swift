@@ -31,7 +31,9 @@ extension UserDefaults {
 
         // Check for errors
         if status != errSecSuccess {
+            #if DEBUG
             print("Error saving to keychain: \(status)")
+            #endif
         }
     }
 

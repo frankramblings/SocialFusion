@@ -104,11 +104,15 @@ final class MonitoringService {
         events.append(event)
 
         if success {
+            #if DEBUG
             print(
                 "✅ [MonitoringService] Profile image loaded: \(platform.rawValue) in \(loadTime ?? 0.0)s"
             )
+            #endif
         } else {
+            #if DEBUG
             print("❌ [MonitoringService] Profile image failed: \(platform.rawValue) - \(url)")
+            #endif
         }
 
         // Keep only recent events

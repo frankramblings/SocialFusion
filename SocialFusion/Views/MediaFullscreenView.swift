@@ -535,9 +535,6 @@ struct LegacyFullscreenMediaView: View {
                 Text("Invalid audio URL")
                     .foregroundColor(.white)
             }
-        default:
-            Text("Unsupported media type")
-                .foregroundColor(.white)
         }
     }
 
@@ -900,7 +897,9 @@ struct FullscreenAnimatedGIFView: UIViewRepresentable {
                     }
                 }
             } catch {
+                #if DEBUG
                 print("❌ [FullscreenAnimatedGIFView] Failed to load GIF from \(url): \(error)")
+                #endif
                 await MainActor.run {
                     uiView.image = nil
                 }

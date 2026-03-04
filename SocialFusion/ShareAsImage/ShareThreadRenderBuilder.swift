@@ -166,7 +166,7 @@ public struct ShareThreadRenderBuilder {
             // Use robust ID matching to handle different ID formats across platforms
             let topLevelReplies = allReplies.filter { reply in
                 // If inReplyToID is set, use normal matching
-                if let replyToID = reply.inReplyToID {
+                if reply.inReplyToID != nil {
                     return ShareImageConfig.isReplyTo(reply, post: targetPost)
                 } else {
                     // If inReplyToID is nil, check if this reply is replying to another reply in the list

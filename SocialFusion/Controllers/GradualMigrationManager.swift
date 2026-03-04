@@ -158,11 +158,15 @@ class GradualMigrationManager: ObservableObject {
     /// Start migration to next phase
     func proceedToNextPhase() {
         guard let nextPhase = getNextPhase() else {
+            #if DEBUG
             print("📊 [Migration] Already at final phase: \(migrationPhase)")
+            #endif
             return
         }
 
+        #if DEBUG
         print("📊 [Migration] Proceeding from \(migrationPhase) to \(nextPhase)")
+        #endif
 
         migrationPhase = nextPhase
         migrationProgress =
@@ -176,13 +180,17 @@ class GradualMigrationManager: ObservableObject {
     /// Rollback to previous phase if issues detected
     func rollbackToPreviousPhase(reason: String) {
         guard let previousPhase = getPreviousPhase() else {
+            #if DEBUG
             print("📊 [Migration] Cannot rollback from \(migrationPhase)")
+            #endif
             return
         }
 
+        #if DEBUG
         print(
             "📊 [Migration] Rolling back from \(migrationPhase) to \(previousPhase) - Reason: \(reason)"
         )
+        #endif
 
         migrationPhase = previousPhase
         migrationProgress =
@@ -200,9 +208,11 @@ class GradualMigrationManager: ObservableObject {
         performanceMetrics.recordPositionRestore(success: success, timeSeconds: timeSeconds)
         saveMetrics()
 
+        #if DEBUG
         print(
             "📊 [Migration] Position restore: \(success ? "SUCCESS" : "FAILED") in \(String(format: "%.2f", timeSeconds))s"
         )
+        #endif
 
         // Auto-rollback if success rate drops below 50%
         if performanceMetrics.totalSessions >= 10
@@ -239,7 +249,9 @@ class GradualMigrationManager: ObservableObject {
             errorLog.removeFirst(errorLog.count - 50)
         }
 
+        #if DEBUG
         print("📊 [Migration] Error recorded: \(error) - \(details)")
+        #endif
 
         // Auto-rollback on critical errors
         if severity == .critical {
@@ -262,7 +274,9 @@ class GradualMigrationManager: ObservableObject {
         recordError(
             phase: migrationPhase.rawValue, error: "Architecture disabled", details: reason,
             severity: .critical)
+        #if DEBUG
         print("📊 [Migration] New architecture DISABLED - Reason: \(reason)")
+        #endif
     }
 
     // MARK: - Private Methods
@@ -381,7 +395,9 @@ class GradualMigrationManager: ObservableObject {
     }
 
     private func logMigrationEvent(_ event: String) {
+        #if DEBUG
         print("📊 [Migration] \(event) at \(Date())")
+        #endif
         // Here you could send to analytics service
     }
 }

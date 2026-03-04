@@ -223,7 +223,7 @@ struct FullscreenMediaView: View {
                     }
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
-                .onChange(of: currentIndex) { _ in
+                .onChange(of: currentIndex) {
                     // Reset zoom and drag when switching images
                     withAnimation {
                         currentScale = 1.0

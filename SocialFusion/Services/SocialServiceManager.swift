@@ -1115,14 +1115,7 @@ public final class SocialServiceManager: ObservableObject {
 
         // Rate limiting - minimum time between attempts
         // User-initiated refreshes get more lenient rate limiting
-        let minimumInterval: TimeInterval
-        if isUserInitiated {
-            minimumInterval = 0.5  // Allow user to refresh every 0.5 seconds
-        } else if isInitialLoad {
-            minimumInterval = 1.0  // Initial loads get 1 second
-        } else {
-            minimumInterval = 3.0  // Automatic refreshes get 3 seconds
-        }
+        let minimumInterval: TimeInterval = 0.5  // Allow user to refresh every 0.5 seconds
 
         guard
             shouldBypassRestrictions || now.timeIntervalSince(lastRefreshAttempt) > minimumInterval
@@ -1180,9 +1173,8 @@ public final class SocialServiceManager: ObservableObject {
             ErrorHandler.shared.handleError(appError)
             DebugLog.verbose("❌ SocialServiceManager: \(errorMessage)")
 
-            // For user-initiated refreshes, be more lenient with circuit breaker
-            let failureThreshold =
-                isUserInitiated ? maxConsecutiveFailures * 2 : maxConsecutiveFailures
+            // Be more lenient with circuit breaker for user-initiated refreshes
+            let failureThreshold = maxConsecutiveFailures * 2
 
             if consecutiveFailures >= failureThreshold {
                 isCircuitBreakerOpen = true
@@ -1192,15 +1184,9 @@ public final class SocialServiceManager: ObservableObject {
                 )
             }
 
-            // Provide more detailed error information for user-initiated refreshes
-            if isUserInitiated {
-                DebugLog.verbose(
-                    "ℹ️ SocialServiceManager: User-initiated refresh failed - providing detailed error"
-                )
-                // Throw the original error for now
-                throw error
-            }
-
+            DebugLog.verbose(
+                "ℹ️ SocialServiceManager: User-initiated refresh failed - providing detailed error"
+            )
             throw error
         }
     }
@@ -3896,7 +3882,7 @@ public final class SocialServiceManager: ObservableObject {
             // Mastodon DMs are posts with direct visibility; fetchStatusContext returns the
             // entire reply tree which can span across separate conversations with different people.
             let participantUsername = conversation.participant.username.lowercased()
-            let myId = account.platformSpecificId ?? account.id
+            let myId = account.platformSpecificId
             messages = messages.filter { post in
                 let mentionedUsers = Set(post.mentions.map { $0.lowercased() })
                 let isFromParticipant = post.authorId == conversation.participant.id
@@ -4034,7 +4020,9 @@ public final class SocialServiceManager: ObservableObject {
         do {
             try await blueskyService.updateRead(convoId: conversation.id, for: account)
         } catch {
+            #if DEBUG
             print("[Messages] Failed to mark conversation read: \(error.localizedDescription)")
+            #endif
         }
     }
 

@@ -18,7 +18,9 @@ extension Text {
                 data: data, options: options, documentAttributes: nil)
             return Text(AttributedString(attributedString))
         } catch {
+            #if DEBUG
             print("Error parsing HTML: \(error)")
+            #endif
             return Text(html)
         }
     }

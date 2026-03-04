@@ -1,3 +1,4 @@
+#if DEBUG
 import SwiftUI
 
 /// Debug view to help troubleshoot Bluesky content issues
@@ -213,19 +214,13 @@ struct DebugBlueskyView: View {
             return
         }
 
-        do {
-            // TODO: Re-implement using public API
-            // let result = try await serviceManager.blueskyService.fetchHomeTimeline(
-            //     for: blueskyAccount, limit: 5)
-            let result = (posts: [] as [Post], cursor: nil as String?)
-            await MainActor.run {
-                lastRefreshResult =
-                    "Bluesky connection successful! Fetched \(result.posts.count) posts"
-            }
-        } catch {
-            await MainActor.run {
-                lastRefreshResult = "Bluesky connection failed: \(error.localizedDescription)"
-            }
+        // TODO: Re-implement using public API
+        // let result = try await serviceManager.blueskyService.fetchHomeTimeline(
+        //     for: blueskyAccount, limit: 5)
+        let result = (posts: [] as [Post], cursor: nil as String?)
+        await MainActor.run {
+            lastRefreshResult =
+                "Bluesky connection successful! Fetched \(result.posts.count) posts"
         }
 
         isRefreshing = false
@@ -259,17 +254,12 @@ struct DebugBlueskyView: View {
 
         // Step 4: Test Bluesky connection directly
         if serviceManager.blueskyAccounts.first != nil {
-            do {
-                // TODO: Re-implement using public API
-                // let result = try await serviceManager.blueskyService.fetchHomeTimeline(
-                //     for: blueskyAccount, limit: 5)
-                let result = (posts: [] as [Post], cursor: nil as String?)
-                diagnosticResult +=
-                    "Direct Bluesky API test: SUCCESS - \(result.posts.count) posts\n"
-            } catch {
-                diagnosticResult +=
-                    "Direct Bluesky API test: FAILED - \(error.localizedDescription)\n"
-            }
+            // TODO: Re-implement using public API
+            // let result = try await serviceManager.blueskyService.fetchHomeTimeline(
+            //     for: blueskyAccount, limit: 5)
+            let result = (posts: [] as [Post], cursor: nil as String?)
+            diagnosticResult +=
+                "Direct Bluesky API test: SUCCESS - \(result.posts.count) posts\n"
         } else {
             diagnosticResult += "Direct Bluesky API test: NO ACCOUNT FOUND\n"
         }
@@ -308,3 +298,4 @@ struct DebugBlueskyView: View {
     DebugBlueskyView()
         .environmentObject(SocialServiceManager())
 }
+#endif

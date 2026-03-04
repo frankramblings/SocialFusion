@@ -51,7 +51,9 @@ private struct AnimatedGIFViewRepresentable: UIViewRepresentable {
                     }
                 }
             } catch {
+                #if DEBUG
                 print("❌ [AnimatedGIFView] Failed to load GIF from \(url): \(error)")
+                #endif
                 await MainActor.run {
                     uiView.image = nil
                 }

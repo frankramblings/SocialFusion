@@ -33,10 +33,14 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
       granted, error in
       if granted {
+        #if DEBUG
         print("✅ Notification authorization granted")
+        #endif
         self.setupNotificationCategories()
       } else if let error = error {
+        #if DEBUG
         print("❌ Notification authorization failed: \(error.localizedDescription)")
+        #endif
       }
     }
   }
@@ -97,7 +101,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
     do {
       try BGTaskScheduler.shared.submit(request)
     } catch {
+      #if DEBUG
       print("❌ Failed to schedule background refresh: \(error)")
+      #endif
     }
   }
 
@@ -143,7 +149,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
 
       deliveredIds = currentDelivered
     } catch {
+      #if DEBUG
       print("❌ Failed to poll notifications: \(error)")
+      #endif
     }
   }
 
@@ -213,7 +221,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
 
     UNUserNotificationCenter.current().add(request) { error in
       if let error = error {
+        #if DEBUG
         print("❌ Failed to deliver notification: \(error)")
+        #endif
       }
     }
   }
@@ -339,7 +349,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
           try await blueskyLike(uri: platformSpecificId, cid: cid, account: account)
         }
       } catch {
+        #if DEBUG
         print("❌ Like from notification failed: \(error)")
+        #endif
       }
     }
   }
@@ -365,7 +377,9 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
           try await blueskyRepost(uri: platformSpecificId, cid: cid, account: account)
         }
       } catch {
+        #if DEBUG
         print("❌ Repost from notification failed: \(error)")
+        #endif
       }
     }
   }

@@ -64,7 +64,9 @@ struct AsyncImageFromProvider: View {
                 if let error = error {
                     self.loadFailed = true
                     self.errorMessage = URLService.shared.friendlyErrorMessage(for: error)
+                    #if DEBUG
                     print("Error loading image from provider: \(error.localizedDescription)")
+                    #endif
                     return
                 }
 

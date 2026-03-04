@@ -270,9 +270,11 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
                 // This prevents clearing originalPost when it's being set to the same value
                 if oldValue?.id != original.id {
                     if Post.detectCycle(start: self, next: original) {
+                        #if DEBUG
                         print(
                             "[Post] ⚠️ Cycle detected in originalPost chain for post id: \(id). Breaking cycle."
                         )
+                        #endif
                         // CRITICAL: Defer clearing originalPost to prevent triggering didSet during view updates
                         Task { @MainActor [weak self] in
                             try? await Task.sleep(nanoseconds: 200_000_000)  // 0.2 second delay
@@ -313,7 +315,9 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     public var parent: Post? {
         didSet {
             if let parentPost = parent, Post.detectCycle(start: self, next: parentPost) {
+                #if DEBUG
                 print("[Post] Cycle detected in parent chain for post id: \(id). Breaking cycle.")
+                #endif
                 parent = nil
             }
         }
@@ -847,17 +851,21 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
         self.boosters = boosters
         // Defensive: prevent self-reference on construction
         if let parent = parent, parent.id == id {
+            #if DEBUG
             print(
                 "[Post] Attempted to construct post with itself as parent (id: \(id)). Setting parent to nil."
             )
+            #endif
             self.parent = nil
         } else {
             self.parent = parent
         }
         if let originalPost = originalPost, originalPost.id == id {
+            #if DEBUG
             print(
                 "[Post] Attempted to construct post with itself as originalPost (id: \(id)). Setting originalPost to nil."
             )
+            #endif
             self.originalPost = nil
         } else {
             self.originalPost = originalPost
@@ -1404,7 +1412,11 @@ private class PostViewModelInternal: ObservableObject, Identifiable {
     }
 
     func share() {
-        let url = URL(string: post.originalURL) ?? URL(string: "https://example.com")!
+        guard let url = URL(string: post.originalURL), !post.originalURL.isEmpty else {
+            self.error = AppError(
+                type: .general, message: "No shareable link for this post.", underlyingError: nil)
+            return
+        }
         let activityController = UIActivityViewController(
             activityItems: [url], applicationActivities: nil)
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,

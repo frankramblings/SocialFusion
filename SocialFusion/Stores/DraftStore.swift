@@ -98,8 +98,9 @@ public class DraftStore: ObservableObject {
                 let decoded = try JSONDecoder().decode([DraftPost].self, from: data)
                 await self?.applyLoadedDrafts(decoded)
             } catch {
-                await MainActor.run {
-                    self?.logger.error("load_drafts_failed error=\(error.localizedDescription, privacy: .public)")
+                let description = error.localizedDescription
+                await MainActor.run { [weak self] in
+                    self?.logger.error("load_drafts_failed error=\(description, privacy: .public)")
                 }
             }
         }

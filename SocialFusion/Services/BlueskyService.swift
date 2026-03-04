@@ -230,7 +230,7 @@ public final class BlueskyService: Sendable {
 
         do {
             // 4. Send request using session data method
-            let (data, response) = try await session.data(for: request)
+            let (data, _) = try await session.data(for: request)
 
             // 5. Parse the response
             guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -463,9 +463,11 @@ public final class BlueskyService: Sendable {
 
             if let avatar = json["avatar"] as? String, let avatarURL = URL(string: avatar) {
                 account.profileImageURL = avatarURL
+                #if DEBUG
                 print(
                     "✅ Updated Bluesky account \(account.username) with profile image URL: \(avatarURL)"
                 )
+                #endif
 
                 // Post notification about the profile image update using Task to prevent AttributeGraph cycles
                 Task { @MainActor in
@@ -730,15 +732,21 @@ public final class BlueskyService: Sendable {
         
         // Log the keys to debug
         if let savedFeeds = savedFeeds {
+            #if DEBUG
             print("🔍 [BlueskyService] Found savedFeedsPref with keys: \(savedFeeds.keys.joined(separator: ", "))")
+            #endif
         } else {
+            #if DEBUG
             print("🔍 [BlueskyService] No savedFeedsPref found in preferences")
+            #endif
         }
         
         // The key is 'saved', not 'items'
         let feedURIs = savedFeeds?["saved"] as? [String] ?? []
         guard !feedURIs.isEmpty else { 
+            #if DEBUG
             print("🔍 [BlueskyService] No saved feed URIs found")
+            #endif
             return [] 
         }
 
@@ -808,7 +816,9 @@ public final class BlueskyService: Sendable {
         
         guard httpResponse.statusCode == 200 else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            #if DEBUG
             print("⚠️ [BlueskyService] Search posts failed with status \(httpResponse.statusCode): \(errorMessage)")
+            #endif
             throw NetworkError.apiError("Search posts failed with status \(httpResponse.statusCode)")
         }
         
@@ -822,12 +832,16 @@ public final class BlueskyService: Sendable {
         do {
             return try JSONDecoder().decode(BlueskySearchPostsResponse.self, from: data)
         } catch let decodingError as DecodingError {
+            #if DEBUG
             print("⚠️ [BlueskyService] Failed to decode search posts response: \(decodingError)")
+            #endif
             
             // Try to salvage posts from the response by decoding manually
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let postsArray = json["posts"] as? [[String: Any]] {
+                #if DEBUG
                 print("🔍 [BlueskyService] Attempting to decode \(postsArray.count) posts individually")
+                #endif
                 var decodedPosts: [BlueskyPostDTO] = []
                 let decoder = JSONDecoder()
                 
@@ -836,28 +850,38 @@ public final class BlueskyService: Sendable {
                         if let post = try? decoder.decode(BlueskyPostDTO.self, from: postData) {
                             decodedPosts.append(post)
                         } else {
+                            #if DEBUG
                             print("⚠️ [BlueskyService] Failed to decode post at index \(index), skipping")
+                            #endif
                         }
                     }
                 }
                 
                 let cursor = json["cursor"] as? String
+                #if DEBUG
                 print("🔍 [BlueskyService] Successfully decoded \(decodedPosts.count) out of \(postsArray.count) posts")
+                #endif
                 return BlueskySearchPostsResponse(posts: decodedPosts, cursor: cursor)
             }
             
             // If we can't salvage, check if it's an error response
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                #if DEBUG
                 print("🔍 [BlueskyService] Response keys: \(json.keys.joined(separator: ", "))")
+                #endif
                 if let errorMsg = json["error"] as? String, let message = json["message"] as? String {
                     throw NetworkError.apiError("\(errorMsg): \(message)")
                 }
             }
             throw decodingError
         } catch {
+            #if DEBUG
             print("⚠️ [BlueskyService] Failed to decode search posts response: \(error)")
+            #endif
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                #if DEBUG
                 print("🔍 [BlueskyService] Response keys: \(json.keys.joined(separator: ", "))")
+                #endif
                 if let errorMsg = json["error"] as? String, let message = json["message"] as? String {
                     throw NetworkError.apiError("\(errorMsg): \(message)")
                 }
@@ -3024,6 +3048,7 @@ public final class BlueskyService: Sendable {
 
     /// Like a post on Bluesky
     func likePost(_ post: Post, account: SocialAccount) async throws -> Post {
+        #if DEBUG
         // Check if the post is present in the timeline (for debugging)
         let timelinePosts = SocialFusionTimelineDebug.shared.blueskyPosts
         let found = timelinePosts.contains(where: { $0.id == post.id })
@@ -3032,6 +3057,7 @@ public final class BlueskyService: Sendable {
                 "[Bluesky] Attempting to like a post not present in timeline array: id=\(post.id)"
             )
         }
+        #endif
         logger.info(
             "[Bluesky] Attempting to like post: id=\(post.id), cid=\(post.cid ?? "nil"), platformSpecificId=\(post.platformSpecificId)"
         )
@@ -3742,9 +3768,11 @@ public final class BlueskyService: Sendable {
         do {
             return try await getPost(uri: uri, account: account)
         } catch {
+            #if DEBUG
             print(
                 "⚠️  Secondary fetch failed for Bluesky reply \(uri), returning minimal post: \(error.localizedDescription)"
             )
+            #endif
             return constructMinimalPost(uri: uri, cid: cid, content: content, account: account)
         }
     }
@@ -3782,7 +3810,9 @@ public final class BlueskyService: Sendable {
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
+            #if DEBUG
             print("❌ [BlueskyService] Follow failed: Invalid response")
+            #endif
             throw ServiceError.apiError("Failed to follow user on Bluesky: Invalid response")
         }
         

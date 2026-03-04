@@ -38,9 +38,11 @@ class MediaMemoryManager: ObservableObject {
         startMemoryMonitoring()
         setupMemoryWarningObserver()
 
+        #if DEBUG
         print(
             "🧠 [MediaMemoryManager] Initialized with \(Config.maxCacheSize / (1024*1024))MB cache limit"
         )
+        #endif
     }
 
     deinit {
@@ -95,9 +97,11 @@ class MediaMemoryManager: ObservableObject {
         isLowMemory = usage > Config.lowMemoryThreshold
 
         if isLowMemory {
+            #if DEBUG
             print(
                 "⚠️ [MediaMemoryManager] Low memory detected (\(Int(usage * 100))%), triggering cleanup"
             )
+            #endif
             performMemoryCleanup()
         }
     }
@@ -135,7 +139,9 @@ class MediaMemoryManager: ObservableObject {
     }
 
     @objc private func didReceiveMemoryWarning() {
+        #if DEBUG
         print("🚨 [MediaMemoryManager] Memory warning received, performing aggressive cleanup")
+        #endif
         performAggressiveCleanup()
     }
 
@@ -223,11 +229,15 @@ class MediaMemoryManager: ObservableObject {
 
         // Check cache first
         if let cachedData = gifDataCache.object(forKey: key) {
+            #if DEBUG
             print("✅ [MediaMemoryManager] Using cached GIF data for: \(url.absoluteString)")
+            #endif
             return cachedData as Data
         }
 
+        #if DEBUG
         print("🔄 [MediaMemoryManager] Loading GIF from: \(url.absoluteString)")
+        #endif
         
         // Create a URLSession configuration with timeout
         let config = URLSessionConfiguration.default
@@ -242,11 +252,15 @@ class MediaMemoryManager: ObservableObject {
             
             // Check HTTP response status
             if let httpResponse = response as? HTTPURLResponse {
+                #if DEBUG
                 print("📡 [MediaMemoryManager] HTTP Status: \(httpResponse.statusCode) for \(url.absoluteString)")
+                #endif
                 
                 if httpResponse.statusCode != 200 {
                     let errorMsg = "HTTP \(httpResponse.statusCode) for \(url.absoluteString)"
+                    #if DEBUG
                     print("❌ [MediaMemoryManager] \(errorMsg)")
+                    #endif
                     throw NSError(domain: "MediaMemoryManager", code: httpResponse.statusCode, 
                                  userInfo: [NSLocalizedDescriptionKey: errorMsg])
                 }
@@ -255,19 +269,25 @@ class MediaMemoryManager: ObservableObject {
             // Validate we got data
             guard !data.isEmpty else {
                 let errorMsg = "Empty response for \(url.absoluteString)"
+                #if DEBUG
                 print("❌ [MediaMemoryManager] \(errorMsg)")
+                #endif
                 throw NSError(domain: "MediaMemoryManager", code: -1, 
                              userInfo: [NSLocalizedDescriptionKey: errorMsg])
             }
             
+            #if DEBUG
             print("✅ [MediaMemoryManager] Loaded \(data.count) bytes from \(url.absoluteString)")
+            #endif
 
             // Check size limits
             let maxGIFSize = 10 * 1024 * 1024  // 10MB max for GIFs
             if data.count > maxGIFSize {
+                #if DEBUG
                 print(
                     "⚠️ [MediaMemoryManager] GIF too large (\(data.count / (1024*1024))MB), skipping cache"
                 )
+                #endif
                 return data
             }
 
@@ -277,8 +297,12 @@ class MediaMemoryManager: ObservableObject {
 
             return data
         } catch {
+            #if DEBUG
             print("❌ [MediaMemoryManager] Failed to load GIF from \(url.absoluteString): \(error.localizedDescription)")
+            #endif
+            #if DEBUG
             print("❌ [MediaMemoryManager] Error details: \(error)")
+            #endif
             throw error
         }
     }
@@ -300,25 +324,33 @@ class MediaMemoryManager: ObservableObject {
     func loadAnimatedGIF(from url: URL) async throws -> UIImage {
         // Check cache first
         if let cachedImage = getCachedAnimatedGIF(for: url) {
+            #if DEBUG
             print("✅ [MediaMemoryManager] Using cached animated GIF for: \(url.absoluteString)")
+            #endif
             return cachedImage
         }
         
+        #if DEBUG
         print("🔄 [MediaMemoryManager] Loading animated GIF from: \(url.absoluteString)")
+        #endif
         
         // Load data (this will use the data cache)
         let data: Data
         do {
             data = try await loadOptimizedGIF(from: url)
         } catch {
+            #if DEBUG
             print("❌ [MediaMemoryManager] Failed to load GIF data: \(error.localizedDescription)")
+            #endif
             throw error
         }
         
         // Validate data is not empty
         guard !data.isEmpty else {
             let errorMsg = "Empty GIF data for \(url.absoluteString)"
+            #if DEBUG
             print("❌ [MediaMemoryManager] \(errorMsg)")
+            #endif
             throw NSError(domain: "MediaMemoryManager", code: -1, 
                          userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
@@ -326,21 +358,33 @@ class MediaMemoryManager: ObservableObject {
         // Create animated UIImage
         guard let image = createAnimatedImage(from: data) else {
             let errorMsg = "Failed to create animated image from data (\(data.count) bytes) for \(url.absoluteString)"
+            #if DEBUG
             print("❌ [MediaMemoryManager] \(errorMsg)")
+            #endif
             // Log first few bytes to help diagnose
             let preview = data.prefix(20).map { String(format: "%02x", $0) }.joined(separator: " ")
+            #if DEBUG
             print("❌ [MediaMemoryManager] Data preview (first 20 bytes): \(preview)")
+            #endif
             throw NSError(domain: "MediaMemoryManager", code: -1, 
                          userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
         
         // Verify it's actually animated
         if let images = image.images, images.count > 1 {
+            #if DEBUG
             print("✅ [MediaMemoryManager] Created animated GIF with \(images.count) frames, duration: \(image.duration)s from \(url.absoluteString)")
+            #endif
+            #if DEBUG
             print("✅ [MediaMemoryManager] First frame size: \(images.first?.size ?? .zero), animationDuration: \(image.duration)")
+            #endif
         } else {
+            #if DEBUG
             print("⚠️ [MediaMemoryManager] Created GIF but it may not be animated (frames: \(image.images?.count ?? 0), duration: \(image.duration))")
+            #endif
+            #if DEBUG
             print("⚠️ [MediaMemoryManager] Image properties - images array: \(image.images != nil ? "exists" : "nil"), count: \(image.images?.count ?? 0)")
+            #endif
         }
         
         // Cache the UIImage
@@ -424,7 +468,9 @@ class MediaMemoryManager: ObservableObject {
         // Note: NSCache doesn't support enumeration, so we'll clear the entire cache
         videoPlayerCache.removeAllObjects()
 
+        #if DEBUG
         print("🧹 [MediaMemoryManager] Memory cleanup completed")
+        #endif
     }
 
     private func performAggressiveCleanup() {
@@ -442,7 +488,9 @@ class MediaMemoryManager: ObservableObject {
             // Empty autoreleasepool to release any autorelease objects
         }
 
+        #if DEBUG
         print("🧹 [MediaMemoryManager] Aggressive cleanup completed")
+        #endif
     }
 
     // MARK: - Public Cleanup Methods
@@ -454,7 +502,9 @@ class MediaMemoryManager: ObservableObject {
         animatedGIFCache.removeAllObjects()
         videoPlayerCache.removeAllObjects()
 
+        #if DEBUG
         print("🧹 [MediaMemoryManager] All caches cleared")
+        #endif
     }
 
     /// Get current cache statistics

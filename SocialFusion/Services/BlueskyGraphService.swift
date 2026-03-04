@@ -34,24 +34,36 @@ public final class BlueskyGraphService: SocialGraphService {
       throw ServiceError.invalidInput(reason: "Invalid actor ID for Bluesky")
     }
     
+    #if DEBUG
     print("🔵 [BlueskyGraphService] Follow called with identifier: \(identifier)")
+    #endif
     
     // Resolve to DID if we have a handle (getProfile accepts both)
     let did: String
     if identifier.hasPrefix("did:") {
       did = identifier
+      #if DEBUG
       print("   Using identifier as DID: \(did)")
+      #endif
     } else {
       // Fetch profile to get DID from handle
+      #if DEBUG
       print("   Identifier is handle, fetching profile to get DID...")
+      #endif
       let profile = try await blueskyService.getProfile(actor: identifier, account: account)
       did = profile.did
+      #if DEBUG
       print("   Resolved DID: \(did)")
+      #endif
     }
     
+    #if DEBUG
     print("   Calling followUser with DID: \(did), repo: \(account.platformSpecificId)")
+    #endif
     let followUri = try await blueskyService.followUser(did: did, account: account)
+    #if DEBUG
     print("   Follow succeeded, URI: \(followUri)")
+    #endif
     
     // Small delay to ensure Bluesky API has updated
     try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
@@ -59,7 +71,9 @@ public final class BlueskyGraphService: SocialGraphService {
     // Fetch updated relationship state using the resolved DID
     let profile = try await blueskyService.getProfile(actor: did, account: account)
     guard let viewer = profile.viewer else {
+      #if DEBUG
       print("   Warning: No viewer data in profile response")
+      #endif
       return RelationshipState(isFollowing: true) // Optimistic state
     }
     
@@ -70,7 +84,9 @@ public final class BlueskyGraphService: SocialGraphService {
       isBlocking: viewer.blockedBy == true,
       followRequested: false
     )
+    #if DEBUG
     print("   Relationship state after follow: following=\(newState.isFollowing), followUri=\(viewer.following ?? "nil")")
+    #endif
     return newState
   }
   

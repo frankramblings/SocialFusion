@@ -469,7 +469,9 @@ struct ChatView: View {
           try await serviceManager.addReaction(conversation: conversation, messageId: messageId, emoji: emoji)
         }
       } catch {
+        #if DEBUG
         print("[Reactions] Failed to toggle reaction: \(error.localizedDescription)")
+        #endif
       }
     }
   }

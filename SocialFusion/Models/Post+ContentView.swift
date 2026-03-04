@@ -390,16 +390,20 @@ struct YouTubeVideoPreview: View {
                             fallbackThumbnail
                                 .onAppear {
                                     thumbnailLoadFailed = true
+                                    #if DEBUG
                                     print(
                                         "[YouTube] AsyncImage failed for \(videoID): \(error.localizedDescription)"
                                     )
+                                    #endif
                                 }
                         case .empty:
                             loadingThumbnail
                         @unknown default:
                             fallbackThumbnail
                                 .onAppear {
+                                    #if DEBUG
                                     print("[YouTube] Unknown AsyncImage state for \(videoID)")
+                                    #endif
                                 }
                         }
                     }
@@ -407,13 +411,17 @@ struct YouTubeVideoPreview: View {
                     // Still testing thumbnail URLs
                     loadingThumbnail
                         .onAppear {
+                            #if DEBUG
                             print("[YouTube] Testing thumbnail qualities for \(videoID)...")
+                            #endif
                         }
                 } else {
                     // All thumbnail qualities failed or thumbnailLoadFailed is true
                     fallbackThumbnail
                         .onAppear {
+                            #if DEBUG
                             print("[YouTube] Using fallback thumbnail for \(videoID)")
+                            #endif
                         }
                 }
             }
@@ -638,7 +646,9 @@ struct YouTubeVideoPreview: View {
         func tryNextQuality(_ index: Int = 0) {
             guard index < qualities.count else {
                 // All qualities failed, use fallback
+                #if DEBUG
                 print("[YouTube] All thumbnail qualities failed for video: \(videoID)")
+                #endif
                 return
             }
 
@@ -663,14 +673,18 @@ struct YouTubeVideoPreview: View {
                     {
                         // This quality works, use it
                         self.thumbnailURL = testURL
+                        #if DEBUG
                         print(
                             "[YouTube] Using \(quality) quality thumbnail for video: \(self.videoID)"
                         )
+                        #endif
                     } else {
                         // This quality failed, try next one
+                        #if DEBUG
                         print(
                             "[YouTube] \(quality) quality failed for video: \(self.videoID), trying next..."
                         )
+                        #endif
                         tryNextQuality(index + 1)
                     }
                 }
@@ -751,7 +765,9 @@ struct YouTubeVideoPreview: View {
 
     private func copyVideoLink() {
         UIPasteboard.general.string = url.absoluteString
+        #if DEBUG
         print("📋 [YouTubeVideoPreview] Copied video link to clipboard: \(url.absoluteString)")
+        #endif
     }
 }
 
@@ -948,30 +964,46 @@ struct YouTubeWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            #if DEBUG
             print("✅ [YouTubeWebView] Navigation finished successfully for video: \(parent.videoID)")
+            #endif
             parent.isPlaying = true
         }
 
         func webView(
             _ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error
         ) {
+            #if DEBUG
             print("❌ [YouTubeWebView] Navigation failed: \(error.localizedDescription)")
+            #endif
+            #if DEBUG
             print("❌ [YouTubeWebView] Error code: \((error as NSError).code)")
+            #endif
+            #if DEBUG
             print("❌ [YouTubeWebView] Error domain: \((error as NSError).domain)")
+            #endif
             parent.isPlaying = false
         }
 
         func webView(
             _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error
         ) {
+            #if DEBUG
             print("❌ [YouTubeWebView] Provisional navigation failed: \(error.localizedDescription)")
+            #endif
+            #if DEBUG
             print("❌ [YouTubeWebView] Error code: \((error as NSError).code)")
+            #endif
+            #if DEBUG
             print("❌ [YouTubeWebView] Error domain: \((error as NSError).domain)")
+            #endif
             parent.isPlaying = false
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            #if DEBUG
             print("🔄 [YouTubeWebView] Started loading video: \(parent.videoID)")
+            #endif
         }
 
         // MARK: - WKScriptMessageHandler
@@ -982,11 +1014,15 @@ struct YouTubeWebView: UIViewRepresentable {
                 if let errorData = message.body as? [String: Any],
                    let code = errorData["code"] as? Int,
                    let errorMessage = errorData["message"] as? String {
+                    #if DEBUG
                     print("⚠️ [YouTubeWebView] YouTube Player Error \(code): \(errorMessage)")
+                    #endif
                 }
 
             case "openInYouTube":
+                #if DEBUG
                 print("📱 [YouTubeWebView] Opening video in YouTube app: \(parent.videoID)")
+                #endif
                 let youtubeAppURL = URL(string: "youtube://watch?v=\(parent.videoID)")
                 let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(parent.videoID)")!
 

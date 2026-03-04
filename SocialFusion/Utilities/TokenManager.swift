@@ -112,8 +112,10 @@ public class TokenManager {
                     account.saveRefreshToken(newRefreshToken)
                 } catch {
                     // Continue even if we can't save the refresh token - the access token is still valid
+                    #if DEBUG
                     print(
                         "Warning: Failed to save new refresh token: \(error.localizedDescription)")
+                    #endif
                 }
             }
 
@@ -183,7 +185,9 @@ public class TokenManager {
                     expiresAt.timeIntervalSince1970, forKey: "token-expiry-\(accountId)")
             }
         } catch {
+            #if DEBUG
             print("Error storing tokens: \(error.localizedDescription)")
+            #endif
         }
     }
 
@@ -203,14 +207,18 @@ public class TokenManager {
         do {
             accessToken = try KeychainManager.loadToken(type: "AccessToken", for: accountId)
         } catch {
+            #if DEBUG
             print("Error loading access token: \(error.localizedDescription)")
+            #endif
         }
 
         do {
             refreshToken = try KeychainManager.loadToken(type: "RefreshToken", for: accountId)
         } catch {
             // Refresh token might not exist, this is not an error
+            #if DEBUG
             print("Info: No refresh token found for account \(accountId)")
+            #endif
         }
 
         do {
@@ -218,7 +226,9 @@ public class TokenManager {
             clientId = credentials.clientId
             clientSecret = credentials.clientSecret
         } catch {
+            #if DEBUG
             print("Error loading client credentials: \(error.localizedDescription)")
+            #endif
         }
 
         // Load expiration date from UserDefaults
@@ -243,7 +253,9 @@ public class TokenManager {
             // Remove expiration date from UserDefaults
             UserDefaults.standard.removeObject(forKey: "token-expiry-\(accountId)")
         } catch {
+            #if DEBUG
             print("Error deleting tokens: \(error.localizedDescription)")
+            #endif
         }
     }
 }

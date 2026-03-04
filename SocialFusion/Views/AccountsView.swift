@@ -170,9 +170,11 @@ struct AccountsView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     refreshAccountSelections()
                 }
+                #if DEBUG
                 print(
                     "AccountsView appeared. Mastodon accounts: \(serviceManager.mastodonAccounts.count), Bluesky accounts: \(serviceManager.blueskyAccounts.count)"
                 )
+                #endif
             }
         }
     }
@@ -299,7 +301,9 @@ struct AccountsView: View {
             }
         }
 
+        #if DEBUG
         print("Account selection changed to: \(serviceManager.selectedAccountIds)")
+        #endif
 
         // REMOVED: automatic timeline refresh to prevent spam
         // Timeline will refresh automatically when user returns to main view

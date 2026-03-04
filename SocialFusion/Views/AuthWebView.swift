@@ -63,13 +63,17 @@ struct WebAuthenticationView: UIViewControllerRepresentable {
             callbackURLScheme: callbackURLScheme
         ) { callbackURL, error in
             if let error = error {
+                #if DEBUG
                 print("Authentication error: \(error.localizedDescription)")
+                #endif
                 onCancel()
                 return
             }
 
             guard let callbackURL = callbackURL else {
+                #if DEBUG
                 print("No callback URL returned")
+                #endif
                 onCancel()
                 return
             }

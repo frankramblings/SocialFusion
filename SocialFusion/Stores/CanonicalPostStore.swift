@@ -52,7 +52,7 @@ public final class CanonicalPostStore {
   ) {
     let resolution = CanonicalPostResolver.resolve(post: post, sourceAccountID: sourceContext.accountID)
     let canonicalPostID = resolveCanonicalPostID(resolution)
-    let canonicalPost = upsertCanonicalPost(resolution.canonicalPost, canonicalPostID: canonicalPostID)
+    _ = upsertCanonicalPost(resolution.canonicalPost, canonicalPostID: canonicalPostID)
     mapNativeKeys(resolution.nativeKeys, to: canonicalPostID)
 
     if !resolution.socialEvents.isEmpty {
@@ -167,7 +167,7 @@ public final class CanonicalPostStore {
 
   private func upsertCanonicalPost(_ post: CanonicalPost, canonicalPostID: String) -> CanonicalPost {
     if var existing = postsByID[canonicalPostID] {
-      var incomingPost = post.post
+      let incomingPost = post.post
       if incomingPost.poll == nil {
         incomingPost.poll = existing.post.poll
       }

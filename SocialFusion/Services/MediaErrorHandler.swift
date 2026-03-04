@@ -147,9 +147,11 @@ class MediaErrorHandler: ObservableObject {
                 let mediaError = mapError(error, for: url)
                 retryState.lastError = mediaError
 
+                #if DEBUG
                 print(
                     "🔄 [MediaErrorHandler] Attempt \(retryState.attempts)/\(config.maxAttempts) failed for \(url): \(mediaError.localizedDescription)"
                 )
+                #endif
 
                 // Don't retry if error is not retryable or we've exceeded max attempts
                 if !mediaError.isRetryable || retryState.attempts >= config.maxAttempts {
@@ -168,7 +170,9 @@ class MediaErrorHandler: ObservableObject {
                 retryState.isRetrying = true
                 activeRetries[urlString] = retryState
 
+                #if DEBUG
                 print("🔄 [MediaErrorHandler] Retrying in \(String(format: "%.1f", delay))s...")
+                #endif
 
                 try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 

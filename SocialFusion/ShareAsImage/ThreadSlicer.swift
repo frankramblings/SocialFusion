@@ -95,7 +95,7 @@ public struct ThreadSlicer {
         }
 
         // Build parent-child relationships
-        for (nodeKey, node) in nodes {
+        for (_, node) in nodes {
             if let parentID = node.parentID {
                 // Find parent using robust ID matching
                 var foundParent: (key: String, node: CommentNode)? = nil

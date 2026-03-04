@@ -64,10 +64,14 @@ final class BlueskyPollStreamProvider: ChatStreamProvider, @unchecked Sendable {
       let response = try await blueskyService.getChatLog(cursor: nil, for: account)
       lastCursor = response.cursor
       connectionState = .connected
+      #if DEBUG
       print("[BlueskyChat] Polling started, baseline cursor: \(response.cursor ?? "nil")")
+      #endif
     } catch {
       connectionState = .error(error.localizedDescription)
+      #if DEBUG
       print("[BlueskyChat] Failed to establish baseline: \(error.localizedDescription)")
+      #endif
       return
     }
 
@@ -106,7 +110,9 @@ final class BlueskyPollStreamProvider: ChatStreamProvider, @unchecked Sendable {
         }
       } catch {
         consecutiveErrors += 1
+        #if DEBUG
         print("[BlueskyChat] Poll error (\(consecutiveErrors)): \(error.localizedDescription)")
+        #endif
         if consecutiveErrors >= 5 {
           connectionState = .error("Multiple poll failures")
         } else {
@@ -201,7 +207,9 @@ final class BlueskyPollStreamProvider: ChatStreamProvider, @unchecked Sendable {
       ))
 
     case .unknown(let type):
+      #if DEBUG
       print("[BlueskyChat] Unknown log event type: \(type)")
+      #endif
       return nil
     }
   }

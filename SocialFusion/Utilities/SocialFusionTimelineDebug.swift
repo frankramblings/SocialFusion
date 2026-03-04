@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 
 /// Debug singleton to track timeline posts and diagnostics for SocialFusion
@@ -55,3 +56,4 @@ final class SocialFusionTimelineDebug {
         queue.sync { lastRefresh }
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import SwiftUI
 
@@ -44,7 +45,9 @@ struct LinkTestPlayground: View {
             }
         }
         .onAppear {
+            #if DEBUG
             print("🔍 LinkTestPlayground appeared - running tests")
+            #endif
             runTests()
         }
     }
@@ -52,10 +55,14 @@ struct LinkTestPlayground: View {
     private func runTests() {
         testResults.removeAll()
 
+        #if DEBUG
         print("🔍 Starting link detection tests...")
+        #endif
 
         for (index, text) in testTexts.enumerated() {
+            #if DEBUG
             print("🔍 Test \(index + 1): '\(text)'")
+            #endif
 
             let links = URLService.shared.extractLinks(from: text)
             let resultText =
@@ -65,11 +72,15 @@ struct LinkTestPlayground: View {
             for link in links {
                 let linkResult = "  → \(link.absoluteString)"
                 testResults.append(linkResult)
+                #if DEBUG
                 print("🔍   Found link: \(link.absoluteString)")
+                #endif
             }
         }
 
+        #if DEBUG
         print("🔍 Link detection tests completed")
+        #endif
     }
 }
 
@@ -161,3 +172,4 @@ struct TestPlayground_Previews: PreviewProvider {
         }
     }
 }
+#endif

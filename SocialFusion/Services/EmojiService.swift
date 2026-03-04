@@ -82,7 +82,9 @@ public class EmojiService {
     } catch {
       // Network error or decode error - return empty (graceful degradation)
       // Log error for debugging but don't fail
+      #if DEBUG
       print("Failed to fetch custom emoji: \(error.localizedDescription)")
+      #endif
       emojiCache[account.id] = []
       return []
     }

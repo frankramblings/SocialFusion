@@ -44,7 +44,9 @@ class MastodonAccountService: AccountService {
     func saveAccount(_ account: SocialAccount) -> Bool {
         // Ensure account is for the correct platform
         guard account.platform == .mastodon else {
+            #if DEBUG
             print("Cannot save non-Mastodon account to Mastodon account service")
+            #endif
             return false
         }
 
@@ -55,7 +57,9 @@ class MastodonAccountService: AccountService {
 
     func deleteAccount(_ account: SocialAccount) -> Bool {
         guard account.platform == .mastodon else {
+            #if DEBUG
             print("Cannot delete non-Mastodon account from Mastodon account service")
+            #endif
             return false
         }
 
@@ -124,7 +128,9 @@ class BlueskyAccountService: AccountService {
 
     func saveAccount(_ account: SocialAccount) -> Bool {
         guard account.platform == .bluesky else {
+            #if DEBUG
             print("Cannot save non-Bluesky account to Bluesky account service")
+            #endif
             return false
         }
 
@@ -134,7 +140,9 @@ class BlueskyAccountService: AccountService {
 
     func deleteAccount(_ account: SocialAccount) -> Bool {
         guard account.platform == .bluesky else {
+            #if DEBUG
             print("Cannot delete non-Bluesky account from Bluesky account service")
+            #endif
             return false
         }
 
@@ -159,7 +167,9 @@ class BlueskyAccountService: AccountService {
             return account
         } catch {
             // Log the error
+            #if DEBUG
             print("Bluesky authentication failed: \(error.localizedDescription)")
+            #endif
 
             // Rethrow to let caller handle it
             throw error
@@ -181,7 +191,9 @@ class BlueskyAccountService: AccountService {
             // Return the updated account
             return account
         } catch {
+            #if DEBUG
             print("Failed to refresh Bluesky authentication: \(error.localizedDescription)")
+            #endif
             throw error
         }
     }

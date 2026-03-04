@@ -308,7 +308,7 @@ struct SimpleAddAccountSheet: View {
             do {
                 if selectedPlatform == .mastodon {
                     // Use simplified implementation for now
-                    let account = try await serviceManager.addMastodonAccount(
+                    _ = try await serviceManager.addMastodonAccount(
                         server: mastodonServer,
                         username: username,
                         password: password
@@ -319,7 +319,7 @@ struct SimpleAddAccountSheet: View {
                         presentationMode.wrappedValue.dismiss()
                     }
                 } else {
-                    let account = try await serviceManager.addBlueskyAccount(
+                    _ = try await serviceManager.addBlueskyAccount(
                         username: username,
                         password: password
                     )

@@ -22,7 +22,9 @@ class MediaPerformanceMonitor: ObservableObject {
 
     func trackMediaLoadStart(url: String) {
         loadStartTimes[url] = Date()
+        #if DEBUG
         print("📊 [MediaPerformanceMonitor] Started loading: \(url)")
+        #endif
     }
 
     func trackMediaLoadComplete(url: String, success: Bool) {
@@ -39,9 +41,11 @@ class MediaPerformanceMonitor: ObservableObject {
             metrics.failedLoads += 1
         }
 
+        #if DEBUG
         print(
             "📊 [MediaPerformanceMonitor] Load completed: \(url) - Success: \(success) - Time: \(String(format: "%.2f", loadTime))s"
         )
+        #endif
     }
 
     func trackBufferStart(url: String) {
@@ -58,9 +62,11 @@ class MediaPerformanceMonitor: ObservableObject {
         metrics.totalBufferTime += bufferTime
         metrics.averageBufferTime = metrics.totalBufferTime / Double(metrics.bufferEvents)
 
+        #if DEBUG
         print(
             "📊 [MediaPerformanceMonitor] Buffer completed: \(url) - Time: \(String(format: "%.2f", bufferTime))s"
         )
+        #endif
     }
 
     func trackMemoryUsage(_ usage: Float) {
@@ -152,7 +158,9 @@ class MediaPerformanceMonitor: ObservableObject {
         metrics = PerformanceMetrics()
         loadStartTimes.removeAll()
         bufferStartTimes.removeAll()
+        #if DEBUG
         print("📊 [MediaPerformanceMonitor] Metrics reset")
+        #endif
     }
 }
 

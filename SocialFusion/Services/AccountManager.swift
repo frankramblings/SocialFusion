@@ -52,9 +52,11 @@ class AccountManager: ObservableObject {
                 self.blueskyAccounts = loadedAccounts.filter { $0.platform == .bluesky }
                     .filter { validateAccount($0) }
                 
+                #if DEBUG
                 print(
                     "✅ [AccountManager] Loaded \(self.mastodonAccounts.count) Mastodon accounts and \(self.blueskyAccounts.count) Bluesky accounts from PersistenceManager"
                 )
+                #endif
                 
                 self.isLoading = false
                 self.validateSelectedAccounts()
@@ -70,9 +72,11 @@ class AccountManager: ObservableObject {
             self.blueskyAccounts = self.loadAccountsFromKeychain(service: self.blueskyKeychainService)
                 .filter { self.validateAccount($0) }
 
+            #if DEBUG
             print(
                 "⚠️ [AccountManager] Loaded \(self.mastodonAccounts.count) Mastodon accounts and \(self.blueskyAccounts.count) Bluesky accounts from Keychain (PersistenceManager had none)"
             )
+            #endif
 
             self.isLoading = false
 
@@ -237,7 +241,9 @@ class AccountManager: ObservableObject {
     func selectAccount(_ id: String) {
         // Verify the account exists
         guard getAccountById(id) != nil else {
+            #if DEBUG
             print("Cannot select non-existent account ID: \(id)")
+            #endif
             return
         }
 
@@ -329,7 +335,9 @@ class AccountManager: ObservableObject {
             !account.username.isEmpty,
             account.serverURL != nil
         else {
+            #if DEBUG
             print("Account validation failed - missing required fields for \(account.username)")
+            #endif
             return false
         }
 
@@ -363,7 +371,9 @@ class AccountManager: ObservableObject {
                     let decoder = JSONDecoder()
                     return try decoder.decode(SocialAccount.self, from: data)
                 } catch {
+                    #if DEBUG
                     print("Error decoding account: \(error)")
+                    #endif
                     return nil
                 }
             }
@@ -399,10 +409,14 @@ class AccountManager: ObservableObject {
 
                 let status = SecItemAdd(query as CFDictionary, nil)
                 if status != errSecSuccess {
+                    #if DEBUG
                     print("Error saving account to Keychain: \(status)")
+                    #endif
                 }
             } catch {
+                #if DEBUG
                 print("Error encoding account: \(error)")
+                #endif
             }
         }
     }
@@ -421,7 +435,9 @@ class AccountManager: ObservableObject {
 
                 return accounts
             } catch {
+                #if DEBUG
                 print("Error migrating accounts from UserDefaults: \(error)")
+                #endif
             }
         }
 

@@ -122,7 +122,9 @@ struct LinkPreview: View {
 
         MetadataProviderManager.shared.startFetchingMetadata(for: url) { metadata, error in
             if let error = error {
+                #if DEBUG
                 print("Error fetching link metadata for \(url): \(error)")
+                #endif
 
                 // Retry logic for transient errors
                 if retryCount < maxRetries && isTransientError(error) {
@@ -251,7 +253,9 @@ struct LinkPreviewContent: View {
                     }
                 }
             } catch {
+                #if DEBUG
                 print("Failed to save image: \(error)")
+                #endif
             }
         }
     }

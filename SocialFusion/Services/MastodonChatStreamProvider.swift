@@ -64,7 +64,9 @@ final class MastodonChatStreamProvider: ChatStreamProvider, @unchecked Sendable 
 
     connectionState = .connected
     reconnectAttempt = 0
+    #if DEBUG
     print("[MastodonChat] WebSocket connected to \(streamingURL)")
+    #endif
 
     await receiveLoop()
   }
@@ -87,7 +89,9 @@ final class MastodonChatStreamProvider: ChatStreamProvider, @unchecked Sendable 
         }
       } catch {
         guard !isStopped else { return }
+        #if DEBUG
         print("[MastodonChat] WebSocket error: \(error.localizedDescription)")
+        #endif
         await handleDisconnect()
         return
       }
@@ -140,7 +144,9 @@ final class MastodonChatStreamProvider: ChatStreamProvider, @unchecked Sendable 
     reconnectAttempt += 1
     let delay = min(Double(1 << reconnectAttempt), 30.0) // 2, 4, 8, ... max 30s
     connectionState = .reconnecting(attempt: reconnectAttempt)
+    #if DEBUG
     print("[MastodonChat] Reconnecting in \(delay)s (attempt \(reconnectAttempt))")
+    #endif
 
     try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
     guard !isStopped else { return }
@@ -162,7 +168,9 @@ final class MastodonChatStreamProvider: ChatStreamProvider, @unchecked Sendable 
         continuation?.yield(event)
       }
     } catch {
+      #if DEBUG
       print("[MastodonChat] REST catch-up failed: \(error.localizedDescription)")
+      #endif
     }
 
     await connect(account: account)

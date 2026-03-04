@@ -259,7 +259,9 @@ enum DebugLog {
 
     static func verbose(_ message: @autoclosure () -> String) {
         guard isVerboseEnabled else { return }
+        #if DEBUG
         print(message())
+        #endif
     }
 }
 

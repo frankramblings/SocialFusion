@@ -79,7 +79,7 @@ struct AccountTimelineView: View {
         .onDisappear {
             controller.setTimelineVisible(false)
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             if phase == .background {
                 setPersistedAnchor(visibleAnchorId ?? scrollAnchorId)
             }
@@ -87,7 +87,7 @@ struct AccountTimelineView: View {
                 controller.handleAppForegrounded()
             }
         }
-        .onChange(of: controller.posts) { _ in
+        .onChange(of: controller.posts) {
             restorePendingAnchorIfPossible()
         }
         .toolbar {
@@ -180,7 +180,7 @@ struct AccountTimelineView: View {
                 handleScrollPreferenceChange(positions)
             }
             .scrollPosition(id: $scrollAnchorId)
-            .onChange(of: scrollAnchorId) { _ in
+            .onChange(of: scrollAnchorId) {
                 controller.recordVisibleInteraction()
             }
             .refreshable {

@@ -105,7 +105,9 @@ struct TagDetailView: View {
             let result = try await serviceManager.search(query: "#\(tag.name)")
             posts = result.posts
         } catch {
+            #if DEBUG
             print("Failed to fetch tag posts: \(error)")
+            #endif
             self.error = error
         }
         isLoading = false

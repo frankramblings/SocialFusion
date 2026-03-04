@@ -117,7 +117,9 @@ public actor CustomEmojiCache {
     }
 
     if !allURLs.isEmpty {
+      #if DEBUG
       print("🎨 [EmojiCache] Pre-warming \(allURLs.count) emoji images")
+      #endif
       await withTaskGroup(of: Void.self) { group in
         for url in allURLs where imageCache[url] == nil {
           group.addTask {
@@ -160,7 +162,9 @@ public actor CustomEmojiCache {
       // Scale to emoji size (40pt for 2x retina)
       return scaleImage(image, to: CGSize(width: 40, height: 40))
     } catch {
+      #if DEBUG
       print("⚠️ [EmojiCache] Failed to load emoji from \(url): \(error.localizedDescription)")
+      #endif
       return nil
     }
   }

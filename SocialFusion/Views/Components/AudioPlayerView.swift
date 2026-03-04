@@ -285,7 +285,9 @@ struct AudioPlayerView: View {
                 .playback, mode: .default, options: [.allowAirPlay])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
+            #if DEBUG
             print("❌ [AudioPlayerView] Failed to configure audio session: \(error)")
+            #endif
         }
     }
 

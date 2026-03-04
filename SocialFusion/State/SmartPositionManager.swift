@@ -33,11 +33,21 @@ class SmartPositionManager: ObservableObject {
         // setupAutoSync()
 
         if config.verboseMode {
+            #if DEBUG
             print("📍 SmartPositionManager initialized with:")
+            #endif
+            #if DEBUG
             print("  Smart Restoration: \(config.smartRestorationEnabled)")
+            #endif
+            #if DEBUG
             print("  Cross-session Sync: \(config.crossSessionSyncEnabled)")
+            #endif
+            #if DEBUG
             print("  iCloud Sync: DISABLED (preventing hangs)")
+            #endif
+            #if DEBUG
             print("  History Size: \(maxHistorySize)")
+            #endif
         }
     }
 
@@ -61,9 +71,11 @@ class SmartPositionManager: ObservableObject {
         let strategy = fallbackStrategy ?? config.fallbackStrategy
 
         if config.positionLogging {
+            #if DEBUG
             print(
                 "🎯 Smart restoration for \(entries.count) entries, target: \(targetPostId ?? "none"), strategy: \(strategy)"
             )
+            #endif
         }
 
         // 1. Try exact match first
@@ -216,9 +228,11 @@ class SmartPositionManager: ObservableObject {
         }
 
         if config.positionLogging {
+            #if DEBUG
             print(
                 "📋 Applied fallback strategy '\(strategy)': index=\(result.index?.description ?? "nil"), offset=\(result.offset)"
             )
+            #endif
         }
 
         // Record the fallback position
@@ -263,8 +277,10 @@ class SmartPositionManager: ObservableObject {
         savePositionHistory()
 
         if config.positionLogging {
+            #if DEBUG
             print(
                 "📝 Recorded position snapshot: \(snapshot.postId) (\(snapshot.restorationMethod))")
+            #endif
         }
     }
 
@@ -315,14 +331,18 @@ class SmartPositionManager: ObservableObject {
             syncStatus = .success
 
             if config.verboseMode {
+                #if DEBUG
                 print("☁️ Position sync completed successfully")
+                #endif
             }
 
         } catch {
             syncStatus = .error(error)
 
             if config.verboseMode {
+                #if DEBUG
                 print("❌ Position sync failed: \(error.localizedDescription)")
+                #endif
             }
         }
     }
@@ -343,7 +363,9 @@ class SmartPositionManager: ObservableObject {
             } catch {
                 // Continue with other records if one fails
                 if config.verboseMode {
+                    #if DEBUG
                     print("⚠️ Failed to upload snapshot for \(snapshot.postId): \(error)")
+                    #endif
                 }
             }
         }
@@ -367,7 +389,9 @@ class SmartPositionManager: ObservableObject {
                 }
             case .failure(let error):
                 if config.verboseMode {
+                    #if DEBUG
                     print("⚠️ Failed to download snapshot: \(error)")
+                    #endif
                 }
             }
         }
@@ -402,7 +426,9 @@ class SmartPositionManager: ObservableObject {
         savePositionHistory()
 
         if config.verboseMode {
+            #if DEBUG
             print("🔄 Merged position history: \(uniqueSnapshots.count) unique snapshots")
+            #endif
         }
     }
 
@@ -425,7 +451,9 @@ class SmartPositionManager: ObservableObject {
         positionHistory = history
 
         if config.verboseMode {
+            #if DEBUG
             print("📂 Loaded position history: \(history.count) snapshots")
+            #endif
         }
     }
 
@@ -545,7 +573,9 @@ extension SmartPositionManager {
         savePositionHistory()
 
         if config.verboseMode {
+            #if DEBUG
             print("🧹 Cleaned up position history older than \(cutoffDate)")
+            #endif
         }
     }
 

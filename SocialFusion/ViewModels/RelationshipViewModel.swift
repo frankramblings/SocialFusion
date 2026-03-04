@@ -69,16 +69,24 @@ public final class RelationshipViewModel: ObservableObject {
     state.followRequested = false
     
     do {
+      #if DEBUG
       print("🔵 [RelationshipViewModel] Attempting to follow actor: \(actorID)")
+      #endif
       let newState = try await graphService.follow(actorID, account: account)
+      #if DEBUG
       print("✅ [RelationshipViewModel] Follow succeeded, new state: following=\(newState.isFollowing)")
+      #endif
       state = newState
       HapticEngine.success.trigger()
     } catch {
       // Revert on failure
+      #if DEBUG
       print("❌ [RelationshipViewModel] Follow failed: \(error.localizedDescription)")
+      #endif
       if let serviceError = error as? ServiceError {
+        #if DEBUG
         print("   ServiceError details: \(serviceError)")
+        #endif
       }
       state = previousState
       self.error = error

@@ -21,7 +21,9 @@ class PostNavigationEnvironment: ObservableObject {
     @Published var pendingAccountSwitch: String? = nil
 
     func navigateToPost(_ post: Post) {
+        #if DEBUG
         print("🧭 [PostNavigationEnvironment] Navigating to post: \(post.id) by \(post.authorName)")
+        #endif
 
         // Defer state updates to prevent AttributeGraph cycles
         Task { @MainActor in
@@ -29,9 +31,11 @@ class PostNavigationEnvironment: ObservableObject {
 
             // If this is a boost post, navigate to the original post but preserve boost info
             if let originalPost = post.originalPost, let boostedBy = post.boostedBy {
+                #if DEBUG
                 print(
                     "🧭 [PostNavigationEnvironment] Boost detected - navigating to original post: \(originalPost.id)"
                 )
+                #endif
                 selectedPost = originalPost
                 boostInfo = (boostedBy: boostedBy, boostedAt: post.createdAt)
             } else {
@@ -45,7 +49,9 @@ class PostNavigationEnvironment: ObservableObject {
     func navigateToUser(from post: Post) {
         // CRITICAL FIX: For boosted posts, navigate to the original author, not the booster
         let targetPost = post.originalPost ?? post
+        #if DEBUG
         print("🧭 [PostNavigationEnvironment] Navigating to user profile: \(targetPost.authorUsername) on \(targetPost.platform) (from post \(post.id), isBoost: \(post.originalPost != nil))")
+        #endif
 
         // Defer state updates to prevent AttributeGraph cycles
         Task { @MainActor in
@@ -69,7 +75,9 @@ class PostNavigationEnvironment: ObservableObject {
 
     /// Navigate to a user's profile from a SearchUser
     func navigateToUser(from user: SearchUser) {
+        #if DEBUG
         print("🧭 [PostNavigationEnvironment] Navigating to user profile: \(user.username) on \(user.platform)")
+        #endif
 
         // Defer state updates to prevent AttributeGraph cycles
         Task { @MainActor in
@@ -80,7 +88,9 @@ class PostNavigationEnvironment: ObservableObject {
 
     /// Navigate to a tag timeline
     func navigateToTag(_ tag: SearchTag) {
+        #if DEBUG
         print("🧭 [PostNavigationEnvironment] Navigating to tag: \(tag.name) on \(tag.platform)")
+        #endif
 
         // Defer state updates to prevent AttributeGraph cycles
         Task { @MainActor in
@@ -242,10 +252,14 @@ class PostNavigationEnvironment: ObservableObject {
                     selectedTag = SearchTag(id: tag, name: tag, platform: .mastodon)
 
                 default:
+                    #if DEBUG
                     print("🧭 [PostNavigationEnvironment] Unhandled custom scheme route: \(url)")
+                    #endif
                 }
             } catch {
+                #if DEBUG
                 print("Failed to handle custom scheme link \(url): \(error)")
+                #endif
             }
         }
     }
@@ -267,7 +281,9 @@ class PostNavigationEnvironment: ObservableObject {
                             navigateToPost(post)
                         }
                     } catch {
+                        #if DEBUG
                         print("Failed to fetch Bluesky post from universal link: \(error)")
+                        #endif
                     }
                 }
             } else if pathComponents.count >= 2 && pathComponents[0] == "profile" {
@@ -295,7 +311,9 @@ class PostNavigationEnvironment: ObservableObject {
                             navigateToPost(post)
                         }
                     } catch {
+                        #if DEBUG
                         print("Failed to fetch Mastodon post from universal link: \(error)")
+                        #endif
                     }
                 }
             }

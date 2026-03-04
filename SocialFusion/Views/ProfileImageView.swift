@@ -37,9 +37,11 @@ public struct ProfileImageView: View {
                 .clipShape(Circle())
                 .id(imageURL.absoluteString)
                 .onAppear {
+                    #if DEBUG
                     print(
                         "👁️ [ProfileImageView] Profile image appeared for account: \(account.username)"
                     )
+                    #endif
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .profileImageUpdated)) {
                     notification in
@@ -54,9 +56,11 @@ public struct ProfileImageView: View {
                         }
 
                     if shouldRefresh {
+                        #if DEBUG
                         print(
                             "🔄 [ProfileImageView] Received profile image update for \(account.username)"
                         )
+                        #endif
                         // Use Task to defer state update outside of view update cycle
                         Task { @MainActor in
                             try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds

@@ -391,7 +391,7 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             // Only cancel timeout to prevent retries
             self.cancelTimeoutTask()
         }
-        .onChange(of: url) { newURL in
+        .onChange(of: url) { _, newURL in
             // Cancel any existing operations when URL changes
             self.cancellables.removeAll()
             self.cancelTimeoutTask()

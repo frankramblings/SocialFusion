@@ -127,7 +127,7 @@ struct SettingsView: View {
                                     .removeAllDeliveredNotifications()
                                 UNUserNotificationCenter.current()
                                     .removeAllPendingNotificationRequests()
-                                UIApplication.shared.applicationIconBadgeNumber = 0
+                                UNUserNotificationCenter.current().setBadgeCount(0)
                             }
                         }
 
@@ -565,13 +565,17 @@ struct ProfileImageDebugView: View {
                 Button("Clear Image Cache") {
                     ImageCache.shared.clearCache()
                     cacheStats = "Cache cleared"
+                    #if DEBUG
                     print("🗑️ [Debug] Cleared image cache")
+                    #endif
                 }
 
                 Button("Show Cache Stats") {
                     let stats = ImageCache.shared.getCacheInfo()
                     cacheStats = "Memory: \(stats.memoryCount) items, Disk: \(stats.diskSize) bytes"
+                    #if DEBUG
                     print("📊 [Debug] Cache stats: \(cacheStats)")
+                    #endif
                 }
 
                 Text(cacheStats)
@@ -656,14 +660,18 @@ struct ProfileImageDebugView: View {
                     let success = !data.isEmpty
                     results.append(
                         "✅ \(url.host ?? "unknown"): \(String(format: "%.2f", loadTime))s")
+                    #if DEBUG
                     print(
                         "🧪 [Debug] Test load \(urlString.suffix(30)): \(success ? "✅" : "❌") (\(String(format: "%.2f", loadTime))s)"
                     )
+                    #endif
                 } catch {
                     let loadTime = Date().timeIntervalSince(startTime)
                     results.append(
                         "❌ \(url.host ?? "unknown"): Error (\(String(format: "%.2f", loadTime))s)")
+                    #if DEBUG
                     print("🧪 [Debug] Test load \(urlString.suffix(30)): ❌ Error: \(error)")
+                    #endif
                 }
             }
         }
@@ -687,9 +695,11 @@ struct ProfileImageDebugView: View {
             {
 
                 let status = success ? "✅" : "❌"
+                #if DEBUG
                 print(
                     "🔴 [Live Monitor] \(status) \(url.suffix(30)) (\(String(format: "%.2f", loadTime))s)"
                 )
+                #endif
             }
         }
 
@@ -698,10 +708,14 @@ struct ProfileImageDebugView: View {
             self.liveMonitoringActive = false
             NotificationCenter.default.removeObserver(
                 self, name: NSNotification.Name("ProfileImageLoadAttempt"), object: nil)
+            #if DEBUG
             print("🔴 [Live Monitor] Auto-disabled after 5 minutes")
+            #endif
         }
 
+        #if DEBUG
         print("🔴 [Live Monitor] Started - will track all profile image loads for 5 minutes")
+        #endif
     }
 
     private func getProfileImageStats() -> [String: Any]? {

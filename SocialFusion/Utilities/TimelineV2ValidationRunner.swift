@@ -768,7 +768,9 @@ class TimelineV2ValidationRunner: ObservableObject {
         let timestamp = Date().formatted(date: .omitted, time: .standard)
         let logEntry = "[\(timestamp)] \(message)"
         consoleMessages.append(logEntry)
+        #if DEBUG
         print(logEntry)
+        #endif
     }
 
     private func generateFinalReport() async {

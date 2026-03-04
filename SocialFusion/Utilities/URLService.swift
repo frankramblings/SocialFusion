@@ -692,7 +692,7 @@ class URLService {
         var patterns: [(url: URL, pattern: String)] = []
 
         // First, check for RE: prefix convention (highest priority)
-        if let reQuoteURL = extractQuoteURLFromREPrefix(in: text) {
+        if extractQuoteURLFromREPrefix(in: text) != nil {
             // Extract the full RE: prefix pattern
             let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
             

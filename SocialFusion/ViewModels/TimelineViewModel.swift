@@ -232,9 +232,6 @@ public final class TimelineViewModel: ObservableObject {
                                 // or we can try to extract it from the boost structure
                                 // Since boosts store the original post ID, use platformSpecificId
                                 originalURI = post.platformSpecificId
-
-                            default:
-                                originalURI = nil
                             }
 
                             guard let originalURI = originalURI else {
@@ -416,9 +413,6 @@ public final class TimelineViewModel: ObservableObject {
                                 // or we can try to extract it from the boost structure
                                 // Since boosts store the original post ID, use platformSpecificId
                                 originalURI = post.platformSpecificId
-
-                            default:
-                                originalURI = nil
                             }
 
                             guard let originalURI = originalURI else {
@@ -496,7 +490,9 @@ public final class TimelineViewModel: ObservableObject {
 
                 self.logger.error(
                     "Failed to like/unlike post: \(error.localizedDescription, privacy: .public)")
-                // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
+                await MainActor.run {
+                    ToastManager.shared.show("Couldn't like post. Please try again.")
+                }
             }
         }
     }
@@ -550,7 +546,9 @@ public final class TimelineViewModel: ObservableObject {
                     }
                 }
                 self.logger.error("Failed to repost/unrepost: \(error.localizedDescription)")
-                // TODO: Propagate error to UI for user feedback (e.g., toast/banner)
+                await MainActor.run {
+                    ToastManager.shared.show("Couldn't repost. Please try again.")
+                }
             }
         }
     }
@@ -703,9 +701,6 @@ public final class TimelineViewModel: ObservableObject {
 
             case .bluesky:
                 originalPost = try await self.socialServiceManager.fetchBlueskyPostByID(originalURI)
-
-            default:
-                return
             }
 
             guard let original = originalPost else {

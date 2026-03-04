@@ -60,7 +60,9 @@ final class ChatStreamService: ObservableObject {
     for (key, provider) in providers {
       if let bskyProvider = provider as? BlueskyPollStreamProvider {
         bskyProvider.updatePollInterval(activeChat: true)
+        #if DEBUG
         print("[ChatStream] Bluesky provider \(key) → active chat interval")
+        #endif
       }
     }
   }
@@ -69,7 +71,9 @@ final class ChatStreamService: ObservableObject {
     for (key, provider) in providers {
       if let bskyProvider = provider as? BlueskyPollStreamProvider {
         bskyProvider.updatePollInterval(activeChat: false)
+        #if DEBUG
         print("[ChatStream] Bluesky provider \(key) → list interval")
+        #endif
       }
     }
   }
@@ -84,14 +88,18 @@ final class ChatStreamService: ObservableObject {
     switch account.platform {
     case .mastodon:
       guard let mastodonService else {
+        #if DEBUG
         print("[ChatStream] MastodonService not configured")
+        #endif
         return
       }
       provider = MastodonChatStreamProvider(mastodonService: mastodonService)
 
     case .bluesky:
       guard let blueskyService else {
+        #if DEBUG
         print("[ChatStream] BlueskyService not configured")
+        #endif
         return
       }
       provider = BlueskyPollStreamProvider(blueskyService: blueskyService)
@@ -111,7 +119,9 @@ final class ChatStreamService: ObservableObject {
     }
 
     activeTasks[key] = task
+    #if DEBUG
     print("[ChatStream] Started provider for \(account.platform.rawValue) account \(account.username)")
+    #endif
   }
 
   private func handleEvent(_ event: UnifiedChatEvent, providerKey: String) {

@@ -53,7 +53,9 @@ struct SocialAccountQuery: EntityQuery {
         do {
             return try JSONDecoder().decode([SocialAccount].self, from: data)
         } catch {
+            #if DEBUG
             print("SocialAccountQuery: Failed to decode accounts: \(error)")
+            #endif
             return []
         }
     }

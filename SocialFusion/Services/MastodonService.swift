@@ -590,9 +590,11 @@ public final class MastodonService: @unchecked Sendable {
             logger.error(
                 "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
             )
+            #if DEBUG
             print(
                 "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
             )
+            #endif
 
             throw ServiceError.rateLimitError(
                 reason: "Too many requests to Mastodon server",
@@ -677,9 +679,11 @@ public final class MastodonService: @unchecked Sendable {
             logger.error(
                 "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
             )
+            #if DEBUG
             print(
                 "❌ MASTODON: Rate limited during verifyCredentials - retry after: \(retrySeconds) seconds"
             )
+            #endif
 
             throw ServiceError.rateLimitError(
                 reason: "Too many requests to Mastodon server",
@@ -751,7 +755,9 @@ public final class MastodonService: @unchecked Sendable {
             serverUrlStr.contains("://") ? serverUrlStr : "https://" + serverUrlStr
 
         // Verify the account's credentials with the Mastodon API
+        #if DEBUG
         print("Verifying Mastodon credentials with server: \(formattedServerURL)")
+        #endif
         let mastodonAccount = try await verifyCredentials(
             server: URL(string: formattedServerURL),
             accessToken: accessToken
@@ -778,19 +784,25 @@ public final class MastodonService: @unchecked Sendable {
             verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
+        #if DEBUG
         print("Successfully verified Mastodon account: \(mastodonAccount.username)")
+        #endif
         return verifiedAccount
     }
 
     /// Verifies credentials and creates a social account with the provided access token
     func verifyAndCreateAccount(account: SocialAccount) async throws -> SocialAccount {
+        #if DEBUG
         print(
             "Verifying credentials for Mastodon account with server: \(account.serverURL?.absoluteString ?? "unknown")"
         )
+        #endif
 
         // Make sure we have an access token
         guard let accessToken = account.getAccessToken(), !accessToken.isEmpty else {
+            #if DEBUG
             print("No access token provided")
+            #endif
             throw NSError(
                 domain: "MastodonService",
                 code: 401,
@@ -800,7 +812,9 @@ public final class MastodonService: @unchecked Sendable {
 
         // Make sure we have a server URL
         guard let serverURL = account.serverURL else {
+            #if DEBUG
             print("No server URL provided")
+            #endif
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -814,14 +828,18 @@ public final class MastodonService: @unchecked Sendable {
             serverUrlStr.contains("://") ? serverUrlStr : "https://" + serverUrlStr
 
         // Verify the account's credentials with the Mastodon API
+        #if DEBUG
         print("Verifying Mastodon credentials with server: \(formattedServerURL)")
+        #endif
         guard
             let mastodonAccount = try? await verifyCredentials(
                 server: URL(string: formattedServerURL),
                 accessToken: accessToken
             )
         else {
+            #if DEBUG
             print("Failed to verify Mastodon credentials")
+            #endif
             throw NSError(
                 domain: "MastodonService",
                 code: 401,
@@ -850,7 +868,9 @@ public final class MastodonService: @unchecked Sendable {
             verifiedAccount.saveTokenExpirationDate(Date().addingTimeInterval(30 * 24 * 60 * 60))
         }
 
+        #if DEBUG
         print("Successfully verified Mastodon account: \(mastodonAccount.username)")
+        #endif
         return verifiedAccount
     }
 
@@ -888,8 +908,10 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         logger.info("🔄 MASTODON: Fetching timeline from: \(urlString)")
+        #if DEBUG
         print("🔄 MASTODON: Fetching timeline from: \(urlString)")
         print("🔄 MASTODON: Token present, proceeding with request")
+        #endif
 
         // Create request
         var request = URLRequest(url: url)
@@ -915,7 +937,9 @@ public final class MastodonService: @unchecked Sendable {
 
 
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                #if DEBUG
                 print("❌ MASTODON: Authentication failed - token may be expired")
+                #endif
                 throw ServiceError.unauthorized("Authentication failed or expired")
             }
 
@@ -1013,8 +1037,12 @@ public final class MastodonService: @unchecked Sendable {
             return TimelineResult(posts: posts, pagination: pagination)
         } catch {
             logger.error("❌ MASTODON ERROR: \(error.localizedDescription)")
+            #if DEBUG
             print("❌ MASTODON ERROR: \(error.localizedDescription)")
+            #endif
+            #if DEBUG
             print("❌ MASTODON ERROR DETAILS: \(error)")
+            #endif
             throw ServiceError.timelineError(underlying: error)
         }
     }
@@ -1046,7 +1074,9 @@ public final class MastodonService: @unchecked Sendable {
 
         // Check if token needs refresh
         if account.isTokenExpired, account.getRefreshToken() != nil {
+            #if DEBUG
             print("Token refresh is needed but client credentials are not available")
+            #endif
             // Without client credentials, refresh isn't possible
             // Continue with existing token
         }
@@ -1270,14 +1300,18 @@ public final class MastodonService: @unchecked Sendable {
         logger.info(
             "🔍 MASTODON: Fetching user timeline for userId: \(userId), account: \(account.username)"
         )
+        #if DEBUG
         print(
             "🔍 MASTODON: Fetching user timeline for userId: \(userId), account: \(account.username)"
         )
+        #endif
 
         // Validate userId is not empty
         guard !userId.isEmpty else {
             logger.error("❌ MASTODON: userId is empty")
+            #if DEBUG
             print("❌ MASTODON: userId is empty")
+            #endif
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1303,7 +1337,9 @@ public final class MastodonService: @unchecked Sendable {
 
         guard let url = URL(string: urlString) else {
             logger.error("❌ MASTODON: Invalid URL: \(urlString)")
+            #if DEBUG
             print("❌ MASTODON: Invalid URL: \(urlString)")
+            #endif
             throw NSError(
                 domain: "MastodonService",
                 code: 400,
@@ -1329,7 +1365,9 @@ public final class MastodonService: @unchecked Sendable {
                 // Try to decode error response
                 if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
                     logger.error("❌ MASTODON: API Error: \(errorResponse.error)")
+                    #if DEBUG
                     print("❌ MASTODON: API Error: \(errorResponse.error)")
+                    #endif
                     throw errorResponse
                 }
 
@@ -1363,7 +1401,9 @@ public final class MastodonService: @unchecked Sendable {
             return posts
         } catch {
             logger.error("❌ MASTODON: Error fetching user timeline: \(error.localizedDescription)")
+            #if DEBUG
             print("❌ MASTODON: Error fetching user timeline: \(error.localizedDescription)")
+            #endif
             throw error
         }
     }
@@ -1405,7 +1445,9 @@ public final class MastodonService: @unchecked Sendable {
             print("🔍 [Search] Raw response: \(responseString.prefix(500))")
         }
         #endif
+        #if DEBUG
         print("🔍 [Search] Response data size: \(data.count) bytes, status: \(httpResponse.statusCode)")
+        #endif
 
         // Some instances return 500 but still include valid JSON data
         // Try to decode even on non-200 status codes if we have data
@@ -1420,7 +1462,9 @@ public final class MastodonService: @unchecked Sendable {
             do {
                 let decoder = JSONDecoder()
                 let result = try decoder.decode(MastodonSearchResult.self, from: data)
+                #if DEBUG
                 print("⚠️ [Search] Successfully decoded response despite status \(httpResponse.statusCode)")
+                #endif
                 return result
             } catch {
                 // If decoding fails, throw the original status error
@@ -1847,11 +1891,19 @@ public final class MastodonService: @unchecked Sendable {
         // If this is a boosted/reposted post, reply to the original post
         let targetPost = post.originalPost ?? post
 
+        #if DEBUG
         print("🔍 Reply attempt - isBoost: \(post.originalPost != nil), post.id: \(post.id), post.platformSpecificId: \(post.platformSpecificId)")
+        #endif
+        #if DEBUG
         print("   post.originalURL: \(post.originalURL)")
+        #endif
         if let originalPost = post.originalPost {
+            #if DEBUG
             print("   originalPost.id: \(originalPost.id), originalPost.platformSpecificId: \(originalPost.platformSpecificId)")
+            #endif
+            #if DEBUG
             print("   originalPost.originalURL: \(originalPost.originalURL)")
+            #endif
         }
 
         // Check if this is a cross-instance reply (post from different server)
@@ -1859,15 +1911,21 @@ public final class MastodonService: @unchecked Sendable {
         let accountServerURL = account.serverURL?.host
         let isCrossInstance = postServerURL != nil && accountServerURL != nil && postServerURL != accountServerURL
 
+        #if DEBUG
         print("🌐 Cross-instance check: postServer=\(postServerURL ?? "nil"), accountServer=\(accountServerURL ?? "nil"), isCrossInstance=\(isCrossInstance)")
+        #endif
 
         var statusId = targetPost.platformSpecificId
         var searchSucceeded = false
 
         // For cross-instance replies, search for the post on the local server first
         if isCrossInstance {
+            #if DEBUG
             print("🔎 Cross-instance reply detected - searching for post on local server...")
+            #endif
+            #if DEBUG
             print("   Searching for URL: \(targetPost.originalURL)")
+            #endif
             do {
                 let searchResult = try await search(
                     query: targetPost.originalURL,
@@ -1876,34 +1934,52 @@ public final class MastodonService: @unchecked Sendable {
                     limit: 1
                 )
 
+                #if DEBUG
                 print("   Search returned \(searchResult.statuses.count) statuses")
+                #endif
                 if let firstStatus = searchResult.statuses.first {
                     statusId = firstStatus.id
                     searchSucceeded = true
+                    #if DEBUG
                     print("✅ Found local post ID: \(statusId) (was: \(targetPost.platformSpecificId))")
+                    #endif
                 } else {
+                    #if DEBUG
                     print("⚠️  No search results - cross-instance reply may not be federated to local server")
+                    #endif
                 }
             } catch {
+                #if DEBUG
                 print("⚠️  Search failed: \(error.localizedDescription)")
+                #endif
+                #if DEBUG
                 print("   Error details: \(error)")
+                #endif
             }
         }
 
         // Only use fallback if we don't have a valid status ID
         // Don't override a successful search result!
         if statusId.isEmpty && !searchSucceeded {
+            #if DEBUG
             print("🔧 Using fallback ID extraction...")
+            #endif
             if let lastPathComponent = URL(string: targetPost.originalURL)?.lastPathComponent {
                 statusId = lastPathComponent
+                #if DEBUG
                 print("   Extracted ID from URL: \(statusId)")
+                #endif
             } else {
                 statusId = targetPost.id
+                #if DEBUG
                 print("   Using post.id as last resort: \(statusId)")
+                #endif
             }
         }
 
+        #if DEBUG
         print("📝 Final reply statusId: \(statusId) to server: \(serverUrl)")
+        #endif
 
         guard let url = URL(string: "\(serverUrl)/api/v1/statuses") else {
             throw NSError(
@@ -1962,15 +2038,21 @@ public final class MastodonService: @unchecked Sendable {
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             if let errorResponse = try? JSONDecoder().decode(MastodonError.self, from: data) {
+                #if DEBUG
                 print("❌ Mastodon API error (\(statusCode)): \(errorResponse.error)")
+                #endif
                 if let description = errorResponse.errorDescription {
+                    #if DEBUG
                     print("   Description: \(description)")
+                    #endif
                 }
                 throw errorResponse
             }
             // If we can't decode the error, log the raw response
             if let rawError = String(data: data, encoding: .utf8) {
+                #if DEBUG
                 print("❌ Mastodon reply failed (\(statusCode)): \(rawError)")
+                #endif
             }
             throw NSError(
                 domain: "MastodonService", code: statusCode,
@@ -3244,18 +3326,24 @@ public final class MastodonService: @unchecked Sendable {
     public func updateProfileImage(for account: SocialAccount) async {
         do {
             guard let serverURL = account.serverURL else {
+                #if DEBUG
                 print("❌ No server URL found for Mastodon account: \(account.username)")
+                #endif
                 return
             }
 
+            #if DEBUG
             print("🔄 Fetching Mastodon profile for \(account.username) from server: \(serverURL)")
+            #endif
 
             // Build the endpoint URL properly
             let endpoint = serverURL.appendingPathComponent("api/v1/accounts/verify_credentials")
             var request = URLRequest(url: endpoint)
 
             guard let accessToken = account.getAccessToken() else {
+                #if DEBUG
                 print("❌ No access token found for Mastodon account: \(account.username)")
+                #endif
                 return
             }
 
@@ -3268,9 +3356,11 @@ public final class MastodonService: @unchecked Sendable {
 
             // Check HTTP response status
             if let httpResponse = response as? HTTPURLResponse {
+                #if DEBUG
                 print(
                     "📡 Mastodon API response status for \(account.username): \(httpResponse.statusCode)"
                 )
+                #endif
 
                 // Handle rate limiting (429) gracefully for background profile updates
                 if httpResponse.statusCode == 429 {
@@ -3289,16 +3379,20 @@ public final class MastodonService: @unchecked Sendable {
                         retrySeconds = 60  // Default to 60 seconds if we can't parse
                     }
 
+                    #if DEBUG
                     print(
                         "⚠️ Rate limited while updating profile for \(account.username) - retry after: \(Int(retrySeconds)) seconds"
                     )
+                    #endif
                     return  // Silently fail for background operations
                 }
 
                 if httpResponse.statusCode != 200 {
+                    #if DEBUG
                     print(
                         "❌ Mastodon API returned error status \(httpResponse.statusCode) for \(account.username)"
                     )
+                    #endif
                     #if DEBUG
                     if let responseString = String(data: data, encoding: .utf8) {
                         print("❌ Response body: \(responseString)")
@@ -3309,18 +3403,24 @@ public final class MastodonService: @unchecked Sendable {
             }
             let mastodonAccount = try JSONDecoder().decode(MastodonAccount.self, from: data)
 
+            #if DEBUG
             print(
                 "Raw avatar field from Mastodon API for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
             )
+            #endif
 
             if mastodonAccount.avatar.isEmpty {
+                #if DEBUG
                 print(
                     "⚠️ Empty avatar field returned from Mastodon API for \(mastodonAccount.username)"
                 )
+                #endif
             } else if let avatarURL = URL(string: mastodonAccount.avatar) {
+                #if DEBUG
                 print(
                     "✅ Successfully parsed Mastodon avatar URL for \(mastodonAccount.username): \(avatarURL)"
                 )
+                #endif
 
                 // Ensure UI updates happen on the main thread
                 // Make local copies of values to avoid Sendable issues
@@ -3328,9 +3428,11 @@ public final class MastodonService: @unchecked Sendable {
                 let username = mastodonAccount.username
                 DispatchQueue.main.async { [avatarURL] in
                     account.profileImageURL = avatarURL
+                    #if DEBUG
                     print(
                         "✅ Updated Mastodon account \(username) with profile image URL"
                     )
+                    #endif
 
                     // Post notification about the profile image update
                     NotificationCenter.default.post(
@@ -3340,20 +3442,28 @@ public final class MastodonService: @unchecked Sendable {
                     )
                 }
             } else {
+                #if DEBUG
                 print(
                     "❌ Failed to create valid URL from avatar field for \(mastodonAccount.username): '\(mastodonAccount.avatar)'"
                 )
+                #endif
             }
         } catch {
+            #if DEBUG
             print("❌ Error fetching Mastodon profile for \(account.username): \(error)")
+            #endif
 
             // More detailed error logging
             if let urlError = error as? URLError {
+                #if DEBUG
                 print(
                     "❌ URLError code: \(urlError.code.rawValue), description: \(urlError.localizedDescription)"
                 )
+                #endif
             } else if let decodingError = error as? DecodingError {
+                #if DEBUG
                 print("❌ JSON decoding error: \(decodingError)")
+                #endif
             }
         }
     }
@@ -3374,7 +3484,9 @@ public final class MastodonService: @unchecked Sendable {
             string:
                 "https://ui-avatars.com/api/?name=\(displayName.replacingOccurrences(of: " ", with: "+"))&background=random"
         )
+        #if DEBUG
         print("Setting default Mastodon avatar URL: \(String(describing: defaultAvatarURL))")
+        #endif
 
         // Create account with default avatar
         let account = SocialAccount(
@@ -3397,7 +3509,9 @@ public final class MastodonService: @unchecked Sendable {
         // Try to fetch the actual profile image
         if let avatarURL = URL(string: userInfo.avatar) {
             account.profileImageURL = avatarURL
+            #if DEBUG
             print("Updated Mastodon profile image URL: \(avatarURL.absoluteString)")
+            #endif
 
             // Post notification about the profile image update
             DispatchQueue.main.async {
@@ -3452,28 +3566,38 @@ public final class MastodonService: @unchecked Sendable {
             let status = try decoder.decode(MastodonStatus.self, from: data)
             return self.convertMastodonStatusToPost(status, account: account)
         } catch {
+            #if DEBUG
             print("Error decoding Mastodon status: \(error)")
+            #endif
             return nil
         }
     }
 
     /// Refreshes an access token if needed
     public func refreshTokenIfNeeded(account: SocialAccount) async throws -> String {
+        #if DEBUG
         print("Checking if Mastodon token needs refresh")
+        #endif
         // If token is still valid, return it
         if !account.isTokenExpired, let accessToken = account.getAccessToken() {
+            #if DEBUG
             print("Mastodon token is still valid")
+            #endif
             return accessToken
         }
 
         // If we have a refresh token but no client credentials, we can't refresh
         if account.getRefreshToken() != nil {
+            #if DEBUG
             print("Token expired but client credentials not available for refresh")
+            #endif
         }
 
         // Try to use existing token even if expired, as a fallback
         if let accessToken = account.getAccessToken() {
+            #if DEBUG
             print("Using existing token despite expiration")
+            #endif
             return accessToken
         }
 

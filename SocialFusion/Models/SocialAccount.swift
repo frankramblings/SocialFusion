@@ -133,7 +133,9 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
     /// Log out of this account and delete all stored tokens
     public func logout() {
+        #if DEBUG
         print("🔐 Logging out account: \(username) (ID: \(id))")
+        #endif
 
         // Clear transient tokens
         _accessToken = nil
@@ -200,9 +202,11 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         self.platformSpecificId = id  // Use id as default platformSpecificId
 
         // Print debug info
+        #if DEBUG
         print(
             "Created account: \(username) with profile image URL: \(String(describing: profileImageURL))"
         )
+        #endif
 
         // Try to load tokens from keychain
         loadTokensFromKeychain()
@@ -249,7 +253,9 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
             if let expirationDate = expirationDate {
                 saveTokenExpirationDate(expirationDate)
+                #if DEBUG
                 print("Saved token expiration date for \(username): \(expirationDate)")
+                #endif
             }
         }
     }
@@ -272,24 +278,32 @@ public class SocialAccount: Identifiable, Codable, Equatable {
         {
             if profileImageURLString.isEmpty {
                 profileImageURL = nil
+                #if DEBUG
                 print("Empty profile image URL string for \(username)")
+                #endif
             } else {
                 profileImageURL = URL(string: profileImageURLString)
                 if profileImageURL != nil {
+                    #if DEBUG
                     print(
                         "✅ Successfully decoded profile image URL for \(username): \(profileImageURLString)"
                     )
+                    #endif
                 } else {
+                    #if DEBUG
                     print(
                         "❌ Invalid profile image URL format for \(username): '\(profileImageURLString)'"
                     )
+                    #endif
                 }
             }
         } else {
             profileImageURL = nil
+            #if DEBUG
             print(
                 "⚠️ No profile image URL field found in stored data for \(username) - this account may need to be re-added to fetch the current profile image"
             )
+            #endif
         }
 
         // Initialize token properties to nil; we'll load them from keychain separately
@@ -525,9 +539,11 @@ public class SocialAccount: Identifiable, Codable, Equatable {
             _tokenExpirationDate = Date(timeIntervalSince1970: expiryTimestamp)
         }
 
+        #if DEBUG
         print(
             "Loaded tokens for \(username): Access token exists: \(_accessToken != nil), Refresh token exists: \(_refreshToken != nil)"
         )
+        #endif
     }
 
     // MARK: - Equatable
@@ -576,7 +592,9 @@ public class SocialAccount: Identifiable, Codable, Equatable {
 
         // Mark as migrated (token-expiry stays in UserDefaults — it's not a secret)
         defaults.set(true, forKey: migrationKey)
+        #if DEBUG
         print("🔐 Migrated credentials from UserDefaults to Keychain for account \(accountId)")
+        #endif
     }
 
     // Custom encoding to ensure we don't encode sensitive data

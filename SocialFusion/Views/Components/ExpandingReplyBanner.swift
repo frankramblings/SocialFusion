@@ -436,23 +436,29 @@ struct ExpandingReplyBanner: View {
                 guard let parentId = parentId else { return }
 
                 let cacheKey = "\(network.rawValue):\(parentId)"
+                #if DEBUG
                 print(
                     "🔍 ExpandingReplyBanner: Checking cache for parent \(parentId) with key: \(cacheKey)"
                 )
+                #endif
 
                 if let cachedPost = parentCache.getCachedPost(id: cacheKey) {
                     parent = cachedPost
+                    #if DEBUG
                     print(
                         "✅ ExpandingReplyBanner: Found cached parent: \(cachedPost.authorUsername)"
                     )
+                    #endif
                 } else {
+                    #if DEBUG
                     print(
                         "🔍 ExpandingReplyBanner: No cached parent found for key: \(cacheKey)"
                     )
+                    #endif
                 }
             }
         }
-        .onChange(of: isExpanded) { newValue in
+        .onChange(of: isExpanded) { _, newValue in
             withAnimation(newValue ? expandAnimation : collapseAnimation) {
                 showContent = newValue
             }
@@ -470,7 +476,9 @@ struct ExpandingReplyBanner: View {
 
         // Only start fetching when expanded if we don't already have the parent data
         if isExpanded, let parentId = parentId, parent == nil {
+            #if DEBUG
             print("🔄 Triggering fetch from banner tap")
+            #endif
             triggerParentFetch(parentId: parentId)
         }
 
@@ -480,9 +488,11 @@ struct ExpandingReplyBanner: View {
     private func triggerParentFetch(parentId: String) {
         // Skip if already loading, attempted, or if we already have the parent
         guard !isLoading && !fetchAttempted && parent == nil else {
+            #if DEBUG
             print(
                 "⏭️ Skipping fetch - already loading: \(isLoading), attempted: \(fetchAttempted), has parent: \(parent != nil)"
             )
+            #endif
             return
         }
 
@@ -516,17 +526,23 @@ struct ExpandingReplyBanner: View {
                     // Use the same cache key format as SocialServiceManager
                     let cacheKey = "\(network.rawValue):\(parentId)"
                     parentCache.cache[cacheKey] = post
+                    #if DEBUG
                     print(
                         "✅ Fetched parent post: \(post.authorUsername) - \(post.content.prefix(50))..."
                     )
+                    #endif
                 } else {
                     fetchError = "Post not found"
+                    #if DEBUG
                     print("❌ Parent post not found for ID: \(parentId)")
+                    #endif
                 }
 
             } catch {
                 fetchError = error.localizedDescription
+                #if DEBUG
                 print("❌ Fetch error: \(error.localizedDescription)")
+                #endif
             }
 
             isLoading = false

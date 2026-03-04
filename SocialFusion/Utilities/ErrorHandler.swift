@@ -188,10 +188,14 @@ class ErrorHandler {
     /// Log error details for debugging
     private func logError(_ error: AppError) {
         // Basic console logging
+        #if DEBUG
         print("ERROR [\(error.type)] \(error.message)")
+        #endif
 
         if let underlying = error.underlyingError {
+            #if DEBUG
             print("  Underlying: \(underlying)")
+            #endif
         }
 
         // In a real app, we might send errors to a logging service

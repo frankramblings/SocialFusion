@@ -141,7 +141,9 @@ class EdgeCaseHandler: ObservableObject {
         startNetworkMonitoring()
         startMemoryMonitoring()
         setupMemoryPressureObserver()
+        #if DEBUG
         print("🛡️ [EdgeCaseHandler] Initialized comprehensive edge case handling")
+        #endif
     }
 
     deinit {
@@ -184,7 +186,9 @@ class EdgeCaseHandler: ObservableObject {
             let previousStatus = networkStatus
             networkStatus = newStatus
 
+            #if DEBUG
             print("🌐 [EdgeCaseHandler] Network status changed: \(previousStatus) → \(newStatus)")
+            #endif
 
             // Handle network state changes
             handleNetworkStatusChange(from: previousStatus, to: newStatus)
@@ -234,9 +238,11 @@ class EdgeCaseHandler: ObservableObject {
             let previousLevel = memoryPressure
             memoryPressure = newPressureLevel
 
+            #if DEBUG
             print(
                 "🧠 [EdgeCaseHandler] Memory pressure changed: \(previousLevel) → \(newPressureLevel) (\(String(format: "%.1f", currentMemoryMB))MB)"
             )
+            #endif
 
             handleMemoryPressureChange(newPressureLevel, memoryMB: currentMemoryMB)
         }
@@ -273,7 +279,9 @@ class EdgeCaseHandler: ObservableObject {
     }
 
     @objc private func didReceiveMemoryWarning() {
+        #if DEBUG
         print("🚨 [EdgeCaseHandler] System memory warning received")
+        #endif
         memoryPressure = .critical
         showMemoryPressureAlert()
 
@@ -315,8 +323,10 @@ class EdgeCaseHandler: ObservableObject {
             let previousState = authenticationState
             authenticationState = newState
 
+            #if DEBUG
             print(
                 "🔐 [EdgeCaseHandler] Authentication state changed: \(previousState) → \(newState)")
+            #endif
 
             handleAuthenticationStateChange(newState)
         }
@@ -461,7 +471,9 @@ class EdgeCaseHandler: ObservableObject {
     }
 
     private func performMemoryCleanup() {
+        #if DEBUG
         print("🧹 [EdgeCaseHandler] Performing memory cleanup")
+        #endif
 
         // Notify all components to clear their caches
         NotificationCenter.default.post(name: .performMemoryCleanup, object: nil)
@@ -487,9 +499,11 @@ class EdgeCaseHandler: ObservableObject {
             } catch {
                 lastError = error
 
+                #if DEBUG
                 print(
                     "🔄 [EdgeCaseHandler] Retry attempt \(attempt)/\(maxAttempts) failed: \(error.localizedDescription)"
                 )
+                #endif
 
                 // Don't retry on final attempt
                 if attempt == maxAttempts {
@@ -498,7 +512,9 @@ class EdgeCaseHandler: ObservableObject {
 
                 // Check if error is retryable
                 if !isRetryableError(error) {
+                    #if DEBUG
                     print("🚫 [EdgeCaseHandler] Error is not retryable, aborting")
+                    #endif
                     break
                 }
 

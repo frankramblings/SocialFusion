@@ -32,7 +32,9 @@ extension ConsolidatedTimelineView {
 struct MediaConfiguration {
     @MainActor
     static func configure() {
+        #if DEBUG
         print("🎬 [MediaConfiguration] Initializing media robustness systems...")
+        #endif
 
         // Initialize memory manager
         let _ = MediaMemoryManager.shared
@@ -40,13 +42,27 @@ struct MediaConfiguration {
         // Initialize error handler
         let _ = MediaErrorHandler.shared
 
+        #if DEBUG
         print("✅ [MediaConfiguration] Media systems initialized successfully")
+        #endif
+        #if DEBUG
         print("   - Audio player: ✅ Fully implemented with waveforms and controls")
+        #endif
+        #if DEBUG
         print("   - Error handling: ✅ Retry logic with exponential backoff")
+        #endif
+        #if DEBUG
         print("   - Memory management: ✅ Smart caching with automatic cleanup")
+        #endif
+        #if DEBUG
         print("   - Buffering UX: ✅ Progress indicators and user feedback")
+        #endif
+        #if DEBUG
         print("   - Accessibility: ✅ VoiceOver support for all media types")
+        #endif
+        #if DEBUG
         print("   - Comprehensive testing: ✅ Full test suite implemented")
+        #endif
     }
 }
 

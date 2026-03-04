@@ -7,7 +7,9 @@ struct UnifiedTimelineView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
 
     init() {
+        #if DEBUG
         print("🔗 UnifiedTimelineView: Initialized as wrapper around ConsolidatedTimelineView")
+        #endif
     }
 
     var body: some View {
