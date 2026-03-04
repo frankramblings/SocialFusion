@@ -64,6 +64,27 @@ targets:
               - UISceneConfigurationName: Default Configuration
     dependencies:
       - package: EmojiText
+      - target: SocialFusionShareExtension
+  SocialFusionShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: SocialFusionShareExtension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.socialfusionapp.app.SocialFusionShareExtension
+        SWIFT_VERSION: 5.0
+        DEVELOPMENT_TEAM: $(TEAM_ID)
+        INFOPLIST_FILE: SocialFusionShareExtension/Info.plist
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Apple Distribution"
+        PROVISIONING_PROFILE_SPECIFIER: $(SHARE_EXTENSION_PROFILE_NAME)
+        CODE_SIGN_ENTITLEMENTS: SocialFusionShareExtension/ShareExtension.entitlements
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: SocialFusionShareExtension
+        SKIP_INSTALL: YES
   SocialFusionTests:
     type: bundle.unit-test
     platform: iOS
