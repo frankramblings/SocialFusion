@@ -370,6 +370,8 @@ struct SettingsView: View {
 }
 
 struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -411,13 +413,15 @@ struct AboutView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarItems(
                 trailing: Button("Done") {
-                    // Dismiss the sheet
+                    dismiss()
                 })
         }
     }
 }
 
 struct WebContentView: View {
+    @Environment(\.dismiss) private var dismiss
+
     let title: String
     let content: String
 
@@ -432,7 +436,7 @@ struct WebContentView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarItems(
                 trailing: Button("Done") {
-                    // Dismiss the sheet
+                    dismiss()
                 })
         }
     }
