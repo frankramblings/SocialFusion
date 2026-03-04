@@ -598,9 +598,11 @@ struct SearchView: View {
         .accessibilityLabel("Compose")
         .accessibilityHint("Create a new post")
         .accessibilityIdentifier("ComposeToolbarButton")
+        #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {
             showValidationView = true
         }
+        #endif
     }
     
     private func report(_ post: Post) {

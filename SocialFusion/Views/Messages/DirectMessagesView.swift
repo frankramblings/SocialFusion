@@ -51,10 +51,12 @@ struct DirectMessagesView: View {
             .font(.system(size: 18))
             .foregroundColor(.primary)
         }
+        #if DEBUG
         .simultaneousGesture(
           LongPressGesture(minimumDuration: 1.0)
             .onEnded { _ in showValidationView = true }
         )
+        #endif
       }
     }
     .navigationTitle("Messages")
@@ -63,9 +65,11 @@ struct DirectMessagesView: View {
       NewConversationView()
         .environmentObject(serviceManager)
     }
+    #if DEBUG
     .sheet(isPresented: $showValidationView) {
       TimelineValidationDebugView(serviceManager: serviceManager)
     }
+    #endif
     .onAppear {
       Task {
         await viewModel.fetchConversations(serviceManager: serviceManager)

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -103,6 +103,7 @@
 		4BAF06E19D5D6AB3C3A61750 /* SocialServiceManagerPostActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2F6C1B67E90BE6C04FA415 /* SocialServiceManagerPostActionTests.swift */; };
 		4DE3903AA7EF56A3635C295D /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 712CCA659FBD7CD190A2972D /* KeychainHelper.swift */; };
 		4E0B56C339D1505F16CDDC9D /* ReliableScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E830AABA8DABB97C4E623C /* ReliableScrollView.swift */; };
+		500B17422F58980B00332E3C /* SocialFusionShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 500B17382F58980B00332E3C /* SocialFusionShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		506FC1AFF1FDF3BBB8F01973 /* TimelineBufferTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4864BD80A9CD5146570FD054 /* TimelineBufferTests.swift */; };
 		52503260A9DCDC8A7B2F013C /* AuthenticatedVideoAssetLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD36F8842EB39685F442E732 /* AuthenticatedVideoAssetLoader.swift */; };
 		5272641B7D20ABD1F7F2F01B /* MediaGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1CF2028FCE0C14ED0305812 /* MediaGridView.swift */; };
@@ -214,6 +215,7 @@
 		A97A55CBDD406E7E61086DA9 /* TimelineEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC26EDD6FA996C92BDB3898C /* TimelineEntry.swift */; };
 		A997FD4E9533448CC30A62B0 /* RobotsTxtChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = D157F35ECD85282C4486CCF6 /* RobotsTxtChecker.swift */; };
 		AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5380ACC14D7AA8B3B52C775E /* CachedAsyncImage.swift */; };
+		AA11BB22CC33DD44EE55FF66 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF6677AA /* PrivacyInfo.xcprivacy */; };
 		AA29EAA81800A44171BBF6F7 /* AuthWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CFF143DFD9A254B37F9762F /* AuthWebView.swift */; };
 		AB1A08E3EA9A3D207C262C09 /* AppVersionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7971F092BFD3A1DA68989B1A /* AppVersionManager.swift */; };
 		AC2882B4AC67A703B1A89C8C /* UnreadTrackingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F3F84FE5B2E7C6E7405296A /* UnreadTrackingTests.swift */; };
@@ -339,6 +341,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		500B17402F58980B00332E3C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 19B8E72CFBCD5EE4BD467684 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 500B17372F58980B00332E3C;
+			remoteInfo = SocialFusionShareExtension;
+		};
 		AB5FB7997BABA6B9C4EEE2E6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 19B8E72CFBCD5EE4BD467684 /* Project object */;
@@ -347,6 +356,20 @@
 			remoteInfo = SocialFusion;
 		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		500B17432F58980B00332E3C /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				500B17422F58980B00332E3C /* SocialFusionShareExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedEmptyStateView.swift; sourceTree = "<group>"; };
@@ -457,6 +480,7 @@
 		4DD9261A532B611E794BCE5A /* PostLayoutSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLayoutSnapshot.swift; sourceTree = "<group>"; };
 		4DE1E098CCAD95C754E026A8 /* AsyncLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AsyncLoader.swift; sourceTree = "<group>"; };
 		5009EE1EAECC7E012285EC8C /* SocialFusionTimelineDebug.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialFusionTimelineDebug.swift; sourceTree = "<group>"; };
+		500B17382F58980B00332E3C /* SocialFusionShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SocialFusionShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		51088AE821CEAB08BDD30960 /* StabilizedLinkPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedLinkPreview.swift; sourceTree = "<group>"; };
 		515EEFD6EA2AC8D243C307B7 /* AddAccountView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAccountView.swift; sourceTree = "<group>"; };
 		51DFF0908B04B6603944564C /* ChatStreamModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatStreamModels.swift; sourceTree = "<group>"; };
@@ -585,6 +609,7 @@
 		BA62BF5593DDB7987247FB2A /* LinkPreviewCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewCache.swift; sourceTree = "<group>"; };
 		BA95CB25B07EE0AB860A1069 /* ShareCanvasPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareCanvasPreset.swift; sourceTree = "<group>"; };
 		BAE536FB7FDF3F49C1DC17B1 /* CanonicalPostStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CanonicalPostStore.swift; sourceTree = "<group>"; };
+		BB22CC33DD44EE55FF6677AA /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		BB67E601460FD0229A3E6AA3 /* MonitoringService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitoringService.swift; sourceTree = "<group>"; };
 		BD1CC15EEAA7523F3FAECC24 /* PostCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostCardView.swift; sourceTree = "<group>"; };
 		BD99BF1ECBB74484AE3C64BF /* BlueskyService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyService.swift; sourceTree = "<group>"; };
@@ -685,7 +710,28 @@
 		FF122B28E26B160CB454EE3F /* MastodonSearchProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonSearchProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		500B17512F589A1500332E3C /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 500B17372F58980B00332E3C /* SocialFusionShareExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		500B17392F58980B00332E3C /* SocialFusionShareExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (500B17512F589A1500332E3C /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = SocialFusionShareExtension; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
 /* Begin PBXFrameworksBuildPhase section */
+		500B17352F58980B00332E3C /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		F87E1A71437AA76FA20948AE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -815,6 +861,7 @@
 			children = (
 				54837CBDE79934170735E9E2 /* SocialFusion */,
 				1336E79F44255F6A695B18A0 /* SocialFusionTests */,
+				500B17392F58980B00332E3C /* SocialFusionShareExtension */,
 				A2991A82CF7626115148BD35 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -840,6 +887,7 @@
 				255ADE201981E507154D54E5 /* ContentView.swift */,
 				99C1C4E32A3FA8F9376B6552 /* Info.plist */,
 				6C1EDDB948E316C5193EEDDD /* LaunchScreen.storyboard */,
+				BB22CC33DD44EE55FF6677AA /* PrivacyInfo.xcprivacy */,
 				74D8ACDF5D1E93D220B325C8 /* SocialFusion-Anonymous.entitlements */,
 				A6B10A1C71F3D009936154B7 /* SocialFusion.entitlements */,
 				6B99202C32522904104EA1A6 /* SocialFusionApp.swift */,
@@ -1021,6 +1069,7 @@
 			children = (
 				2DDE85C4B982E6E5F65A9D10 /* SocialFusion.app */,
 				0DE6DEAE10E943046F5ED8D6 /* SocialFusionTests.xctest */,
+				500B17382F58980B00332E3C /* SocialFusionShareExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1240,6 +1289,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		500B17372F58980B00332E3C /* SocialFusionShareExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 500B17472F58980B00332E3C /* Build configuration list for PBXNativeTarget "SocialFusionShareExtension" */;
+			buildPhases = (
+				500B17342F58980B00332E3C /* Sources */,
+				500B17352F58980B00332E3C /* Frameworks */,
+				500B17362F58980B00332E3C /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				500B17392F58980B00332E3C /* SocialFusionShareExtension */,
+			);
+			name = SocialFusionShareExtension;
+			packageProductDependencies = (
+			);
+			productName = SocialFusionShareExtension;
+			productReference = 500B17382F58980B00332E3C /* SocialFusionShareExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 9DBDDEBEFEE0F4BBB7417EB6 /* Build configuration list for PBXNativeTarget "SocialFusion" */;
@@ -1247,10 +1318,12 @@
 				30D6348EFBD3AC8B77C5B200 /* Sources */,
 				A0FC626B1A7536153165DC4C /* Resources */,
 				F87E1A71437AA76FA20948AE /* Frameworks */,
+				500B17432F58980B00332E3C /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				500B17412F58980B00332E3C /* PBXTargetDependency */,
 			);
 			name = SocialFusion;
 			packageProductDependencies = (
@@ -1283,7 +1356,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
+				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					500B17372F58980B00332E3C = {
+						CreatedOnToolsVersion = 26.3;
+						LastSwiftMigration = 2630;
+					};
+				};
 			};
 			buildConfigurationList = C23E33076E8B4E256698C5FC /* Build configuration list for PBXProject "SocialFusion" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -1304,11 +1384,19 @@
 			targets = (
 				ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */,
 				BC6B78B61AD0F201D5513A2A /* SocialFusionTests */,
+				500B17372F58980B00332E3C /* SocialFusionShareExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		500B17362F58980B00332E3C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		A0FC626B1A7536153165DC4C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -1316,6 +1404,7 @@
 				5B75ACFBB0193B6FAEB26D76 /* Assets.xcassets in Resources */,
 				175352975BFDA1F38C521C6D /* DataFlow.md in Resources */,
 				07EEDEC36799700268314C09 /* LaunchScreen.storyboard in Resources */,
+				AA11BB22CC33DD44EE55FF66 /* PrivacyInfo.xcprivacy in Resources */,
 				2A1BB9D9DCEE3A9BCBEC9690 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1661,6 +1750,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		500B17342F58980B00332E3C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -1668,6 +1764,11 @@
 			isa = PBXTargetDependency;
 			target = ADE2AF9D7E04A5DE3C122C20 /* SocialFusion */;
 			targetProxy = AB5FB7997BABA6B9C4EEE2E6 /* PBXContainerItemProxy */;
+		};
+		500B17412F58980B00332E3C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 500B17372F58980B00332E3C /* SocialFusionShareExtension */;
+			targetProxy = 500B17402F58980B00332E3C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -1689,7 +1790,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = "$(GITHUB_RUN_NUMBER)";
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9XH4G9XR8X;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1703,6 +1804,87 @@
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		500B17442F58980B00332E3C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = SocialFusionShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SocialFusionShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SocialFusionShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.app.SocialFusionShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		500B17452F58980B00332E3C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = SocialFusionShareExtension/ShareExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9XH4G9XR8X;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = SocialFusionShareExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = SocialFusionShareExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.socialfusionapp.app.SocialFusionShareExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -1850,7 +2032,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = "$(GITHUB_RUN_NUMBER)";
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 9XH4G9XR8X;
 				INFOPLIST_FILE = SocialFusion/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1889,6 +2071,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		500B17472F58980B00332E3C /* Build configuration list for PBXNativeTarget "SocialFusionShareExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				500B17442F58980B00332E3C /* Debug */,
+				500B17452F58980B00332E3C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5D50C9DB4D8A24BFEDA7B39C /* Build configuration list for PBXNativeTarget "SocialFusionTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

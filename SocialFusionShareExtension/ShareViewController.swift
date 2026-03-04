@@ -1,6 +1,5 @@
 import UIKit
 import Social
-import MobileCoreServices
 import UniformTypeIdentifiers
 
 class ShareViewController: SLComposeServiceViewController {
@@ -15,19 +14,15 @@ class ShareViewController: SLComposeServiceViewController {
   }
 
   override func isContentValid() -> Bool {
-    // Always valid -- user can share even without adding text
     return true
   }
 
   override func didSelectPost() {
-    // Build the deep link with shared content
     var queryItems: [URLQueryItem] = []
 
-    // Include user-entered text from the compose field
     let composedText = contentText ?? ""
     var fullText = composedText
 
-    // Append any shared text that wasn't from a URL
     if let sharedText = sharedText, !sharedText.isEmpty, sharedText != composedText {
       if fullText.isEmpty {
         fullText = sharedText
@@ -50,8 +45,6 @@ class ShareViewController: SLComposeServiceViewController {
     components.queryItems = queryItems.isEmpty ? nil : queryItems
 
     if let deepLink = components.url {
-      // Open the main app via the shared URL scheme
-      // Share extensions use openURL via responder chain
       var responder: UIResponder? = self
       while let next = responder?.next {
         if let application = next as? UIApplication {
@@ -76,7 +69,6 @@ class ShareViewController: SLComposeServiceViewController {
       guard let attachments = item.attachments else { continue }
 
       for provider in attachments {
-        // Handle URLs
         if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
           provider.loadItem(forTypeIdentifier: UTType.url.identifier, options: nil) { [weak self] item, _ in
             if let url = item as? URL {
@@ -87,7 +79,6 @@ class ShareViewController: SLComposeServiceViewController {
           }
         }
 
-        // Handle plain text
         if provider.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) {
           provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { [weak self] item, _ in
             if let text = item as? String {

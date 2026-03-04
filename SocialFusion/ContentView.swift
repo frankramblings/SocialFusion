@@ -89,9 +89,11 @@ struct ContentView: View {
             )
             .environmentObject(serviceManager)
         }
+        #if DEBUG
         .sheet(isPresented: $showValidationView) {
             TimelineValidationDebugView(serviceManager: serviceManager)
         }
+        #endif
         .withToastNotifications()
     }
 
@@ -344,9 +346,11 @@ struct ContentView: View {
         .accessibilityLabel("Compose")
         .accessibilityHint("Create a new post")
         .accessibilityIdentifier("ComposeToolbarButton")
+        #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {
             showValidationView = true
         }
+        #endif
     }
 
     private var uiTestAccountSwitchOverlay: some View {

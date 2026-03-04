@@ -23,11 +23,7 @@ final class FeatureFlagManager: ObservableObject {
     @AppStorage("useNewSocialServiceManager") private(set) var useNewSocialServiceManager = false
 
     /// Controls whether to use the unified post actions coordinator flow
-#if DEBUG
     @AppStorage("postActionsV2") private(set) var postActionsV2 = true
-#else
-    @AppStorage("postActionsV2") private(set) var postActionsV2 = false
-#endif
 
     // MARK: - Debug Flags
 
