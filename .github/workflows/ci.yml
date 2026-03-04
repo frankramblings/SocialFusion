@@ -164,7 +164,7 @@ jobs:
           CODE_SIGN_IDENTITY="Apple Distribution" \
           PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
           PRODUCT_BUNDLE_IDENTIFIER="com.socialfusionapp.app" \
-          CURRENT_PROJECT_VERSION=$GITHUB_RUN_NUMBER
+          CURRENT_PROJECT_VERSION=$(git rev-list HEAD --count)
     
     - name: Export IPA
       run: |
