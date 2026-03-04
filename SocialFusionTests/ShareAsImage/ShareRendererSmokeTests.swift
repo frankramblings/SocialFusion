@@ -370,26 +370,6 @@ final class ShareRendererSmokeTests: XCTestCase {
         try? FileManager.default.removeItem(at: fileURL)
     }
 
-    func testUpdateMemoryUsageInPreparationDoesNotLogRollbackWarning() {
-        let manager = GradualMigrationManager.shared
-        let originalPhase = manager.migrationPhase
-
-        defer {
-            manager.migrationPhase = originalPhase
-        }
-
-        manager.migrationPhase = .preparation
-
-        let output = captureStandardOutput {
-            manager.updateMemoryUsage(350.0)
-        }
-
-        XCTAssertFalse(
-            output.contains("Cannot rollback from preparation"),
-            "Auto-rollback checks should skip cleanly when there is no previous phase."
-        )
-    }
-
     // MARK: - Error Handling Tests
 
     func testRenderErrorForEncoding() async throws {

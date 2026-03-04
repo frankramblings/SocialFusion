@@ -350,12 +350,7 @@ class TimelineController: ObservableObject {
         // Simple implementation for now - just scroll to top
         scrollPosition = .top
 
-        // Report successful restoration
         let restorationTime = Date().timeIntervalSince(startTime)
-        GradualMigrationManager.shared.recordPositionRestoration(
-            success: true,
-            timeSeconds: restorationTime
-        )
 
         if config.positionLogging {
             print(

@@ -37,9 +37,6 @@ struct ContentView: View {
     @State private var isAtTopOfFeed = true
     @State private var tabBarDelegate: TabBarDelegate?
 
-    // Migration manager for architecture switching
-    @StateObject private var migrationManager = GradualMigrationManager.shared
-
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var sidebarSelection: Int? = 0
 

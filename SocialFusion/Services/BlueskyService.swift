@@ -3048,16 +3048,6 @@ public final class BlueskyService: Sendable {
 
     /// Like a post on Bluesky
     func likePost(_ post: Post, account: SocialAccount) async throws -> Post {
-        #if DEBUG
-        // Check if the post is present in the timeline (for debugging)
-        let timelinePosts = SocialFusionTimelineDebug.shared.blueskyPosts
-        let found = timelinePosts.contains(where: { $0.id == post.id })
-        if !found {
-            logger.warning(
-                "[Bluesky] Attempting to like a post not present in timeline array: id=\(post.id)"
-            )
-        }
-        #endif
         logger.info(
             "[Bluesky] Attempting to like post: id=\(post.id), cid=\(post.cid ?? "nil"), platformSpecificId=\(post.platformSpecificId)"
         )
