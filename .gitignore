@@ -101,6 +101,11 @@ Docs/
 PLAN-*.md
 run_tests.sh
 
+# Tracked design + competitive docs (un-ignore from Docs/ rule above
+# on macOS's case-insensitive filesystem)
+!docs/
+!docs/**
+
 # Stale root-level source dirs (migrated into SocialFusion/)
 /Networking/
 /Views/
@@ -111,3 +116,6 @@ project.yml
 
 # Claude Code worktrees
 .claude/
+
+# Superpowers brainstorming session artifacts
+.superpowers/
