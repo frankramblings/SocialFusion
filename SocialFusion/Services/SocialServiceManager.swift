@@ -112,6 +112,12 @@ public final class SocialServiceManager: ObservableObject {
     /// result is dropped — never a fatal condition for the timeline pipeline.
     weak var fusedMomentStore: FusedMomentStore?
 
+    /// Side-channel reference to the merged-identity store, used to route
+    /// posts from the same human across networks into the same author bucket
+    /// before fusion detection runs. Same lifetime/optionality contract as
+    /// `fusedMomentStore` — wired by `SocialFusionApp` after construction.
+    weak var mergedIdentityStore: MergedIdentityStore?
+
     /// Detector instance reused across refreshes. Stateless and cheap to hold.
     private let fusedMomentDetector = FusedMomentDetector()
 
@@ -4659,7 +4665,22 @@ public final class SocialServiceManager: ObservableObject {
         // Run Fuse detection on the unified buffer and feed the side-channel store.
         // The detector is pure and synchronous; for v1.0 timeline sizes (<200 posts)
         // it's cheap enough to run inline on MainActor after each timeline update.
-        let detected = fusedMomentDetector.detect(in: posts)
+        //
+        // Snapshot the merged-identity map first so the detector can route
+        // Mastodon and Bluesky posts from the same human into the same author
+        // bucket. We're already on MainActor here (the method is annotated),
+        // so reading `mergedIdentityStore.allMerges()` is direct; we hand the
+        // detector a plain `[String: String]` so it stays off-MainActor.
+        var identityMap: FusedMomentDetector.IdentityKeyMap = [:]
+        if let store = mergedIdentityStore {
+            for merge in store.allMerges() {
+                let mKey = "\(SocialPlatform.mastodon.rawValue):\(merge.mastodon.accountID)"
+                let bKey = "\(SocialPlatform.bluesky.rawValue):\(merge.bluesky.accountID)"
+                identityMap[mKey] = merge.id
+                identityMap[bKey] = merge.id
+            }
+        }
+        let detected = fusedMomentDetector.detect(in: posts, identityMap: identityMap)
         print("[Fuse] detected \(detected.count) moments")  // TEMP — smoke-test signal
         if !detected.isEmpty {
             fusedMomentStore?.insert(detected)

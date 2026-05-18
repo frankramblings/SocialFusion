@@ -103,6 +103,7 @@ struct SocialFusionApp: App {
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
                         serviceManager.fusedMomentStore = fusedMomentStore
+                        serviceManager.mergedIdentityStore = mergedIdentityStore
                         notificationManager.registerBackgroundTask()
                         if UserDefaults.standard.bool(forKey: "enableNotifications") {
                             notificationManager.scheduleBackgroundRefresh()

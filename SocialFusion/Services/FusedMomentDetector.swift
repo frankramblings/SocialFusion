@@ -22,6 +22,15 @@ public final class FusedMomentDetector: Sendable {
         self.minConfidence = minConfidence
     }
 
+    /// Pre-resolved author-key lookup table: `"\(platform.rawValue):\(authorID)"` → merged-identity ID.
+    ///
+    /// Built on MainActor by the caller from a snapshot of `MergedIdentityStore`
+    /// and passed in before each detection pass. Keeping this resolution out of
+    /// the detector itself lets `detect(in:identityMap:)` stay off-MainActor and
+    /// concurrency-clean — the store is `@MainActor`, but a plain
+    /// `[String: String]` is freely sendable.
+    public typealias IdentityKeyMap = [String: String]
+
     /// Returns the set of detected fused moments from the given post buffer.
     ///
     /// Buckets posts by author identity, then does a pairwise within-author
@@ -29,8 +38,16 @@ public final class FusedMomentDetector: Sendable {
     /// many authors; worst case O(n²) when all posts share one author. For
     /// v1.0 timeline buffers (<200 posts) this is acceptable. Safe to run
     /// after every timeline refresh.
-    public func detect(in posts: [Post]) -> [FusedMoment] {
-        let byAuthor = Dictionary(grouping: posts, by: \.authorIdentityKey)
+    ///
+    /// `identityMap` lets callers route Mastodon and Bluesky posts from the same
+    /// human into the same author bucket even when their platform-native
+    /// `authorId`s differ — this is the production wiring into the
+    /// merged-identity layer. When the map is empty or the post's author isn't
+    /// in it, the detector falls back to the post's native `authorId`, which
+    /// is already platform-disjoint in practice (Bluesky DIDs and Mastodon
+    /// URL-IDs never collide).
+    public func detect(in posts: [Post], identityMap: IdentityKeyMap = [:]) -> [FusedMoment] {
+        let byAuthor = Dictionary(grouping: posts, by: { Self.authorIdentityKey(for: $0, in: identityMap) })
         var moments: [FusedMoment] = []
         for (authorKey, authorPosts) in byAuthor {
             let mastoPosts = authorPosts.filter { $0.platform == .mastodon }
@@ -81,9 +98,15 @@ public final class FusedMomentDetector: Sendable {
     }
 }
 
-private extension Post {
-    /// In v1.0 we key on the post's author ID (already platform-specific). When
-    /// the merged-identity feature lands in a sibling plan, swap this for the
-    /// stable cross-network identity key. Wrap here so the swap is one line.
-    var authorIdentityKey: String { authorId }
+extension FusedMomentDetector {
+    /// The grouping key for an author. When `identityMap` contains an entry for
+    /// the post's `(platform, authorId)`, returns the merged identity's stable
+    /// `id` so Mastodon and Bluesky posts from the same human end up in the
+    /// same bucket. Otherwise falls back to the post's native `authorId`,
+    /// which is already platform-disjoint in practice and preserves
+    /// pre-merged-identity test behavior.
+    internal static func authorIdentityKey(for post: Post, in identityMap: IdentityKeyMap) -> String {
+        let lookupKey = "\(post.platform.rawValue):\(post.authorId)"
+        return identityMap[lookupKey] ?? post.authorId
+    }
 }

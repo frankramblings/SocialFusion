@@ -90,6 +90,37 @@ final class FusedMomentDetectorTests: XCTestCase {
         XCTAssertEqual(FusedMomentDetector().detect(in: posts).count, 0,
                        "Empty-content matches are too noisy; never fuse them.")
     }
+
+    func testMatchesPostsWithDifferentAuthorIdsWhenMergedIdentityMapsThem() {
+        // This is the production-wiring case: real Mastodon accountIds and
+        // real Bluesky DIDs never match, so without a merged-identity map the
+        // detector would emit zero moments. Feeding the map routes both posts
+        // into the same author bucket via the merged-identity stable `id`.
+        let now = Date()
+        let mastoPost = makePost(
+            id: "m1",
+            platform: .mastodon,
+            content: "Big news today, this is genuinely excellent!",
+            authorId: "masto-author-123",
+            createdAt: now
+        )
+        let bskyPost = makePost(
+            id: "b1",
+            platform: .bluesky,
+            content: "Big news today, this is genuinely excellent! #news",
+            authorId: "did:plc:abc123def",
+            createdAt: now.addingTimeInterval(120)
+        )
+        let identityMap: FusedMomentDetector.IdentityKeyMap = [
+            "mastodon:masto-author-123": "merged:unified-key",
+            "bluesky:did:plc:abc123def": "merged:unified-key"
+        ]
+        let detector = FusedMomentDetector()
+        let result = detector.detect(in: [mastoPost, bskyPost], identityMap: identityMap)
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.authorIdentityKey, "merged:unified-key")
+    }
 }
 
 // MARK: - Corpus acceptance test
