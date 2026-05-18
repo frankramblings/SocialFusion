@@ -278,6 +278,7 @@
 		E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */; };
 		B0E3A5D8C270ADDB10D5203B /* ContentSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833064839563AD2AE0090358 /* ContentSignature.swift */; };
 		A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */; };
+		C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */; };
 		E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */; };
 		D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */; };
 		D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */; };
@@ -453,6 +454,7 @@
 		F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentDetector.swift; sourceTree = "<group>"; };
 		833064839563AD2AE0090358 /* ContentSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSignature.swift; sourceTree = "<group>"; };
 		B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMoment.swift; sourceTree = "<group>"; };
+		D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentity.swift; sourceTree = "<group>"; };
 		9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStore.swift; sourceTree = "<group>"; };
 		7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStoreTests.swift; sourceTree = "<group>"; };
 		3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
@@ -1185,6 +1187,7 @@
 				BA62BF5593DDB7987247FB2A /* LinkPreviewCache.swift */,
 				C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */,
 				0A0031088E442B86B93B5225 /* MastodonPost.swift */,
+				D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */,
 				0627DF87981D189A2823C3DE /* PersistentModels.swift */,
 				28473D186DFB59778DF996BE /* Post.swift */,
 				5DD74322B593593F2DB43C92 /* Post+ContentView.swift */,
@@ -1519,6 +1522,7 @@
 				A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */,
 				E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */,
 				E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */,
+				C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */,
 				AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */,
 				CC454DB99A7F6F0CBF5EBDB3 /* CaughtUpMarker.swift in Sources */,
 				53E65B535C6E4A5365EDBDFC /* CanonicalPost.swift in Sources */,
