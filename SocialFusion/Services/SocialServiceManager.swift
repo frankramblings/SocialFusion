@@ -261,6 +261,7 @@ public final class SocialServiceManager: ObservableObject {
     nonisolated internal let blueskyService: BlueskyService
     private let actionLogger = Logger(subsystem: "com.socialfusion", category: "PostActions")
     private let refreshLogger = Logger(subsystem: "com.socialfusion", category: "TimelineRefresh")
+    private let fuseLogger = Logger(subsystem: "com.socialfusion", category: "Fuse")
     private let refreshSignpostLog = OSLog(
         subsystem: "com.socialfusion",
         category: .pointsOfInterest
@@ -4681,7 +4682,7 @@ public final class SocialServiceManager: ObservableObject {
             }
         }
         let detected = fusedMomentDetector.detect(in: posts, identityMap: identityMap)
-        print("[Fuse] detected \(detected.count) moments")  // TEMP — smoke-test signal
+        fuseLogger.info("detected \(detected.count, privacy: .public) moments across \(posts.count, privacy: .public) posts; identityMap has \(identityMap.count, privacy: .public) entries")
         if !detected.isEmpty {
             fusedMomentStore?.insert(detected)
         }
