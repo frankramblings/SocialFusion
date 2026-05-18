@@ -15,6 +15,10 @@ class PostNavigationEnvironment: ObservableObject {
     @Published var selectedUser: SearchUser? = nil
     @Published var selectedTag: SearchTag? = nil
 
+    /// Set when a Fused moment is being opened; routes the timeline to
+    /// `FusedConversationView` instead of the per-network post detail.
+    @Published var selectedFusedMoment: FusedMoment? = nil
+
     // Deep link navigation triggers
     @Published var pendingTab: Int? = nil
     @Published var pendingCompose: ComposeDeepLink? = nil
@@ -42,6 +46,22 @@ class PostNavigationEnvironment: ObservableObject {
                 selectedPost = post
                 boostInfo = nil
             }
+        }
+    }
+
+    /// Navigate to the unified Fused conversation view for a given moment.
+    /// Used by the timeline when the tapped post participates in a known
+    /// `FusedMoment` (see `FusedMomentStore`). Non-Fused posts continue to
+    /// route through `navigateToPost(_:)`.
+    func navigateToFusedConversation(_ moment: FusedMoment) {
+        #if DEBUG
+        print("🧭 [PostNavigationEnvironment] Navigating to fused conversation: \(moment.id)")
+        #endif
+
+        // Defer state updates to prevent AttributeGraph cycles
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+            selectedFusedMoment = moment
         }
     }
 
@@ -107,6 +127,7 @@ class PostNavigationEnvironment: ObservableObject {
             selectedPost = nil
             selectedUser = nil
             selectedTag = nil
+            selectedFusedMoment = nil
             boostInfo = nil
         }
     }

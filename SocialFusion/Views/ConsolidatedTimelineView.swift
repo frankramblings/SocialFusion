@@ -123,6 +123,7 @@ struct ConsolidatedTimelineView: View {
     }
 
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @EnvironmentObject private var fusedMomentStore: FusedMomentStore
     @ObservedObject private var edgeCase = EdgeCaseHandler.shared
     @StateObject private var controller: UnifiedTimelineController
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
@@ -219,6 +220,7 @@ struct ConsolidatedTimelineView: View {
                 }
             }
             .background(postDetailLink)
+            .background(fusedConversationLink)
             .background(userDetailLink)
             .background(tagDetailLink)
             .toolbar {
@@ -437,6 +439,29 @@ struct ConsolidatedTimelineView: View {
                         viewModel: PostViewModel(
                             post: post, serviceManager: serviceManager),
                         focusReplyComposer: false
+                    )
+                    .environmentObject(serviceManager)
+                    .environmentObject(navigationEnvironment)
+                }
+            }
+    }
+
+    private var fusedConversationLink: some View {
+        EmptyView()
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { navigationEnvironment.selectedFusedMoment != nil },
+                    set: { if !$0 { navigationEnvironment.clearNavigation() } }
+                )
+            ) {
+                if let moment = navigationEnvironment.selectedFusedMoment {
+                    FusedConversationView(
+                        viewModel: FusedConversationViewModel(
+                            moment: moment,
+                            threadFetcher: SocialServiceManagerThreadFetcher(
+                                serviceManager: serviceManager
+                            )
+                        )
                     )
                     .environmentObject(serviceManager)
                     .environmentObject(navigationEnvironment)
@@ -1314,7 +1339,17 @@ struct ConsolidatedTimelineView: View {
             postActionStore: controller.postActionStore,
             postActionCoordinator: controller.postActionCoordinator,
             layoutSnapshot: snapshot,
-            onPostTap: { navigationEnvironment.navigateToPost(post) },
+            onPostTap: {
+                // Fused-aware routing: if this post participates in a known
+                // FusedMoment, open the unified conversation view instead of
+                // the per-network post detail.
+                let candidatePost = post.originalPost ?? post
+                if let moment = fusedMomentStore.moment(for: candidatePost.id) {
+                    navigationEnvironment.navigateToFusedConversation(moment)
+                } else {
+                    navigationEnvironment.navigateToPost(post)
+                }
+            },
             onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
             onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
             onReply: {
