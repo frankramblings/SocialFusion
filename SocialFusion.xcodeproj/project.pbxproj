@@ -273,6 +273,8 @@
 		D14B5D9AF272D3DCB7A4B786 /* TokenManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983C505FB8404E42B71B3032 /* TokenManager.swift */; };
 		D18ED61FA2D8838C5FA6D15F /* CacheHydrationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABD69D015DF11873EDB8256E /* CacheHydrationPolicyTests.swift */; };
 		F1D313E3571C2C375796651F /* ContentSignatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E01B2304D900E863BE1C31 /* ContentSignatureTests.swift */; };
+		C7F2A8D45E913B7C0826F1A4 /* FusedMomentDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */; };
+		E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */; };
 		B0E3A5D8C270ADDB10D5203B /* ContentSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833064839563AD2AE0090358 /* ContentSignature.swift */; };
 		A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */; };
 		D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */; };
@@ -443,6 +445,8 @@
 		3A6F5AFDC0B0B4E1580FD2F8 /* MediaConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaConfiguration.swift; sourceTree = "<group>"; };
 		3AB5D5F2EE7FA9395F3BA275 /* CacheHydrationPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CacheHydrationPolicy.swift; sourceTree = "<group>"; };
 		80E01B2304D900E863BE1C31 /* ContentSignatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSignatureTests.swift; sourceTree = "<group>"; };
+		D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentDetectorTests.swift; sourceTree = "<group>"; };
+		F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentDetector.swift; sourceTree = "<group>"; };
 		833064839563AD2AE0090358 /* ContentSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSignature.swift; sourceTree = "<group>"; };
 		B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMoment.swift; sourceTree = "<group>"; };
 		3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
@@ -803,6 +807,7 @@
 				57394CB5B35DF2090FE7C728 /* ComposeAutocompleteLatencyTests.swift */,
 				F30C6A7D70F87D42EBB4FEFD /* DirectOpenDetectorTests.swift */,
 				A9B7FE763CF72735636D1357 /* DraftStoreIOTests.swift */,
+				D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */,
 				AE19F9EA8CE7D25EA00658C0 /* Info.plist */,
 				2632F4FE2BF5264DE28BC29A /* MediaRobustnessTests.swift */,
 				C63AB2D6B0924D640EEF7522 /* MergeOffsetCompensatorTests.swift */,
@@ -1083,6 +1088,7 @@
 				C32820ED8FED8FD37D8F9964 /* EdgeCaseHandler.swift */,
 				5F362CACBB2B62FE4BCC8ADE /* EmojiService.swift */,
 				538483652800B54C0E66D677 /* FollowGraphCache.swift */,
+				F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */,
 				CEC2DC7ED9901535E907BD66 /* GIFUnfurlingService.swift */,
 				04B2419982A092CA7DD0E500 /* KeychainService.swift */,
 				26E8A75C0D9CDA966D6B0520 /* MastodonAPIClient.swift */,
@@ -1408,6 +1414,7 @@
 				D18ED61FA2D8838C5FA6D15F /* CacheHydrationPolicyTests.swift in Sources */,
 				BFCB85497B9DA34CC9B52E79 /* CanonicalPostStoreTests.swift in Sources */,
 				F1D313E3571C2C375796651F /* ContentSignatureTests.swift in Sources */,
+				C7F2A8D45E913B7C0826F1A4 /* FusedMomentDetectorTests.swift in Sources */,
 				1CA0B473A93EA58CB7137BA1 /* ComposeAutocompleteLatencyTests.swift in Sources */,
 				D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */,
 				5C9B383F5BE57E0226A85CE4 /* DraftStoreIOTests.swift in Sources */,
@@ -1483,6 +1490,7 @@
 				6A4024A8FED0BB69620D8BBB /* CacheHydrationPolicy.swift in Sources */,
 				B0E3A5D8C270ADDB10D5203B /* ContentSignature.swift in Sources */,
 				A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */,
+				E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */,
 				AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */,
 				CC454DB99A7F6F0CBF5EBDB3 /* CaughtUpMarker.swift in Sources */,
 				53E65B535C6E4A5365EDBDFC /* CanonicalPost.swift in Sources */,
