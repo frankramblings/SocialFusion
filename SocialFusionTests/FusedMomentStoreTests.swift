@@ -72,4 +72,29 @@ final class FusedMomentStoreTests: XCTestCase {
         XCTAssertFalse(store.consumePendingBloom(for: m.id),
                        "Re-inserting an already-known moment must not re-prime the bloom.")
     }
+
+    func testReinsertingUpdatesStoredMomentWithoutRePrimingBloom() {
+        // A future detector pass may emit the same pair with refined confidence.
+        // The store should:
+        //   (a) replace the stored moment with the new version,
+        //   (b) NOT re-prime the bloom (timeline already showed it).
+        let store = FusedMomentStore()
+        let first = FusedMoment(
+            mastodonPostID: "m1", blueskyPostID: "b1",
+            authorIdentityKey: "a", firstSeenAt: Date(), confidence: 0.80
+        )
+        store.insert([first])
+        _ = store.consumePendingBloom(for: first.id) // simulate first appearance
+
+        let refined = FusedMoment(
+            mastodonPostID: "m1", blueskyPostID: "b1",
+            authorIdentityKey: "a", firstSeenAt: first.firstSeenAt, confidence: 0.95
+        )
+        store.insert([refined])
+
+        XCTAssertEqual(store.moment(for: "m1")?.confidence, 0.95,
+                       "Re-insertion must update the stored moment so confidence refinement takes effect.")
+        XCTAssertFalse(store.consumePendingBloom(for: first.id),
+                       "Re-insertion must NOT re-prime the bloom — that's the existing invariant.")
+    }
 }
