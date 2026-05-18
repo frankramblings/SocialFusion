@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "Hand-curated corpus of real cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Seed of 5 entries; expand to >= 100 before v1.0 promote-to-App-Store with real-world variety (short posts, posts with media references, posts with URLs, posts with mentions, threads, near-duplicates).",
+  "examples": [
+    {
+      "label": "positive",
+      "note": "Identical text, well above the short-content threshold",
+      "masto": { "id": "m_001", "content": "Just shipped a new version with much better cross-poster handling!", "authorId": "frank_id", "createdAt": "2026-05-10T14:32:00Z" },
+      "bsky":  { "id": "b_001", "content": "Just shipped a new version with much better cross-poster handling!", "authorId": "frank_id", "createdAt": "2026-05-10T14:32:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Trailing hashtags differ between networks; content well above short-content threshold",
+      "masto": { "id": "m_002", "content": "Sunset over the bay was absolutely spectacular tonight, glad I caught it", "authorId": "frank_id", "createdAt": "2026-05-11T19:15:00Z" },
+      "bsky":  { "id": "b_002", "content": "Sunset over the bay was absolutely spectacular tonight, glad I caught it #sunset #sf", "authorId": "frank_id", "createdAt": "2026-05-11T19:15:30Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same author, similar topic, different posts — should NOT fuse",
+      "masto": { "id": "m_003", "content": "Loving this album, every track is a banger", "authorId": "frank_id", "createdAt": "2026-05-12T10:00:00Z" },
+      "bsky":  { "id": "b_003", "content": "Best album of the year imo, every single track works", "authorId": "frank_id", "createdAt": "2026-05-12T10:00:30Z" },
+      "expectFused": false
+    },
+    {
+      "label": "negative",
+      "note": "Identical content but different authors — should NOT fuse",
+      "masto": { "id": "m_004", "content": "Happy Friday everyone, may your weekend be restful", "authorId": "alice_id", "createdAt": "2026-05-12T16:00:00Z" },
+      "bsky":  { "id": "b_004", "content": "Happy Friday everyone, may your weekend be restful", "authorId": "bob_id", "createdAt": "2026-05-12T16:00:30Z" },
+      "expectFused": false
+    },
+    {
+      "label": "negative",
+      "note": "Same content/author but posted hours apart — should NOT fuse (intentional repost, not a cross-post)",
+      "masto": { "id": "m_005", "content": "Reminder: meetup at the usual spot starting at 7 pm tonight", "authorId": "frank_id", "createdAt": "2026-05-13T10:00:00Z" },
+      "bsky":  { "id": "b_005", "content": "Reminder: meetup at the usual spot starting at 7 pm tonight", "authorId": "frank_id", "createdAt": "2026-05-13T18:00:00Z" },
+      "expectFused": false
+    }
+  ]
+}

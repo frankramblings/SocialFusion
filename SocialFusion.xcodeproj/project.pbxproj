@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FE7A3C1D9B0E4F2A56781234 /* fused-moments-corpus.json in Resources */ = {isa = PBXBuildFile; fileRef = FE7A3C1D9B0E4F2A56781235 /* fused-moments-corpus.json */; };
 		00876A08C5710DA3C9CD07EF /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C438E212556823CBF6F53A /* ConnectionManager.swift */; };
 		00E1D91752CF9E7CC13EE9FD /* PostTimestamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 673869366E4615124FBBD3E3 /* PostTimestamp.swift */; };
 		024CAD52C79378CC1E79F434 /* KeyboardNavigationModifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3586DD4A1AE05084A7129489 /* KeyboardNavigationModifier.swift */; };
@@ -370,6 +371,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		FE7A3C1D9B0E4F2A56781235 /* fused-moments-corpus.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "fused-moments-corpus.json"; sourceTree = "<group>"; };
 		001A4E07F26E8D7A31232557 /* EnhancedEmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedEmptyStateView.swift; sourceTree = "<group>"; };
 		022CFA9F095E5B027A26BCE5 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		0353D4577726D201919EBCE1 /* OpenProfileIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenProfileIntent.swift; sourceTree = "<group>"; };
@@ -797,9 +799,18 @@
 			path = Intents;
 			sourceTree = "<group>";
 		};
+		FE7A3C1D9B0E4F2A56781236 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				FE7A3C1D9B0E4F2A56781235 /* fused-moments-corpus.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
 		1336E79F44255F6A695B18A0 /* SocialFusionTests */ = {
 			isa = PBXGroup;
 			children = (
+				FE7A3C1D9B0E4F2A56781236 /* Fixtures */,
 				E12D2AD0639BCE71969DD3BC /* AppIntentsTests.swift */,
 				ABD69D015DF11873EDB8256E /* CacheHydrationPolicyTests.swift */,
 				59BEE2A98FD70BFF0690372B /* CanonicalPostStoreTests.swift */,
@@ -1331,6 +1342,7 @@
 			buildConfigurationList = 5D50C9DB4D8A24BFEDA7B39C /* Build configuration list for PBXNativeTarget "SocialFusionTests" */;
 			buildPhases = (
 				194BB927A2E52417AEDE6195 /* Sources */,
+				FE7A3C1D9B0E4F2A56781237 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -1383,6 +1395,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		FE7A3C1D9B0E4F2A56781237 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FE7A3C1D9B0E4F2A56781234 /* fused-moments-corpus.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		500B17362F58980B00332E3C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
