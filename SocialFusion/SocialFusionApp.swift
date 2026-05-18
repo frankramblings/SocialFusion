@@ -43,6 +43,9 @@ struct SocialFusionApp: App {
     // Persisted user preference for the Fused reply echo policy.
     @StateObject private var echoPolicyStore = EchoPolicyStore()
 
+    // Persisted set of conversations the user is watching for new replies.
+    @StateObject private var watchedConversationStore = WatchedConversationStore()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -75,6 +78,7 @@ struct SocialFusionApp: App {
                 .environmentObject(mergedIdentityStore)
                 .environmentObject(fusedMomentStore)
                 .environmentObject(echoPolicyStore)
+                .environmentObject(watchedConversationStore)
                 .enableLiquidGlass()
                 .onOpenURL { url in
                     handleURL(url)
@@ -91,6 +95,7 @@ struct SocialFusionApp: App {
                     .environmentObject(mergedIdentityStore)
                     .environmentObject(fusedMomentStore)
                     .environmentObject(echoPolicyStore)
+                    .environmentObject(watchedConversationStore)
                     .enableLiquidGlass()
             } else {
                 ContentView()
@@ -105,6 +110,7 @@ struct SocialFusionApp: App {
                     .environmentObject(mergedIdentityStore)
                     .environmentObject(fusedMomentStore)
                     .environmentObject(echoPolicyStore)
+                    .environmentObject(watchedConversationStore)
                     .enableLiquidGlass()
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
