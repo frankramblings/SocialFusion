@@ -2,7 +2,9 @@ import SwiftUI
 
 public struct FusedConversationView: View {
     @StateObject var viewModel: FusedConversationViewModel
+    @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
     @State private var didLoad = false
+    @State private var showingCompose = false
 
     public init(viewModel: FusedConversationViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -25,6 +27,33 @@ public struct FusedConversationView: View {
         }
         .navigationTitle("Fused conversation")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingCompose = true
+                } label: {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .accessibilityLabel("Reply to this conversation")
+                }
+            }
+        }
+        .sheet(isPresented: $showingCompose) {
+            EchoComposeView(
+                viewModel: EchoComposeViewModel(
+                    moment: viewModel.moment,
+                    initialTargets: echoPolicyStore.initialReplyTargets(
+                        originalPlatform: viewModel.rootPost?.platform ?? .mastodon
+                    )
+                ),
+                onSend: { text, targets in
+                    // v1.0: the actual cross-network reply dispatch (sendEchoedReply)
+                    // is implemented in a follow-up commit that knows about each
+                    // service's reply API. For now we log; the composer's UX and
+                    // model are testable on their own.
+                    print("[Echo] would send '\(text)' to \(targets)")
+                }
+            )
+        }
         .task {
             guard !didLoad else { return }
             didLoad = true
