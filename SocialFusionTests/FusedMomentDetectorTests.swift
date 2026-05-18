@@ -128,7 +128,24 @@ extension FusedMomentDetectorTests {
         )
         let data = try Data(contentsOf: XCTUnwrap(url, "Corpus fixture missing — verify Fixtures/fused-moments-corpus.json is added to SocialFusionTests target Resources build phase"))
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        // Accept ISO8601 with or without fractional seconds. The corpus is
+        // hand-curated; real-world API timestamps (Mastodon, Bluesky) often
+        // include `.000Z`, and we want them to round-trip without surprises.
+        let iso8601 = ISO8601DateFormatter()
+        iso8601.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso8601NoFractional = ISO8601DateFormatter()
+        iso8601NoFractional.formatOptions = [.withInternetDateTime]
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let raw = try container.decode(String.self)
+            if let date = iso8601.date(from: raw) ?? iso8601NoFractional.date(from: raw) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Expected ISO8601 date, got: \(raw)"
+            )
+        }
         let corpus = try decoder.decode(Corpus.self, from: data)
 
         let detector = FusedMomentDetector()
@@ -136,6 +153,8 @@ extension FusedMomentDetectorTests {
         var falseNegatives = 0
         var positives = 0
         var negatives = 0
+        var fpEntries: [String] = []
+        var fnEntries: [String] = []
 
         for entry in corpus.examples {
             let m = makePost(
@@ -155,21 +174,29 @@ extension FusedMomentDetectorTests {
             let detected = !detector.detect(in: [m, b]).isEmpty
             if entry.expectFused {
                 positives += 1
-                if !detected { falseNegatives += 1 }
+                if !detected {
+                    falseNegatives += 1
+                    fnEntries.append("\(entry.masto.id)/\(entry.bsky.id) — \(entry.note)")
+                }
             } else {
                 negatives += 1
-                if detected { falsePositives += 1 }
+                if detected {
+                    falsePositives += 1
+                    fpEntries.append("\(entry.masto.id)/\(entry.bsky.id) — \(entry.note)")
+                }
             }
         }
 
         let fpRate = negatives > 0 ? Double(falsePositives) / Double(negatives) : 0
         let fnRate = positives > 0 ? Double(falseNegatives) / Double(positives) : 0
 
-        XCTAssertLessThan(fpRate, 0.01,
-            "False-positive rate \(fpRate) (\(falsePositives)/\(negatives)) exceeds spec ceiling 1%."
+        XCTAssertLessThan(
+            fpRate, 0.01,
+            "False-positive rate \(String(format: "%.3f", fpRate)) (\(falsePositives)/\(negatives)) exceeds spec ceiling 1%.\nMisclassified: \(fpEntries.joined(separator: "; "))"
         )
-        XCTAssertLessThan(fnRate, 0.05,
-            "False-negative rate \(fnRate) (\(falseNegatives)/\(positives)) exceeds spec ceiling 5%."
+        XCTAssertLessThan(
+            fnRate, 0.05,
+            "False-negative rate \(String(format: "%.3f", fnRate)) (\(falseNegatives)/\(positives)) exceeds spec ceiling 5%.\nMisclassified: \(fnEntries.joined(separator: "; "))"
         )
 
         // Surface the rates even on pass so CI/local runs show the trend.

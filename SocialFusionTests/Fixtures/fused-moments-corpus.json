@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Hand-curated corpus of real cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Seed of 5 entries; expand to >= 100 before v1.0 promote-to-App-Store with real-world variety (short posts, posts with media references, posts with URLs, posts with mentions, threads, near-duplicates).",
+  "description": "Hand-curated corpus of real cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Seed of 7 entries (3 positive, 4 negative) — must expand to >= 100 before v1.0 promote-to-App-Store with real-world variety: short posts, posts with media references, posts with URLs, mentions, threads, near-duplicates. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries.",
   "examples": [
     {
       "label": "positive",
@@ -35,6 +35,20 @@
       "note": "Same content/author but posted hours apart — should NOT fuse (intentional repost, not a cross-post)",
       "masto": { "id": "m_005", "content": "Reminder: meetup at the usual spot starting at 7 pm tonight", "authorId": "frank_id", "createdAt": "2026-05-13T10:00:00Z" },
       "bsky":  { "id": "b_005", "content": "Reminder: meetup at the usual spot starting at 7 pm tonight", "authorId": "frank_id", "createdAt": "2026-05-13T18:00:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "boundary-positive",
+      "note": "Content exactly above 20-char short-content threshold; should fuse at baseline 0.85",
+      "masto": { "id": "m_006", "content": "Off to the airport at last", "authorId": "frank_id", "createdAt": "2026-05-14T09:00:00Z" },
+      "bsky":  { "id": "b_006", "content": "Off to the airport at last", "authorId": "frank_id", "createdAt": "2026-05-14T09:00:10Z" },
+      "expectFused": true
+    },
+    {
+      "label": "boundary-negative",
+      "note": "Content under 20-char short-content threshold; confidence 0.65 < 0.75 minConfidence — should NOT fuse",
+      "masto": { "id": "m_007", "content": "tea time again", "authorId": "frank_id", "createdAt": "2026-05-14T16:00:00Z" },
+      "bsky":  { "id": "b_007", "content": "tea time again", "authorId": "frank_id", "createdAt": "2026-05-14T16:00:05Z" },
       "expectFused": false
     }
   ]
