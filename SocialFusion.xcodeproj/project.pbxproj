@@ -169,6 +169,7 @@
 		8BB088BEEFAF72C48856A6ED /* Post+ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD74322B593593F2DB43C92 /* Post+ContentView.swift */; };
 		8DDC65F3D4E6279D3B06C044 /* ComposeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39D1E92F532C0B3CEC1BBF0 /* ComposeView.swift */; };
 		8DF565A8D51A972C697A3BA1 /* FollowsYouBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7037F51D35751CF75A332689 /* FollowsYouBadge.swift */; };
+		54DC42E0F56B4A078857746F /* FusedGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2BC313A8C8441DB07B54B4 /* FusedGlyph.swift */; };
 		8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CB1916907991EF4A109883 /* SocialAccount.swift */; };
 		919DECC6EBBE0E40168B18EB /* PlatformConflictBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C20BC3127C72061501008AC /* PlatformConflictBanner.swift */; };
 		941CEEFA59444CF1F2F510E7 /* PostDivider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D5C119CE73B0B13D5EEAE8C /* PostDivider.swift */; };
@@ -545,6 +546,7 @@
 		6F97A18E7B0EBE12A434E395 /* TimelineViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineViewModel.swift; sourceTree = "<group>"; };
 		6FFEF607F37CA8C649DC5328 /* AutocompleteSuggestion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutocompleteSuggestion.swift; sourceTree = "<group>"; };
 		7037F51D35751CF75A332689 /* FollowsYouBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FollowsYouBadge.swift; sourceTree = "<group>"; };
+		3B2BC313A8C8441DB07B54B4 /* FusedGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedGlyph.swift; sourceTree = "<group>"; };
 		70A4C54AB5F5195027BF3562 /* TimelineFeedSelection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineFeedSelection.swift; sourceTree = "<group>"; };
 		70E6D2767C0907460A25BDD6 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		712CCA659FBD7CD190A2972D /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
@@ -1252,6 +1254,7 @@
 				4366FC833A6E1A4DFD472205 /* ExpandingReplyBanner.swift */,
 				1AE89BD2D65D95E7D8B17F95 /* FetchQuotePostView.swift */,
 				7037F51D35751CF75A332689 /* FollowsYouBadge.swift */,
+				3B2BC313A8C8441DB07B54B4 /* FusedGlyph.swift */,
 				91B0D02DC87780BA9667D76A /* FullscreenMediaView.swift */,
 				9174B189FF99326AFF6539AD /* GIFUnfurlContainer.swift */,
 				3586DD4A1AE05084A7129489 /* KeyboardNavigationModifier.swift */,
@@ -1607,6 +1610,7 @@
 				A674B11B90B126CD8500909D /* FetchQuotePostView.swift in Sources */,
 				382A42773A4992AF49160C61 /* FollowGraphCache.swift in Sources */,
 				8DF565A8D51A972C697A3BA1 /* FollowsYouBadge.swift in Sources */,
+				54DC42E0F56B4A078857746F /* FusedGlyph.swift in Sources */,
 				C97917B926876FC3057258AA /* FullscreenMediaCoordinator.swift in Sources */,
 				B64E8B0D47DA02D42EA2E88B /* FullscreenMediaView.swift in Sources */,
 				7B7C6A8649D80404C26F4502 /* GIFUnfurlContainer.swift in Sources */,
