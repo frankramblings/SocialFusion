@@ -2,7 +2,7 @@ import XCTest
 @testable import SocialFusion
 
 final class FusedMomentDetectorTests: XCTestCase {
-    fileprivate func makePost(
+    private func makePost(
         id: String,
         platform: SocialPlatform,
         content: String,

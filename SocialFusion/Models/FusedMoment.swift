@@ -16,11 +16,17 @@ public struct FusedMoment: Identifiable, Hashable, Codable, Sendable {
 
     /// The author's stable identity key.
     ///
-    /// In v1.0, format is `"<platform>:<platform-author-id>"`,
-    /// e.g. `"mastodon:@user@instance.social"` or `"bluesky:did:plc:abc123"`.
-    /// When merged-identity work lands (Principle 2), this becomes the
-    /// stable cross-network identity key and the format may change.
-    /// Construction is centralized in `FusedMomentDetector` to prevent drift.
+    /// In v1.0, this is the raw platform-scoped `Post.authorId` of one side
+    /// of the pair (the side the detector observed first). It is therefore
+    /// only useful within a single network; it does NOT identify the same
+    /// human across both. The detector relies on `authorId` matching only
+    /// when both posts come from accounts the user has explicitly linked
+    /// or that the merged-identity layer (Principle 2, sibling plan
+    /// `2026-05-17-merged-profile-cards.md`) confirms are the same person.
+    ///
+    /// When merged-identity ships, this becomes a stable cross-network key
+    /// with format `"<merged-identity-id>"`. Detector callers should treat
+    /// the contents as opaque.
     public let authorIdentityKey: String
 
     /// The earliest createdAt across the two posts.
