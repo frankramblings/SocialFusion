@@ -400,7 +400,7 @@ struct ProfileHeaderView: View {
         Label("Unfollow", systemImage: "person.badge.minus")
       }
       if let onUnmerge = onUnmerge {
-        Button(role: .destructive, action: onUnmerge) {
+        Button(action: onUnmerge) {
           Label("Unmerge identities", systemImage: "person.crop.circle.badge.minus")
         }
       }
@@ -483,7 +483,7 @@ struct ProfileHeaderView: View {
   // MARK: - Identity
 
   private var identitySection: some View {
-    VStack(alignment: .leading, spacing: 6) {
+    VStack(alignment: .leading, spacing: mergedIdentity != nil ? 6 : 2) {
       if let merge = mergedIdentity {
         MergedIdentityChip(provenance: merge.provenance, onTap: onTapMergeChip)
           .padding(.bottom, 2)
@@ -635,18 +635,18 @@ struct ProfileHeaderView: View {
   }
 
   private func breakdownRow(twin: UserProfile) -> some View {
-    HStack(spacing: 12) {
+    HStack(spacing: 14) {
       HStack(spacing: 4) {
         PlatformLogoBadge(platform: .mastodon, size: 12, shadowEnabled: false)
         let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
-        Text("\(Self.formatCount(mastoCount))")
+        Text("\(Self.formatCount(mastoCount)) followers")
           .font(.caption2)
           .foregroundStyle(.secondary)
       }
       HStack(spacing: 4) {
         PlatformLogoBadge(platform: .bluesky, size: 12, shadowEnabled: false)
         let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
-        Text("\(Self.formatCount(bskyCount))")
+        Text("\(Self.formatCount(bskyCount)) followers")
           .font(.caption2)
           .foregroundStyle(.secondary)
       }
