@@ -171,6 +171,12 @@ struct SettingsView: View {
                     }
                 }
 
+                Section(header: Text("Identity")) {
+                    NavigationLink(destination: MergedIdentitiesManagementView()) {
+                        Label("Merged identities", systemImage: "person.2.circle")
+                    }
+                }
+
                 Section(header: Text("About")) {
                     Button("About SocialFusion") {
                         showingAbout = true
@@ -734,5 +740,67 @@ struct ProfileImageDebugView: View {
                 "mastodon.social/timeout.png",
             ],
         ]
+    }
+}
+
+/// Lists all user-confirmed cross-network identity merges and lets the user
+/// remove any of them. Heuristic / unconfirmed merges live only in-memory
+/// for the session and are not surfaced here.
+private struct MergedIdentitiesManagementView: View {
+    @EnvironmentObject private var mergedIdentityStore: MergedIdentityStore
+
+    var body: some View {
+        List {
+            let merges = mergedIdentityStore.userConfirmedMerges()
+            if merges.isEmpty {
+                Section {
+                    Text("You haven't merged any cross-network identities yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Section {
+                    ForEach(merges) { merge in
+                        mergeRow(merge)
+                    }
+                } footer: {
+                    Text("Merged identities show profiles from both networks as a single card with both handles visible.")
+                }
+            }
+        }
+        .navigationTitle("Merged identities")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func mergeRow(_ merge: MergedIdentity) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    PlatformLogoBadge(platform: .mastodon, size: 14, shadowEnabled: false)
+                    Text("@\(merge.mastodon.handle)")
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                HStack(spacing: 6) {
+                    PlatformLogoBadge(platform: .bluesky, size: 14, shadowEnabled: false)
+                    Text("@\(merge.bluesky.handle)")
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            Spacer()
+            Button(role: .destructive) {
+                mergedIdentityStore.unmerge(id: merge.id)
+            } label: {
+                Text("Unmerge")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Merged: at \(merge.mastodon.handle) and at \(merge.bluesky.handle). Double-tap Unmerge to separate.")
     }
 }
