@@ -291,6 +291,8 @@
 		0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */; };
 		E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */; };
 		D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */; };
+		B2E9F5C6DA38B7D41F5C9D03 /* FusedConversationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F8E4D5C9B27A6C30F4E8B2 /* FusedConversationViewModel.swift */; };
+		D4EB17F8FC5AD9F63B7EBF25 /* FusedConversationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DA06E7EB49C8E52A6DAE14 /* FusedConversationViewModelTests.swift */; };
 		D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */; };
 		D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30C6A7D70F87D42EBB4FEFD /* DirectOpenDetectorTests.swift */; };
 		D4C86658319EA9F0DB7F9A09 /* ReleaseLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237F600D9015C613BC8F6987 /* ReleaseLoggingTests.swift */; };
@@ -476,6 +478,8 @@
 		CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeConfirmationSheet.swift; sourceTree = "<group>"; };
 		9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStore.swift; sourceTree = "<group>"; };
 		7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStoreTests.swift; sourceTree = "<group>"; };
+		A1F8E4D5C9B27A6C30F4E8B2 /* FusedConversationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedConversationViewModel.swift; sourceTree = "<group>"; };
+		C3DA06E7EB49C8E52A6DAE14 /* FusedConversationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedConversationViewModelTests.swift; sourceTree = "<group>"; };
 		3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
 		3F3F84FE5B2E7C6E7405296A /* UnreadTrackingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadTrackingTests.swift; sourceTree = "<group>"; };
 		400CBF1067AD4FC7FA6F50BF /* DirectOpenDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectOpenDetector.swift; sourceTree = "<group>"; };
@@ -797,6 +801,7 @@
 			isa = PBXGroup;
 			children = (
 				A1888888858E76320C038D17 /* FullscreenMediaCoordinator.swift */,
+				A1F8E4D5C9B27A6C30F4E8B2 /* FusedConversationViewModel.swift */,
 				DA1D2E3F4A5B6C7D8E9F0A1B /* MessagesViewModel.swift */,
 				D1361C49DB68F7EC3C6FDD2C /* PostViewModel.swift */,
 				58605A02901DF9DC232663F0 /* RelationshipViewModel.swift */,
@@ -846,6 +851,7 @@
 				A9B7FE763CF72735636D1357 /* DraftStoreIOTests.swift */,
 				D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */,
 				7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */,
+				C3DA06E7EB49C8E52A6DAE14 /* FusedConversationViewModelTests.swift */,
 				C18AF6D952B374E0C9BA1D45 /* IdentityMatcherTests.swift */,
 				AE19F9EA8CE7D25EA00658C0 /* Info.plist */,
 				2632F4FE2BF5264DE28BC29A /* MediaRobustnessTests.swift */,
@@ -1475,6 +1481,7 @@
 				F1D313E3571C2C375796651F /* ContentSignatureTests.swift in Sources */,
 				C7F2A8D45E913B7C0826F1A4 /* FusedMomentDetectorTests.swift in Sources */,
 				D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */,
+				D4EB17F8FC5AD9F63B7EBF25 /* FusedConversationViewModelTests.swift in Sources */,
 				A2D8F3E1C75B4901E682CB47 /* IdentityMatcherTests.swift in Sources */,
 				B2967AE3D85F410CE3791F8B /* MergedIdentityStoreTests.swift in Sources */,
 				E1A2B3C4D5E6F708192A3B4C /* MergedIdentityEndToEndTests.swift in Sources */,
@@ -1556,6 +1563,7 @@
 				A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */,
 				E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */,
 				E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */,
+				B2E9F5C6DA38B7D41F5C9D03 /* FusedConversationViewModel.swift in Sources */,
 				B9E7C04A2DF1683C7195AE38 /* IdentityMatcher.swift in Sources */,
 				C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */,
 				D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */,
