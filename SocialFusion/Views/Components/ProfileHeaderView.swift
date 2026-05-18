@@ -99,9 +99,102 @@ struct ProfileHeaderView: View {
   @Binding var isAvatarDocked: Bool
   var scrollOffset: CGFloat = 0
 
+  // MARK: - Merged Identity Inputs (all optional; absent means no merge active)
+  var mergedIdentity: MergedIdentity? = nil
+  var mergedTwinProfile: UserProfile? = nil
+  @Binding var selectedSide: SocialPlatform
+  var combinedFollowersCount: Int? = nil
+  var combinedFollowingCount: Int? = nil
+  var combinedStatusesCount: Int? = nil
+  var onUnmerge: (() -> Void)? = nil
+  var onTapMergeChip: (() -> Void)? = nil
+
   @State private var bioExpanded = false
   @State private var showBlockConfirmation = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  // Convenience init for non-merged headers — supplies a constant binding
+  // for `selectedSide` so existing call sites keep working unchanged.
+  init(
+    profile: UserProfile,
+    isOwnProfile: Bool,
+    onEditProfile: (() -> Void)? = nil,
+    relationshipState: (isFollowing: Bool, isFollowedBy: Bool, isMuting: Bool, isBlocking: Bool)? = nil,
+    onFollow: (() -> Void)? = nil,
+    onUnfollow: (() -> Void)? = nil,
+    onMute: (() -> Void)? = nil,
+    onUnmute: (() -> Void)? = nil,
+    onBlock: (() -> Void)? = nil,
+    onUnblock: (() -> Void)? = nil,
+    isAvatarDocked: Binding<Bool>,
+    scrollOffset: CGFloat = 0
+  ) {
+    self.profile = profile
+    self.isOwnProfile = isOwnProfile
+    self.onEditProfile = onEditProfile
+    self.relationshipState = relationshipState
+    self.onFollow = onFollow
+    self.onUnfollow = onUnfollow
+    self.onMute = onMute
+    self.onUnmute = onUnmute
+    self.onBlock = onBlock
+    self.onUnblock = onUnblock
+    self._isAvatarDocked = isAvatarDocked
+    self.scrollOffset = scrollOffset
+    self.mergedIdentity = nil
+    self.mergedTwinProfile = nil
+    self._selectedSide = .constant(profile.platform)
+    self.combinedFollowersCount = nil
+    self.combinedFollowingCount = nil
+    self.combinedStatusesCount = nil
+    self.onUnmerge = nil
+    self.onTapMergeChip = nil
+  }
+
+  // Designated init for merged headers — supplies all merge inputs.
+  init(
+    profile: UserProfile,
+    isOwnProfile: Bool,
+    onEditProfile: (() -> Void)? = nil,
+    relationshipState: (isFollowing: Bool, isFollowedBy: Bool, isMuting: Bool, isBlocking: Bool)? = nil,
+    onFollow: (() -> Void)? = nil,
+    onUnfollow: (() -> Void)? = nil,
+    onMute: (() -> Void)? = nil,
+    onUnmute: (() -> Void)? = nil,
+    onBlock: (() -> Void)? = nil,
+    onUnblock: (() -> Void)? = nil,
+    isAvatarDocked: Binding<Bool>,
+    scrollOffset: CGFloat = 0,
+    mergedIdentity: MergedIdentity?,
+    mergedTwinProfile: UserProfile?,
+    selectedSide: Binding<SocialPlatform>,
+    combinedFollowersCount: Int? = nil,
+    combinedFollowingCount: Int? = nil,
+    combinedStatusesCount: Int? = nil,
+    onUnmerge: (() -> Void)? = nil,
+    onTapMergeChip: (() -> Void)? = nil
+  ) {
+    self.profile = profile
+    self.isOwnProfile = isOwnProfile
+    self.onEditProfile = onEditProfile
+    self.relationshipState = relationshipState
+    self.onFollow = onFollow
+    self.onUnfollow = onUnfollow
+    self.onMute = onMute
+    self.onUnmute = onUnmute
+    self.onBlock = onBlock
+    self.onUnblock = onUnblock
+    self._isAvatarDocked = isAvatarDocked
+    self.scrollOffset = scrollOffset
+    self.mergedIdentity = mergedIdentity
+    self.mergedTwinProfile = mergedTwinProfile
+    self._selectedSide = selectedSide
+    self.combinedFollowersCount = combinedFollowersCount
+    self.combinedFollowingCount = combinedFollowingCount
+    self.combinedStatusesCount = combinedStatusesCount
+    self.onUnmerge = onUnmerge
+    self.onTapMergeChip = onTapMergeChip
+  }
 
   // MARK: - Constants
 
@@ -306,6 +399,11 @@ struct ProfileHeaderView: View {
       Button(role: .destructive, action: { onUnfollow?() }) {
         Label("Unfollow", systemImage: "person.badge.minus")
       }
+      if let onUnmerge = onUnmerge {
+        Button(role: .destructive, action: onUnmerge) {
+          Label("Unmerge identities", systemImage: "person.crop.circle.badge.minus")
+        }
+      }
       Divider()
       if isMuting {
         Button(action: { onUnmute?() }) {
@@ -385,7 +483,12 @@ struct ProfileHeaderView: View {
   // MARK: - Identity
 
   private var identitySection: some View {
-    VStack(alignment: .leading, spacing: 2) {
+    VStack(alignment: .leading, spacing: 6) {
+      if let merge = mergedIdentity {
+        MergedIdentityChip(provenance: merge.provenance, onTap: onTapMergeChip)
+          .padding(.bottom, 2)
+      }
+
       EmojiDisplayNameText(
         profile.displayName ?? profile.username,
         emojiMap: profile.displayNameEmojiMap,
@@ -395,10 +498,18 @@ struct ProfileHeaderView: View {
         lineLimit: 2
       )
 
-      Text("@\(profile.username)")
-        .font(.subheadline)
-        .foregroundColor(.secondary)
-        .lineLimit(1)
+      if mergedIdentity != nil, let twin = mergedTwinProfile {
+        MergedHandleSelector(
+          mastodonHandle: profile.platform == .mastodon ? profile.username : twin.username,
+          blueskyHandle: profile.platform == .bluesky ? profile.username : twin.username,
+          selected: $selectedSide
+        )
+      } else {
+        Text("@\(profile.username)")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .lineLimit(1)
+      }
     }
     .padding(.horizontal, Layout.horizontalPadding)
     .padding(.top, 8)
@@ -500,17 +611,63 @@ struct ProfileHeaderView: View {
   // MARK: - Stats
 
   private var statsRow: some View {
-    HStack(spacing: 16) {
-      statItem(count: profile.statusesCount, label: "Posts")
-      statItem(count: profile.followingCount, label: "Following")
-      statItem(count: profile.followersCount, label: "Followers")
-      Spacer()
+    let posts = combinedStatusesCount ?? profile.statusesCount
+    let following = combinedFollowingCount ?? profile.followingCount
+    let followers = combinedFollowersCount ?? profile.followersCount
+
+    return VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 16) {
+        statItem(count: posts, label: "Posts")
+        statItem(count: following, label: "Following")
+        statItem(count: followers, label: "Followers")
+        Spacer()
+      }
+
+      if mergedIdentity != nil, let twin = mergedTwinProfile {
+        breakdownRow(twin: twin)
+      }
     }
     .padding(.horizontal, Layout.horizontalPadding)
     .padding(.top, 12)
     .padding(.bottom, 8)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(profile.statusesCount) posts, \(profile.followingCount) following, \(profile.followersCount) followers")
+    .accessibilityLabel(statsAccessibilityLabel(posts: posts, following: following, followers: followers))
+  }
+
+  private func breakdownRow(twin: UserProfile) -> some View {
+    HStack(spacing: 12) {
+      HStack(spacing: 4) {
+        PlatformLogoBadge(platform: .mastodon, size: 12, shadowEnabled: false)
+        let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
+        Text("\(Self.formatCount(mastoCount))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      HStack(spacing: 4) {
+        PlatformLogoBadge(platform: .bluesky, size: 12, shadowEnabled: false)
+        let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
+        Text("\(Self.formatCount(bskyCount))")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(breakdownAccessibilityLabel(twin: twin))
+  }
+
+  private func statsAccessibilityLabel(posts: Int, following: Int, followers: Int) -> String {
+    if mergedIdentity != nil {
+      return "Combined: \(posts) posts, \(following) following, \(followers) followers"
+    } else {
+      return "\(posts) posts, \(following) following, \(followers) followers"
+    }
+  }
+
+  private func breakdownAccessibilityLabel(twin: UserProfile) -> String {
+    let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
+    let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
+    return "Per network: \(mastoCount) Mastodon followers, \(bskyCount) Bluesky followers"
   }
 
   private func statItem(count: Int, label: String) -> some View {
