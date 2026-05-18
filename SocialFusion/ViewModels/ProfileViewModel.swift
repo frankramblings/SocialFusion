@@ -331,6 +331,30 @@ public final class ProfileViewModel: ObservableObject {
     pendingMatchCandidate = nil
   }
 
+  /// Manually bind this profile to a twin profile on the opposite network.
+  /// Called by ManualMergeSheet after the user picks a twin.
+  func manualMerge(with twinSearchUser: SearchUser, twinProfile: UserProfile) async {
+    guard let store = mergedIdentityStore else { return }
+    guard let profile = profile else { return }
+
+    let mastoKey: MergedIdentityKey
+    let bskyKey: MergedIdentityKey
+    if profile.platform == .mastodon {
+      mastoKey = MergedIdentityKey(
+        platform: .mastodon, accountID: profile.id, handle: profile.username)
+      bskyKey = MergedIdentityKey(
+        platform: .bluesky, accountID: twinProfile.id, handle: twinProfile.username)
+    } else {
+      mastoKey = MergedIdentityKey(
+        platform: .mastodon, accountID: twinProfile.id, handle: twinProfile.username)
+      bskyKey = MergedIdentityKey(
+        platform: .bluesky, accountID: profile.id, handle: profile.username)
+    }
+    store.confirmMerge(mastodon: mastoKey, bluesky: bskyKey)
+    mergedIdentity = store.merge(forPlatform: profile.platform, accountID: profile.id)
+    mergedTwinProfile = twinProfile
+  }
+
   /// Unmerge this profile from its twin and clear local state.
   func unmerge() {
     guard let merge = mergedIdentity, let store = mergedIdentityStore else { return }

@@ -108,6 +108,9 @@ struct ProfileHeaderView: View {
   var combinedStatusesCount: Int? = nil
   var onUnmerge: (() -> Void)? = nil
   var onTapMergeChip: (() -> Void)? = nil
+  /// Invoked when the user picks "Mark as same person…" — opens the manual
+  /// merge sheet. Only shown when no merge is currently active.
+  var onMarkAsSamePerson: (() -> Void)? = nil
 
   @State private var bioExpanded = false
   @State private var showBlockConfirmation = false
@@ -127,7 +130,8 @@ struct ProfileHeaderView: View {
     onBlock: (() -> Void)? = nil,
     onUnblock: (() -> Void)? = nil,
     isAvatarDocked: Binding<Bool>,
-    scrollOffset: CGFloat = 0
+    scrollOffset: CGFloat = 0,
+    onMarkAsSamePerson: (() -> Void)? = nil
   ) {
     self.profile = profile
     self.isOwnProfile = isOwnProfile
@@ -149,6 +153,7 @@ struct ProfileHeaderView: View {
     self.combinedStatusesCount = nil
     self.onUnmerge = nil
     self.onTapMergeChip = nil
+    self.onMarkAsSamePerson = onMarkAsSamePerson
   }
 
   // Designated init for merged headers — supplies all merge inputs.
@@ -172,7 +177,8 @@ struct ProfileHeaderView: View {
     combinedFollowingCount: Int? = nil,
     combinedStatusesCount: Int? = nil,
     onUnmerge: (() -> Void)? = nil,
-    onTapMergeChip: (() -> Void)? = nil
+    onTapMergeChip: (() -> Void)? = nil,
+    onMarkAsSamePerson: (() -> Void)? = nil
   ) {
     self.profile = profile
     self.isOwnProfile = isOwnProfile
@@ -194,6 +200,7 @@ struct ProfileHeaderView: View {
     self.combinedStatusesCount = combinedStatusesCount
     self.onUnmerge = onUnmerge
     self.onTapMergeChip = onTapMergeChip
+    self.onMarkAsSamePerson = onMarkAsSamePerson
   }
 
   // MARK: - Constants
@@ -364,15 +371,43 @@ struct ProfileHeaderView: View {
       .buttonStyle(.plain)
     } else if let state = relationshipState {
       VStack(alignment: .trailing, spacing: 6) {
-        if state.isBlocking {
-          blockedButton
-        } else if state.isFollowing {
-          followingButton(isMuting: state.isMuting)
-        } else {
-          followButton
+        HStack(spacing: 8) {
+          if state.isBlocking {
+            blockedButton
+          } else if state.isFollowing {
+            followingButton(isMuting: state.isMuting)
+          } else {
+            followButton
+            // When the user isn't following, the manual-merge action wouldn't
+            // otherwise have a home — surface it via an ellipsis button so
+            // any cross-network identity can be bound.
+            overflowMenu
+          }
         }
         relationshipBadge
       }
+    }
+  }
+
+  /// Compact ellipsis button shown alongside the Follow CTA. Hosts the
+  /// "Mark as same person…" entry (and any future overflow actions) for
+  /// users who aren't following the profile.
+  @ViewBuilder
+  private var overflowMenu: some View {
+    if let onMarkAsSamePerson = onMarkAsSamePerson, mergedIdentity == nil {
+      Menu {
+        Button(action: onMarkAsSamePerson) {
+          Label("Mark as same person…", systemImage: "person.2.circle")
+        }
+      } label: {
+        Image(systemName: "ellipsis.circle")
+          .font(.system(size: 22))
+          .foregroundColor(.primary)
+          .frame(width: 36, height: 36)
+          .background(Color(.secondarySystemBackground))
+          .clipShape(Circle())
+      }
+      .accessibilityLabel("More")
     }
   }
 
@@ -398,6 +433,11 @@ struct ProfileHeaderView: View {
     Menu {
       Button(role: .destructive, action: { onUnfollow?() }) {
         Label("Unfollow", systemImage: "person.badge.minus")
+      }
+      if let onMarkAsSamePerson = onMarkAsSamePerson, mergedIdentity == nil {
+        Button(action: onMarkAsSamePerson) {
+          Label("Mark as same person…", systemImage: "person.2.circle")
+        }
       }
       if let onUnmerge = onUnmerge {
         Button(action: onUnmerge) {

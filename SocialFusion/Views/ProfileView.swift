@@ -15,6 +15,7 @@ struct ProfileView: View {
   @State private var isAvatarDocked = false
   @State private var scrollOffset: CGFloat = 0
   @State private var showMergeChipMenu = false
+  @State private var showingManualMergeSheet = false
 
   // MARK: - Initializers
 
@@ -72,7 +73,8 @@ struct ProfileView: View {
               combinedFollowingCount: viewModel.isMerged ? viewModel.combinedFollowingCount : nil,
               combinedStatusesCount: viewModel.isMerged ? viewModel.combinedStatusesCount : nil,
               onUnmerge: { viewModel.unmerge() },
-              onTapMergeChip: { showMergeChipMenu = true }
+              onTapMergeChip: { showMergeChipMenu = true },
+              onMarkAsSamePerson: canPresentManualMerge ? { showingManualMergeSheet = true } : nil
             )
           } else if viewModel.isLoadingProfile {
             profileSkeleton
@@ -126,6 +128,19 @@ struct ProfileView: View {
       await viewModel.loadProfile()
       await viewModel.loadPostsForCurrentTab()
       setupRelationshipViewModel()
+    }
+    .sheet(isPresented: $showingManualMergeSheet) {
+      if let profile = viewModel.profile {
+        let oppositePlatform: SocialPlatform = profile.platform == .mastodon ? .bluesky : .mastodon
+        ManualMergeSheet(
+          sourceProfile: profile,
+          targetPlatform: oppositePlatform,
+          onConfirm: { candidate, twinProfile in
+            await viewModel.manualMerge(with: candidate, twinProfile: twinProfile)
+          }
+        )
+        .environmentObject(serviceManager)
+      }
     }
     .sheet(item: $viewModel.pendingMatchCandidate) { candidate in
       MergeConfirmationSheet(
@@ -275,6 +290,20 @@ struct ProfileView: View {
 
   private var ownAccount: SocialAccount? {
     serviceManager.accounts.first(where: { $0.platform == viewModel.user.platform })
+  }
+
+  // MARK: - Manual Merge Visibility
+
+  /// "Mark as same person…" only makes sense when (a) the user isn't viewing
+  /// their own profile, (b) no merge is currently active, and (c) the user
+  /// actually has an account on the opposite network to search against —
+  /// otherwise the sheet's search field would return nothing.
+  private var canPresentManualMerge: Bool {
+    guard !viewModel.isOwnProfile else { return false }
+    guard viewModel.mergedIdentity == nil else { return false }
+    guard let profile = viewModel.profile else { return false }
+    let opposite: SocialPlatform = profile.platform == .mastodon ? .bluesky : .mastodon
+    return serviceManager.accounts.contains(where: { $0.platform == opposite })
   }
 
   // MARK: - Relationship Setup
