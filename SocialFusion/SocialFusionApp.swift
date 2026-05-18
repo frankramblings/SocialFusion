@@ -114,6 +114,7 @@ struct SocialFusionApp: App {
                     .enableLiquidGlass()
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
+                        notificationManager.watchedConversationStore = watchedConversationStore
                         serviceManager.fusedMomentStore = fusedMomentStore
                         serviceManager.mergedIdentityStore = mergedIdentityStore
                         notificationManager.registerBackgroundTask()

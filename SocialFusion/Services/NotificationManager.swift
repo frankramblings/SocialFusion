@@ -11,6 +11,10 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
   private let deliveredIdsKey = "NotificationManager.deliveredIds"
 
   weak var serviceManager: SocialServiceManager?
+  weak var watchedConversationStore: WatchedConversationStore?
+
+  /// Per-watched-conversation last-seen reply count, used to detect new replies.
+  private var lastSeenReplyCounts: [String: Int] = [:]
 
   /// IDs of notifications already delivered as local notifications
   private var deliveredIds: Set<String> {
@@ -153,6 +157,78 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
       print("❌ Failed to poll notifications: \(error)")
       #endif
     }
+
+    // Piggyback watched-conversation polling on the existing cycle.
+    await pollWatchedConversations()
+  }
+
+  // MARK: - Watched Conversations
+
+  /// Polls each watched conversation for new replies and fires a local
+  /// notification when the reply count grows. Best-effort: failures are
+  /// silently swallowed so a flaky network never spams the user.
+  @MainActor
+  private func pollWatchedConversations() async {
+    guard let store = watchedConversationStore else { return }
+    let watched = store.allWatched()
+    guard !watched.isEmpty else { return }
+
+    for conv in watched {
+      do {
+        let count = try await fetchReplyCount(for: conv)
+        let key = conv.rootPostID
+        let previous = lastSeenReplyCounts[key] ?? count
+        if count > previous {
+          let delta = count - previous
+          await scheduleLocalNotification(
+            title: "New replies in a watched conversation",
+            body: "\(delta) new repl\(delta == 1 ? "y" : "ies")"
+          )
+        }
+        lastSeenReplyCounts[key] = count
+      } catch {
+        // Silent — watched-conversation polling is best-effort.
+      }
+    }
+  }
+
+  @MainActor
+  private func fetchReplyCount(for conv: WatchedConversation) async throws -> Int {
+    guard let serviceManager = self.serviceManager else {
+      throw NSError(domain: "NotificationManager", code: -2)
+    }
+    // `fetchThreadContext(for:)` only reads `post.platform` and
+    // `post.platformSpecificId` from the probe, so a minimal stub is safe.
+    let probe = Post(
+      id: conv.rootPostID,
+      content: "",
+      authorName: "",
+      authorUsername: "",
+      authorId: "",
+      authorProfilePictureURL: "",
+      createdAt: Date(),
+      platform: conv.platform,
+      originalURL: "",
+      attachments: [],
+      mentions: [],
+      tags: [],
+      platformSpecificId: conv.rootPostID
+    )
+    let context = try await serviceManager.fetchThreadContext(for: probe)
+    return context.descendants.count
+  }
+
+  private func scheduleLocalNotification(title: String, body: String) async {
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = .default
+    let request = UNNotificationRequest(
+      identifier: "watched-\(UUID().uuidString)",
+      content: content,
+      trigger: nil
+    )
+    try? await UNUserNotificationCenter.current().add(request)
   }
 
   private func isTypeEnabled(_ type: AppNotification.NotificationType) -> Bool {
