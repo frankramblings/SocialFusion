@@ -171,6 +171,9 @@ struct ProfileView: View {
     .onChange(of: viewModel.selectedTab) { _, _ in
       Task { await viewModel.loadPostsForCurrentTab() }
     }
+    .onChange(of: viewModel.selectedSide) { _, _ in
+      Task { await viewModel.reloadCurrentTabForSideChange() }
+    }
     .sheet(isPresented: $showEditProfile) {
       if let account = ownAccount {
         EditProfileView(account: account)

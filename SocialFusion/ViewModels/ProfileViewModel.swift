@@ -355,7 +355,8 @@ public final class ProfileViewModel: ObservableObject {
 
     guard !isLoadingPosts else { return }
 
-    guard let account = serviceManager.accounts.first(where: { $0.platform == user.platform })
+    let activePlatform = selectedSide
+    guard let account = serviceManager.accounts.first(where: { $0.platform == activePlatform })
     else { return }
 
     isLoadingPosts = true
@@ -454,24 +455,101 @@ public final class ProfileViewModel: ObservableObject {
     }
   }
 
-  /// Fetch posts for a given tab with the appropriate filters
+  /// Fetch posts for a given tab with the appropriate filters.
+  /// When the profile is merged AND the user is viewing the unified surface
+  /// (selectedSide matches `profile.platform` — the default), both sides
+  /// are fetched in parallel and merged by `createdAt`. When the user has
+  /// swapped to the twin side via the handle selector, only that side fetches.
   private func fetchPosts(
     for tab: ProfileTab, account: SocialAccount, cursor: String? = nil
   ) async throws -> ([Post], String?) {
-    switch tab {
-    case .posts:
-      return try await serviceManager.fetchFilteredUserPosts(
-        user: user, account: account, cursor: cursor,
-        excludeReplies: true, onlyMedia: false)
-    case .postsAndReplies:
-      return try await serviceManager.fetchFilteredUserPosts(
-        user: user, account: account, cursor: cursor,
-        excludeReplies: false, onlyMedia: false)
-    case .media:
-      return try await serviceManager.fetchFilteredUserPosts(
-        user: user, account: account, cursor: cursor,
-        excludeReplies: false, onlyMedia: true)
+    let (excludeReplies, onlyMedia) = filters(for: tab)
+
+    let activeUser: SearchUser = {
+      if selectedSide == user.platform {
+        return user
+      }
+      if let twin = mergedTwinProfile {
+        return SearchUser(
+          id: twin.id, username: twin.username,
+          displayName: twin.displayName, avatarURL: twin.avatarURL,
+          platform: twin.platform, displayNameEmojiMap: twin.displayNameEmojiMap
+        )
+      }
+      return user
+    }()
+
+    let primary = try await serviceManager.fetchFilteredUserPosts(
+      user: activeUser, account: account, cursor: cursor,
+      excludeReplies: excludeReplies, onlyMedia: onlyMedia
+    )
+
+    // Only merge on the *first* page (cursor == nil) to keep pagination
+    // simple. Subsequent pages continue paginating the primary side.
+    guard cursor == nil,
+          isMerged,
+          selectedSide == profile?.platform,
+          let twinProfile = mergedTwinProfile,
+          let twinAccount = serviceManager.accounts.first(where: { $0.platform == twinProfile.platform })
+    else {
+      return primary
     }
+
+    let twinUser = SearchUser(
+      id: twinProfile.id,
+      username: twinProfile.username,
+      displayName: twinProfile.displayName,
+      avatarURL: twinProfile.avatarURL,
+      platform: twinProfile.platform,
+      displayNameEmojiMap: twinProfile.displayNameEmojiMap
+    )
+
+    let twin: ([Post], String?)
+    do {
+      twin = try await serviceManager.fetchFilteredUserPosts(
+        user: twinUser, account: twinAccount, cursor: nil,
+        excludeReplies: excludeReplies, onlyMedia: onlyMedia
+      )
+    } catch {
+      // Degrade gracefully — if the twin side errors, just return primary.
+      return primary
+    }
+
+    let merged = (primary.0 + twin.0).sorted { $0.createdAt > $1.createdAt }
+    // Pagination cursor reflects the primary side only; the twin's
+    // remaining pages are surfaced when the user swaps sides.
+    return (merged, primary.1)
+  }
+
+  private func filters(for tab: ProfileTab) -> (excludeReplies: Bool, onlyMedia: Bool) {
+    switch tab {
+    case .posts: return (excludeReplies: true, onlyMedia: false)
+    case .postsAndReplies: return (excludeReplies: false, onlyMedia: false)
+    case .media: return (excludeReplies: false, onlyMedia: true)
+    }
+  }
+
+  /// Reset the currently-loaded tab so a side swap re-fetches under the new
+  /// filter (single-network view of the now-selected side).
+  func reloadCurrentTabForSideChange() async {
+    switch selectedTab {
+    case .posts:
+      postsLoaded = false
+      posts = []
+      postsCursor = nil
+      canLoadMorePosts = true
+    case .postsAndReplies:
+      postsAndRepliesLoaded = false
+      postsAndReplies = []
+      postsAndRepliesCursor = nil
+      canLoadMorePostsAndReplies = true
+    case .media:
+      mediaPostsLoaded = false
+      mediaPosts = []
+      mediaPostsCursor = nil
+      canLoadMoreMedia = true
+    }
+    await loadPostsForCurrentTab()
   }
 }
 
