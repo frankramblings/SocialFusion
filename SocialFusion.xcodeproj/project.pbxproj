@@ -302,6 +302,7 @@
 		C5A1B3D49E72F18A3C04B704 /* WatchedConversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F4C28B7A516E03B1DC4E83 /* WatchedConversation.swift */; };
 		C5A1B3D49E72F18A3C04B705 /* WatchedConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F4C28B7A516E03B1DC4E84 /* WatchedConversationStore.swift */; };
 		C5A1B3D49E72F18A3C04B706 /* WatchedConversationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F4C28B7A516E03B1DC4E85 /* WatchedConversationStoreTests.swift */; };
+		C5A1B3D49E72F18A3C04B707 /* WatchedConversationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F4C28B7A516E03B1DC4E86 /* WatchedConversationsView.swift */; };
 		D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */; };
 		D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F30C6A7D70F87D42EBB4FEFD /* DirectOpenDetectorTests.swift */; };
 		D4C86658319EA9F0DB7F9A09 /* ReleaseLoggingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 237F600D9015C613BC8F6987 /* ReleaseLoggingTests.swift */; };
@@ -498,6 +499,7 @@
 		D9F4C28B7A516E03B1DC4E83 /* WatchedConversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedConversation.swift; sourceTree = "<group>"; };
 		D9F4C28B7A516E03B1DC4E84 /* WatchedConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedConversationStore.swift; sourceTree = "<group>"; };
 		D9F4C28B7A516E03B1DC4E85 /* WatchedConversationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedConversationStoreTests.swift; sourceTree = "<group>"; };
+		D9F4C28B7A516E03B1DC4E86 /* WatchedConversationsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchedConversationsView.swift; sourceTree = "<group>"; };
 		3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
 		3F3F84FE5B2E7C6E7405296A /* UnreadTrackingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnreadTrackingTests.swift; sourceTree = "<group>"; };
 		400CBF1067AD4FC7FA6F50BF /* DirectOpenDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectOpenDetector.swift; sourceTree = "<group>"; };
@@ -1072,6 +1074,7 @@
 				DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */,
 				458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */,
 				AFCDCADDCF43F6FD590D2125 /* TimelineV2ValidationView.swift */,
+				D9F4C28B7A516E03B1DC4E86 /* WatchedConversationsView.swift */,
 				76D6DA5D1ADDD532970A4D64 /* UnifiedAccountsIcon.swift */,
 				A6C888F213B487334A9588C3 /* UnifiedTimelineView.swift */,
 				F2CCC65713BF9BAD89015185 /* Components */,
@@ -1600,6 +1603,7 @@
 				C5A1B3D49E72F18A3C04B702 /* EchoComposeView.swift in Sources */,
 				C5A1B3D49E72F18A3C04B704 /* WatchedConversation.swift in Sources */,
 				C5A1B3D49E72F18A3C04B705 /* WatchedConversationStore.swift in Sources */,
+				C5A1B3D49E72F18A3C04B707 /* WatchedConversationsView.swift in Sources */,
 				B9E7C04A2DF1683C7195AE38 /* IdentityMatcher.swift in Sources */,
 				C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */,
 				D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */,

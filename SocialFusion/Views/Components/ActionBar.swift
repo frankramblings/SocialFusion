@@ -19,6 +19,9 @@ struct ActionBar: View {
     let onAction: (PostAction) -> Void
     let onMenuOpen: (() -> Void)?
 
+    @EnvironmentObject private var watchedConversationStore: WatchedConversationStore
+    @EnvironmentObject private var fusedMomentStore: FusedMomentStore
+
     // Icon size for better visibility
     private let iconSize: CGFloat = 18
     private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
@@ -140,6 +143,10 @@ struct ActionBar: View {
 
                 Divider()
 
+                watchButton
+
+                Divider()
+
                 menuButton(for: .openInBrowser)
                 menuButton(for: .copyLink)
                 menuButton(for: .shareSheet)
@@ -182,6 +189,28 @@ struct ActionBar: View {
             Label(label, systemImage: icon)
         }
     }
+
+    @ViewBuilder
+    private var watchButton: some View {
+        let isWatching = watchedConversationStore.isWatching(rootPostID: post.id)
+        Button {
+            if isWatching {
+                watchedConversationStore.unwatch(rootPostID: post.id)
+            } else {
+                let moment = fusedMomentStore.moment(for: post.id)
+                watchedConversationStore.watch(WatchedConversation(
+                    rootPostID: post.id,
+                    platform: post.platform,
+                    fusedMomentID: moment?.id
+                ))
+            }
+        } label: {
+            Label(
+                isWatching ? "Stop watching" : "Watch conversation",
+                systemImage: isWatching ? "bell.slash" : "bell"
+            )
+        }
+    }
 }
 
 struct ActionBarV2: View {
@@ -190,6 +219,10 @@ struct ActionBarV2: View {
     let coordinator: PostActionCoordinator
     let onAction: (PostAction) -> Void
     let onMenuOpen: (() -> Void)?
+
+    @EnvironmentObject private var watchedConversationStore: WatchedConversationStore
+    @EnvironmentObject private var fusedMomentStore: FusedMomentStore
+
     private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
     private var actionKey: String { post.stableId }
@@ -282,6 +315,10 @@ struct ActionBarV2: View {
 
                 Divider()
 
+                watchButton
+
+                Divider()
+
                 menuButton(for: .openInBrowser)
                 menuButton(for: .copyLink)
                 menuButton(for: .shareSheet)
@@ -318,6 +355,28 @@ struct ActionBarV2: View {
             onAction(action)
         } label: {
             Label(label, systemImage: icon)
+        }
+    }
+
+    @ViewBuilder
+    private var watchButton: some View {
+        let isWatching = watchedConversationStore.isWatching(rootPostID: post.id)
+        Button {
+            if isWatching {
+                watchedConversationStore.unwatch(rootPostID: post.id)
+            } else {
+                let moment = fusedMomentStore.moment(for: post.id)
+                watchedConversationStore.watch(WatchedConversation(
+                    rootPostID: post.id,
+                    platform: post.platform,
+                    fusedMomentID: moment?.id
+                ))
+            }
+        } label: {
+            Label(
+                isWatching ? "Stop watching" : "Watch conversation",
+                systemImage: isWatching ? "bell.slash" : "bell"
+            )
         }
     }
 }

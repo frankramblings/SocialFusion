@@ -191,6 +191,12 @@ struct SettingsView: View {
                     Text("Controls the default state of the reply target toggles when you reply to a Fused conversation.")
                 }
 
+                Section(header: Text("Conversations")) {
+                    NavigationLink(destination: WatchedConversationsView()) {
+                        Label("Watching", systemImage: "bell")
+                    }
+                }
+
                 Section(header: Text("About")) {
                     Button("About SocialFusion") {
                         showingAbout = true
