@@ -6,6 +6,7 @@ import SwiftUI
 /// with a single component backed by ProfileViewModel.
 struct ProfileView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
+  @EnvironmentObject var mergedIdentityStore: MergedIdentityStore
   @StateObject private var viewModel: ProfileViewModel
   @StateObject private var navigationEnvironment = PostNavigationEnvironment()
   @State private var relationshipViewModel: RelationshipViewModel?
@@ -13,6 +14,7 @@ struct ProfileView: View {
   @State private var replyingToPost: Post? = nil
   @State private var isAvatarDocked = false
   @State private var scrollOffset: CGFloat = 0
+  @State private var showMergeChipMenu = false
 
   // MARK: - Initializers
 
@@ -51,7 +53,7 @@ struct ProfileView: View {
           // Profile header content (avatar, bio, stats -- no banner)
           if let profile = viewModel.profile {
             ProfileHeaderView(
-              profile: profile,
+              profile: viewModel.activeProfile ?? profile,
               isOwnProfile: viewModel.isOwnProfile,
               onEditProfile: { showEditProfile = true },
               relationshipState: relationshipState,
@@ -62,7 +64,15 @@ struct ProfileView: View {
               onBlock: { Task { await relationshipViewModel?.block() } },
               onUnblock: { Task { await relationshipViewModel?.unblock() } },
               isAvatarDocked: $isAvatarDocked,
-              scrollOffset: scrollOffset
+              scrollOffset: scrollOffset,
+              mergedIdentity: viewModel.mergedIdentity,
+              mergedTwinProfile: viewModel.mergedTwinProfile,
+              selectedSide: $viewModel.selectedSide,
+              combinedFollowersCount: viewModel.isMerged ? viewModel.combinedFollowersCount : nil,
+              combinedFollowingCount: viewModel.isMerged ? viewModel.combinedFollowingCount : nil,
+              combinedStatusesCount: viewModel.isMerged ? viewModel.combinedStatusesCount : nil,
+              onUnmerge: { viewModel.unmerge() },
+              onTapMergeChip: { showMergeChipMenu = true }
             )
           } else if viewModel.isLoadingProfile {
             profileSkeleton
@@ -112,9 +122,51 @@ struct ProfileView: View {
       }
     }
     .task {
+      viewModel.attach(mergedIdentityStore: mergedIdentityStore)
       await viewModel.loadProfile()
       await viewModel.loadPostsForCurrentTab()
       setupRelationshipViewModel()
+    }
+    .sheet(item: $viewModel.pendingMatchCandidate) { candidate in
+      MergeConfirmationSheet(
+        candidate: candidate,
+        mastodonAvatarURL: candidate.mastodon.platform == .mastodon
+          ? viewModel.profile?.avatarURL
+          : viewModel.mergedTwinProfile?.avatarURL,
+        blueskyAvatarURL: candidate.bluesky.platform == .bluesky
+          ? viewModel.profile?.avatarURL
+          : viewModel.mergedTwinProfile?.avatarURL,
+        onConfirm: {
+          viewModel.confirmPendingMatch()
+        },
+        onReject: {
+          // Treat reject as a tombstone-equivalent: dismiss the candidate
+          // and don't re-prompt for the same pair in this session.
+          viewModel.dismissPendingMatch()
+        },
+        onDismiss: {
+          viewModel.dismissPendingMatch()
+        }
+      )
+    }
+    .confirmationDialog(
+      "Merged identity",
+      isPresented: $showMergeChipMenu,
+      titleVisibility: .visible
+    ) {
+      if let merge = viewModel.mergedIdentity {
+        Button(mergeProvenanceLabel(merge.provenance)) {
+          // Information-only row; selecting it just dismisses.
+        }
+        Button("Unmerge identities", role: .destructive) {
+          viewModel.unmerge()
+        }
+        Button("Cancel", role: .cancel) {}
+      }
+    } message: {
+      if let merge = viewModel.mergedIdentity {
+        Text("@\(merge.mastodon.handle) and @\(merge.bluesky.handle) are shown as the same person.")
+      }
     }
     .onChange(of: viewModel.selectedTab) { _, _ in
       Task { await viewModel.loadPostsForCurrentTab() }
@@ -449,6 +501,16 @@ struct ProfileView: View {
       } catch {
         ErrorHandler.shared.handleError(error)
       }
+    }
+  }
+
+  // MARK: - Merge Helpers
+
+  private func mergeProvenanceLabel(_ provenance: MergeProvenance) -> String {
+    switch provenance {
+    case .userConfirmed: return "Confirmed by you"
+    case .verifiedBioCrossLink: return "Verified via bio cross-link"
+    case .handleConvention: return "Suggested from matching handles"
     }
   }
 }
