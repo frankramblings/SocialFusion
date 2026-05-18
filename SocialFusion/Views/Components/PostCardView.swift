@@ -18,6 +18,7 @@ private struct ConditionalClippedModifier: ViewModifier {
 struct PostCardView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
+    @EnvironmentObject private var fusedMomentStore: FusedMomentStore
     @ObservedObject var post: Post
     let replyCount: Int
     let repostCount: Int
@@ -527,6 +528,22 @@ struct PostCardView: View {
     }
     
     @ViewBuilder
+    private var fusedBadgeSection: some View {
+        if let moment = fusedMomentStore.moment(for: post.id) {
+            let shouldBloom = fusedMomentStore.consumePendingBloom(for: moment.id)
+            HStack(spacing: 6) {
+                FusedGlyph(size: 16, bloomOnAppear: shouldBloom)
+                Text("Fused")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Fused: this moment exists on both networks")
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 4)
+        }
+    }
+
+    @ViewBuilder
     private var contentSection: some View {
         PostAuthorView(post: displayPost, onAuthorTap: onAuthorTap)
             .padding(.horizontal, 12)
@@ -655,6 +672,7 @@ struct PostCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             bannerSection
+            fusedBadgeSection
             contentSection
             mediaSection
             actionBarView
