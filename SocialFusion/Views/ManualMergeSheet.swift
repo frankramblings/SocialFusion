@@ -170,12 +170,65 @@ public struct ManualMergeSheet: View {
         }
         isSearching = true
         defer { isSearching = false }
+
+        let normalized = normalizedQuery(from: query)
+        let searchQuery = normalized.searchTerm
+
         do {
-            let users = try await serviceManager.searchUsers(query: query, account: account, limit: 10)
-            results = users
+            let raw = try await serviceManager.searchUsers(query: searchQuery, account: account, limit: 15)
+            results = rank(raw, originalQuery: query.lowercased(), localPart: normalized.localPart)
         } catch {
             results = []
         }
+    }
+
+    /// Splits an entered query like "@user@host" or "user.domain.tld" into the
+    /// effective search term (the local-part) and a comparable local-part for
+    /// ranking. The search term is what we send to the platform's typeahead API;
+    /// the local-part is what we use to rank results client-side.
+    private func normalizedQuery(from raw: String) -> (searchTerm: String, localPart: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        let stripped = trimmed.hasPrefix("@") ? String(trimmed.dropFirst()) : trimmed
+        if let atIndex = stripped.firstIndex(of: "@") {
+            // Mastodon-style "user@instance"
+            let local = String(stripped[..<atIndex])
+            return (searchTerm: local, localPart: local.lowercased())
+        }
+        if let dotIndex = stripped.firstIndex(of: ".") {
+            // Bluesky-style "user.domain.tld"
+            let local = String(stripped[..<dotIndex])
+            return (searchTerm: local, localPart: local.lowercased())
+        }
+        return (searchTerm: stripped, localPart: stripped.lowercased())
+    }
+
+    /// Ranks users by relevance to the query, filtering out non-matches.
+    private func rank(_ users: [SearchUser], originalQuery: String, localPart: String) -> [SearchUser] {
+        guard !localPart.isEmpty else { return users }
+
+        func rank(of user: SearchUser) -> Int {
+            let username = user.username.lowercased()
+            if username == originalQuery || username == "@\(originalQuery)" { return 0 }
+
+            // Extract the local-part of the user's own username for comparison.
+            let userLocalPart: String = {
+                let stripped = username.hasPrefix("@") ? String(username.dropFirst()) : username
+                if let at = stripped.firstIndex(of: "@") { return String(stripped[..<at]) }
+                if let dot = stripped.firstIndex(of: ".") { return String(stripped[..<dot]) }
+                return stripped
+            }()
+
+            if userLocalPart == localPart { return 1 }
+            if userLocalPart.hasPrefix(localPart) { return 2 }
+            if userLocalPart.contains(localPart) { return 3 }
+            return 4
+        }
+
+        return users
+            .map { (user: $0, rank: rank(of: $0)) }
+            .filter { $0.rank < 4 }
+            .sorted { $0.rank < $1.rank }
+            .map { $0.user }
     }
 
     private func selectCandidate(_ candidate: SearchUser) {

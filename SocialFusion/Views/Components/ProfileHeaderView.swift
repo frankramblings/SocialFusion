@@ -538,10 +538,10 @@ struct ProfileHeaderView: View {
         lineLimit: 2
       )
 
-      if mergedIdentity != nil, let twin = mergedTwinProfile {
+      if let merged = mergedIdentity {
         MergedHandleSelector(
-          mastodonHandle: profile.platform == .mastodon ? profile.username : twin.username,
-          blueskyHandle: profile.platform == .bluesky ? profile.username : twin.username,
+          mastodonHandle: merged.mastodon.handle,
+          blueskyHandle: merged.bluesky.handle,
           selected: $selectedSide
         )
       } else {
