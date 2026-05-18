@@ -34,6 +34,9 @@ struct SocialFusionApp: App {
     // MetricKit crash reporting
     @StateObject private var crashReporting = CrashReportingService.shared
 
+    // Side-channel store of detected Fused moments (cross-network post pairs).
+    @StateObject private var fusedMomentStore = FusedMomentStore()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -63,6 +66,7 @@ struct SocialFusionApp: App {
                 .environmentObject(draftStore)
                 .environmentObject(edgeCaseHandler)
                 .environmentObject(chatStreamService)
+                .environmentObject(fusedMomentStore)
                 .enableLiquidGlass()
                 .onOpenURL { url in
                     handleURL(url)
@@ -76,6 +80,7 @@ struct SocialFusionApp: App {
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
                     .environmentObject(chatStreamService)
+                    .environmentObject(fusedMomentStore)
                     .enableLiquidGlass()
             } else {
                 ContentView()
@@ -87,9 +92,11 @@ struct SocialFusionApp: App {
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
                     .environmentObject(chatStreamService)
+                    .environmentObject(fusedMomentStore)
                     .enableLiquidGlass()
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
+                        serviceManager.fusedMomentStore = fusedMomentStore
                         notificationManager.registerBackgroundTask()
                         if UserDefaults.standard.bool(forKey: "enableNotifications") {
                             notificationManager.scheduleBackgroundRefresh()

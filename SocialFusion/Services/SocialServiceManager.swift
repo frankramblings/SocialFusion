@@ -103,6 +103,18 @@ public final class SocialServiceManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     @Published var error: Error?
 
+    /// Side-channel store for detected cross-network Fused moments.
+    ///
+    /// Wired by `SocialFusionApp` after both objects are constructed (see the
+    /// `.onAppear` site that assigns this). Weak so the store's lifetime is
+    /// owned by the app-root `@StateObject`. Optional because timeline
+    /// refreshes can race app startup; when unset, detection runs but the
+    /// result is dropped — never a fatal condition for the timeline pipeline.
+    weak var fusedMomentStore: FusedMomentStore?
+
+    /// Detector instance reused across refreshes. Stateless and cheap to hold.
+    private let fusedMomentDetector = FusedMomentDetector()
+
     // MARK: - Backward Compatibility Shim
     // selectedAccountIds is derived from currentTimelineFeedSelection for views
     // that still reference it. Will be removed once all views are migrated.
@@ -4618,6 +4630,15 @@ public final class SocialServiceManager: ObservableObject {
         DebugLog.verbose("🔄 SocialServiceManager: Updating unifiedTimeline with \(posts.count) posts")
         self.unifiedTimeline = posts
         DebugLog.verbose("✅ SocialServiceManager: unifiedTimeline updated - new count: \(posts.count)")
+
+        // Run Fuse detection on the unified buffer and feed the side-channel store.
+        // The detector is pure and synchronous; for v1.0 timeline sizes (<200 posts)
+        // it's cheap enough to run inline on MainActor after each timeline update.
+        let detected = fusedMomentDetector.detect(in: posts)
+        print("[Fuse] detected \(detected.count) moments")  // TEMP — smoke-test signal
+        if !detected.isEmpty {
+            fusedMomentStore?.insert(detected)
+        }
 
         // Proactively fetch parent posts in the background to prevent jittery reply banner animations
         Task.detached(priority: .background) { [weak self] in
