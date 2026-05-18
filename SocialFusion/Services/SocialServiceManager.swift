@@ -2327,6 +2327,31 @@ public final class SocialServiceManager: ObservableObject {
         }
     }
 
+    /// Search for users on the same network as the supplied account, returning
+    /// up to `limit` candidates. Used by ProfileViewModel for merged-identity
+    /// candidate discovery.
+    ///
+    /// Routes through the platform-specific `SearchProviding` implementation
+    /// already used by `SearchView`, then converts the polymorphic
+    /// `SearchResultItem` results back to `[SearchUser]`.
+    public func searchUsers(query: String, account: SocialAccount, limit: Int) async throws
+        -> [SearchUser]
+    {
+        let provider: SearchProviding
+        switch account.platform {
+        case .mastodon:
+            provider = MastodonSearchProvider(mastodonService: mastodonService, account: account)
+        case .bluesky:
+            provider = BlueskySearchProvider(blueskyService: blueskyService, account: account)
+        }
+        let page = try await provider.searchUsersTypeahead(text: query, page: nil)
+        let users: [SearchUser] = page.items.compactMap { item in
+            if case .user(let u) = item { return u }
+            return nil
+        }
+        return Array(users.prefix(limit))
+    }
+
     /// Fetch boosters for a post and normalize them into User models.
     public func fetchBoosters(for post: Post) async throws -> [User] {
         switch post.platform {

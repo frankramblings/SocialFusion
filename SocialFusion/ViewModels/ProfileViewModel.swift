@@ -20,6 +20,26 @@ public final class ProfileViewModel: ObservableObject {
   @Published var isLoadingProfile = false
   @Published var profileError: Error?
 
+  // MARK: - Merged Identity State
+
+  /// The twin profile fetched from the opposite network when this profile
+  /// participates in a merged identity. Nil when no merge is active.
+  @Published var mergedTwinProfile: UserProfile?
+
+  /// The merged-identity record this profile is bound to, if any.
+  @Published var mergedIdentity: MergedIdentity?
+
+  /// Which side's bio/fields/banner is currently rendered in the header.
+  /// Defaults to the side the user navigated in on.
+  @Published var selectedSide: SocialPlatform
+
+  /// Whether a merge-confirmation sheet should be presented.
+  @Published var showMergeConfirmation: Bool = false
+
+  /// Candidate proposed by the matcher but not yet confirmed/dismissed.
+  /// Drives the in-line "Looks like this is also @x.bsky.social?" prompt.
+  @Published var pendingMatchCandidate: MergedIdentity?
+
   // MARK: - Tab State
 
   @Published var selectedTab: ProfileTab = .posts
@@ -50,6 +70,14 @@ public final class ProfileViewModel: ObservableObject {
   let isOwnProfile: Bool
   private let serviceManager: SocialServiceManager
 
+  /// Side-channel store injected by the view via `attach(mergedIdentityStore:)`.
+  private(set) weak var mergedIdentityStore: MergedIdentityStore?
+
+  /// Called by the surrounding View on first appearance to bind the store.
+  func attach(mergedIdentityStore: MergedIdentityStore) {
+    self.mergedIdentityStore = mergedIdentityStore
+  }
+
   // MARK: - Computed Properties
 
   /// Posts for the currently selected tab
@@ -76,12 +104,43 @@ public final class ProfileViewModel: ObservableObject {
     }
   }
 
+  // MARK: - Merge-Derived Computed Properties
+
+  /// The profile currently driving the header bio/fields/banner — either
+  /// `profile` or `mergedTwinProfile` depending on `selectedSide`.
+  var activeProfile: UserProfile? {
+    guard let base = profile else { return nil }
+    if let twin = mergedTwinProfile, selectedSide != base.platform {
+      return twin
+    }
+    return base
+  }
+
+  /// Returns true when this profile participates in a merge and both sides
+  /// have been loaded.
+  var isMerged: Bool {
+    mergedIdentity != nil && mergedTwinProfile != nil
+  }
+
+  var combinedFollowersCount: Int {
+    (profile?.followersCount ?? 0) + (mergedTwinProfile?.followersCount ?? 0)
+  }
+
+  var combinedFollowingCount: Int {
+    (profile?.followingCount ?? 0) + (mergedTwinProfile?.followingCount ?? 0)
+  }
+
+  var combinedStatusesCount: Int {
+    (profile?.statusesCount ?? 0) + (mergedTwinProfile?.statusesCount ?? 0)
+  }
+
   // MARK: - Initialization
 
   init(user: SearchUser, isOwnProfile: Bool = false, serviceManager: SocialServiceManager) {
     self.user = user
     self.isOwnProfile = isOwnProfile
     self.serviceManager = serviceManager
+    self.selectedSide = user.platform
   }
 
   /// Convenience initializer for viewing your own profile from a SocialAccount
@@ -99,7 +158,8 @@ public final class ProfileViewModel: ObservableObject {
 
   // MARK: - Profile Loading
 
-  /// Load the full UserProfile from the API
+  /// Load the full UserProfile from the API, then attempt to resolve a
+  /// merged twin profile from the opposite network.
   func loadProfile() async {
     guard profile == nil, !isLoadingProfile else { return }
 
@@ -115,11 +175,169 @@ public final class ProfileViewModel: ObservableObject {
     do {
       let result = try await serviceManager.fetchUserProfile(user: user, account: account)
       profile = result
+      await resolveMergedTwin(for: result)
     } catch {
       profileError = error
     }
 
     isLoadingProfile = false
+  }
+
+  /// Resolve and (if present) load the twin profile from the opposite network.
+  /// Side-effect: sets `mergedIdentity`, `mergedTwinProfile`, and/or
+  /// `pendingMatchCandidate` on the view model.
+  ///
+  /// Resolution order, matching the spec's Principle 2 priority:
+  /// 1. User-confirmed merge from `MergedIdentityStore` → load twin, set merge.
+  /// 2. Heuristic match from `IdentityMatcher` against a probable twin → set
+  ///    `pendingMatchCandidate` so the UI can prompt the user.
+  private func resolveMergedTwin(for profile: UserProfile) async {
+    let oppositePlatform: SocialPlatform = profile.platform == .mastodon ? .bluesky : .mastodon
+    guard let store = mergedIdentityStore else { return }
+    guard let account = serviceManager.accounts.first(where: { $0.platform == oppositePlatform })
+    else { return }
+
+    // 1. User-confirmed merge wins.
+    if let confirmed = store.merge(forPlatform: profile.platform, accountID: profile.id) {
+      let twinKey = confirmed.twin(of: profile.platform)
+      await loadTwinProfile(
+        twinAccountID: twinKey.accountID,
+        twinHandle: twinKey.handle,
+        twinPlatform: twinKey.platform,
+        account: account,
+        displayNameEmojiMap: nil
+      )
+      mergedIdentity = confirmed
+      return
+    }
+
+    // 2. Heuristic match against a probable twin candidate.
+    if let candidateUser = await findHeuristicTwinCandidate(for: profile, account: account) {
+      let candidateProfile = try? await serviceManager.fetchUserProfile(
+        user: candidateUser, account: account
+      )
+      guard let candidateProfile else { return }
+      let matcher = IdentityMatcher()
+      let (mastodon, bluesky) = orderProfiles(profile, candidateProfile)
+      if let match = matcher.match(mastodon: mastodon, bluesky: bluesky) {
+        // Verified-bio matches we auto-apply; handle-convention is offered as a prompt.
+        switch match.provenance {
+        case .verifiedBioCrossLink:
+          store.insert([match])
+          mergedIdentity = match
+          mergedTwinProfile = candidateProfile
+        case .handleConvention:
+          pendingMatchCandidate = match
+        case .userConfirmed:
+          break  // not produced by the matcher
+        }
+      }
+    }
+  }
+
+  /// Searches the opposite network for a profile whose handle matches the
+  /// shared local-part — the cheapest signal for finding a candidate.
+  private func findHeuristicTwinCandidate(
+    for profile: UserProfile,
+    account: SocialAccount
+  ) async -> SearchUser? {
+    let localPart: String
+    switch profile.platform {
+    case .mastodon:
+      // user@instance → "user"
+      localPart = String(profile.username.split(separator: "@", maxSplits: 1).first ?? "")
+    case .bluesky:
+      // user.example.com → "user"
+      localPart = String(profile.username.split(separator: ".", maxSplits: 1).first ?? "")
+    }
+    guard !localPart.isEmpty else { return nil }
+    do {
+      let result = try await serviceManager.searchUsers(
+        query: localPart, account: account, limit: 5)
+      return result.first(where: { user in
+        switch user.platform {
+        case .mastodon:
+          let parts = user.username.split(separator: "@", maxSplits: 1)
+          return parts.first.map(String.init)?.lowercased() == localPart.lowercased()
+        case .bluesky:
+          let parts = user.username.split(separator: ".", maxSplits: 1)
+          return parts.first.map(String.init)?.lowercased() == localPart.lowercased()
+        }
+      })
+    } catch {
+      return nil
+    }
+  }
+
+  private func loadTwinProfile(
+    twinAccountID: String,
+    twinHandle: String,
+    twinPlatform: SocialPlatform,
+    account: SocialAccount,
+    displayNameEmojiMap: [String: String]?
+  ) async {
+    let twinUser = SearchUser(
+      id: twinAccountID,
+      username: twinHandle,
+      displayName: nil,
+      avatarURL: nil,
+      platform: twinPlatform,
+      displayNameEmojiMap: displayNameEmojiMap
+    )
+    do {
+      mergedTwinProfile = try await serviceManager.fetchUserProfile(
+        user: twinUser, account: account)
+    } catch {
+      // Non-fatal: surface header without twin; UI still shows the chip and
+      // a degraded "twin unavailable" hint when needed.
+      mergedTwinProfile = nil
+    }
+  }
+
+  private func orderProfiles(_ a: UserProfile, _ b: UserProfile) -> (
+    mastodon: UserProfile, bluesky: UserProfile
+  ) {
+    if a.platform == .mastodon { return (a, b) } else { return (b, a) }
+  }
+
+  // MARK: - Merge Actions
+
+  /// Confirm a pending heuristic match and persist it.
+  func confirmPendingMatch() {
+    guard let candidate = pendingMatchCandidate, let store = mergedIdentityStore else { return }
+    store.confirmMerge(mastodon: candidate.mastodon, bluesky: candidate.bluesky)
+    mergedIdentity = store.merge(
+      forPlatform: candidate.mastodon.platform, accountID: candidate.mastodon.accountID)
+    pendingMatchCandidate = nil
+    // The twin profile was already fetched during resolution; if not, fetch now.
+    if mergedTwinProfile == nil, let profile = profile {
+      let twinKey = candidate.twin(of: profile.platform)
+      if let account = serviceManager.accounts.first(where: { $0.platform == twinKey.platform }) {
+        Task {
+          await loadTwinProfile(
+            twinAccountID: twinKey.accountID,
+            twinHandle: twinKey.handle,
+            twinPlatform: twinKey.platform,
+            account: account,
+            displayNameEmojiMap: nil
+          )
+        }
+      }
+    }
+  }
+
+  /// Dismiss a pending heuristic match without persisting anything.
+  func dismissPendingMatch() {
+    pendingMatchCandidate = nil
+  }
+
+  /// Unmerge this profile from its twin and clear local state.
+  func unmerge() {
+    guard let merge = mergedIdentity, let store = mergedIdentityStore else { return }
+    store.unmerge(id: merge.id)
+    mergedIdentity = nil
+    mergedTwinProfile = nil
+    selectedSide = profile?.platform ?? user.platform
   }
 
   // MARK: - Post Loading (Per-Tab, Lazy)
