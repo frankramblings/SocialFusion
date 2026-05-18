@@ -5,6 +5,7 @@ import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
@@ -175,6 +176,19 @@ struct SettingsView: View {
                     NavigationLink(destination: MergedIdentitiesManagementView()) {
                         Label("Merged identities", systemImage: "person.2.circle")
                     }
+                }
+
+                Section {
+                    Picker("Echo replies on Fused posts", selection: $echoPolicyStore.policy) {
+                        Text("Echo on by default").tag(EchoPolicy.echoOn)
+                        Text("Echo off by default").tag(EchoPolicy.echoOff)
+                        Text("Ask each time").tag(EchoPolicy.askEachTime)
+                    }
+                    .pickerStyle(.inline)
+                } header: {
+                    Text("Composer")
+                } footer: {
+                    Text("Controls the default state of the reply target toggles when you reply to a Fused conversation.")
                 }
 
                 Section(header: Text("About")) {
