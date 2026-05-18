@@ -66,6 +66,7 @@ public struct MergeConfirmationSheet: View {
             Image(systemName: "arrow.left.and.right")
                 .font(.headline)
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             sideCard(
                 platform: .bluesky,
                 handle: candidate.bluesky.handle,
@@ -90,6 +91,8 @@ public struct MergeConfirmationSheet: View {
                 .truncationMode(.middle)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(platform.rawValue.capitalized): at \(handle)")
     }
 
     @ViewBuilder
