@@ -34,6 +34,9 @@ struct SocialFusionApp: App {
     // MetricKit crash reporting
     @StateObject private var crashReporting = CrashReportingService.shared
 
+    // Merged identity store for cross-network profile unification
+    @StateObject private var mergedIdentityStore = MergedIdentityStore()
+
     // Side-channel store of detected Fused moments (cross-network post pairs).
     @StateObject private var fusedMomentStore = FusedMomentStore()
 
@@ -66,6 +69,7 @@ struct SocialFusionApp: App {
                 .environmentObject(draftStore)
                 .environmentObject(edgeCaseHandler)
                 .environmentObject(chatStreamService)
+                .environmentObject(mergedIdentityStore)
                 .environmentObject(fusedMomentStore)
                 .enableLiquidGlass()
                 .onOpenURL { url in
@@ -80,6 +84,7 @@ struct SocialFusionApp: App {
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
                     .environmentObject(chatStreamService)
+                    .environmentObject(mergedIdentityStore)
                     .environmentObject(fusedMomentStore)
                     .enableLiquidGlass()
             } else {
@@ -92,6 +97,7 @@ struct SocialFusionApp: App {
                     .environmentObject(draftStore)
                     .environmentObject(edgeCaseHandler)
                     .environmentObject(chatStreamService)
+                    .environmentObject(mergedIdentityStore)
                     .environmentObject(fusedMomentStore)
                     .enableLiquidGlass()
                     .onAppear {
