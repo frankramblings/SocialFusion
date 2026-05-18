@@ -284,6 +284,7 @@
 		A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */; };
 		C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */; };
 		D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */; };
+		E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */; };
 		E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */; };
 		D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */; };
 		D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */; };
@@ -465,6 +466,7 @@
 		B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMoment.swift; sourceTree = "<group>"; };
 		D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentity.swift; sourceTree = "<group>"; };
 		A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityChip.swift; sourceTree = "<group>"; };
+		B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedHandleSelector.swift; sourceTree = "<group>"; };
 		9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStore.swift; sourceTree = "<group>"; };
 		7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStoreTests.swift; sourceTree = "<group>"; };
 		3E1197A3F394FB48A9BE1E1C /* StabilizedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StabilizedAsyncImage.swift; sourceTree = "<group>"; };
@@ -1252,6 +1254,7 @@
 				4194B806E703387B16EFB108 /* MediaConstants.swift */,
 				6C31622F358C7506EF057217 /* MediaContainerView.swift */,
 				A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */,
+				B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */,
 
 				0BD574D596E911CA879F1F4F /* NativeYouTubePlayer.swift */,
 				F6AD0F2D69C8A92E0308D9EA /* ParallaxMediaModifier.swift */,
@@ -1542,6 +1545,7 @@
 				B9E7C04A2DF1683C7195AE38 /* IdentityMatcher.swift in Sources */,
 				C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */,
 				D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */,
+				E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */,
 				F4B81C2D9E5A607382D14CF6 /* MergedIdentityStore.swift in Sources */,
 				AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */,
 				CC454DB99A7F6F0CBF5EBDB3 /* CaughtUpMarker.swift in Sources */,
