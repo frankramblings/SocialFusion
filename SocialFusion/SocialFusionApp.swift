@@ -40,6 +40,9 @@ struct SocialFusionApp: App {
     // Side-channel store of detected Fused moments (cross-network post pairs).
     @StateObject private var fusedMomentStore = FusedMomentStore()
 
+    // Persisted user preference for the Fused reply echo policy.
+    @StateObject private var echoPolicyStore = EchoPolicyStore()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -71,6 +74,7 @@ struct SocialFusionApp: App {
                 .environmentObject(chatStreamService)
                 .environmentObject(mergedIdentityStore)
                 .environmentObject(fusedMomentStore)
+                .environmentObject(echoPolicyStore)
                 .enableLiquidGlass()
                 .onOpenURL { url in
                     handleURL(url)
@@ -86,6 +90,7 @@ struct SocialFusionApp: App {
                     .environmentObject(chatStreamService)
                     .environmentObject(mergedIdentityStore)
                     .environmentObject(fusedMomentStore)
+                    .environmentObject(echoPolicyStore)
                     .enableLiquidGlass()
             } else {
                 ContentView()
@@ -99,6 +104,7 @@ struct SocialFusionApp: App {
                     .environmentObject(chatStreamService)
                     .environmentObject(mergedIdentityStore)
                     .environmentObject(fusedMomentStore)
+                    .environmentObject(echoPolicyStore)
                     .enableLiquidGlass()
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
