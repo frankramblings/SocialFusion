@@ -403,7 +403,8 @@ public final class ProfileViewModel: ObservableObject {
   func loadMorePostsForCurrentTab() async {
     guard canLoadMore, !isLoadingMore else { return }
 
-    guard let account = serviceManager.accounts.first(where: { $0.platform == user.platform })
+    let activePlatform = selectedSide
+    guard let account = serviceManager.accounts.first(where: { $0.platform == activePlatform })
     else { return }
 
     isLoadingMore = true
