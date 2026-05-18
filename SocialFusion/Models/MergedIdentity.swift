@@ -32,6 +32,11 @@ public struct MergedIdentityKey: Hashable, Codable, Sendable {
     }
 
     /// Storage key used by the side-channel store and `UserDefaults`.
+    ///
+    /// **Opaque.** The format embeds the raw `accountID`, which on Bluesky
+    /// is a DID like `did:plc:abc123` (contains colons). Do NOT parse this
+    /// key by splitting on `:` or `+`. Use the `platform`/`accountID`
+    /// properties directly.
     public var storageKey: String {
         "\(platform.rawValue):\(accountID)"
     }
@@ -41,7 +46,13 @@ public struct MergedIdentityKey: Hashable, Codable, Sendable {
 /// either by user confirmation, by verified bio cross-links, or by handle
 /// convention. Confidence is in [0, 1]; user-confirmed merges are always 1.0.
 public struct MergedIdentity: Identifiable, Hashable, Codable, Sendable {
-    /// Stable ID derived from the deterministically-sorted pair of storage keys.
+    /// Stable ID derived from the pair of storage keys.
+    ///
+    /// **Opaque.** Format embeds both sides' storage keys, which themselves
+    /// embed DIDs containing colons. Do NOT parse this id; use the
+    /// `mastodon`/`bluesky` keys directly. Two `MergedIdentity` instances
+    /// representing the same pair will always have equal `id`, regardless of
+    /// `confidence`, `provenance`, or `createdAt`.
     public let id: String
 
     public let mastodon: MergedIdentityKey
@@ -83,5 +94,44 @@ public struct MergedIdentity: Identifiable, Hashable, Codable, Sendable {
         case .mastodon: return mastodon
         case .bluesky: return bluesky
         }
+    }
+
+    // MARK: - Codable
+
+    private enum CodingKeys: String, CodingKey {
+        case id, mastodon, bluesky, provenance, confidence, createdAt
+    }
+
+    /// Validates platform-side invariants after decode. The synthesized
+    /// memberwise init does this via `precondition`, but `Codable`'s
+    /// synthesized decode would otherwise bypass it.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let id = try c.decode(String.self, forKey: .id)
+        let mastodon = try c.decode(MergedIdentityKey.self, forKey: .mastodon)
+        let bluesky = try c.decode(MergedIdentityKey.self, forKey: .bluesky)
+        let provenance = try c.decode(MergeProvenance.self, forKey: .provenance)
+        let confidence = try c.decode(Double.self, forKey: .confidence)
+        let createdAt = try c.decode(Date.self, forKey: .createdAt)
+
+        guard mastodon.platform == .mastodon else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .mastodon, in: c,
+                debugDescription: "Mastodon side must have platform == .mastodon, got \(mastodon.platform)"
+            )
+        }
+        guard bluesky.platform == .bluesky else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .bluesky, in: c,
+                debugDescription: "Bluesky side must have platform == .bluesky, got \(bluesky.platform)"
+            )
+        }
+
+        self.id = id
+        self.mastodon = mastodon
+        self.bluesky = bluesky
+        self.provenance = provenance
+        self.confidence = max(0, min(1, confidence))
+        self.createdAt = createdAt
     }
 }
