@@ -44,4 +44,53 @@ final class ContentSignatureTests: XCTestCase {
             ContentSignature.fingerprint(for: "   \n\t  ")
         )
     }
+
+    // MARK: - Regression tests from Task 1 review
+
+    func testTrailingHashtagsOnNewlineAreStripped() {
+        // Cross-poster: Mastodon hard-wraps trailing hashtags onto a new line.
+        XCTAssertEqual(
+            ContentSignature.fingerprint(for: "Big news today!"),
+            ContentSignature.fingerprint(for: "Big news today!\n\n#news #important")
+        )
+    }
+
+    func testTrailingHashtagsOnTabAreStripped() {
+        XCTAssertEqual(
+            ContentSignature.fingerprint(for: "Big news today!"),
+            ContentSignature.fingerprint(for: "Big news today!\t#news")
+        )
+    }
+
+    func testURLTrailingPunctuationIsStripped() {
+        // Cross-posters disagree on whether trailing punctuation is part of the URL.
+        XCTAssertEqual(
+            ContentSignature.fingerprint(for: "see https://example.com"),
+            ContentSignature.fingerprint(for: "see https://example.com.")
+        )
+        XCTAssertEqual(
+            ContentSignature.fingerprint(for: "see (https://example.com)"),
+            ContentSignature.fingerprint(for: "see (https://example.com")
+        )
+    }
+
+    func testMultipleURLsAreEachNormalized() {
+        // Two URLs in one post, each with different cross-poster artifacts.
+        let a = ContentSignature.fingerprint(for: "compare https://example.com/a#anchor and https://example.com/b/")
+        let b = ContentSignature.fingerprint(for: "compare https://example.com/a and https://example.com/b")
+        XCTAssertEqual(a, b)
+    }
+
+    func testDifferentURLsRemainDistinct() {
+        // Guard against future over-normalization (e.g., dropping paths).
+        XCTAssertNotEqual(
+            ContentSignature.fingerprint(for: "Read https://example.com/article1"),
+            ContentSignature.fingerprint(for: "Read https://example.com/article2")
+        )
+    }
+
+    func testEmojiInContentSurvives() {
+        let s = ContentSignature.fingerprint(for: "Big news 🎉 today!")
+        XCTAssertTrue(s.contains("🎉"))
+    }
 }
