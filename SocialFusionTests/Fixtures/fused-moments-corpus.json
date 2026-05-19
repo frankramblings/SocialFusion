@@ -561,6 +561,48 @@
       "masto": { "id": "m_082", "content": "Cold-launch budget audit complete — 47% faster than last release, mostly from the new image cache", "authorId": "frank_id", "createdAt": "2026-05-25T09:00:00Z" },
       "bsky":  { "id": "b_082", "content": "Cold-launch budget audit complete — 47% faster than last release, mostly from the new image cache", "authorId": "frank_id", "createdAt": "2026-05-25T09:00:08Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Identical content with bullet-style hyphen list — interior whitespace + dashes preserved",
+      "masto": { "id": "m_083", "content": "Things shipping this week: - cross-network reply - identity merge polish - accessibility audit close-out", "authorId": "frank_id", "createdAt": "2026-05-25T10:00:00Z" },
+      "bsky":  { "id": "b_083", "content": "Things shipping this week: - cross-network reply - identity merge polish - accessibility audit close-out", "authorId": "frank_id", "createdAt": "2026-05-25T10:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same content with a different emoji on each side — emoji is preserved through normalization, so different emoji → different fingerprint → no fuse",
+      "masto": { "id": "m_084", "content": "Closed out the long-running review cycle today, thanks everyone 🎉 — onto the next sprint", "authorId": "frank_id", "createdAt": "2026-05-25T11:00:00Z" },
+      "bsky":  { "id": "b_084", "content": "Closed out the long-running review cycle today, thanks everyone 🥳 — onto the next sprint", "authorId": "frank_id", "createdAt": "2026-05-25T11:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "All-caps content (e.g., emphatic post) — fingerprint lowercases, so equality with mixed-case match works",
+      "masto": { "id": "m_085", "content": "THE FUSE IS LIVE — we just shipped the cross-network conversation view to beta and the room cheered", "authorId": "frank_id", "createdAt": "2026-05-25T12:00:00Z" },
+      "bsky":  { "id": "b_085", "content": "the fuse is live — we just shipped the cross-network conversation view to beta and the room cheered", "authorId": "frank_id", "createdAt": "2026-05-25T12:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Internal apostrophe in word ('it's', 'don't', 'we're') — smart-quote fold normalizes regardless of which form the network ships",
+      "masto": { "id": "m_086", "content": "We're done with the Q2 retro — don't think the next quarter could be more interesting", "authorId": "frank_id", "createdAt": "2026-05-25T13:00:00Z" },
+      "bsky":  { "id": "b_086", "content": "We’re done with the Q2 retro — don’t think the next quarter could be more interesting", "authorId": "frank_id", "createdAt": "2026-05-25T13:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "One character difference — the kind of typo cross-posters don't make, so they really are distinct posts",
+      "masto": { "id": "m_087", "content": "Switched to using context.willChange instead of objectWillChange — same effect, cleaner call site", "authorId": "frank_id", "createdAt": "2026-05-25T14:00:00Z" },
+      "bsky":  { "id": "b_087", "content": "Switched to using context.willChange instead of objectsWillChange — same effect, cleaner call site", "authorId": "frank_id", "createdAt": "2026-05-25T14:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical content with multiple consecutive periods (... vs ellipsis-glyph) — smart-punctuation fold handles both",
+      "masto": { "id": "m_088", "content": "Polish week is the best week... when we finally start saying no to the long tail of feature creep", "authorId": "frank_id", "createdAt": "2026-05-25T15:00:00Z" },
+      "bsky":  { "id": "b_088", "content": "Polish week is the best week… when we finally start saying no to the long tail of feature creep", "authorId": "frank_id", "createdAt": "2026-05-25T15:00:08Z" },
+      "expectFused": true
     }
   ]
 }
