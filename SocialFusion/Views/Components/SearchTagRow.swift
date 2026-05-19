@@ -26,5 +26,9 @@ struct SearchTagRow: View {
       .padding(.horizontal, 16)
     }
     .buttonStyle(PlainButtonStyle())
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Hashtag #\(tag.name), on \(tag.platform.accessibilityLabel)")
+    .accessibilityAddTraits(.isButton)
+    .accessibilityHint("Opens posts tagged with this hashtag.")
   }
 }

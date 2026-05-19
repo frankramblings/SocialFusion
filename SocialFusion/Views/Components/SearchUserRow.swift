@@ -61,5 +61,14 @@ struct SearchUserRow: View {
       .padding(.horizontal, 16)
     }
     .buttonStyle(PlainButtonStyle())
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(combinedLabel)
+    .accessibilityAddTraits(.isButton)
+    .accessibilityHint("Opens this profile.")
+  }
+
+  private var combinedLabel: String {
+    let name = user.displayName ?? user.username
+    return "\(name), @\(user.username), on \(user.platform.accessibilityLabel)"
   }
 }
