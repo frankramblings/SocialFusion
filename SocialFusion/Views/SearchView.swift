@@ -445,6 +445,7 @@ struct SearchView: View {
                         VStack(spacing: 0) {
                             ForEach(Array(store.pinnedSearches.enumerated()), id: \.element.id) { index, savedSearch in
                                 Button(action: {
+                                    HapticEngine.tap.trigger()
                                     store.text = savedSearch.query
                                     store.scope = savedSearch.scope
                                     store.networkSelection = savedSearch.networkSelection
