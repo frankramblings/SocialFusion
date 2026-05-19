@@ -51,6 +51,7 @@ struct DirectMessagesView: View {
             .font(.system(size: 18))
             .foregroundColor(.primary)
         }
+        .accessibilityLabel("New conversation")
         #if DEBUG
         .simultaneousGesture(
           LongPressGesture(minimumDuration: 1.0)
