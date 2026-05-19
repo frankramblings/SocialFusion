@@ -619,13 +619,11 @@ class URLService {
             guard urlRange.location != NSNotFound else { continue }
             
             let urlString = nsString.substring(with: urlRange)
-            // Decode HTML entities in URL
-            let decodedURLString = urlString
-                .replacingOccurrences(of: "&amp;", with: "&")
-                .replacingOccurrences(of: "&lt;", with: "<")
-                .replacingOccurrences(of: "&gt;", with: ">")
-                .replacingOccurrences(of: "&quot;", with: "\"")
-            
+            // Decode HTML entities in URL via the canonical extension
+            // so any future entity addition (&#39;, &nbsp;) lands in
+            // one place rather than each site keeping its own table.
+            let decodedURLString = urlString.decodingHTMLEntities
+
             if let url = URL(string: decodedURLString) {
                 // Validate and skip hashtag/mention URLs
                 guard url.scheme == "http" || url.scheme == "https" else { continue }
