@@ -101,6 +101,13 @@ struct OnboardingView: View {
                     }
 
                     Button(action: {
+                        // Tap haptic — Skip commits the user out of
+                        // onboarding (sets hasCompletedOnboarding) and
+                        // the AppStorage propagation can take a beat to
+                        // animate the carousel away. Haptic confirms
+                        // the commitment landed. Matches the "Add Your
+                        // First Account" haptic on the last page.
+                        HapticEngine.tap.trigger()
                         hasCompletedOnboarding = true
                     }) {
                         Text("Skip")
