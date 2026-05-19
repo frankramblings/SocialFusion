@@ -218,6 +218,36 @@ public struct EchoComposeView: View {
         }
         .disabled(!viewModel.canSend)
         .opacity(viewModel.canSend ? 1.0 : 0.45)
+        // The button's label already names the action ("Reply on
+        // Mastodon" / "Reply to both"). The hint is reserved for the
+        // *disabled* state — VoiceOver users who tap a dimmed button
+        // get a useful, specific reason instead of dead silence.
+        .accessibilityHint(sendButtonDisabledReason)
+    }
+
+    /// Empty when the button is enabled (no hint needed — the label is
+    /// self-explanatory). When disabled, returns the first applicable
+    /// reason in priority order so the user hears the most actionable
+    /// fix first ("Select a network" before "Add text", since picking a
+    /// network is necessary even for an existing draft).
+    private var sendButtonDisabledReason: String {
+        guard !viewModel.canSend else { return "" }
+        if viewModel.isSending { return "Sending in progress." }
+        if viewModel.targets.isEmpty {
+            return "Select at least one network to reply on."
+        }
+        if viewModel.trimmedText.isEmpty {
+            return "Write a reply to enable Send."
+        }
+        if viewModel.targets.contains(.mastodon) && viewModel.mastodonRemaining < 0 {
+            let over = -viewModel.mastodonRemaining
+            return "Reply is over the Mastodon limit by \(over) character\(over == 1 ? "" : "s")."
+        }
+        if viewModel.targets.contains(.bluesky) && viewModel.blueskyRemaining < 0 {
+            let over = -viewModel.blueskyRemaining
+            return "Reply is over the Bluesky limit by \(over) character\(over == 1 ? "" : "s")."
+        }
+        return ""
     }
 
     private var sendButtonBackground: AnyShapeStyle {
