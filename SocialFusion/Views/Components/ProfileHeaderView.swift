@@ -640,7 +640,11 @@ struct ProfileHeaderView: View {
   }
 
   private func fieldAccessibilityLabel(_ field: ProfileField) -> String {
-    let strippedValue = field.value.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+    // Strip HTML and decode entities through the canonical extensions
+    // so VoiceOver hears "I'm a developer" not "I&#8217;m a developer"
+    // or "<p>I'm a developer</p>". Same path as ReplyRow and
+    // HTMLString.plainText now use.
+    let strippedValue = field.value.strippingHTMLTags.decodingHTMLEntities
     if field.isVerified {
       return "\(field.name), \(strippedValue), verified"
     } else {
