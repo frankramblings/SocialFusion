@@ -60,8 +60,14 @@ public struct EchoComposeView: View {
         HapticEngine.tap.trigger()
         let text = viewModel.text
         let targets = viewModel.targets
+        viewModel.beginSending()
         Task {
             await onSend(text, targets)
+            // beginSending/finishSending bracket the dispatch so canSend
+            // returns false during the in-flight window — prevents a
+            // double-tap on Send from spawning a second dispatch with the
+            // same text + targets.
+            viewModel.finishSending()
             dismiss()
         }
     }

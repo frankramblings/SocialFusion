@@ -10,6 +10,12 @@ public final class EchoComposeViewModel: ObservableObject {
     @Published public var targets: Set<SocialPlatform>
     @Published public private(set) var isSending: Bool = false
 
+    /// Called by the view at the start of a send so the Send button can be
+    /// disabled and the UI can reflect the in-flight state. Paired with
+    /// `finishSending()` to guarantee the flag is cleared even on failure.
+    public func beginSending() { isSending = true }
+    public func finishSending() { isSending = false }
+
     public init(moment: FusedMoment, initialTargets: Set<SocialPlatform>) {
         self.moment = moment
         self.targets = initialTargets
@@ -26,6 +32,7 @@ public final class EchoComposeViewModel: ObservableObject {
     public var blueskyRemaining: Int { blueskyLimit - text.count }
 
     public var canSend: Bool {
+        guard !isSending else { return false }
         guard !trimmedText.isEmpty else { return false }
         guard !targets.isEmpty else { return false }
         if targets.contains(.mastodon) && mastodonRemaining < 0 { return false }
