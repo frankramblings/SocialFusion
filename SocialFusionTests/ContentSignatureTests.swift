@@ -129,4 +129,60 @@ final class ContentSignatureTests: XCTestCase {
         XCTAssertTrue(b.contains("{a}"),
                       "Balanced braces in URL path must be preserved.")
     }
+
+    /// Cross-posters that prepend a recipient `@handle.tld` on one network
+    /// shouldn't break the fingerprint match.
+    func testLeadingMentionIsStripped() {
+        let a = ContentSignature.fingerprint(for: "Big thanks to the reviewers")
+        let b = ContentSignature.fingerprint(for: "@reviewers.bsky.social Big thanks to the reviewers")
+        XCTAssertEqual(a, b)
+    }
+
+    /// Multiple contiguous leading mentions get stripped together.
+    func testMultipleLeadingMentionsAreStripped() {
+        let a = ContentSignature.fingerprint(for: "Heads up about the release")
+        let b = ContentSignature.fingerprint(for: "@alice.bsky.social @bob.example.com Heads up about the release")
+        XCTAssertEqual(a, b)
+    }
+
+    /// Mid-text mentions are content, not noise — must not be touched.
+    func testMidTextMentionsArePreserved() {
+        let withMention = ContentSignature.fingerprint(
+            for: "Talked with @brent.simmons today about NetNewsWire")
+        XCTAssertTrue(
+            withMention.contains("@brent.simmons"),
+            "Mid-text mentions are semantic content and must survive fingerprinting.")
+    }
+
+    /// Trailing terminal punctuation (period vs no period) is the most
+    /// common cross-poster trimming pattern; must not break the match.
+    func testTrailingPeriodIsStripped() {
+        let a = ContentSignature.fingerprint(for: "Shipped the feature today.")
+        let b = ContentSignature.fingerprint(for: "Shipped the feature today")
+        XCTAssertEqual(a, b)
+    }
+
+    func testTrailingExclamationIsStripped() {
+        let a = ContentSignature.fingerprint(for: "What a day!")
+        let b = ContentSignature.fingerprint(for: "What a day")
+        XCTAssertEqual(a, b)
+    }
+
+    /// Multiple trailing punctuation marks all get stripped, so "Wow!!!"
+    /// and "Wow." both normalize identically.
+    func testMultipleTrailingPunctuationStripped() {
+        let a = ContentSignature.fingerprint(for: "Wow")
+        let b = ContentSignature.fingerprint(for: "Wow!!!")
+        XCTAssertEqual(a, b)
+    }
+
+    /// Trailing punctuation strip runs AFTER trailing-token strip, so
+    /// "Welcome. #onboarding" — where the hashtag was the cross-poster
+    /// addition and the period was already there — still collapses to
+    /// "welcome".
+    func testTrailingPunctuationStripsAfterTrailingHashtags() {
+        let a = ContentSignature.fingerprint(for: "Welcome")
+        let b = ContentSignature.fingerprint(for: "Welcome. #onboarding")
+        XCTAssertEqual(a, b)
+    }
 }
