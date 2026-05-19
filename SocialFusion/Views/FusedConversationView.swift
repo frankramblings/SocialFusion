@@ -371,8 +371,19 @@ private struct RootPostHeader: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                Text(post.content)
-                    .font(.body)
+                // Use PostContent so Mastodon HTML is stripped and
+                // hashtags / mentions get the standard tinted styling.
+                // Without this, root posts from Mastodon rendered the
+                // raw `<p>…</p>` tags as visible text — a glaring
+                // polish miss right at the top of the conversation,
+                // which is supposed to be the unit of attention.
+                PostContent(
+                    content: post.content,
+                    hashtags: post.tags,
+                    mentions: post.mentions,
+                    onHashtagTap: { _ in },
+                    onMentionTap: { _ in }
+                )
             }
         }
         .padding(12)
