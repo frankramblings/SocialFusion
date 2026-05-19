@@ -1815,10 +1815,7 @@ struct ComposeView: View {
                 }
             } label: {
                 HStack(spacing: 8) {
-                    Image(platform.icon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 14, height: 14)
+                    PlatformLogoBadge(platform: platform, size: 16, shadowEnabled: false)
 
                     if let account = selectedAccount(for: platform) {
                         EmojiDisplayNameText(
