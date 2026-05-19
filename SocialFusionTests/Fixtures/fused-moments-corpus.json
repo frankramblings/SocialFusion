@@ -603,6 +603,90 @@
       "masto": { "id": "m_088", "content": "Polish week is the best week... when we finally start saying no to the long tail of feature creep", "authorId": "frank_id", "createdAt": "2026-05-25T15:00:00Z" },
       "bsky":  { "id": "b_088", "content": "Polish week is the best week… when we finally start saying no to the long tail of feature creep", "authorId": "frank_id", "createdAt": "2026-05-25T15:00:08Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Right-to-left text (Arabic) — Unicode bidi pass-through should keep equality intact",
+      "masto": { "id": "m_089", "content": "اليوم أنهيت قراءة المقال عن الشبكات اللامركزية وأنا متحمس جداً لتطبيق بعض الأفكار", "authorId": "frank_id", "createdAt": "2026-05-25T16:00:00Z" },
+      "bsky":  { "id": "b_089", "content": "اليوم أنهيت قراءة المقال عن الشبكات اللامركزية وأنا متحمس جداً لتطبيق بعض الأفكار", "authorId": "frank_id", "createdAt": "2026-05-25T16:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same emoji shape but with skin-tone modifier on one side — Unicode-preserving normalization treats them as distinct, which is correct (different code points carry information)",
+      "masto": { "id": "m_090", "content": "Brought the new keyboard-shortcut polish across the finish line today 👋 — onto the next sprint", "authorId": "frank_id", "createdAt": "2026-05-25T17:00:00Z" },
+      "bsky":  { "id": "b_090", "content": "Brought the new keyboard-shortcut polish across the finish line today 👋🏼 — onto the next sprint", "authorId": "frank_id", "createdAt": "2026-05-25T17:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Code-like snippet inside the post (backticks + identifier) — symbols and casing must pass through",
+      "masto": { "id": "m_091", "content": "Refactored `MergedIdentityStore.lookup` to take a Sendable closure — cleans up four call sites instantly", "authorId": "frank_id", "createdAt": "2026-05-26T09:00:00Z" },
+      "bsky":  { "id": "b_091", "content": "Refactored `MergedIdentityStore.lookup` to take a Sendable closure — cleans up four call sites instantly", "authorId": "frank_id", "createdAt": "2026-05-26T09:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same opening word, then content diverges into unrelated topic — must not fuse on a single shared word",
+      "masto": { "id": "m_092", "content": "Spring is finally here — opening the windows and letting the fresh air through the studio", "authorId": "frank_id", "createdAt": "2026-05-26T10:00:00Z" },
+      "bsky":  { "id": "b_092", "content": "Spring loaded the new release into the validation pipeline — should be ready for beta by Friday", "authorId": "frank_id", "createdAt": "2026-05-26T10:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Trailing newlines on one side (e.g., editor added them) — whitespace collapse removes them before normalization",
+      "masto": { "id": "m_093", "content": "Quiet morning, deep work, no meetings — the conditions for the autocomplete index rewrite have aligned", "authorId": "frank_id", "createdAt": "2026-05-26T11:00:00Z" },
+      "bsky":  { "id": "b_093", "content": "Quiet morning, deep work, no meetings — the conditions for the autocomplete index rewrite have aligned\n\n", "authorId": "frank_id", "createdAt": "2026-05-26T11:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Casual contractions, multiple in one post — smart-quote fold normalizes the entire set",
+      "masto": { "id": "m_094", "content": "I'm not gonna pretend I'm thrilled about it, but I'd rather ship the constraint than miss the deadline", "authorId": "frank_id", "createdAt": "2026-05-26T12:00:00Z" },
+      "bsky":  { "id": "b_094", "content": "I’m not gonna pretend I’m thrilled about it, but I’d rather ship the constraint than miss the deadline", "authorId": "frank_id", "createdAt": "2026-05-26T12:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Identical opening AND closing words, but middle is reworded — fingerprint should reject when the body diverges",
+      "masto": { "id": "m_095", "content": "Today: the cross-network reply UI lands in main, the tests are all green, and tomorrow we ship", "authorId": "frank_id", "createdAt": "2026-05-26T13:00:00Z" },
+      "bsky":  { "id": "b_095", "content": "Today: the cross-network reply pipeline lands in main, validation looks clean, and tomorrow we ship", "authorId": "frank_id", "createdAt": "2026-05-26T13:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical with em-dash → ASCII fold and a colon — combined smart-punctuation handling",
+      "masto": { "id": "m_096", "content": "Polish summary — keyboard shortcuts: done, reduce-motion gates: done, HTML decode boundary: done", "authorId": "frank_id", "createdAt": "2026-05-26T14:00:00Z" },
+      "bsky":  { "id": "b_096", "content": "Polish summary - keyboard shortcuts: done, reduce-motion gates: done, HTML decode boundary: done", "authorId": "frank_id", "createdAt": "2026-05-26T14:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Different timezones / different days for the same author and content (5 days apart) — must NOT fuse cross-day reposts",
+      "masto": { "id": "m_097", "content": "Reading list update: three new long-form essays added this week, all worth the time", "authorId": "frank_id", "createdAt": "2026-05-26T15:00:00Z" },
+      "bsky":  { "id": "b_097", "content": "Reading list update: three new long-form essays added this week, all worth the time", "authorId": "frank_id", "createdAt": "2026-05-31T15:00:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Same content, well above threshold, baseline confidence — last positive to push corpus past 100",
+      "masto": { "id": "m_098", "content": "Pinning a search query is the kind of small feature that becomes load-bearing the second you start using it daily", "authorId": "frank_id", "createdAt": "2026-05-26T16:00:00Z" },
+      "bsky":  { "id": "b_098", "content": "Pinning a search query is the kind of small feature that becomes load-bearing the second you start using it daily", "authorId": "frank_id", "createdAt": "2026-05-26T16:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Final negative to round out the corpus past the spec's 100-entry threshold — same author, identical content, off-window timing (15 minutes)",
+      "masto": { "id": "m_099", "content": "Walked away from the keyboard to think for fifteen and came back with a better answer than I started with", "authorId": "frank_id", "createdAt": "2026-05-26T17:00:00Z" },
+      "bsky":  { "id": "b_099", "content": "Walked away from the keyboard to think for fifteen and came back with a better answer than I started with", "authorId": "frank_id", "createdAt": "2026-05-26T17:15:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Spec milestone entry — corpus now meets the >= 100 entry threshold called out in the v1.0 acceptance criteria. FP / FN baselines preserved at 0.",
+      "masto": { "id": "m_100", "content": "Hit the corpus milestone today — over a hundred curated cross-post pairs and decoys, and the detector still rates zero on both error axes", "authorId": "frank_id", "createdAt": "2026-05-26T18:00:00Z" },
+      "bsky":  { "id": "b_100", "content": "Hit the corpus milestone today — over a hundred curated cross-post pairs and decoys, and the detector still rates zero on both error axes", "authorId": "frank_id", "createdAt": "2026-05-26T18:00:08Z" },
+      "expectFused": true
     }
   ]
 }
