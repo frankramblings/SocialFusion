@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Hand-curated corpus of cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Currently 21 entries (12 positive, 9 negative) — most are synthetic boundary probes; must expand to >= 100 with REAL cross-post pairs pulled from production feeds before v1.0 promote-to-App-Store. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries. KNOWN GAP (deferred to v1.x): same-author copy-paste reply patterns (e.g., 'Thanks for the heads up' posted twice in different threads within the time window) currently produce a false positive — the detector has no parent-thread context. Withhold this corpus shape until a parent-thread signal lands.",
+  "description": "Hand-curated corpus of cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Must expand to >= 100 with REAL cross-post pairs pulled from production feeds before v1.0 promote-to-App-Store. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries. KNOWN GAPS (deferred to v1.x): (1) same-author copy-paste reply patterns produce a false positive without parent-thread context; (2) trailing-punctuation differences (period vs no period) currently break the signature match — ContentSignature doesn't strip them; (3) prepended @mention on one side breaks the signature match — the mention's bytes are folded into the fingerprint. Withhold these corpus shapes until ContentSignature lands richer normalization.",
   "examples": [
     {
       "label": "positive",
@@ -147,6 +147,83 @@
       "note": "Short content right at the threshold — even with same author and tight timing, baseline minus shortContentPenalty falls below minConfidence; should NOT fuse",
       "masto": { "id": "m_022", "content": "weather is wild", "authorId": "frank_id", "createdAt": "2026-05-17T14:00:00Z" },
       "bsky":  { "id": "b_022", "content": "weather is wild", "authorId": "frank_id", "createdAt": "2026-05-17T14:00:02Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Emoji + sentence — Unicode in content must not affect fingerprinting",
+      "masto": { "id": "m_023", "content": "Finally got the bloom animation right ✨ Took three rewrites but it's worth it", "authorId": "frank_id", "createdAt": "2026-05-18T08:30:00Z" },
+      "bsky":  { "id": "b_023", "content": "Finally got the bloom animation right ✨ Took three rewrites but it's worth it", "authorId": "frank_id", "createdAt": "2026-05-18T08:30:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Long-form, both sides identical, well above longContentBonus threshold",
+      "masto": { "id": "m_026", "content": "After spending most of yesterday reading through old design notes, I think the answer for cross-network conversation stitching is to treat the conversation as the unit of identity, not the post. Posts are platform-specific by necessity; conversations are not. The hard part is convincing the data layer to agree.", "authorId": "frank_id", "createdAt": "2026-05-19T09:00:00Z" },
+      "bsky":  { "id": "b_026", "content": "After spending most of yesterday reading through old design notes, I think the answer for cross-network conversation stitching is to treat the conversation as the unit of identity, not the post. Posts are platform-specific by necessity; conversations are not. The hard part is convincing the data layer to agree.", "authorId": "frank_id", "createdAt": "2026-05-19T09:00:30Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Looks like a quote of someone else's post — same wording, distinct author handles; should NOT fuse across users",
+      "masto": { "id": "m_027", "content": "Reading: 'Native craft is the floor, not the goal.' — well said and worth pinning", "authorId": "carol_id", "createdAt": "2026-05-19T11:30:00Z" },
+      "bsky":  { "id": "b_027", "content": "Reading: 'Native craft is the floor, not the goal.' — well said and worth pinning", "authorId": "dave_id", "createdAt": "2026-05-19T11:30:10Z" },
+      "expectFused": false
+    },
+    {
+      "label": "negative",
+      "note": "Cross-poster within window but content meaningfully diverged (added a P.S.) — signatures differ",
+      "masto": { "id": "m_028", "content": "Found a great new coffee spot down the street, will report back after a few visits", "authorId": "frank_id", "createdAt": "2026-05-19T13:00:00Z" },
+      "bsky":  { "id": "b_028", "content": "Found a great new coffee spot down the street, will report back after a few visits. Update: their drip is excellent", "authorId": "frank_id", "createdAt": "2026-05-19T13:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "boundary-positive",
+      "note": "Right at the 10-minute window boundary — must still fuse since the detector uses <= timeWindow",
+      "masto": { "id": "m_029", "content": "Heading out for the afternoon, will catch up on replies after dinner", "authorId": "frank_id", "createdAt": "2026-05-19T14:00:00Z" },
+      "bsky":  { "id": "b_029", "content": "Heading out for the afternoon, will catch up on replies after dinner", "authorId": "frank_id", "createdAt": "2026-05-19T14:10:00Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Just past the 10-minute window — same content, same author, but >600s apart, should NOT fuse",
+      "masto": { "id": "m_030", "content": "Spent the afternoon at the art museum, the Sargent exhibit was magnificent", "authorId": "frank_id", "createdAt": "2026-05-19T15:00:00Z" },
+      "bsky":  { "id": "b_030", "content": "Spent the afternoon at the art museum, the Sargent exhibit was magnificent", "authorId": "frank_id", "createdAt": "2026-05-19T15:11:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Whitespace difference (extra space) — fingerprint normalization should collapse",
+      "masto": { "id": "m_031", "content": "Polished off another iteration of the keyboard-shortcut polish pass. Feels good.", "authorId": "frank_id", "createdAt": "2026-05-19T16:00:00Z" },
+      "bsky":  { "id": "b_031", "content": "Polished off another iteration  of the keyboard-shortcut polish pass. Feels good.", "authorId": "frank_id", "createdAt": "2026-05-19T16:00:04Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Question-mark sentence; ensures detector handles non-statement content",
+      "masto": { "id": "m_032", "content": "Anyone else find Mastodon's federated timeline weirdly comforting these days?", "authorId": "frank_id", "createdAt": "2026-05-19T17:00:00Z" },
+      "bsky":  { "id": "b_032", "content": "Anyone else find Mastodon's federated timeline weirdly comforting these days?", "authorId": "frank_id", "createdAt": "2026-05-19T17:00:06Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "URL appears in both sides but text otherwise diverges — should NOT fuse on a shared URL alone",
+      "masto": { "id": "m_033", "content": "Bookmarking this excellent essay on cross-network identity: https://example.com/identity-essay", "authorId": "frank_id", "createdAt": "2026-05-19T18:00:00Z" },
+      "bsky":  { "id": "b_033", "content": "Filed this under: things I'll re-read next quarter. https://example.com/identity-essay", "authorId": "frank_id", "createdAt": "2026-05-19T18:00:11Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Cross-poster reorders trailing tags; primary text identical",
+      "masto": { "id": "m_034", "content": "Day 3 of the conference and the hallway track is somehow even better than the keynotes #conf2026 #indieweb", "authorId": "frank_id", "createdAt": "2026-05-20T10:00:00Z" },
+      "bsky":  { "id": "b_034", "content": "Day 3 of the conference and the hallway track is somehow even better than the keynotes #indieweb #conf2026", "authorId": "frank_id", "createdAt": "2026-05-20T10:00:07Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Empty content on one side (perhaps an image-only Bluesky post); detector must never fuse on empty",
+      "masto": { "id": "m_035", "content": "View from the office today", "authorId": "frank_id", "createdAt": "2026-05-20T11:30:00Z" },
+      "bsky":  { "id": "b_035", "content": "", "authorId": "frank_id", "createdAt": "2026-05-20T11:30:05Z" },
       "expectFused": false
     }
   ]
