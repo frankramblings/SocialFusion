@@ -431,6 +431,7 @@ struct SmartMediaView: View {
 
                     if retryCount < maxRetries {
                         Button("Retry") {
+                            HapticEngine.tap.trigger()
                             retryCount += 1
                             // Trigger reload by changing state
                             loadingState = .loading
@@ -646,6 +647,7 @@ private struct VideoPlayerView: View {
                         .foregroundColor(.secondary)
 
                     Button("Retry") {
+                        HapticEngine.tap.trigger()
                         retrySetup()
                     }
                     .buttonStyle(.borderedProminent)

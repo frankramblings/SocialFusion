@@ -308,6 +308,10 @@ struct ExpandingReplyBanner: View {
                 .multilineTextAlignment(.center)
 
             Button("Retry") {
+                // Tap haptic — async parent fetch can take a beat to
+                // surface progress; matches the retry-haptic vocabulary
+                // used across the app (3929dc2, 6028402).
+                HapticEngine.tap.trigger()
                 fetchAttempted = false
                 fetchError = nil
                 if let parentId = parentId {
