@@ -725,6 +725,11 @@ struct LoadingQuoteView: View {
         .overlay(borderOverlay)
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
         .redacted(reason: .placeholder)
+        // .redacted shows blurred placeholders visually, but VoiceOver
+        // would otherwise announce each shape geometry verbatim. Hide
+        // the structure and announce the loading state as one element.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading quoted post from \(platform.accessibilityLabel)")
     }
 
     private var platformColor: Color {
