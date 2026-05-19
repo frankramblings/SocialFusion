@@ -68,12 +68,17 @@ struct NotificationsView: View {
                                 Image(systemName: "bell.slash")
                                     .font(.system(size: 50))
                                     .foregroundColor(.gray.opacity(0.3))
+                                    // Decorative — VoiceOver would otherwise
+                                    // announce "bell slash" verbatim, which is
+                                    // redundant with the title below.
+                                    .accessibilityHidden(true)
                                 Text(selectedFilter == nil ? "No notifications yet" : "No \(selectedFilter!.displayName.lowercased()) notifications")
                                     .font(.headline)
                                     .foregroundColor(.secondary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 100)
+                            .accessibilityElement(children: .combine)
                         } else {
                             ForEach(filteredNotifications) { notification in
                                 if let post = notification.post {
