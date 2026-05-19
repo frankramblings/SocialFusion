@@ -275,17 +275,22 @@ struct MessageBubble: View {
 
   @ViewBuilder
   private var asyncAvatar: some View {
-    if let urlString = avatarURL, let url = URL(string: urlString) {
-      CachedAsyncImage(url: url, priority: .low) { image in
-        image.resizable().aspectRatio(contentMode: .fill)
-      } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
-      }
-      .frame(width: 28, height: 28)
-      .clipShape(Circle())
-    } else {
-      Circle().fill(Color.gray.opacity(0.3))
+    Group {
+      if let urlString = avatarURL, let url = URL(string: urlString) {
+        CachedAsyncImage(url: url, priority: .low) { image in
+          image.resizable().aspectRatio(contentMode: .fill)
+        } placeholder: {
+          Circle().fill(Color.gray.opacity(0.3))
+        }
         .frame(width: 28, height: 28)
+        .clipShape(Circle())
+      } else {
+        Circle().fill(Color.gray.opacity(0.3))
+          .frame(width: 28, height: 28)
+      }
     }
+    // The bubble's combined label already names the sender. The avatar
+    // is visual reinforcement, not new information for VoiceOver.
+    .accessibilityHidden(true)
   }
 }
