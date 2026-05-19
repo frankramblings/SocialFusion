@@ -20,6 +20,11 @@ struct GroupAvatarStack: View {
       }
     }
     .frame(width: size, height: size)
+    // The parent row (DMConversationRow) carries the group's name and
+    // member count in its combined a11y label. Hiding this stack from the
+    // a11y tree avoids three "image, image, image" sub-elements
+    // duplicating that information.
+    .accessibilityHidden(true)
   }
 
   private var avatarSize: CGFloat { size * 0.65 }
