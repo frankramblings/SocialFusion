@@ -44,6 +44,27 @@ public struct QuotePostView: View {
                 navigationEnvironment.navigateToPost(post)
             }
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(combinedAccessibilityLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the quoted post.")
+    }
+
+    /// One-shot VoiceOver label so a quoted-post card reads coherently:
+    /// "Quoted post on Mastodon by Brent Simmons: \"Hello world\""
+    private var combinedAccessibilityLabel: String {
+        var parts: [String] = ["Quoted post on \(post.platform.accessibilityLabel)"]
+        let author = post.authorName.isEmpty ? "@\(post.authorUsername)" : post.authorName
+        parts.append("by \(author)")
+        let trimmed = post.content.prefix(maxCharacters)
+        if !trimmed.isEmpty {
+            parts.append("\"\(trimmed)\"")
+        }
+        if !post.attachments.isEmpty {
+            let count = post.attachments.count
+            parts.append("with \(count) attachment\(count == 1 ? "" : "s")")
+        }
+        return parts.joined(separator: ", ")
     }
 
     // MARK: - View Components
