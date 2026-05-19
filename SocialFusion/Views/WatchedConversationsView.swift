@@ -19,19 +19,22 @@ public struct WatchedConversationsView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "bell.slash")
-                .font(.system(size: 40))
-                .foregroundStyle(.secondary)
-            Text("No watched conversations")
+        VStack(spacing: 16) {
+            // FusedGlyph instead of `bell.slash`: the feature is cross-
+            // network thread-following — the glyph carries that meaning
+            // more honestly than a generic notification icon.
+            FusedGlyph(size: 48, bloomOnAppear: false)
+            Text("Nothing watched yet")
                 .font(.headline)
-            Text("Tap the menu on a post and choose Watch conversation to follow it.")
+            Text("Watch a conversation to get a ping when someone replies on either network. Open a post's menu and pick **Watch conversation**.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Nothing watched yet. Watch a conversation to get a ping when someone replies on either network. Open a post's menu and pick Watch conversation.")
     }
 
     private var listContent: some View {
