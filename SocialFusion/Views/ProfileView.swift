@@ -57,7 +57,14 @@ struct ProfileView: View {
             ProfileHeaderView(
               profile: viewModel.activeProfile ?? profile,
               isOwnProfile: viewModel.isOwnProfile,
-              onEditProfile: { showEditProfile = true },
+              onEditProfile: {
+                // Tap haptic — opens the Edit Profile sheet via state
+                // flip + sheet presentation animation. Same gesture-
+                // confirmation pattern as the other CTAs that open
+                // sheets (5bb7600 / 687d5a5).
+                HapticEngine.tap.trigger()
+                showEditProfile = true
+              },
               relationshipState: relationshipState,
               onFollow: { Task { await relationshipViewModel?.follow() } },
               onUnfollow: { Task { await relationshipViewModel?.unfollow() } },
