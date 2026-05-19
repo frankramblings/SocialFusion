@@ -301,6 +301,10 @@ struct SimpleAddAccountSheet: View {
                     .background(Color.blue)
                     .cornerRadius(10)
                     .disabled(isLoading || !isFormValid)
+                    // VoiceOver loses the "Add Account" label while the
+                    // button's label swaps to a ProgressView. Pin both
+                    // states — same fix as DirectTokenEntryView.
+                    .accessibilityLabel(isLoading ? "Adding account" : "Add Account")
                 }
             }
 

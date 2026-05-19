@@ -56,6 +56,10 @@ struct DirectTokenEntryView: View {
                 .background(isFormValid ? Color.blue : Color.gray)
                 .cornerRadius(10)
                 .disabled(isLoading || !isFormValid)
+                // When the button swaps Text for ProgressView during
+                // submission, VoiceOver loses the "Add Account" label.
+                // Pin both states explicitly.
+                .accessibilityLabel(isLoading ? "Adding account" : "Add Account")
             }
 
             if let error = errorMessage {

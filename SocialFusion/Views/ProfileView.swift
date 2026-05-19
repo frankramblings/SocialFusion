@@ -411,6 +411,7 @@ struct ProfileView: View {
         ProgressView()
           .frame(maxWidth: .infinity)
           .padding()
+          .accessibilityLabel("Loading more posts")
       }
     }
   }
