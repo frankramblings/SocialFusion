@@ -107,6 +107,7 @@ struct DirectTokenEntryView: View {
                 )
 
                 await MainActor.run {
+                    HapticEngine.success.trigger()
                     isLoading = false
                     successMessage = "Successfully added account: \(account.username)"
 
@@ -121,6 +122,7 @@ struct DirectTokenEntryView: View {
                 }
             } catch {
                 await MainActor.run {
+                    HapticEngine.error.trigger()
                     isLoading = false
                     errorMessage = "Failed to add account: \(error.localizedDescription)"
                 }
