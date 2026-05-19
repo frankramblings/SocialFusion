@@ -320,6 +320,12 @@ struct LinkPreviewPlaceholder: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .redacted(reason: .placeholder)
+        // Same fix as LoadingQuoteView / Profile skeleton / Search
+        // trending placeholder: the .redacted shapes would otherwise
+        // get announced individually as geometry. Combine into one
+        // load-state announcement.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading link preview")
     }
 }
 
