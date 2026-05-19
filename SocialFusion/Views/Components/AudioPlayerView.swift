@@ -186,6 +186,7 @@ struct AudioPlayerView: View {
                     .foregroundColor(.primary)
             }
             .disabled(currentTime < 15)
+            .accessibilityLabel("Skip back 15 seconds")
 
             Spacer()
 
@@ -208,6 +209,7 @@ struct AudioPlayerView: View {
             .disabled(isLoading || hasError)
             .scaleEffect(isLoading ? 0.9 : 1.0)
             .animation(.easeInOut(duration: 0.2), value: isLoading)
+            .accessibilityLabel(isLoading ? "Loading audio" : (isPlaying ? "Pause" : "Play"))
 
             Spacer()
 
@@ -218,6 +220,7 @@ struct AudioPlayerView: View {
                     .foregroundColor(.primary)
             }
             .disabled(duration > 0 && currentTime > duration - 15)
+            .accessibilityLabel("Skip forward 15 seconds")
         }
     }
 
