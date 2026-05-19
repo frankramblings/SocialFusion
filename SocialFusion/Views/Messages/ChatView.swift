@@ -330,6 +330,9 @@ struct ChatView: View {
     }
     .disabled(newMessageText.isEmpty || isLoading || isSending)
     .accessibilityLabel(isSending ? "Sending message" : "Send message")
+    // Cmd+Return → Send. Matches the primary compose flow and Echo
+    // composer; standard "ship it" gesture for keyboard users.
+    .keyboardShortcut(.return, modifiers: .command)
   }
 
   // MARK: - Message Grouping
