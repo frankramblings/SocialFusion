@@ -278,16 +278,19 @@ struct SettingsView: View {
                         showClearImageAlert = true
                     }
                     .disabled(clearingInProgress)
+                    .accessibilityHint("Opens a confirmation before removing all cached profile and post images.")
 
                     Button("Reset Post Database") {
                         showClearDatabaseAlert = true
                     }
                     .disabled(clearingInProgress)
+                    .accessibilityHint("Opens a confirmation before clearing the local post database. Timelines will rebuild on next refresh.")
 
                     Button("Clear Other Caches") {
                         showClearOtherAlert = true
                     }
                     .disabled(clearingInProgress)
+                    .accessibilityHint("Opens a confirmation before removing link-preview and metadata caches.")
                 }
 
                 #if DEBUG
