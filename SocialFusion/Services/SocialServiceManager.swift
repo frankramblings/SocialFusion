@@ -4682,7 +4682,12 @@ public final class SocialServiceManager: ObservableObject {
             }
         }
         let detected = fusedMomentDetector.detect(in: posts, identityMap: identityMap)
-        fuseLogger.info("detected \(detected.count, privacy: .public) moments across \(posts.count, privacy: .public) posts; identityMap has \(identityMap.count, privacy: .public) entries")
+        // `.debug` rather than `.info`: this fires on every timeline
+        // refresh, and in release builds .info is persisted to the
+        // unified log. Cap it to .debug so it doesn't accrete storage —
+        // when investigating detector behavior, run the app under
+        // `log stream --level debug` and the line comes back.
+        fuseLogger.debug("detected \(detected.count, privacy: .public) moments across \(posts.count, privacy: .public) posts; identityMap has \(identityMap.count, privacy: .public) entries")
         if !detected.isEmpty {
             fusedMomentStore?.insert(detected)
         }
