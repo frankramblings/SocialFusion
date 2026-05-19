@@ -55,12 +55,10 @@ struct ReplyContextHeader: View {
 
                 Spacer()
 
-                // Platform indicator
-                Image(post.platform.icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 14, height: 14)
-                    .foregroundColor(platformColor)
+                // Platform indicator: route through PlatformLogoBadge so the
+                // Settings → Accessibility high-contrast toggle reaches the
+                // compose reply header. Sized to match the prior inline image.
+                PlatformLogoBadge(platform: post.platform, size: 16, shadowEnabled: false)
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
