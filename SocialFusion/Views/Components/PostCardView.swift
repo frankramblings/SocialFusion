@@ -895,13 +895,24 @@ struct PostCardView: View {
             components.append("Reposted by \(boostedBy)")
         }
 
-        // Author and timestamp
+        // Author and timestamp — decode HTML entities so VoiceOver
+        // doesn't speak Mastodon display-name escapes verbatim
+        // (e.g. "Frank ampersand pound 8217 semicolon s"). Same
+        // boundary fix as the EmojiDisplayNameText canonical render
+        // (afcbaa9).
         components.append(
-            "Post by \(displayPost.authorName), \(formatAccessibilityTimestamp(displayPost.createdAt))"
+            "Post by \(displayPost.authorName.decodingHTMLEntities), \(formatAccessibilityTimestamp(displayPost.createdAt))"
         )
 
-        // Content
-        let cleanContent = displayPost.content.replacingOccurrences(of: "\n", with: " ")
+        // Content — strip HTML tags + decode entities. Mastodon ships
+        // posts as HTML (`<p>…</p>`) which VoiceOver would otherwise
+        // read out as "less than p greater than". Routes through the
+        // canonical String+HTML extensions for the same reason the
+        // Fused thread reply a11y label does (one entity table).
+        let cleanContent = displayPost.content
+            .strippingHTMLTags
+            .decodingHTMLEntities
+            .replacingOccurrences(of: "\n", with: " ")
         if !cleanContent.isEmpty {
             components.append("Content: \(cleanContent)")
         }
