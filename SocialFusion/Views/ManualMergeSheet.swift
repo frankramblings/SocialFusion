@@ -127,7 +127,10 @@ public struct ManualMergeSheet: View {
                             .frame(width: 40, height: 40)
                             .clipShape(Circle())
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(user.displayName ?? user.username)
+                            // Decode entities — Mastodon search results
+                            // ship displayName with raw HTML entities
+                            // (same boundary fix as afcbaa9, a4148ba).
+                            Text((user.displayName ?? user.username).decodingHTMLEntities)
                                 .font(.subheadline.weight(.semibold))
                             Text("@\(user.username)")
                                 .font(.caption)
@@ -139,7 +142,7 @@ public struct ManualMergeSheet: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(user.displayName ?? user.username), @\(user.username), on \(user.platform.accessibilityLabel)")
+                .accessibilityLabel("\((user.displayName ?? user.username).decodingHTMLEntities), @\(user.username), on \(user.platform.accessibilityLabel)")
                 .accessibilityHint("Selects this account as the merged twin.")
             }
             .listStyle(.plain)

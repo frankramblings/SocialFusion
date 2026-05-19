@@ -22,7 +22,7 @@ struct NewConversationView: View {
             HStack(spacing: 8) {
               ForEach(selectedParticipants, id: \.did) { actor in
                 HStack(spacing: 4) {
-                  Text(actor.displayName ?? actor.handle)
+                  Text((actor.displayName ?? actor.handle).decodingHTMLEntities)
                     .font(.caption)
                     .fontWeight(.medium)
                   Button {
