@@ -186,10 +186,17 @@ struct ToastHostModifier: ViewModifier {
                             ToastNotification(toast: toast, onDismiss: {
                                 toastManager.dismiss()
                             })
+                            // Cap the toast width on iPad / wide
+                            // displays so the banner stays a readable
+                            // pill instead of stretching edge-to-edge.
+                            // 520pt is roughly the comfort width used
+                            // by Mail's banners.
+                            .frame(maxWidth: 520)
                             .padding(.top, 12)
                             .padding(.horizontal, 12)
                             Spacer()
                         }
+                        .frame(maxWidth: .infinity)
                         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: toastManager.currentToast)
                     }
                 }
