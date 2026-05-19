@@ -9,20 +9,29 @@ struct DirectTokenEntryView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var successMessage: String? = nil
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case serverURL, accessToken }
 
     var body: some View {
         Form {
             Section(header: Text("Server Information")) {
                 TextField("Server URL (e.g. mastodon.social)", text: $serverURL)
-                    .autocapitalization(.none)
                     .keyboardType(.URL)
-                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .focused($focusedField, equals: .serverURL)
+                    .onSubmit { focusedField = .accessToken }
+                    .submitLabel(.next)
             }
 
             Section(header: Text("Authentication")) {
                 SecureField("Access Token", text: $accessToken)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .focused($focusedField, equals: .accessToken)
+                    .submitLabel(.done)
+                    .onSubmit { if isFormValid { addAccount() } }
 
                 Text(
                     "You can obtain an access token from your Mastodon's instance settings page, under Development → Your applications."
@@ -63,6 +72,14 @@ struct DirectTokenEntryView: View {
                         .foregroundColor(.green)
                         .font(.footnote)
                 }
+            }
+        }
+        .onAppear {
+            // Auto-focus the server field — the only reason a user is on
+            // this sheet is to type a URL and a token. One less tap to
+            // start the flow.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                focusedField = .serverURL
             }
         }
 
