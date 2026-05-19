@@ -649,6 +649,7 @@ struct LegacyFullscreenMediaView: View {
 
     private func retryLoading() {
         guard !isSimulator else { return }
+        HapticEngine.tap.trigger()
         guard let currentAttachment = currentAttachment,
             !currentAttachment.url.isEmpty,
             let url = URL(string: currentAttachment.url)

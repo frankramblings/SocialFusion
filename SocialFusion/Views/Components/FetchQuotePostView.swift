@@ -219,6 +219,7 @@ struct FetchQuotePostView: View {
                             .foregroundColor(.secondary)
                         Spacer()
                         Button("Retry") {
+                            HapticEngine.tap.trigger()
                             retryCount = 0  // Reset retry count for manual retry
                             Task {
                                 await fetchPost()

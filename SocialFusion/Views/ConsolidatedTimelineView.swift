@@ -51,6 +51,7 @@ struct ConsolidatedTimelineEmptyStateView: View {
                 .accessibilityHint("Opens the add-account flow.")
             } else if let onRetry = onRetry, state != .loading {
                 Button("Retry") {
+                    HapticEngine.tap.trigger()
                     onRetry()
                 }
                 .buttonStyle(.borderedProminent)

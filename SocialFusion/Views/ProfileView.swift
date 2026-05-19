@@ -523,6 +523,7 @@ struct ProfileView: View {
           .padding(.horizontal, 32)
       }
       Button("Retry") {
+        HapticEngine.tap.trigger()
         Task {
           viewModel.profileError = nil
           viewModel.profile = nil

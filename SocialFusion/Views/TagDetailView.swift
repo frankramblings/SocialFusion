@@ -42,6 +42,7 @@ struct TagDetailView: View {
                         Text("Failed to load posts")
                             .foregroundColor(.secondary)
                         Button("Retry") {
+                            HapticEngine.tap.trigger()
                             Task {
                                 await fetchPosts()
                             }
