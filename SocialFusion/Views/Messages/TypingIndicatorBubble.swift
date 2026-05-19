@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TypingIndicatorBubble: View {
   @State private var isAnimating = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private let dotSize: CGFloat = 8
   private let dotColor = Color.secondary
@@ -17,9 +18,11 @@ struct TypingIndicatorBubble: View {
             .frame(width: dotSize, height: dotSize)
             .offset(y: isAnimating ? -4 : 0)
             .animation(
-              .easeInOut(duration: 0.4)
-              .repeatForever(autoreverses: true)
-              .delay(Double(index) * 0.15),
+              reduceMotion
+                ? .none
+                : .easeInOut(duration: 0.4)
+                    .repeatForever(autoreverses: true)
+                    .delay(Double(index) * 0.15),
               value: isAnimating
             )
         }
@@ -33,6 +36,12 @@ struct TypingIndicatorBubble: View {
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 4)
-    .onAppear { isAnimating = true }
+    .onAppear {
+      // Only start the bounce if reduce-motion is off. Static dots still
+      // read as a typing indicator visually.
+      if !reduceMotion { isAnimating = true }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Typing…")
   }
 }
