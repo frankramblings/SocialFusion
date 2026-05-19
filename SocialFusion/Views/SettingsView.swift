@@ -305,7 +305,7 @@ struct SettingsView: View {
                 #endif
 
                 Section {
-                    Button(action: {
+                    Button(role: .destructive, action: {
                         Task {
                             await serviceManager.logout()
                         }
@@ -313,6 +313,7 @@ struct SettingsView: View {
                         Text("Log Out All Accounts")
                             .foregroundColor(.red)
                     }
+                    .accessibilityHint("Removes all signed-in accounts from this device.")
                 }
             }
             .navigationTitle("Settings")
