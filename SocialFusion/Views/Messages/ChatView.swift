@@ -569,6 +569,11 @@ struct ChatView: View {
           self.isSending = false
           loadMessages()
         } catch {
+          // Failure-only haptic: success stays silent to match iMessage,
+          // but a failed send is a meaningful event the user needs to
+          // notice — the alert alone is easy to miss when the keyboard
+          // is up and the buffer was just cleared.
+          HapticEngine.error.trigger()
           self.errorMessage = "Failed to edit message: \(error.localizedDescription)"
           self.newMessageText = text
           self.editingMessage = editing
@@ -587,6 +592,7 @@ struct ChatView: View {
         self.messages.append(sent)
         self.isSending = false
       } catch {
+        HapticEngine.error.trigger()
         self.errorMessage = "Failed to send message: \(error.localizedDescription)"
         self.newMessageText = text
         self.isSending = false
