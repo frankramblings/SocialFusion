@@ -63,6 +63,7 @@ struct ChatView: View {
                 .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary)
             }
             .disabled(currentMatchIndex == 0)
+            .accessibilityLabel("Previous match")
 
             Button {
               if currentMatchIndex < matchingMessageIds.count - 1 { currentMatchIndex += 1 }
@@ -71,6 +72,7 @@ struct ChatView: View {
                 .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary)
             }
             .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
+            .accessibilityLabel("Next match")
           } else if !searchText.isEmpty {
             Text("No results")
               .font(.caption)
@@ -101,6 +103,7 @@ struct ChatView: View {
           Image(systemName: isSearching ? "xmark" : "magnifyingglass")
             .foregroundColor(.secondary)
         }
+        .accessibilityLabel(isSearching ? "Close search" : "Search messages")
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
@@ -109,6 +112,7 @@ struct ChatView: View {
           Image(systemName: "info.circle")
             .foregroundColor(.secondary)
         }
+        .accessibilityLabel("Conversation settings")
       }
     }
     .sheet(isPresented: $showSettings) {
