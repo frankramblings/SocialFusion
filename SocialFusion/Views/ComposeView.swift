@@ -1501,6 +1501,8 @@ struct ComposeView: View {
                         Button(action: { showDraftsList = true }) {
                             Image(systemName: "archivebox")
                         }
+                        .accessibilityLabel("Drafts")
+                        .accessibilityHint("Opens the list of saved drafts.")
                     }
                 }
             }
