@@ -479,8 +479,17 @@ private struct ReplyRow: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
-                Text(post.content)
-                    .font(.body)
+                // Same reason as RootPostHeader: a bare Text(post.content)
+                // renders raw <p>…</p> from Mastodon replies. Routing
+                // through PostContent strips HTML and keeps hashtag /
+                // mention styling consistent with the rest of the app.
+                PostContent(
+                    content: post.content,
+                    hashtags: post.tags,
+                    mentions: post.mentions,
+                    onHashtagTap: { _ in },
+                    onMentionTap: { _ in }
+                )
             }
         }
         // Combine into a single VoiceOver element so a swipe lands one
@@ -495,6 +504,18 @@ private struct ReplyRow: View {
         let networkName = post.platform.accessibilityLabel
         let formatter = RelativeDateTimeFormatter()
         let when = formatter.localizedString(for: post.createdAt, relativeTo: Date())
-        return "\(networkName) reply from \(post.authorName), \(when): \(post.content)"
+        // Strip HTML for VoiceOver too — otherwise Mastodon replies are
+        // read out as "less than p greater than … less than slash p
+        // greater than", which is unintelligible and demoralizing for
+        // anyone relying on screen-reader output.
+        let plain = post.content
+            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(networkName) reply from \(post.authorName), \(when): \(plain)"
     }
 }
