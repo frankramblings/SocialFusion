@@ -19,6 +19,7 @@ private struct SearchStoreWrapper<Content: View>: View {
 
 struct SearchView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject var fusedMomentStore: FusedMomentStore
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool

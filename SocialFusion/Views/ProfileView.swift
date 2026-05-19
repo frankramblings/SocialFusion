@@ -6,6 +6,8 @@ import SwiftUI
 /// with a single component backed by ProfileViewModel.
 struct ProfileView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
+  @EnvironmentObject var mergedIdentityStore: MergedIdentityStore
+  @EnvironmentObject var fusedMomentStore: FusedMomentStore
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @StateObject private var viewModel: ProfileViewModel
   @StateObject private var navigationEnvironment = PostNavigationEnvironment()
