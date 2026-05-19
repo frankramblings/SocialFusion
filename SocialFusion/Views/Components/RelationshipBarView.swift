@@ -31,7 +31,11 @@ struct RelationshipBarView: View {
               .clipShape(Circle())
           }
           .buttonStyle(.plain)
-          
+          .accessibilityLabel(viewModel.state.isMuting ? "Unmute" : "Mute")
+          .accessibilityHint(viewModel.state.isMuting
+            ? "Stops hiding this user's posts."
+            : "Hides this user's posts from your timeline.")
+
           // Block button
           Button(action: {
             showBlockConfirmation = true
@@ -44,6 +48,8 @@ struct RelationshipBarView: View {
               .clipShape(Circle())
           }
           .buttonStyle(.plain)
+          .accessibilityLabel("Block")
+          .accessibilityHint("Opens block confirmation.")
         } else {
           // Blocked state: show "Blocked" pill
           HStack(spacing: 8) {
