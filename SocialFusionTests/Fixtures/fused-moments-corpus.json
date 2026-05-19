@@ -323,6 +323,62 @@
       "masto": { "id": "m_048", "content": "It's a strange feeling shipping something you've thought about for two years and seeing it in the wild", "authorId": "frank_id", "createdAt": "2026-05-21T12:00:00Z" },
       "bsky":  { "id": "b_048", "content": "It’s a strange feeling shipping something you’ve thought about for two years and seeing it in the wild", "authorId": "frank_id", "createdAt": "2026-05-21T12:00:06Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "En-dash vs hyphen variation between sides; smart-punctuation fold normalizes both to ASCII",
+      "masto": { "id": "m_049", "content": "Cold-launch budget audit – first measurable improvement of the quarter", "authorId": "frank_id", "createdAt": "2026-05-21T13:00:00Z" },
+      "bsky":  { "id": "b_049", "content": "Cold-launch budget audit - first measurable improvement of the quarter", "authorId": "frank_id", "createdAt": "2026-05-21T13:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Horizontal-ellipsis glyph vs three ASCII dots; fold pass handles both",
+      "masto": { "id": "m_050", "content": "Heading out for the afternoon, will catch up on replies after dinner…", "authorId": "frank_id", "createdAt": "2026-05-21T14:00:00Z" },
+      "bsky":  { "id": "b_050", "content": "Heading out for the afternoon, will catch up on replies after dinner...", "authorId": "frank_id", "createdAt": "2026-05-21T14:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same shape sentence, different verb — substantive semantic drift, must not fuse on partial overlap",
+      "masto": { "id": "m_051", "content": "Bought new headphones today and the noise cancellation is unreal", "authorId": "frank_id", "createdAt": "2026-05-21T15:00:00Z" },
+      "bsky":  { "id": "b_051", "content": "Returned new headphones today and the noise cancellation was unreal", "authorId": "frank_id", "createdAt": "2026-05-21T15:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "CJK content (Japanese) — Unicode handling in fingerprint should not break non-Latin scripts",
+      "masto": { "id": "m_052", "content": "今日は新しいプロジェクトを始める、ワクワクする良い一日になりそう", "authorId": "frank_id", "createdAt": "2026-05-21T16:00:00Z" },
+      "bsky":  { "id": "b_052", "content": "今日は新しいプロジェクトを始める、ワクワクする良い一日になりそう", "authorId": "frank_id", "createdAt": "2026-05-21T16:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Accented Latin (French) — diacritics should pass through normalization unchanged",
+      "masto": { "id": "m_053", "content": "Café au lait du matin et déjà prêt à attaquer le code — bonne journée à tous", "authorId": "frank_id", "createdAt": "2026-05-21T17:00:00Z" },
+      "bsky":  { "id": "b_053", "content": "Café au lait du matin et déjà prêt à attaquer le code — bonne journée à tous", "authorId": "frank_id", "createdAt": "2026-05-21T17:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Identical content but different verified authors (frank_id vs alice_id) with overlapping handle — must NOT fuse",
+      "masto": { "id": "m_054", "content": "Reading List update: three new long-form essays added this week, all worth the time", "authorId": "frank_id", "createdAt": "2026-05-21T18:00:00Z" },
+      "bsky":  { "id": "b_054", "content": "Reading List update: three new long-form essays added this week, all worth the time", "authorId": "alice_id", "createdAt": "2026-05-21T18:00:05Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Trailing whitespace on one side, none on the other — collapse should align them",
+      "masto": { "id": "m_055", "content": "Quick reminder: the design review is scheduled for Friday at 2pm in the small conference room", "authorId": "frank_id", "createdAt": "2026-05-22T09:00:00Z" },
+      "bsky":  { "id": "b_055", "content": "Quick reminder: the design review is scheduled for Friday at 2pm in the small conference room   ", "authorId": "frank_id", "createdAt": "2026-05-22T09:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Cross-poster appended substantive content (a question, not noise) on one side — diverged enough to NOT fuse",
+      "masto": { "id": "m_056", "content": "Reading the new SwiftUI rendering docs — clearer than I expected", "authorId": "frank_id", "createdAt": "2026-05-22T10:00:00Z" },
+      "bsky":  { "id": "b_056", "content": "Reading the new SwiftUI rendering docs — clearer than I expected. Anyone else digging in this weekend?", "authorId": "frank_id", "createdAt": "2026-05-22T10:00:06Z" },
+      "expectFused": false
     }
   ]
 }
