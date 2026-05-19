@@ -24,6 +24,7 @@ struct ContentWarningEditor: View {
             Image(systemName: "xmark.circle.fill")
               .foregroundColor(.secondary)
           }
+          .accessibilityLabel("Remove content warning")
         }
         
         TextField("Warning text...", text: $cwText, axis: .vertical)
