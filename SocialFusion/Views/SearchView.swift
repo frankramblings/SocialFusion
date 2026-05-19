@@ -433,6 +433,9 @@ struct SearchView: View {
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
                                 }
+                                .accessibilityElement(children: .ignore)
+                                .accessibilityLabel("Pinned search: \(savedSearch.displayName)")
+                                .accessibilityHint("Re-runs this saved search.")
                                 if index < store.pinnedSearches.count - 1 {
                                     Divider().padding(.leading, 40)
                                 }
