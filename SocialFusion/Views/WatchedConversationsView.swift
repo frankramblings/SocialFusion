@@ -3,6 +3,7 @@ import SwiftUI
 public struct WatchedConversationsView: View {
     @EnvironmentObject var store: WatchedConversationStore
     @EnvironmentObject var fusedMomentStore: FusedMomentStore
+    @EnvironmentObject var serviceManager: SocialServiceManager
 
     public init() {}
 
@@ -35,7 +36,7 @@ public struct WatchedConversationsView: View {
 
     private var listContent: some View {
         List(store.allWatched()) { conv in
-            row(for: conv)
+            rowContent(for: conv)
                 .swipeActions {
                     Button(role: .destructive) {
                         store.unwatch(rootPostID: conv.rootPostID)
@@ -44,6 +45,28 @@ public struct WatchedConversationsView: View {
                         Label("Unwatch", systemImage: "bell.slash")
                     }
                 }
+        }
+    }
+
+    /// A Fused watched row pushes into `FusedConversationView`; non-Fused
+    /// rows stay informational for v1.0 (no per-network thread destination
+    /// is wired from Settings yet).
+    @ViewBuilder
+    private func rowContent(for conv: WatchedConversation) -> some View {
+        if let momentID = conv.fusedMomentID,
+           let moment = fusedMomentStore.moments[momentID] {
+            NavigationLink {
+                FusedConversationView(
+                    viewModel: FusedConversationViewModel(
+                        moment: moment,
+                        threadFetcher: SocialServiceManagerThreadFetcher(serviceManager: serviceManager)
+                    )
+                )
+            } label: {
+                row(for: conv)
+            }
+        } else {
+            row(for: conv)
         }
     }
 
