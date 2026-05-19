@@ -1195,6 +1195,7 @@ struct ComposeView: View {
                                 Image(systemName: "minus.circle.fill")
                                     .foregroundColor(.red)
                             }
+                            .accessibilityLabel("Remove poll option \(index + 1)")
                         }
                     }
                 }
