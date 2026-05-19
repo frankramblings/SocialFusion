@@ -58,7 +58,8 @@ public struct EchoComposeView: View {
             }
             .modifier(EchoComposeKeyboardShortcuts(
                 canSend: viewModel.canSend,
-                send: sendIfPossible
+                send: sendIfPossible,
+                cancel: { dismiss() }
             ))
         }
     }
@@ -222,13 +223,17 @@ public struct EchoComposeView: View {
     }
 }
 
-/// Cmd+Return → Send. Matches the primary `ComposeView` keyboard
-/// shortcut so iPad and external-keyboard users have one consistent
-/// "ship it" gesture for both composers. iOS 17+; on older OSes the
-/// modifier is a no-op (the toolbar Send button still works).
+/// Cmd+Return → Send, Escape → Cancel. Matches the primary
+/// `ComposeView` keyboard shortcut for Send so iPad and external-
+/// keyboard users have one consistent "ship it" gesture for both
+/// composers. Escape gives a quick exit for users who realize the
+/// reply isn't going anywhere — saves a reach to the toolbar Cancel
+/// button. iOS 17+; on older OSes the modifier is a no-op (toolbar
+/// buttons still work).
 private struct EchoComposeKeyboardShortcuts: ViewModifier {
     let canSend: Bool
     let send: () -> Void
+    let cancel: () -> Void
 
     func body(content: Content) -> some View {
         if #available(iOS 17.0, *) {
@@ -237,6 +242,10 @@ private struct EchoComposeKeyboardShortcuts: ViewModifier {
                    keyPress.modifiers.contains(.command),
                    canSend {
                     send()
+                    return .handled
+                }
+                if keyPress.key == .escape {
+                    cancel()
                     return .handled
                 }
                 return .ignored
