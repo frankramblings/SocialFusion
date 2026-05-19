@@ -11,6 +11,7 @@ struct NotificationsView: View {
     @State private var showFilterDropdown = false
     @State private var scrollOffset: CGFloat = 0
     @State private var showAddAccountView = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     var filteredNotifications: [AppNotification] {
         if let filter = selectedFilter {
@@ -34,7 +35,7 @@ struct NotificationsView: View {
         
         // Dismiss dropdown if scrolling
         if showFilterDropdown && abs(offset - previousOffset) > 5 {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
                 showFilterDropdown = false
             }
         }
@@ -126,7 +127,7 @@ struct NotificationsView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFilterDropdown = false
                             }
                         }
@@ -148,7 +149,7 @@ struct NotificationsView: View {
                                                 title: filter?.displayName ?? "All",
                                                 isSelected: selectedFilter == filter,
                                                 action: {
-                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
                                                         selectedFilter = filter
                                                         showFilterDropdown = false
                                                     }
@@ -180,7 +181,7 @@ struct NotificationsView: View {
                     title: filterTitle,
                     isExpanded: showFilterDropdown,
                     action: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
                             showFilterDropdown.toggle()
                         }
                     }
