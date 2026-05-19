@@ -156,6 +156,23 @@ public struct FusedConversationView: View {
         viewModel.mastodonRootPost != nil || viewModel.blueskyRootPost != nil
     }
 
+    /// Returns the timeline-selected account for the given platform if
+    /// the user is currently on a single-account feed on that network,
+    /// otherwise `nil`. Used by the Echo dispatcher so multi-account
+    /// users reply from their currently-reading account instead of a
+    /// `.first` lookup that could land on a different identity.
+    private func activeAccount(on platform: SocialPlatform) -> SocialAccount? {
+        let selectedIds = serviceManager.selectedAccountIds
+        guard !selectedIds.contains("all") else { return nil }
+        for id in selectedIds {
+            if let account = serviceManager.accounts.first(where: { $0.id == id }),
+               account.platform == platform {
+                return account
+            }
+        }
+        return nil
+    }
+
     /// Initial Echo target set, intersected with what we can actually
     /// dispatch to: an account exists *and* the root post for that
     /// network has loaded. Without this, a Mastodon-only user opening
@@ -262,8 +279,15 @@ public struct FusedConversationView: View {
     ) async -> EchoReplyResult {
         let mastoRoot = viewModel.mastodonRootPost
         let bskyRoot = viewModel.blueskyRootPost
-        let mastoAccount = serviceManager.mastodonAccounts.first
-        let bskyAccount = serviceManager.blueskyAccounts.first
+        // Prefer the timeline-selected account so users with multiple
+        // accounts on the same network reply from the one they're
+        // currently reading on, not from an arbitrary `.first`. Fall
+        // back to `.first` for the unified-feed case where there's no
+        // single active account.
+        let mastoAccount = activeAccount(on: .mastodon)
+            ?? serviceManager.mastodonAccounts.first
+        let bskyAccount = activeAccount(on: .bluesky)
+            ?? serviceManager.blueskyAccounts.first
         let mastoService = serviceManager.mastodonService
         let bskyService = serviceManager.blueskyService
 
