@@ -290,6 +290,12 @@ struct AddAccountView: View {
 
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
+                    // Account-add is a multi-step commitment (server,
+                    // OAuth web flow, credentials). A success haptic
+                    // before the dismiss animation acknowledges the
+                    // landing — the sheet closing alone is ambiguous
+                    // because Cancel does the same thing.
+                    HapticEngine.success.trigger()
                     self.isLoading = false
 
                     // Clear the presentation flag since we're dismissing successfully
@@ -304,6 +310,7 @@ struct AddAccountView: View {
 
             } catch {
                 await MainActor.run {
+                    HapticEngine.error.trigger()
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
                     self.showError = true
@@ -340,6 +347,7 @@ struct AddAccountView: View {
 
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
+                    HapticEngine.success.trigger()
                     self.isLoading = false
 
                     // Clear the presentation flag since we're dismissing successfully
@@ -354,6 +362,7 @@ struct AddAccountView: View {
 
             } catch {
                 await MainActor.run {
+                    HapticEngine.error.trigger()
                     self.isLoading = false
                     self.errorMessage = "Error adding account: \(error.localizedDescription)"
                     self.showError = true
