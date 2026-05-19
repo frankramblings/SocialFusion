@@ -372,7 +372,30 @@ private struct SingleImageView: View {
                     .onTapGesture {
                         onAltTap?(attachment)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("View alt text")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Shows the image description.")
             }
+        }
+        // VoiceOver: announce the image with its alt text when present so
+        // blind/low-vision users get actual content, not just "image."
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(imageAccessibilityLabel)
+    }
+
+    /// Alt text drives the image label when supplied; otherwise a media-type
+    /// fallback so VoiceOver at least announces something semantic.
+    private var imageAccessibilityLabel: String {
+        if let alt = attachment.altText, !alt.isEmpty {
+            return alt
+        }
+        switch attachment.type {
+        case .image:       return "Image"
+        case .video:       return "Video"
+        case .audio:       return "Audio"
+        case .gifv:        return "Animated image"
+        case .animatedGIF: return "Animated GIF"
         }
     }
 }
