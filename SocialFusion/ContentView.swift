@@ -645,6 +645,12 @@ struct AccountPickerSheet: View {
                             }
                         }
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("All Accounts")
+                    .accessibilityAddTraits(selectedAccountId == nil ? [.isSelected, .isButton] : .isButton)
+                    .accessibilityHint(selectedAccountId == nil
+                        ? "Currently active."
+                        : "Double-tap to view all accounts in the unified timeline.")
 
                     // Mastodon accounts
                     ForEach(serviceManager.mastodonAccounts) { account in
@@ -678,6 +684,10 @@ struct AccountPickerSheet: View {
                                 }
                             }
                         }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username), on \(account.platform.accessibilityLabel)")
+                        .accessibilityAddTraits(selectedAccountId == account.id ? [.isSelected, .isButton] : .isButton)
+                        .accessibilityHint(selectedAccountId == account.id ? "Currently active." : "Double-tap to view this account's timeline.")
                     }
 
                     // Bluesky accounts
@@ -712,6 +722,10 @@ struct AccountPickerSheet: View {
                                 }
                             }
                         }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username), on \(account.platform.accessibilityLabel)")
+                        .accessibilityAddTraits(selectedAccountId == account.id ? [.isSelected, .isButton] : .isButton)
+                        .accessibilityHint(selectedAccountId == account.id ? "Currently active." : "Double-tap to view this account's timeline.")
                     }
                 }
 
