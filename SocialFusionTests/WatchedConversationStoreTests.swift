@@ -67,6 +67,33 @@ final class WatchedConversationStoreTests: XCTestCase {
                       "The prefix should be the start of the input, not a different sample.")
     }
 
+    /// Re-watching an already-watched conversation must upsert, not
+    /// duplicate. The store is keyed by `rootPostID`, so a second
+    /// `watch(_:)` call with the same id replaces — this is what lets
+    /// the action bar refresh a stale summary (author, content preview)
+    /// without needing a separate "update" API.
+    func testWatchingExistingIDUpdatesSummaryInPlace() {
+        let store = WatchedConversationStore(userDefaults: .standard, defaultsKey: key)
+        let initial = WatchedConversation(
+            rootPostID: "m1",
+            platform: .mastodon,
+            fusedMomentID: nil,
+            summary: WatchedConversation.Summary(authorName: "Old", contentPreview: "old preview")
+        )
+        store.watch(initial)
+        let updated = WatchedConversation(
+            rootPostID: "m1",
+            platform: .mastodon,
+            fusedMomentID: nil,
+            summary: WatchedConversation.Summary(authorName: "New", contentPreview: "new preview")
+        )
+        store.watch(updated)
+
+        XCTAssertEqual(store.allWatched().count, 1, "Upsert must not duplicate.")
+        XCTAssertEqual(store.allWatched().first?.summary?.authorName, "New")
+        XCTAssertEqual(store.allWatched().first?.summary?.contentPreview, "new preview")
+    }
+
     func testDecodesLegacyRecordWithoutSummary() throws {
         // Hand-rolled legacy JSON shaped like a record from before the
         // Summary field existed. UserDefaults stores the store's
