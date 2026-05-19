@@ -91,6 +91,48 @@ final class FusedMomentDetectorTests: XCTestCase {
                        "Empty-content matches are too noisy; never fuse them.")
     }
 
+    /// Content long enough to clear the short-content penalty in
+    /// `computeConfidence` — anything below 20 chars gets a 0.20
+    /// penalty off the 0.85 baseline, which dips below the 0.75
+    /// minConfidence and prevents detection regardless of timing.
+    /// Using a 30+-char fixture keeps the boundary tests focused on
+    /// the time window, not the confidence math.
+    private static let longEnoughContent = "Detector boundary fixture — same content."
+
+    /// Boundary pin: the detector uses `<= timeWindow`, so a delta
+    /// exactly equal to the configured window must still match. Catching
+    /// this is the difference between a deterministic boundary and a
+    /// "depends on your local clock skew" feel.
+    func testMatchesAtExactTimeWindowBoundary() {
+        let detector = FusedMomentDetector(timeWindow: 60)
+        let now = Date()
+        let posts = [
+            makePost(id: "m1", platform: .mastodon, content: Self.longEnoughContent,
+                     authorId: "a", createdAt: now),
+            makePost(id: "b1", platform: .bluesky, content: Self.longEnoughContent,
+                     authorId: "a", createdAt: now.addingTimeInterval(60))
+        ]
+        XCTAssertEqual(detector.detect(in: posts).count, 1,
+                       "Exactly-on-the-window pair must match — the window is inclusive.")
+    }
+
+    /// Symmetric pair: detect must work regardless of which side's
+    /// timestamp is later. Otherwise the network whose timeline
+    /// happened to be slower would never fuse with the fast side —
+    /// directly contradicts "the conversation is the unit of
+    /// attention" since arrival order is incidental.
+    func testMatchesWhenBlueskyIsTheEarlierPost() {
+        let detector = FusedMomentDetector(timeWindow: 60)
+        let now = Date()
+        let posts = [
+            makePost(id: "m1", platform: .mastodon, content: Self.longEnoughContent,
+                     authorId: "a", createdAt: now.addingTimeInterval(45)),
+            makePost(id: "b1", platform: .bluesky, content: Self.longEnoughContent,
+                     authorId: "a", createdAt: now)
+        ]
+        XCTAssertEqual(detector.detect(in: posts).count, 1)
+    }
+
     func testMatchesPostsWithDifferentAuthorIdsWhenMergedIdentityMapsThem() {
         // This is the production-wiring case: real Mastodon accountIds and
         // real Bluesky DIDs never match, so without a merged-identity map the
