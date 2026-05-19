@@ -418,9 +418,18 @@ public struct FusedConversationView: View {
                     .lineLimit(2)
             }
             Spacer()
-            Button("Retry", action: retry)
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            Button("Retry") {
+                // Tap haptic confirms the gesture immediately — the
+                // async refetch can take a beat to surface progress,
+                // and an unconfirmed bordered button looks like nothing
+                // happened. Matches the retry haptic vocabulary used by
+                // the timeline empty-state retry (ConsolidatedTimeline-
+                // EmptyStateView.swift:54).
+                HapticEngine.tap.trigger()
+                retry()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
             // The viewModel's dismissedFailureBanners set was previously
             // read but never written — there was no path to hide the
             // banner if the user wasn't going to retry. Closes that
@@ -449,7 +458,12 @@ public struct FusedConversationView: View {
         // reachable without hunting for the visible button.
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(platform.accessibilityLabel) replies failed to load. \(message)")
-        .accessibilityAction(named: "Retry", retry)
+        .accessibilityAction(named: "Retry") {
+            // Match the visible button's haptic — rotor users get the
+            // same tactile confirmation as everyone else.
+            HapticEngine.tap.trigger()
+            retry()
+        }
     }
 }
 
