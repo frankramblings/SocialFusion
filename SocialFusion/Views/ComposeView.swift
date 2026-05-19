@@ -1325,6 +1325,7 @@ struct ComposeView: View {
                     .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
                     .clipShape(Circle())
             }
+            .accessibilityLabel("Add photo")
 
             // CW toggle button
             Button(action: {
@@ -1343,6 +1344,8 @@ struct ComposeView: View {
                 .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
                 .clipShape(Circle())
             }
+            .accessibilityLabel(threadPosts[activePostIndex].cwEnabled ? "Remove content warning" : "Add content warning")
+            .accessibilityHint("Long-press for preset warnings.")
             .contextMenu {
                 // Long-press presets
                 ForEach(["Spoilers", "Politics", "NSFW", "Violence"], id: \.self) { preset in
@@ -1368,6 +1371,7 @@ struct ComposeView: View {
                     .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
                     .clipShape(Circle())
             }
+            .accessibilityLabel("Add another post to thread")
 
             // Add poll button
             Button(action: {
@@ -1384,6 +1388,7 @@ struct ComposeView: View {
                     .clipShape(Circle())
             }
             .disabled(threadPosts[activePostIndex].showPoll)
+            .accessibilityLabel("Add poll")
 
             Spacer()
 
