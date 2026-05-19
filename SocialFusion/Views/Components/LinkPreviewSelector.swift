@@ -58,6 +58,10 @@ struct LinkPreviewSelector: View {
                         }
                         .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(
+                        selectedURL?.host.map { "Link preview: \($0)" } ?? "Select link preview"
+                    )
+                    .accessibilityHint("Opens a menu to choose which link is previewed below this post.")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
