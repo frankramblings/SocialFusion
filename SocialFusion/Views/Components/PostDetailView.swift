@@ -814,7 +814,7 @@ struct PostDetailView: View {
     private func sendInlineReply() {
         guard canSendInlineReply, let target = activeReplyPost else { return }
         guard let account = selectedReplyAccount(for: target.platform) else {
-            quickReplyErrorMessage = "Add a \(target.platform.rawValue) account to reply."
+            quickReplyErrorMessage = "Add a \(target.platform.accessibilityLabel) account to reply."
             showQuickReplyError = true
             return
         }
