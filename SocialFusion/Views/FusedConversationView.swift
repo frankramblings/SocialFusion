@@ -72,11 +72,14 @@ public struct FusedConversationView: View {
                     showingCompose = true
                 } label: {
                     Image(systemName: "arrowshape.turn.up.left.fill")
-                        .accessibilityLabel(canReply
-                            ? "Reply to this conversation"
-                            : "Reply unavailable: neither side has loaded yet")
                 }
                 .disabled(!canReply)
+                .accessibilityLabel(canReply
+                    ? "Reply to this Fused conversation"
+                    : "Reply unavailable: neither side has loaded yet")
+                .accessibilityHint(canReply
+                    ? "Opens a composer where you can echo your reply to both networks."
+                    : "")
             }
         }
         .sheet(isPresented: $showingCompose) {
