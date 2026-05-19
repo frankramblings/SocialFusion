@@ -227,8 +227,12 @@ public struct ShareAsImageSheet: View {
                 baseFilename: "SocialFusion Share.jpg"
             )
             showingShareSheet = true
+            // No success haptic: the system share-sheet animation
+            // appearing is itself the success signal, and the user
+            // is about to make another choice in the sheet.
         } catch {
             cleanupShareFiles()
+            HapticEngine.error.trigger()
             viewModel.errorMessage = error.localizedDescription
         }
     }
