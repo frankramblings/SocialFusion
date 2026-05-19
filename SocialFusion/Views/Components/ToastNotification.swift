@@ -104,6 +104,11 @@ struct ToastNotification: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let retry = toast.retry {
                 Button(retry.label) {
+                    // Tap haptic confirms the gesture before the async
+                    // retry surfaces. Matches the Fused outage-banner
+                    // Retry pattern (3929dc2) and the timeline empty-
+                    // state retry (ConsolidatedTimelineEmptyStateView:54).
+                    HapticEngine.tap.trigger()
                     retry.perform()
                     onDismiss()
                 }
@@ -165,6 +170,9 @@ private struct ToastRetryRotorAction: ViewModifier {
     func body(content: Content) -> some View {
         if let retry = retry {
             content.accessibilityAction(named: retry.label) {
+                // Rotor users get the same tap haptic as the visible
+                // button so the gesture confirmation is consistent.
+                HapticEngine.tap.trigger()
                 retry.perform()
                 onDismiss()
             }
