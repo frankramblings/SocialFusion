@@ -95,6 +95,10 @@ public struct EchoComposeView: View {
                 set: { isOn in
                     if isOn { viewModel.targets.insert(platform) }
                     else { viewModel.targets.remove(platform) }
+                    // SwiftUI Toggle doesn't fire UISwitch's built-in
+                    // selection haptic — add it manually so target toggles
+                    // feel like every other iOS toggle.
+                    HapticEngine.selection.trigger()
                 }
             ))
             .labelsHidden()
