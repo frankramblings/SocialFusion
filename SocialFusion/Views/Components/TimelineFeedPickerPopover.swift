@@ -313,11 +313,13 @@ struct TimelineFeedPickerPopover: View {
                     .foregroundColor(.secondary)
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Back")
 
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
+                .accessibilityAddTraits(.isHeader)
 
             Spacer()
         }
