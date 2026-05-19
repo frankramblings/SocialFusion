@@ -2991,8 +2991,8 @@ struct LinkInputDialog: View {
                 Section(header: Text("Link Details")) {
                     TextField("URL (https://...)", text: $url)
                         .keyboardType(.URL)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
                         .focused($isUrlFocused)
                     
                     TextField("Display Text", text: $displayText)

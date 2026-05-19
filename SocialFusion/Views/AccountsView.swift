@@ -517,16 +517,18 @@ struct LegacyAddAccountView: View {
                 Section(header: Text("Account Information")) {
                     if platform == .mastodon {
                         TextField("Server (e.g., mastodon.social)", text: $server)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                             .keyboardType(.URL)
                     }
 
                     TextField("Username", text: $username)
-                        .autocapitalization(.none)
-                        .disableAutocorrection(true)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
 
                     SecureField("Password", text: $password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
                 }
 
                 if !errorMessage.isEmpty {

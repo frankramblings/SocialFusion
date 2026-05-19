@@ -251,22 +251,29 @@ struct SimpleAddAccountSheet: View {
                 if selectedPlatform == .mastodon {
                     Section(header: Text("Mastodon Account Details")) {
                         TextField("Server (e.g. mastodon.social)", text: $mastodonServer)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                             .keyboardType(.URL)
 
                         TextField("Username", text: $username)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                             .keyboardType(.emailAddress)
 
                         SecureField("Password", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                     }
                 } else {
                     Section(header: Text("Bluesky Account Details")) {
                         TextField("Username", text: $username)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                             .keyboardType(.emailAddress)
 
                         SecureField("Password", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                     }
                 }
 
