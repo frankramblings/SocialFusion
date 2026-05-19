@@ -194,6 +194,8 @@ struct PostDetailView: View {
                         .padding(8)
                 }
                 .menuStyle(.borderlessButton)
+                .accessibilityLabel("Post actions")
+                .accessibilityHint("Opens a menu with Open in Browser, Copy Link, Share, Share as Image, and Report Post.")
             }
         }
         .alert("Reply failed", isPresented: $showQuickReplyError) {
