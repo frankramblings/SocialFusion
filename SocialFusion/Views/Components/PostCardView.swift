@@ -723,15 +723,12 @@ struct PostCardView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(postAccessibilityLabel)
         .accessibilityHint("Opens the full post and replies.")
-        .accessibilityAction(named: "Reply") {
-            onReply()
-        }
-        .accessibilityAction(named: "Repost") {
-            onRepost()
-        }
-        .accessibilityAction(named: "Like") {
-            onLike()
-        }
+        .modifier(PostCardRotorActions(
+            onReply: onReply,
+            onRepost: onRepost,
+            onLike: onLike,
+            onQuote: onQuote
+        ))
         .sheet(isPresented: $showShareAsImageSheet) {
             if let viewModel = shareAsImageViewModel {
                 ShareAsImageSheet(viewModel: viewModel)
@@ -974,6 +971,25 @@ struct PostCardView: View {
                 viewModel.updateThreadContext(threadContext)
             }
         }
+    }
+}
+
+/// Extracted to keep PostCardView's body within the Swift type-checker's
+/// budget — adding the Quote rotor action inline pushed the body past the
+/// "unable to type-check this expression in reasonable time" threshold.
+/// Functionally identical to chaining the actions directly.
+private struct PostCardRotorActions: ViewModifier {
+    let onReply: () -> Void
+    let onRepost: () -> Void
+    let onLike: () -> Void
+    let onQuote: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .accessibilityAction(named: "Reply", onReply)
+            .accessibilityAction(named: "Repost", onRepost)
+            .accessibilityAction(named: "Like", onLike)
+            .accessibilityAction(named: "Quote", onQuote)
     }
 }
 
