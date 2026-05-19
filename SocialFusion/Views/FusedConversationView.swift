@@ -506,15 +506,12 @@ private struct ReplyRow: View {
         let when = formatter.localizedString(for: post.createdAt, relativeTo: Date())
         // Strip HTML for VoiceOver too — otherwise Mastodon replies are
         // read out as "less than p greater than … less than slash p
-        // greater than", which is unintelligible and demoralizing for
-        // anyone relying on screen-reader output.
+        // greater than", which is unintelligible. Uses the canonical
+        // String+HTML extensions instead of inlining the strip so the
+        // entity table stays in one place.
         let plain = post.content
-            .replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "&amp;", with: "&")
-            .replacingOccurrences(of: "&lt;", with: "<")
-            .replacingOccurrences(of: "&gt;", with: ">")
-            .replacingOccurrences(of: "&quot;", with: "\"")
-            .replacingOccurrences(of: "&#39;", with: "'")
+            .strippingHTMLTags
+            .decodingHTMLEntities
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return "\(networkName) reply from \(post.authorName), \(when): \(plain)"
     }
