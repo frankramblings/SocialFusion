@@ -65,12 +65,24 @@ struct PostAuthorView: View {
                     Text("•")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .accessibilityHidden(true)
 
                     Text(formatRelativeTime(from: stableCreatedAt))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
+            // Both author-name and @username buttons go to the same
+            // destination. Combine them so VoiceOver lands one element
+            // per author header, not two redundant taps. The combined
+            // label leads with the display name, includes the handle, and
+            // adds the relative time so a screen reader user knows when
+            // the post was written without separately swiping to the
+            // timestamp text.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(stableAuthorName), @\(stableAuthorUsername), \(formatRelativeTime(from: stableCreatedAt))")
+            .accessibilityHint("Opens this profile.")
+            .accessibilityAddTraits(.isButton)
 
             Spacer()
         }
