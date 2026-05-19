@@ -880,6 +880,7 @@ private struct MergedIdentitiesManagementView: View {
             }
             Spacer()
             Button(role: .destructive) {
+                HapticEngine.selection.trigger()
                 mergedIdentityStore.unmerge(id: merge.id)
             } label: {
                 Text("Unmerge")
@@ -896,6 +897,7 @@ private struct MergedIdentitiesManagementView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Merged identity: at \(merge.mastodon.handle) on Mastodon, at \(merge.bluesky.handle) on Bluesky")
         .accessibilityAction(named: "Unmerge") {
+            HapticEngine.selection.trigger()
             mergedIdentityStore.unmerge(id: merge.id)
         }
     }
