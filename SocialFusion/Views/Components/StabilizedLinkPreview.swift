@@ -221,6 +221,7 @@ private struct StabilizedLinkLoadingView: View {
     let height: CGFloat  // Kept for backward compatibility, but we use linkPreviewImageHeight
     @State private var phase: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -282,10 +283,15 @@ private struct StabilizedLinkLoadingView: View {
             RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
         )
         .onAppear {
+            // Skip the looping shimmer when reduce-motion is on; the static
+            // gradient + .accessibilityHidden on the placeholder is enough
+            // to communicate "loading."
+            guard !reduceMotion else { return }
             withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                 phase = 1.3
             }
         }
+        .accessibilityHidden(true)
     }
 
     private var shimmerGradient: LinearGradient {
