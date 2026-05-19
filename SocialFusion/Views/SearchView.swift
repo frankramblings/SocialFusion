@@ -661,16 +661,14 @@ struct DirectOpenRow: View {
     }
 }
 
+/// Small platform indicator used in search-result rows (SearchTagRow,
+/// SearchUserRow). Routes through PlatformLogoBadge so high-contrast mode
+/// applies — the prior inline Image bypass meant search rows didn't honor
+/// the Settings toggle.
 struct PlatformIndicator: View {
     let platform: SocialPlatform
-    
+
     var body: some View {
-        Image(platform.icon)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 16, height: 16)
-            .padding(4)
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(4)
+        PlatformLogoBadge(platform: platform, size: 22, shadowEnabled: false)
     }
 }
