@@ -102,6 +102,10 @@ struct DirectMessagesView: View {
       Image(systemName: "bubble.left.and.bubble.right")
         .font(.system(size: 48))
         .foregroundColor(.secondary.opacity(0.4))
+        // Decorative — VoiceOver would otherwise read
+        // "bubble left and bubble right" verbatim, which is noise
+        // since the title text below already conveys the same idea.
+        .accessibilityHidden(true)
 
       Text("No messages yet")
         .font(.title3)
@@ -119,6 +123,7 @@ struct DirectMessagesView: View {
           .padding(.vertical, 10)
           .background(Capsule().fill(Color.blue))
       }
+      .accessibilityHint("Opens the New Conversation sheet to start a direct message.")
     }
     .frame(maxWidth: .infinity)
     .padding(.top, 100)
