@@ -34,6 +34,7 @@ struct ChatMediaPickerBar: View {
                   .foregroundStyle(.white, .black.opacity(0.5))
               }
               .offset(x: 4, y: -4)
+              .accessibilityLabel("Remove attachment")
             }
             .task(id: item.itemIdentifier) {
               if let data = try? await item.loadTransferable(type: Data.self),
