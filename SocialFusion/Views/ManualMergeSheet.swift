@@ -248,8 +248,17 @@ public struct ManualMergeSheet: View {
                 let twin = try await serviceManager.fetchUserProfile(user: candidate, account: account)
                 resolvedTwinProfile = twin
                 selectedCandidate = candidate
+                // Success haptic: the candidate sheet drives a
+                // confirmation alert, which is the visible signal —
+                // but the alert can take a beat to animate in, so the
+                // haptic acknowledges the tap immediately.
+                HapticEngine.tap.trigger()
             } catch {
-                // Surface a brief failure — for v1.0 just silently log/skip.
+                // Error haptic at minimum so the user knows the tap
+                // didn't go nowhere. v1.0 still doesn't surface a
+                // user-facing error string here — that's deferred —
+                // but a silent-on-failure feels broken.
+                HapticEngine.error.trigger()
             }
         }
     }
