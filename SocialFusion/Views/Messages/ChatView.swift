@@ -282,6 +282,7 @@ struct ChatView: View {
             Image(systemName: "xmark.circle.fill")
               .foregroundColor(.secondary)
           }
+          .accessibilityLabel("Cancel editing")
         }
         .padding(.horizontal)
         .padding(.vertical, 6)
@@ -294,6 +295,7 @@ struct ChatView: View {
             .font(.system(size: 24))
             .foregroundColor(.secondary)
         }
+        .accessibilityLabel("Attach photos")
 
         TextField("Message...", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
@@ -327,6 +329,7 @@ struct ChatView: View {
       }
     }
     .disabled(newMessageText.isEmpty || isLoading || isSending)
+    .accessibilityLabel(isSending ? "Sending message" : "Send message")
   }
 
   // MARK: - Message Grouping
