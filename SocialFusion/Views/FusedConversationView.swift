@@ -27,7 +27,17 @@ public struct FusedConversationView: View {
                     ReplyRow(post: merged.post)
                         .padding(.horizontal)
                 }
-                if viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading {
+                if shouldShowSkeleton {
+                    // Spec acceptance criterion ("skeleton scaffolding"):
+                    // show placeholder rows while we have no real replies
+                    // yet but at least one side is still in flight.
+                    ForEach(0..<3, id: \.self) { _ in
+                        ReplySkeletonRow()
+                            .padding(.horizontal)
+                    }
+                } else if viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading {
+                    // Trailing spinner: replies have started arriving from
+                    // one side; the other is still streaming.
                     HStack { Spacer(); ProgressView().padding(); Spacer() }
                 }
             }
@@ -118,6 +128,11 @@ public struct FusedConversationView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    private var shouldShowSkeleton: Bool {
+        guard viewModel.replies.isEmpty else { return false }
+        return viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading
     }
 
     @ViewBuilder
@@ -291,6 +306,43 @@ private struct RootPostHeader: View {
         }
         .frame(width: 40, height: 40)
         .clipShape(Circle())
+    }
+}
+
+/// Placeholder reply shown while the thread is loading and no real replies
+/// have arrived yet. Matches `ReplyRow`'s geometry so the layout doesn't
+/// jump when the first reply lands. Animates with a soft shimmer; honored
+/// by reduce-motion (no animation when the user has it on).
+private struct ReplySkeletonRow: View {
+    @State private var phase: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Circle()
+                .fill(Color.secondary.opacity(0.18))
+                .frame(width: 36, height: 36)
+            VStack(alignment: .leading, spacing: 6) {
+                Capsule()
+                    .fill(Color.secondary.opacity(0.18))
+                    .frame(width: 120, height: 12)
+                Capsule()
+                    .fill(Color.secondary.opacity(0.14))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                Capsule()
+                    .fill(Color.secondary.opacity(0.14))
+                    .frame(width: 180, height: 12)
+            }
+        }
+        .opacity(0.85 - 0.25 * abs(phase))
+        .accessibilityHidden(true)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) {
+                phase = 1
+            }
+        }
     }
 }
 
