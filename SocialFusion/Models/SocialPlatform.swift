@@ -34,4 +34,25 @@ public enum SocialPlatform: String, Codable, CaseIterable, Sendable {
 
     /// Convenience UIKit UIColor
     public var uiColor: UIColor { UIColor(self.swiftUIColor) }
+
+    /// VoiceOver label for the network as a whole. Used wherever a platform
+    /// indicator stands alone (logo, dot, chip). Centralized here so every
+    /// call site uses identical wording — important for VoiceOver users
+    /// who rely on stable verbal cues.
+    public var accessibilityLabel: String {
+        switch self {
+        case .mastodon: return "Mastodon"
+        case .bluesky:  return "Bluesky"
+        }
+    }
+
+    /// Composable VoiceOver fragment for posts: e.g. "Post on Mastodon".
+    /// Used when the badge appears on a post element and the surrounding
+    /// label needs to convey "this thing is a post" plus its network.
+    public var postAccessibilityFragment: String {
+        switch self {
+        case .mastodon: return "Post on Mastodon"
+        case .bluesky:  return "Post on Bluesky"
+        }
+    }
 }
