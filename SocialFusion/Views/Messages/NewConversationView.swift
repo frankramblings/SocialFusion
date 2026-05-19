@@ -32,6 +32,7 @@ struct NewConversationView: View {
                       .font(.caption)
                       .foregroundColor(.secondary)
                   }
+                  .accessibilityLabel("Remove \(actor.displayName ?? actor.handle) from selection")
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
