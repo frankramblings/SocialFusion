@@ -101,6 +101,24 @@ struct SearchView: View {
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
+                        // Recovery affordance: a transient network blip
+                        // shouldn't force the user to retype. Matches
+                        // the Retry button surfaced by the error toast
+                        // and Fused outage banner — consistent recovery
+                        // pattern across the app.
+                        Button {
+                            HapticEngine.tap.trigger()
+                            observedStore.performSearch()
+                        } label: {
+                            Text("Try Again")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.accentColor, in: Capsule())
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.top, 4)
+                        .accessibilityHint("Re-runs the search.")
                     }
                     Spacer()
                 } else if observedStore.phase == .empty {
