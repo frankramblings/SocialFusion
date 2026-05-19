@@ -53,13 +53,23 @@ struct AddAccountView: View {
                         PlatformButton(
                             platform: .mastodon,
                             isSelected: selectedPlatform == .mastodon,
-                            action: { selectedPlatform = .mastodon }
+                            action: {
+                                if selectedPlatform != .mastodon {
+                                    HapticEngine.selection.trigger()
+                                }
+                                selectedPlatform = .mastodon
+                            }
                         )
 
                         PlatformButton(
                             platform: .bluesky,
                             isSelected: selectedPlatform == .bluesky,
-                            action: { selectedPlatform = .bluesky }
+                            action: {
+                                if selectedPlatform != .bluesky {
+                                    HapticEngine.selection.trigger()
+                                }
+                                selectedPlatform = .bluesky
+                            }
                         )
                     }
                     .onChange(of: selectedPlatform) {
