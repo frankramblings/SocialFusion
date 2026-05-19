@@ -5130,6 +5130,28 @@ extension Array {
 
 extension SocialServiceManager: PostActionNetworking {}
 
+// MARK: - Active Account Resolution
+
+extension SocialServiceManager {
+    /// Returns the timeline-selected account for the given platform if
+    /// the user is currently on a single-account feed on that network,
+    /// otherwise `nil`. Used by send-side surfaces (Echo dispatcher,
+    /// list-management) so multi-account users act from the account
+    /// they're currently reading on, instead of a blind `.first`
+    /// lookup that would land on a different identity.
+    public func activeAccount(on platform: SocialPlatform) -> SocialAccount? {
+        let selectedIds = selectedAccountIds
+        guard !selectedIds.contains("all") else { return nil }
+        for id in selectedIds {
+            if let account = accounts.first(where: { $0.id == id }),
+               account.platform == platform {
+                return account
+            }
+        }
+        return nil
+    }
+}
+
 public enum QueuedActionType: String, Codable {
     case like
     case unlike

@@ -741,7 +741,12 @@ struct PostCardView: View {
             onShare()
         }
         .sheet(isPresented: $showListSelection) {
-            if let account = serviceManager.mastodonAccounts.first {
+            // Prefer the timeline-selected Mastodon account so multi-account
+            // users add the post's author to lists on the account they're
+            // currently reading on, not on whichever account happens to be
+            // `.first` in the array.
+            if let account = serviceManager.activeAccount(on: .mastodon)
+                ?? serviceManager.mastodonAccounts.first {
                 ListSelectionView(accountToLink: post.authorId, platformAccount: account)
                     .environmentObject(serviceManager)
             }

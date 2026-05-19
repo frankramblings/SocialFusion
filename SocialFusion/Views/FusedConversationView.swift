@@ -156,21 +156,11 @@ public struct FusedConversationView: View {
         viewModel.mastodonRootPost != nil || viewModel.blueskyRootPost != nil
     }
 
-    /// Returns the timeline-selected account for the given platform if
-    /// the user is currently on a single-account feed on that network,
-    /// otherwise `nil`. Used by the Echo dispatcher so multi-account
-    /// users reply from their currently-reading account instead of a
-    /// `.first` lookup that could land on a different identity.
+    /// Thin wrapper around the shared
+    /// `SocialServiceManager.activeAccount(on:)` helper, kept for call-site
+    /// readability inside this view.
     private func activeAccount(on platform: SocialPlatform) -> SocialAccount? {
-        let selectedIds = serviceManager.selectedAccountIds
-        guard !selectedIds.contains("all") else { return nil }
-        for id in selectedIds {
-            if let account = serviceManager.accounts.first(where: { $0.id == id }),
-               account.platform == platform {
-                return account
-            }
-        }
-        return nil
+        serviceManager.activeAccount(on: platform)
     }
 
     /// Initial Echo target set, intersected with what we can actually
