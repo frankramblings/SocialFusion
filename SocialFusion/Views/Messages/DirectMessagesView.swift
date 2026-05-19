@@ -42,6 +42,7 @@ struct DirectMessagesView: View {
       await viewModel.fetchConversations(serviceManager: serviceManager)
       HapticEngine.tap.trigger()
     }
+    .background(directMessagesKeyboardShortcuts)
     .toolbar {
       ToolbarItem(placement: .navigationBarTrailing) {
         Button {
@@ -52,6 +53,9 @@ struct DirectMessagesView: View {
             .foregroundColor(.primary)
         }
         .accessibilityLabel("New conversation")
+        // ⌘N opens the New Conversation sheet via the toolbar action,
+        // matching the iMessage "new message" convention.
+        .keyboardShortcut("n", modifiers: .command)
         #if DEBUG
         .simultaneousGesture(
           LongPressGesture(minimumDuration: 1.0)
@@ -95,6 +99,21 @@ struct DirectMessagesView: View {
     } message: {
       if let error = viewModel.errorMessage { Text(error) }
     }
+  }
+
+  /// ⌘R refreshes the conversation list. ⌘N already lives on the
+  /// toolbar New-Conversation button; this provides a parallel
+  /// refresh path for hardware-keyboard users.
+  private var directMessagesKeyboardShortcuts: some View {
+    Button("Refresh Conversations") {
+      Task {
+        await viewModel.fetchConversations(serviceManager: serviceManager)
+      }
+    }
+    .keyboardShortcut("r", modifiers: .command)
+    .frame(width: 0, height: 0)
+    .opacity(0)
+    .accessibilityHidden(true)
   }
 
   private var emptyState: some View {
