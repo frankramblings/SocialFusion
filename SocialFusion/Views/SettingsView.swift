@@ -186,6 +186,17 @@ struct SettingsView: View {
                         Text("Ask each time").tag(EchoPolicy.askEachTime)
                     }
                     .pickerStyle(.inline)
+                    // Inline pickers don't fire UISegmentedControl's stock
+                    // selection haptic, so changing the Echo policy felt
+                    // dead compared to every other iOS setting toggle.
+                    // The onChange fires once per real user pick (and
+                    // also once on initial load — `oldValue != newValue`
+                    // gates that out so the haptic doesn't fire on appear).
+                    .onChange(of: echoPolicyStore.policy) { oldValue, newValue in
+                        if oldValue != newValue {
+                            HapticEngine.selection.trigger()
+                        }
+                    }
                 } header: {
                     Text("Composer")
                 } footer: {
