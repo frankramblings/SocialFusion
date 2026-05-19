@@ -49,8 +49,19 @@ struct MessageReactionView: View {
           )
         }
         .buttonStyle(.plain)
+        // VoiceOver: announce both the reaction state ("you reacted") and
+        // the affordance ("tap to remove" / "tap to add yours").
+        .accessibilityLabel(accessibilityLabel(for: reaction, isFromMe: isFromMe))
+        .accessibilityHint(isFromMe ? "Removes your reaction." : "Adds your reaction.")
       }
     }
+  }
+
+  private func accessibilityLabel(for reaction: MessageReaction, isFromMe: Bool) -> String {
+    let countPart = reaction.count == 1
+      ? "\(reaction.emoji), 1 person"
+      : "\(reaction.emoji), \(reaction.count) people"
+    return isFromMe ? "\(countPart), including you" : countPart
   }
 }
 
