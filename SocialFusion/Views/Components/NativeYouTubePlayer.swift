@@ -45,6 +45,8 @@ struct NativeYouTubePlayer: View {
                             .foregroundColor(.white)
                     }
                 }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading YouTube video")
             }
         }
         .onAppear {
