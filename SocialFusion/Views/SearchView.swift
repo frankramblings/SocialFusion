@@ -396,6 +396,9 @@ struct SearchView: View {
                                         .background(.ultraThinMaterial)
                                         .cornerRadius(20)
                                     }
+                                    .accessibilityElement(children: .ignore)
+                                    .accessibilityLabel("Recent search: \(query)")
+                                    .accessibilityHint("Re-runs this search.")
                                 }
                             }
                             .padding(.horizontal)
