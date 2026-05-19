@@ -98,7 +98,12 @@ struct ConversationSettingsView: View {
         } else {
           try await serviceManager.unmuteConversation(conversation)
         }
+        // Mute is a protective action; success haptic confirms the
+        // boundary held. Failure haptic + state revert tells the user
+        // their change didn't stick.
+        HapticEngine.success.trigger()
       } catch {
+        HapticEngine.error.trigger()
         isMuted = !muted
       }
       isUpdating = false
@@ -109,10 +114,15 @@ struct ConversationSettingsView: View {
     Task {
       do {
         try await serviceManager.leaveConversation(conversation)
+        // Successful leave — no haptic before dismiss, the
+        // navigation pop itself is the user's signal that it
+        // worked, same as iMessage's leave-group flow.
         dismiss()
         onLeave()
       } catch {
-        // Silently fail
+        // Surface the failure tactilely; the silent catch was
+        // leaving the user wondering whether their leave landed.
+        HapticEngine.error.trigger()
       }
     }
   }
