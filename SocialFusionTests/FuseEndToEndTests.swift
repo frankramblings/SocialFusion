@@ -63,6 +63,81 @@ final class FuseEndToEndTests: XCTestCase {
         XCTAssertTrue(s2.isWatching(rootPostID: "m1"))
     }
 
+    /// Acceptance, integration: dispatcher + optimistic insertion together —
+    /// a successful dual-target Echo send lands two new replies in the
+    /// view model's merged stream, sorted chronologically with whatever
+    /// was already loaded. Mirrors what the production FusedConversationView
+    /// onSend closure does end-to-end (minus the live service calls).
+    func testFullEchoSendPipelineOptimisticallyInsertsBothReplies() async {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let mastoRoot = makePost(id: "m1", platform: .mastodon,
+                                 content: "anchor", authorId: "a1", createdAt: base)
+        let bskyRoot = makePost(id: "b1", platform: .bluesky,
+                                content: "anchor", authorId: "a1", createdAt: base)
+        let existingReply = makePost(id: "m_r0", platform: .mastodon,
+                                     content: "thread starter", authorId: "a2",
+                                     createdAt: base.addingTimeInterval(60))
+
+        let fetcher = StubThreadFetcher(
+            mastodonResult: .success((root: mastoRoot, replies: [existingReply])),
+            blueskyResult: .success((root: bskyRoot, replies: []))
+        )
+        let vm = FusedConversationViewModel(
+            moment: FusedMoment(
+                mastodonPostID: "m1", blueskyPostID: "b1",
+                authorIdentityKey: "a1", firstSeenAt: base, confidence: 0.9),
+            threadFetcher: fetcher
+        )
+        await vm.load()
+        XCTAssertEqual(vm.replies.count, 1, "Sanity: pre-send state is one existing reply")
+
+        // Simulate the dispatcher's closures landing two new replies
+        // newer than the existing reply.
+        let mNew = makePost(id: "m_new", platform: .mastodon,
+                            content: "echo reply", authorId: "me",
+                            createdAt: base.addingTimeInterval(120))
+        let bNew = makePost(id: "b_new", platform: .bluesky,
+                            content: "echo reply", authorId: "me",
+                            createdAt: base.addingTimeInterval(121))
+
+        let result = await sendEchoedReply(
+            targets: [.mastodon, .bluesky],
+            sendToMastodon: { vm.insertSentReply(mNew) },
+            sendToBluesky: { vm.insertSentReply(bNew) }
+        )
+
+        XCTAssertEqual(result.succeeded, [.mastodon, .bluesky])
+        XCTAssertEqual(result.failed, [])
+        XCTAssertEqual(
+            vm.replies.map(\.id), ["m_r0", "m_new", "b_new"],
+            "Both sent replies must be appended in chronological order after the existing thread starter.")
+    }
+
+    // MARK: - Helpers for the integration test
+
+    /// Local stub matching `FusedConversationThreadFetching`. Kept private
+    /// to this file so the production adapter isn't imported into tests.
+    @MainActor
+    private final class StubThreadFetcher: FusedConversationThreadFetching {
+        let mastodonResult: Result<(root: Post, replies: [Post]), Error>
+        let blueskyResult: Result<(root: Post, replies: [Post]), Error>
+
+        init(
+            mastodonResult: Result<(root: Post, replies: [Post]), Error>,
+            blueskyResult: Result<(root: Post, replies: [Post]), Error>
+        ) {
+            self.mastodonResult = mastodonResult
+            self.blueskyResult = blueskyResult
+        }
+
+        func fetchThread(postID: String, platform: SocialPlatform) async throws -> (root: Post, replies: [Post]) {
+            switch platform {
+            case .mastodon: return try mastodonResult.get()
+            case .bluesky: return try blueskyResult.get()
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func makePost(
