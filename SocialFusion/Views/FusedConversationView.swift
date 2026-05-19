@@ -45,7 +45,13 @@ public struct FusedConversationView: View {
                     } else if viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading {
                         // Trailing spinner: replies have started arriving from
                         // one side; the other is still streaming.
-                        HStack { Spacer(); ProgressView().padding(); Spacer() }
+                        HStack {
+                            Spacer()
+                            ProgressView()
+                                .padding()
+                                .accessibilityLabel(stillLoadingPlatformLabel)
+                            Spacer()
+                        }
                     } else if shouldShowEmptyState {
                         emptyReplyState
                             .padding(.horizontal)
@@ -184,6 +190,25 @@ public struct FusedConversationView: View {
             available.insert(.bluesky)
         }
         return policyTargets.intersection(available)
+    }
+
+    /// Tells VoiceOver which side is still streaming when only one
+    /// network's replies have arrived. Without this label, the trailing
+    /// ProgressView is silent — the user has no idea more replies are
+    /// inbound until they appear.
+    private var stillLoadingPlatformLabel: String {
+        let mastoLoading = viewModel.mastodonStatus == .loading
+        let bskyLoading = viewModel.blueskyStatus == .loading
+        if mastoLoading && bskyLoading {
+            return "Loading more replies"
+        }
+        if mastoLoading {
+            return "Loading more Mastodon replies"
+        }
+        if bskyLoading {
+            return "Loading more Bluesky replies"
+        }
+        return "Loading more replies"
     }
 
     private var shouldShowSkeleton: Bool {
