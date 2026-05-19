@@ -198,6 +198,12 @@ struct AccountPickerView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.vertical, 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username), on \(account.platform.accessibilityLabel)")
+        .accessibilityAddTraits(selectedAccountId == account.id ? [.isSelected, .isButton] : .isButton)
+        .accessibilityHint(selectedAccountId == account.id
+            ? "Currently active. Double-tap to refresh timeline."
+            : "Double-tap to switch to this account.")
     }
 }
 
