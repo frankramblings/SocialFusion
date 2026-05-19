@@ -509,9 +509,12 @@ struct ProfileView: View {
       Image(systemName: "exclamationmark.triangle")
         .font(.system(size: 40))
         .foregroundColor(.secondary)
+        // Decorative — the headline reads the state.
+        .accessibilityHidden(true)
       Text("Couldn't load this profile")
         .font(.headline)
         .foregroundColor(.secondary)
+        .accessibilityAddTraits(.isHeader)
       if let error = viewModel.profileError {
         Text(error.localizedDescription)
           .font(.caption)

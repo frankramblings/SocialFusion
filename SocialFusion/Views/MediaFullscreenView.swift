@@ -155,6 +155,9 @@ struct LegacyFullscreenMediaView: View {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.system(size: 40))
                             .foregroundColor(.yellow)
+                            // Decorative — the errorMessage text below
+                            // reads the state.
+                            .accessibilityHidden(true)
                         Text(errorMessage)
                             .font(.headline)
                             .foregroundColor(.white)
@@ -413,6 +416,8 @@ struct LegacyFullscreenMediaView: View {
                                 Image(systemName: "exclamationmark.triangle")
                                     .font(.largeTitle)
                                     .foregroundColor(.yellow)
+                                    // Decorative — title text reads state.
+                                    .accessibilityHidden(true)
                                 Text("Failed to load image")
                                     .foregroundColor(.white)
                                 if let error = error as NSError? {

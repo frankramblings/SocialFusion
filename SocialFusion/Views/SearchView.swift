@@ -94,8 +94,11 @@ struct SearchView: View {
                         Image(systemName: "exclamationmark.triangle")
                             .font(.largeTitle)
                             .foregroundColor(.orange)
+                            // Decorative — the title text reads the state.
+                            .accessibilityHidden(true)
                         Text("Search Error")
                             .font(.headline)
+                            .accessibilityAddTraits(.isHeader)
                         Text(message)
                             .font(.subheadline)
                             .foregroundColor(.secondary)
