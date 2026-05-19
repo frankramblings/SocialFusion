@@ -196,6 +196,7 @@ struct ActionBar: View {
         Button {
             if isWatching {
                 watchedConversationStore.unwatch(rootPostID: post.id)
+                HapticEngine.selection.trigger()
             } else {
                 let moment = fusedMomentStore.moment(for: post.id)
                 watchedConversationStore.watch(WatchedConversation(
@@ -203,6 +204,10 @@ struct ActionBar: View {
                     platform: post.platform,
                     fusedMomentID: moment?.id
                 ))
+                // Starting a watch is a commitment ("ping me on either
+                // network"), worth the success notification. Unwatch is
+                // just a removal — selection-changed haptic is enough.
+                HapticEngine.success.trigger()
             }
         } label: {
             Label(
@@ -364,6 +369,7 @@ struct ActionBarV2: View {
         Button {
             if isWatching {
                 watchedConversationStore.unwatch(rootPostID: post.id)
+                HapticEngine.selection.trigger()
             } else {
                 let moment = fusedMomentStore.moment(for: post.id)
                 watchedConversationStore.watch(WatchedConversation(
@@ -371,6 +377,10 @@ struct ActionBarV2: View {
                     platform: post.platform,
                     fusedMomentID: moment?.id
                 ))
+                // Starting a watch is a commitment ("ping me on either
+                // network"), worth the success notification. Unwatch is
+                // just a removal — selection-changed haptic is enough.
+                HapticEngine.success.trigger()
             }
         } label: {
             Label(
