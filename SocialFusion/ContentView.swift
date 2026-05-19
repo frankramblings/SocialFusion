@@ -766,17 +766,20 @@ struct AccountPickerSheet: View {
                 // Add Account Button
                 Section {
                     Button(action: {
+                        HapticEngine.tap.trigger()
                         showAddAccountView = true
                     }) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 22))
                                 .foregroundColor(Color("AppPrimaryColor"))
+                                .accessibilityHidden(true)
 
                             Text("Add Account")
                                 .font(.headline)
                         }
                     }
+                    .accessibilityHint("Opens the add-account flow.")
                 }
 
                 // Manage Accounts Button
