@@ -174,7 +174,17 @@ struct NavBarPillDropdownRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
+        Button(action: {
+            // The pill dropdown always represents a selection (filter,
+            // feed, account) — fire the system selection haptic so the
+            // row feels like every other iOS picker. Doing it here once
+            // is safer than asking each call-site to remember, and the
+            // showChevron rows that *navigate* still benefit (the
+            // chevron rows always lead to a new surface, which also
+            // warrants a tactile cue).
+            HapticEngine.selection.trigger()
+            action()
+        }) {
             HStack(spacing: 8) {
                 if let icon {
                     Image(icon)
