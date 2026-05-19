@@ -374,6 +374,9 @@ struct EnhancedEmptyStateView: View {
     }
 
     private func handleSecondaryAction() {
+        // Match the primary-action funnel haptic (3e2c4d0) so both
+        // buttons on this surface give the same tactile confirmation.
+        HapticEngine.tap.trigger()
         switch state {
         case .noInternet:
             // Show cached content - this could trigger a different view mode
