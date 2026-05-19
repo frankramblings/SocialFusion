@@ -532,10 +532,7 @@ struct PostDetailView: View {
             .clipShape(Capsule())
         } else if accounts.count == 1, let account = accounts.first {
             HStack(spacing: 6) {
-                Image(platform.icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 14, height: 14)
+                PlatformLogoBadge(platform: platform, size: 16, shadowEnabled: false)
                 EmojiDisplayNameText(
                     account.displayName ?? account.username,
                     emojiMap: account.displayNameEmojiMap,
@@ -573,10 +570,7 @@ struct PostDetailView: View {
                 }
             } label: {
                 HStack(spacing: 6) {
-                    Image(platform.icon)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 14, height: 14)
+                    PlatformLogoBadge(platform: platform, size: 16, shadowEnabled: false)
                     if let account = selectedReplyAccount(for: platform) {
                         EmojiDisplayNameText(
                             account.displayName ?? account.username,
