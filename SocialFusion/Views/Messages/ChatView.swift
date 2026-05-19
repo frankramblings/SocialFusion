@@ -324,11 +324,11 @@ struct ChatView: View {
         Image(systemName: "paperplane.fill")
           .foregroundColor(.white)
           .padding(10)
-          .background(newMessageText.isEmpty ? Color.gray : platformColor)
+          .background(trimmedMessageIsEmpty ? Color.gray : platformColor)
           .clipShape(Circle())
       }
     }
-    .disabled(newMessageText.isEmpty || isLoading || isSending)
+    .disabled(trimmedMessageIsEmpty || isLoading || isSending)
     .accessibilityLabel(isSending ? "Sending message" : "Send message")
     // Cmd+Return → Send. Matches the primary compose flow and Echo
     // composer; standard "ship it" gesture for keyboard users.
@@ -542,9 +542,19 @@ struct ChatView: View {
     }
   }
 
+  /// True when the buffer is empty or contains only whitespace. Drives
+  /// both the Send button's disabled state and its visual color so the
+  /// affordance matches what `sendMessage()` will actually do.
+  private var trimmedMessageIsEmpty: Bool {
+    newMessageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  }
+
   private func sendMessage() {
-    guard !newMessageText.isEmpty, !isSending else { return }
-    let text = newMessageText
+    // Trim before the empty check so a whitespace-only buffer (e.g.
+    // accidental space from autocomplete) doesn't dispatch a message
+    // that renders as a blank bubble on the recipient's side.
+    let text = newMessageText.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !text.isEmpty, !isSending else { return }
 
     // Handle editing mode
     if let editing = editingMessage {
