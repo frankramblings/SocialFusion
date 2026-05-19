@@ -330,8 +330,16 @@ struct FullscreenMediaView: View {
                                             .padding(10)
                                     }
                                     .buttonStyle(GlassyButtonStyle())
-                                    .accessibilityLabel("Show image description")
-                                    .accessibilityHint("Toggles the alt text overlay")
+                                    // Label reflects the action a tap will
+                                    // perform — Show when alt is hidden,
+                                    // Hide when it's already shown — so
+                                    // VoiceOver users land on a
+                                    // self-describing toggle target.
+                                    .accessibilityLabel(showAltText
+                                        ? "Hide image description"
+                                        : "Show image description")
+                                    .accessibilityValue(showAltText ? "Showing" : "Hidden")
+                                    .accessibilityHint("Toggles the alt text overlay.")
                                 }
 
                                 Spacer()
