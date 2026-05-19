@@ -104,6 +104,43 @@ final class FusedConversationViewModelTests: XCTestCase {
             "Inserting a reply whose id already exists must be a no-op.")
     }
 
+    /// Total-outage degenerate case. The outage banner is the only
+    /// recovery surface when both sides fail — but the bigger thing the
+    /// view depends on is `canReply` becoming false (no rootPost on
+    /// either side). Pin that the empty stream + failed statuses + no
+    /// root posts all hold so the Reply button correctly disables.
+    func testBothSidesFailedYieldsNoRepliesAndNoRootPosts() async {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let fetcher = StubThreadFetcher(
+            mastodonResult: .failure(TestError.boom),
+            blueskyResult: .failure(TestError.boom)
+        )
+
+        let vm = FusedConversationViewModel(
+            moment: FusedMoment(
+                mastodonPostID: "m1",
+                blueskyPostID: "b1",
+                authorIdentityKey: "a",
+                firstSeenAt: base,
+                confidence: 0.9
+            ),
+            threadFetcher: fetcher
+        )
+
+        await vm.load()
+
+        XCTAssertTrue(vm.replies.isEmpty)
+        XCTAssertNil(vm.mastodonRootPost)
+        XCTAssertNil(vm.blueskyRootPost)
+        XCTAssertNil(vm.rootPost)
+        if case .failed = vm.mastodonStatus {} else {
+            XCTFail("Mastodon must be .failed; got \(vm.mastodonStatus)")
+        }
+        if case .failed = vm.blueskyStatus {} else {
+            XCTFail("Bluesky must be .failed; got \(vm.blueskyStatus)")
+        }
+    }
+
     /// Retry contract: a side that previously failed should re-fetch
     /// and, on success, flip to `.loaded` and merge its replies into
     /// the stream. Pins the recovery path the Fused outage banner's
