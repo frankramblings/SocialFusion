@@ -103,6 +103,7 @@ struct ProfileView: View {
       }
     }
     .ignoresSafeArea(edges: .top)
+    .background(profileKeyboardShortcuts)
     .navigationBarTitleDisplayMode(.inline)
     .toolbarBackground(.hidden, for: .navigationBar)
     .toolbarColorScheme(.dark, for: .navigationBar)
@@ -525,6 +526,24 @@ struct ProfileView: View {
   }
 
   // MARK: - Helpers
+
+  /// ⌘R reloads the profile and its current tab. Profile uses UIKit
+  /// scroll-offset tracking for the parallax effect, which makes
+  /// .refreshable risky to wire up — so the keyboard shortcut is
+  /// actually the *first* refresh affordance on this surface for
+  /// hardware-keyboard users.
+  private var profileKeyboardShortcuts: some View {
+    Button("Reload") {
+      Task {
+        await viewModel.loadProfile()
+        await viewModel.loadPostsForCurrentTab()
+      }
+    }
+    .keyboardShortcut("r", modifiers: .command)
+    .frame(width: 0, height: 0)
+    .opacity(0)
+    .accessibilityHidden(true)
+  }
 
   private func reportPost(_ post: Post) {
     Task {
