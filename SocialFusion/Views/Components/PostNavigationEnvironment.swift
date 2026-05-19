@@ -249,7 +249,14 @@ class PostNavigationEnvironment: ObservableObject {
 
                     let post: Post?
                     if platform == .mastodon {
-                        guard let account = serviceManager.mastodonAccounts.first else { return }
+                        // Prefer the timeline-selected account so a deep
+                        // link fetched while the user is reading
+                        // @me@indieweb.social comes from that instance's
+                        // federation view (boost / like counts can differ
+                        // per instance). `.first` is the fallback for the
+                        // unified-feed case.
+                        guard let account = serviceManager.activeAccount(on: .mastodon)
+                            ?? serviceManager.mastodonAccounts.first else { return }
                         post = try await serviceManager.fetchMastodonStatus(id: id, account: account)
                     } else {
                         post = try await serviceManager.fetchBlueskyPostByID(id)
@@ -323,8 +330,11 @@ class PostNavigationEnvironment: ObservableObject {
                             account.serverURL?.host?.lowercased() == host
                         }
 
-                        // Fallback to first Mastodon account if no direct match
-                        let account = matchingAccount ?? serviceManager.mastodonAccounts.first
+                        // Fallback chain: same-host match (best),
+                        // then the timeline-active account, then first.
+                        let account = matchingAccount
+                            ?? serviceManager.activeAccount(on: .mastodon)
+                            ?? serviceManager.mastodonAccounts.first
 
                         guard let account = account else { return }
 
