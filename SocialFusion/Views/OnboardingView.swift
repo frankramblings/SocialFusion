@@ -204,28 +204,38 @@ struct OnboardingPage {
 
 struct OnboardingPageView: View {
     let page: OnboardingPage
-    
+
     var body: some View {
         VStack(spacing: 40) {
             Spacer()
-            
+
             Image(systemName: page.imageName)
                 .font(.system(size: 120))
                 .foregroundColor(page.color)
-            
+                // Decorative — the title text below carries the
+                // semantic content. VoiceOver would otherwise announce
+                // a long SF Symbol name (e.g. "list bullet rectangle
+                // portrait fill") before the title that actually
+                // matters.
+                .accessibilityHidden(true)
+
             VStack(spacing: 16) {
                 Text(page.title)
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .multilineTextAlignment(.center)
-                
+                    .accessibilityAddTraits(.isHeader)
+
                 Text(page.description)
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
             }
-            
+            // Combine title + description into one element so VoiceOver
+            // hears the whole page intro in one swipe.
+            .accessibilityElement(children: .combine)
+
             Spacer()
         }
     }
