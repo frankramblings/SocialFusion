@@ -548,6 +548,10 @@ private struct GridImageView: View {
                     .onTapGesture {
                         onAltTap?(attachment)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("View alt text")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHint("Shows the image description.")
             }
 
             // Show "+X more" overlay on the last item if there are extra items
@@ -565,8 +569,33 @@ private struct GridImageView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                     )
+                    .accessibilityHidden(true)  // Announced via the parent label
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(imageAccessibilityLabel)
+    }
+
+    /// Alt-text-driven label with media-type fallback; appends "and N more
+    /// attachments" when this grid item is the last and there are hidden
+    /// items behind a +X overlay.
+    private var imageAccessibilityLabel: String {
+        let core: String
+        if let alt = attachment.altText, !alt.isEmpty {
+            core = alt
+        } else {
+            switch attachment.type {
+            case .image:       core = "Image"
+            case .video:       core = "Video"
+            case .audio:       core = "Audio"
+            case .gifv:        core = "Animated image"
+            case .animatedGIF: core = "Animated GIF"
+            }
+        }
+        if extraCount > 0 && isLast {
+            return "\(core), and \(extraCount) more attachment\(extraCount == 1 ? "" : "s")"
+        }
+        return core
     }
 }
 
