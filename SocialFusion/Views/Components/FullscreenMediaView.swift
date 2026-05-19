@@ -69,7 +69,14 @@ struct FullscreenMediaView: View {
                                         : 0
                                 )
                                 .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
-                                .accessibilityLabel(attachment.altText ?? "Image")
+                                // Include position in a multi-image carousel so
+                                // VoiceOver users know where they are: "Sunset
+                                // shot, image 2 of 5".
+                                .accessibilityLabel(
+                                    allMedia.count > 1
+                                        ? "\(attachment.altText ?? "Image"), image \(index + 1) of \(allMedia.count)"
+                                        : (attachment.altText ?? "Image")
+                                )
                                 .gesture(
                                     SimultaneousGesture(
                                         MagnificationGesture()
