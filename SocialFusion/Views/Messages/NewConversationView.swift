@@ -125,12 +125,14 @@ struct NewConversationView: View {
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") { dismiss() }
+            .keyboardShortcut(.escape, modifiers: [])
         }
         ToolbarItem(placement: .confirmationAction) {
           if !selectedParticipants.isEmpty {
             Button(selectedParticipants.count > 1 ? "Create Group" : "Start Chat") {
               startConversationWithSelected()
             }
+            .keyboardShortcut(.return, modifiers: .command)
           }
         }
       }
