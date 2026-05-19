@@ -155,6 +155,11 @@ public struct FusedConversationView: View {
                 Text("Fused conversation")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    // Section header so VoiceOver's heading rotor can
+                    // jump straight to it — the navigation title also
+                    // says "Fused conversation," but the rotor relies
+                    // on traits, not the chrome.
+                    .accessibilityAddTraits(.isHeader)
             }
             if let root = viewModel.rootPost {
                 RootPostHeader(post: root)
