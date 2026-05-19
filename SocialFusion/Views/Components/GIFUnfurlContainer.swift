@@ -188,6 +188,10 @@ public struct GIFUnfurlContainer: View {
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .contentShape(Rectangle())
                         .onTapGesture { onTap?() }
+                        .accessibilityElement()
+                        .accessibilityLabel("Animated GIF")
+                        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
+                        .accessibilityHint(onTap == nil ? "" : "Opens fullscreen.")
                 } else {
                     // Loading or no aspect ratio yet - use GeometryReader for dynamic sizing
                     GeometryReader { geometry in
@@ -204,6 +208,10 @@ public struct GIFUnfurlContainer: View {
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .contentShape(Rectangle())
                         .onTapGesture { onTap?() }
+                        .accessibilityElement()
+                        .accessibilityLabel("Animated GIF")
+                        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
+                        .accessibilityHint(onTap == nil ? "" : "Opens fullscreen.")
                     }
                     .frame(maxHeight: maxHeight > 0 ? maxHeight : nil)
                     .onAppear(perform: loadIfNeeded)
