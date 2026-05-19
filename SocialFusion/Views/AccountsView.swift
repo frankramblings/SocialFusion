@@ -143,6 +143,15 @@ struct AccountsView: View {
                 }
                 Button("Remove", role: .destructive) {
                     if let account = accountToDelete {
+                        // Success haptic — account removal is a
+                        // protective destructive action and the visual
+                        // change (account vanishes, timeline refreshes
+                        // to "all") happens asynchronously. The haptic
+                        // confirms the boundary held the moment the
+                        // user taps Remove, before the visible state
+                        // catches up. Matches the iMessage "leave
+                        // conversation" pattern (5ba617c-adjacent).
+                        HapticEngine.success.trigger()
                         Task {
                             await serviceManager.removeAccount(account)
                             // Remove account from selected IDs if it was selected
