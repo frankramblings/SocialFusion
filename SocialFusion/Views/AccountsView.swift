@@ -67,6 +67,7 @@ struct AccountsView: View {
                 Section(header: Text("Mastodon")) {
                     if serviceManager.mastodonAccounts.isEmpty {
                         Button(action: {
+                            HapticEngine.tap.trigger()
                             selectedPlatform = .mastodon
                             showingAddAccount = true
                         }) {
@@ -78,6 +79,7 @@ struct AccountsView: View {
                         }
 
                         Button(action: {
+                            HapticEngine.tap.trigger()
                             selectedPlatform = .mastodon
                             showingAddAccount = true
                         }) {
@@ -90,6 +92,7 @@ struct AccountsView: View {
                 Section(header: Text("Bluesky")) {
                     if serviceManager.blueskyAccounts.isEmpty {
                         Button(action: {
+                            HapticEngine.tap.trigger()
                             selectedPlatform = .bluesky
                             showingAddAccount = true
                         }) {
@@ -101,6 +104,7 @@ struct AccountsView: View {
                         }
 
                         Button(action: {
+                            HapticEngine.tap.trigger()
                             selectedPlatform = .bluesky
                             showingAddAccount = true
                         }) {
