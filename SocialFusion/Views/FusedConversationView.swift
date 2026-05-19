@@ -103,7 +103,8 @@ public struct FusedConversationView: View {
             EchoComposeView(
                 viewModel: EchoComposeViewModel(
                     moment: viewModel.moment,
-                    initialTargets: dispatchableInitialTargets
+                    initialTargets: dispatchableInitialTargets,
+                    availablePlatforms: signedInPlatforms
                 ),
                 onSend: { text, targets in
                     await sendAndResolve(text: text, targets: targets)
@@ -184,6 +185,16 @@ public struct FusedConversationView: View {
     /// pre-checked under `echoOn` policy — a confusing default that
     /// would also fail preflight on Send. Echoes only the policy's
     /// intent within the user's actual reach.
+    /// Platforms the user has any account signed in for. Drives which
+    /// target rows in the Echo composer are tappable — a Mastodon-only
+    /// user shouldn't be able to flip Bluesky on and watch Send fail.
+    private var signedInPlatforms: Set<SocialPlatform> {
+        var set: Set<SocialPlatform> = []
+        if !serviceManager.mastodonAccounts.isEmpty { set.insert(.mastodon) }
+        if !serviceManager.blueskyAccounts.isEmpty { set.insert(.bluesky) }
+        return set
+    }
+
     private var dispatchableInitialTargets: Set<SocialPlatform> {
         let policyTargets = echoPolicyStore.initialReplyTargets(
             originalPlatform: viewModel.rootPost?.platform ?? .mastodon

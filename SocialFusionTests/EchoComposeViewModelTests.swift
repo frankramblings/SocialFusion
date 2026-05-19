@@ -103,4 +103,28 @@ final class EchoComposeViewModelTests: XCTestCase {
         vm.finishSending()
         XCTAssertTrue(vm.canSend, "Once dispatch completes, the gate releases.")
     }
+
+    /// availablePlatforms defaults to both networks for callers that
+    /// don't care — preserves existing behaviour for tests and any
+    /// non-FusedConversationView callers that may exist later.
+    func testAvailablePlatformsDefaultsToBoth() {
+        let vm = EchoComposeViewModel(
+            moment: FusedMoment(mastodonPostID: "m1", blueskyPostID: "b1",
+                                authorIdentityKey: "a", firstSeenAt: Date(), confidence: 0.9),
+            initialTargets: [.mastodon]
+        )
+        XCTAssertEqual(vm.availablePlatforms, [.mastodon, .bluesky])
+    }
+
+    /// When the caller narrows availablePlatforms, the value sticks
+    /// — the composer view reads this to disable unavailable target rows.
+    func testAvailablePlatformsCanBeConstrainedAtConstruction() {
+        let vm = EchoComposeViewModel(
+            moment: FusedMoment(mastodonPostID: "m1", blueskyPostID: "b1",
+                                authorIdentityKey: "a", firstSeenAt: Date(), confidence: 0.9),
+            initialTargets: [.mastodon],
+            availablePlatforms: [.mastodon]
+        )
+        XCTAssertEqual(vm.availablePlatforms, [.mastodon])
+    }
 }

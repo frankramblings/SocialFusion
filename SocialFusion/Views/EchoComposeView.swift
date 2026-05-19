@@ -112,6 +112,7 @@ public struct EchoComposeView: View {
 
     private func targetRow(_ platform: SocialPlatform) -> some View {
         let isOn = viewModel.targets.contains(platform)
+        let isAvailable = viewModel.availablePlatforms.contains(platform)
         // Toggle wrapping its own label makes the entire row tappable
         // — previously only the small switch on the right edge would
         // toggle, leaving a wide dead zone across the badge + label.
@@ -135,7 +136,15 @@ public struct EchoComposeView: View {
                     .foregroundStyle(isOn ? Color.primary : .secondary)
             }
         }
+        // Disable + hint when the user has no account for this side —
+        // toggling it on would just queue a Send that fails preflight.
+        // The hint tells VoiceOver users (and anyone wondering why the
+        // row won't flip) what's actually missing.
+        .disabled(!isAvailable)
         .accessibilityLabel("Reply on \(platform.accessibilityLabel)")
+        .accessibilityHint(isAvailable
+            ? ""
+            : "No \(platform.accessibilityLabel) account signed in. Add one in Settings to reply on this network.")
         .padding(12)
         // Soft fade reinforces which side will receive the reply.
         // Mirrors the dim treatment already used by the per-network
