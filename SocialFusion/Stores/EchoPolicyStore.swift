@@ -24,8 +24,13 @@ public final class EchoPolicyStore: ObservableObject {
     ) {
         self.userDefaults = userDefaults
         self.defaultsKey = defaultsKey
-        let raw = userDefaults.string(forKey: defaultsKey) ?? EchoPolicy.askEachTime.rawValue
-        self.policy = EchoPolicy(rawValue: raw) ?? .askEachTime
+        // Spec: "Onboarding asks: Echo replies by default? with a toggle
+        // (default ON)." Onboarding writes a concrete policy when the
+        // user makes a choice, but users who never see the page (upgrade
+        // path: existing accounts → onboarding gate skips) need a sensible
+        // pre-choice default. Echo-on matches the spec's elevated path.
+        let raw = userDefaults.string(forKey: defaultsKey) ?? EchoPolicy.echoOn.rawValue
+        self.policy = EchoPolicy(rawValue: raw) ?? .echoOn
     }
 
     /// Returns the set of platforms to pre-check in a Fused reply composer,

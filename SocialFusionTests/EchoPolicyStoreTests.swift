@@ -9,9 +9,13 @@ final class EchoPolicyStoreTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: key)
     }
 
-    func testDefaultIsAskEachTime() {
+    func testDefaultIsEchoOn() {
+        // Spec elevates Echo-on as the preferred default. Users who never
+        // see the onboarding policy page (upgrade path: existing accounts
+        // present → onboarding gate skips) must get the spec's default,
+        // not the strictest mode.
         let store = EchoPolicyStore(userDefaults: .standard, defaultsKey: key)
-        XCTAssertEqual(store.policy, .askEachTime)
+        XCTAssertEqual(store.policy, .echoOn)
     }
 
     func testSettingPersistsAcrossInstances() {
