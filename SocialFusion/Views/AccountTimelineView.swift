@@ -125,6 +125,7 @@ struct AccountTimelineView: View {
     private var loadingView: some View {
         ProgressView()
             .scaleEffect(1.5)
+            .accessibilityLabel("Loading timeline")
     }
 
     private var emptyStateView: some View {

@@ -370,6 +370,7 @@ struct ProfileView: View {
       ProgressView()
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
+        .accessibilityLabel("Loading posts")
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
       Text("No posts yet")
         .foregroundColor(.secondary)
@@ -422,6 +423,7 @@ struct ProfileView: View {
       ProgressView()
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
+        .accessibilityLabel("Loading media")
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
       Text("No media yet")
         .foregroundColor(.secondary)

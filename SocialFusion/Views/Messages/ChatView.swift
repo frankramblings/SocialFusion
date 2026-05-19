@@ -174,7 +174,9 @@ struct ChatView: View {
       ScrollView {
         LazyVStack(spacing: 0) {
           if isLoading && messages.isEmpty {
-            ProgressView().padding(.top, 40)
+            ProgressView()
+              .padding(.top, 40)
+              .accessibilityLabel("Loading messages")
           } else {
             ForEach(Array(groupedMessages.enumerated()), id: \.offset) { _, section in
               dateHeader(for: section.date)

@@ -36,6 +36,7 @@ struct TagDetailView: View {
                 if isLoading && posts.isEmpty {
                     ProgressView()
                         .padding(.top, 40)
+                        .accessibilityLabel("Loading tagged posts")
                 } else if error != nil {
                     VStack(spacing: 12) {
                         Text("Failed to load posts")
