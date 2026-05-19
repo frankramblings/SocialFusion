@@ -101,6 +101,9 @@ public struct ManualMergeSheet: View {
                 Image(systemName: "person.2.circle")
                     .font(.system(size: 36))
                     .foregroundStyle(.secondary)
+                    // Decorative — the hint text below already says
+                    // what state this is.
+                    .accessibilityHidden(true)
                 Text("Search for their account on \(targetPlatform.accessibilityLabel)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -108,6 +111,7 @@ public struct ManualMergeSheet: View {
                     .padding(.horizontal, 32)
                 Spacer()
             }
+            .accessibilityElement(children: .combine)
         } else if results.isEmpty {
             VStack { Spacer(); Text("No results").foregroundStyle(.secondary); Spacer() }
         } else {

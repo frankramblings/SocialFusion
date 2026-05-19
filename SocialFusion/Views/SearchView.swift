@@ -576,6 +576,8 @@ struct SearchView: View {
                 .font(.system(size: 44))
                 .foregroundColor(.secondary)
                 .padding(.top, 40)
+                // Decorative — the hint below names the state.
+                .accessibilityHidden(true)
 
             Text("Add an account to discover\ntrending topics")
                 .font(.subheadline)
@@ -592,6 +594,7 @@ struct SearchView: View {
                     .background(Color.blue)
                     .cornerRadius(20)
             }
+            .accessibilityHint("Opens the add-account flow.")
         }
     }
 
