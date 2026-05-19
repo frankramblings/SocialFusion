@@ -377,7 +377,11 @@ struct FullscreenMediaView: View {
         .onDisappear {
             cleanupPlaybackResources()
         }
-        .modifier(FullscreenMediaKeyboardDismiss(onDismiss: onDismiss))
+        .modifier(FullscreenMediaKeyboardDismiss(
+            onDismiss: onDismiss,
+            currentIndex: $currentIndex,
+            mediaCount: allMedia.count
+        ))
 
     }
 
@@ -783,13 +787,17 @@ private struct FullscreenVideoPlayerView: View {
     }
 }
 
-/// Escape dismisses fullscreen media. Matches Photos.app on the Mac and
-/// the convention iPadOS users expect from any modal viewer — without
-/// this they're stuck reaching for the close button or doing the
-/// swipe-to-dismiss gesture on a trackpad. Cmd+W also dismisses; that's
-/// the "close window" mnemonic and aligns with Safari/Finder.
+/// Hardware-keyboard support for the fullscreen media viewer.
+/// - Escape / Cmd+W: dismiss (Photos.app + Safari "close window" mnemonics).
+/// - Left/Right arrows: page between media in a multi-item post — same as
+///   Photos.app and Mail's image previewer; previously the only way to
+///   navigate was a trackpad/touchscreen swipe.
+/// Arrow-key navigation falls back gracefully on single-item posts
+/// (mediaCount <= 1 → arrows propagate uncaptured).
 private struct FullscreenMediaKeyboardDismiss: ViewModifier {
     let onDismiss: () -> Void
+    @Binding var currentIndex: Int
+    let mediaCount: Int
 
     func body(content: Content) -> some View {
         if #available(iOS 17.0, *) {
@@ -802,6 +810,16 @@ private struct FullscreenMediaKeyboardDismiss: ViewModifier {
                    keyPress.modifiers.contains(.command) {
                     onDismiss()
                     return .handled
+                }
+                if mediaCount > 1 {
+                    if keyPress.key == .leftArrow, currentIndex > 0 {
+                        currentIndex -= 1
+                        return .handled
+                    }
+                    if keyPress.key == .rightArrow, currentIndex < mediaCount - 1 {
+                        currentIndex += 1
+                        return .handled
+                    }
                 }
                 return .ignored
             }
