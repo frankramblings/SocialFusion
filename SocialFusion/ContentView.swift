@@ -264,20 +264,30 @@ struct ContentView: View {
 
     private var profileMenuButton: some View {
         Menu {
-            if isMultiAccountMode {
-                Section {
-                    ForEach(serviceManager.accounts) { account in
+            Section {
+                Button {
+                    switchToAccount(id: nil)
+                } label: {
+                    Label {
+                        Text("All accounts")
+                    } icon: {
+                        Image(systemName: selectedAccountId == nil ? "checkmark" : "person.2")
+                    }
+                }
+                ForEach(serviceManager.accounts) { account in
+                    Button {
+                        switchToAccount(id: account.id)
+                    } label: {
                         Label {
                             Text("@\(account.username)")
                         } icon: {
-                            Image(account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
+                            if selectedAccountId == account.id {
+                                Image(systemName: "checkmark")
+                            } else {
+                                Image(account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
+                            }
                         }
                     }
-                }
-            } else if let account = contextualAccount {
-                Section {
-                    Text("@\(account.username)")
-                        .font(.subheadline)
                 }
             }
             Section {
@@ -297,13 +307,6 @@ struct ContentView: View {
                 .frame(width: 28, height: 28)
         }
         .accessibilityLabel("Profile and settings")
-    }
-
-    private var isMultiAccountMode: Bool {
-        switch serviceManager.currentTimelineFeedSelection {
-        case .unified, .allMastodon, .allBluesky: return true
-        case .mastodon, .bluesky: return false
-        }
     }
 
     private var contextualAccount: SocialAccount? {
