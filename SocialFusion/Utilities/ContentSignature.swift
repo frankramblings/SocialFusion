@@ -45,9 +45,15 @@ public enum ContentSignature {
             guard let range = Range(match.range, in: result) else { continue }
             var url = String(result[range])
 
-            // Strip trailing punctuation first so it doesn't shield a trailing slash
-            // or fragment from later steps.
+            // Strip trailing punctuation first so it doesn't shield a trailing
+            // slash or fragment from later steps. Bracket-aware: a trailing
+            // `)`, `]`, or `}` is kept if its matching opener appears earlier
+            // in the URL — Wikipedia-style paths like `Macintosh_(computer)`
+            // were being mangled by a naive greedy strip.
             while let last = url.last, urlTrailingPunctuation.contains(last) {
+                if Self.bracketIsBalanced(in: url, closer: last) {
+                    break
+                }
                 url.removeLast()
             }
 
@@ -64,6 +70,27 @@ public enum ContentSignature {
             result.replaceSubrange(range, with: url)
         }
         return result
+    }
+
+    /// True if the trailing `closer` character is part of a balanced bracket
+    /// pair within `url`. Counts openers vs closers across the whole URL —
+    /// when the count of openers ≥ closers, the final closer is structural
+    /// and we should NOT strip it.
+    private static func bracketIsBalanced(in url: String, closer: Character) -> Bool {
+        let opener: Character
+        switch closer {
+        case ")": opener = "("
+        case "]": opener = "["
+        case "}": opener = "{"
+        default: return false
+        }
+        var openers = 0
+        var closers = 0
+        for ch in url {
+            if ch == opener { openers += 1 }
+            if ch == closer { closers += 1 }
+        }
+        return openers >= closers
     }
 
     /// Removes contiguous `@mention` and `#hashtag` tokens from the end of the text.

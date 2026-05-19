@@ -93,4 +93,40 @@ final class ContentSignatureTests: XCTestCase {
         let s = ContentSignature.fingerprint(for: "Big news 🎉 today!")
         XCTAssertTrue(s.contains("🎉"))
     }
+
+    /// Bracket-balanced URLs (e.g. Wikipedia paths with parenthesized
+    /// disambiguations) must keep their structural trailing `)` — the
+    /// punctuation strip should only remove trailing closers that don't
+    /// have a matching opener earlier in the URL.
+    func testBalancedParenInURLIsPreserved() {
+        let a = ContentSignature.fingerprint(
+            for: "Read https://en.wikipedia.org/wiki/Macintosh_(computer)"
+        )
+        // The closing paren must remain in the fingerprint — otherwise the
+        // URL would degrade to `Macintosh_(computer` and a Wikipedia link
+        // wouldn't match itself across networks.
+        XCTAssertTrue(a.contains("(computer)"),
+                      "Balanced closing paren must be preserved in normalized URL.")
+    }
+
+    /// Unbalanced trailing punctuation (sentence-ending paren around a URL)
+    /// still gets stripped — that was the original goal of the punctuation
+    /// strip and is preserved by the bracket-balance check.
+    func testUnbalancedTrailingParenStripped() {
+        let a = ContentSignature.fingerprint(for: "Find it (at https://example.com)")
+        let b = ContentSignature.fingerprint(for: "Find it (at https://example.com")
+        XCTAssertEqual(a, b,
+                       "Sentence-ending paren around a URL should be stripped — its opener is in the surrounding prose, not the URL itself.")
+    }
+
+    func testBalancedBracketsAndBraces() {
+        // Same logic must work for [] and {} — RFC 3986 allows brackets in
+        // hosts and uncommon paths use braces.
+        let a = ContentSignature.fingerprint(for: "See https://example.com/path[1]")
+        XCTAssertTrue(a.contains("[1]"),
+                      "Balanced brackets in URL path must be preserved.")
+        let b = ContentSignature.fingerprint(for: "See https://example.com/path{a}")
+        XCTAssertTrue(b.contains("{a}"),
+                      "Balanced braces in URL path must be preserved.")
+    }
 }
