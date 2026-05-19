@@ -77,7 +77,9 @@ public struct ManualMergeSheet: View {
 
     private var searchField: some View {
         HStack {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             TextField("Search \(targetPlatform.accessibilityLabel)", text: $query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()

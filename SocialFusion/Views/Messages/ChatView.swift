@@ -44,6 +44,10 @@ struct ChatView: View {
         HStack(spacing: 8) {
           Image(systemName: "magnifyingglass")
             .foregroundColor(.secondary)
+            // Decorative — the TextField's placeholder names the
+            // surface ("Search messages..."), so the SF Symbol's
+            // verbatim name would be redundant.
+            .accessibilityHidden(true)
           TextField("Search messages...", text: $searchText)
             .textFieldStyle(.plain)
             .onChange(of: searchText) { _, _ in
@@ -55,6 +59,7 @@ struct ChatView: View {
               .font(.caption)
               .foregroundColor(.secondary)
               .fixedSize()
+              .accessibilityLabel("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
 
             Button {
               if currentMatchIndex > 0 { currentMatchIndex -= 1 }
