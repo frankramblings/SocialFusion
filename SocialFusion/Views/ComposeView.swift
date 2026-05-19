@@ -1714,6 +1714,13 @@ struct ComposeView: View {
         {
             return match
         }
+        // Prefer the timeline-active account so a multi-account user
+        // opening Compose from a specific account's timeline drafts
+        // from that identity instead of an arbitrary .first lookup.
+        // Falls back to .first for the unified-feed case.
+        if let active = socialServiceManager.activeAccount(on: platform) {
+            return active
+        }
         return platformAccounts.first
     }
 
@@ -1729,13 +1736,20 @@ struct ComposeView: View {
 
     private func hydrateAccountSelection() {
         for platform in selectedPlatforms {
-            if selectedAccount(for: platform) == nil,
-                let account = accounts(for: platform).first
-            {
-                selectedAccounts[platform] = account.id
+            if selectedAccounts[platform] == nil {
+                // Same active-account preference as selectedAccount(for:) —
+                // multi-account users get their currently-reading account
+                // pre-selected when the composer opens, not the array's
+                // first entry.
+                if let active = socialServiceManager.activeAccount(on: platform) {
+                    selectedAccounts[platform] = active.id
+                } else if let first = accounts(for: platform).first {
+                    selectedAccounts[platform] = first.id
+                }
             }
         }
     }
+
 
     private func normalizedAltTexts(for post: ThreadPost) -> [String] {
         var altTexts = post.imageAltTexts
