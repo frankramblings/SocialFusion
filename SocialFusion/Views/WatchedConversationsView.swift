@@ -33,7 +33,12 @@ public struct WatchedConversationsView: View {
                 .padding(.horizontal, 32)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // .combine makes VoiceOver hear the empty-state as a single
+        // sentence (icon decorative, headline + body merged). The
+        // .isHeader trait helps the headings rotor land here, which
+        // matters when nested inside a Settings push.
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
         .accessibilityLabel("Nothing watched yet. Watch a conversation to get a ping when someone replies on either network. Open a post's menu and pick Watch conversation.")
     }
 
