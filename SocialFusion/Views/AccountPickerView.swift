@@ -96,6 +96,10 @@ struct AccountPickerView: View {
 
                     // Manage Accounts Button (takes you to the old accounts view)
                     Button(action: {
+                        // Tap haptic — opens a sheet, same pattern as
+                        // the Add Account and Settings buttons in this
+                        // sheet (already wired).
+                        HapticEngine.tap.trigger()
                         showAccountsView = true
                     }) {
                         HStack {
