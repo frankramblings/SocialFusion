@@ -402,7 +402,12 @@ struct NotificationRow: View {
     /// 5+ sub-elements (icon, avatar, name, action text, time, excerpt).
     private var combinedAccessibilityLabel: String {
         var parts: [String] = []
-        let name = notification.fromAccount.displayName ?? notification.fromAccount.username
+        // Decode entities — Mastodon displayName can carry raw HTML
+        // entities ("Frank&#8217;s"), which VoiceOver would read as
+        // "Frank ampersand pound 8217 semicolon s." Same boundary fix
+        // as EmojiDisplayNameText (afcbaa9) for the visible chip
+        // adjacent to this label.
+        let name = (notification.fromAccount.displayName ?? notification.fromAccount.username).decodingHTMLEntities
         parts.append("\(name) \(notificationText)")
         if let post = notification.post {
             let excerpt = PostNormalizerImpl.shared.normalizeContent(post.content)
