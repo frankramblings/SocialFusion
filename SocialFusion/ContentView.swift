@@ -126,6 +126,11 @@ struct ContentView: View {
             Button("Messages")      { selectedTab = 2 }.keyboardShortcut("3", modifiers: .command)
             Button("Search Tab")    { selectedTab = 3 }.keyboardShortcut("4", modifiers: .command)
             Button("Profile")       { selectedTab = 4 }.keyboardShortcut("5", modifiers: .command)
+
+            // ⌘, opens Settings — the macOS Preferences convention,
+            // which iPadOS hardware-keyboard users expect to find here.
+            Button("Settings") { showSettingsView = true }
+                .keyboardShortcut(",", modifiers: .command)
         }
         .frame(width: 0, height: 0)
         .opacity(0)
