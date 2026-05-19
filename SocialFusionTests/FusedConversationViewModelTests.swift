@@ -44,6 +44,66 @@ final class FusedConversationViewModelTests: XCTestCase {
         XCTAssertNotNil(vm.rootPost, "Root post should be set after either side resolves.")
     }
 
+    func testInsertSentReplyAppendsAndSortsChronologically() async {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let mastoRoot = makePost(id: "m1", platform: .mastodon, createdAt: base)
+        let existingReply = makePost(
+            id: "m_r1", platform: .mastodon,
+            createdAt: base.addingTimeInterval(1))
+
+        let fetcher = StubThreadFetcher(
+            mastodonResult: .success((root: mastoRoot, replies: [existingReply])),
+            blueskyResult: .success((root: mastoRoot, replies: []))
+        )
+        let vm = FusedConversationViewModel(
+            moment: FusedMoment(
+                mastodonPostID: "m1", blueskyPostID: "b1",
+                authorIdentityKey: "a", firstSeenAt: base, confidence: 0.9),
+            threadFetcher: fetcher
+        )
+        await vm.load()
+
+        // Send a reply timestamped between root and the existing reply.
+        let sent = makePost(
+            id: "m_new",
+            platform: .mastodon,
+            createdAt: base.addingTimeInterval(0.5))
+        vm.insertSentReply(sent)
+
+        XCTAssertEqual(
+            vm.replies.map(\.id), ["m_new", "m_r1"],
+            "Optimistic insert must place the sent reply in createdAt order, not at the end.")
+    }
+
+    func testInsertSentReplyIsIdempotentOnDuplicateID() async {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let mastoRoot = makePost(id: "m1", platform: .mastodon, createdAt: base)
+        let reply = makePost(
+            id: "m_r1", platform: .mastodon,
+            createdAt: base.addingTimeInterval(1))
+
+        let fetcher = StubThreadFetcher(
+            mastodonResult: .success((root: mastoRoot, replies: [reply])),
+            blueskyResult: .success((root: mastoRoot, replies: []))
+        )
+        let vm = FusedConversationViewModel(
+            moment: FusedMoment(
+                mastodonPostID: "m1", blueskyPostID: "b1",
+                authorIdentityKey: "a", firstSeenAt: base, confidence: 0.9),
+            threadFetcher: fetcher
+        )
+        await vm.load()
+        XCTAssertEqual(vm.replies.count, 1)
+
+        // A parallel server poll could land the same reply just after the
+        // optimistic insert. The reinsert must be a no-op so the user
+        // doesn't see their own reply duplicated.
+        vm.insertSentReply(reply)
+        XCTAssertEqual(
+            vm.replies.count, 1,
+            "Inserting a reply whose id already exists must be a no-op.")
+    }
+
     func testHandlesOneSideOutageGracefully() async {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         let mastoRoot = makePost(id: "m1", platform: .mastodon, createdAt: base)

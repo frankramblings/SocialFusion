@@ -216,27 +216,40 @@ public struct FusedConversationView: View {
             dispatchable.remove(.bluesky)
         }
 
+        // Bridge into a non-mutating local so the @Sendable-ish closure
+        // captures don't need to reference the SwiftUI View's @StateObject
+        // directly — `viewModel` here is a stable reference, but reading
+        // through `self` from inside an escaping closure trips actor
+        // checks in strict-concurrency mode. The local capture is enough
+        // to keep this on MainActor cleanly.
+        let vm = viewModel
+
         let result = await sendEchoedReply(
             targets: dispatchable,
             sendToMastodon: { [text] in
                 guard let post = mastoRoot, let account = mastoAccount else {
                     throw EchoReplyError.missingContext
                 }
-                _ = try await mastoService.replyToPost(
+                let sent = try await mastoService.replyToPost(
                     post,
                     content: text,
                     account: account
                 )
+                // Optimistic insertion: the new reply lands in the merged
+                // stream immediately, so the user sees their own reply
+                // without waiting for the next thread fetch.
+                vm.insertSentReply(sent)
             },
             sendToBluesky: { [text] in
                 guard let post = bskyRoot, let account = bskyAccount else {
                     throw EchoReplyError.missingContext
                 }
-                _ = try await bskyService.replyToPost(
+                let sent = try await bskyService.replyToPost(
                     post,
                     content: text,
                     account: account
                 )
+                vm.insertSentReply(sent)
             }
         )
 

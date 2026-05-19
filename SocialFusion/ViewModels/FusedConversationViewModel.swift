@@ -90,6 +90,19 @@ public final class FusedConversationViewModel: ObservableObject {
         await loadSide(platform)
     }
 
+    /// Insert a freshly-sent reply into the merged stream without waiting for
+    /// the next thread fetch. Idempotent: if a reply with the same id is
+    /// already present (e.g., a parallel server poll raced us), nothing
+    /// changes. Sorts the merged list in place so the new row lands in
+    /// chronological order with the rest.
+    public func insertSentReply(_ post: Post) {
+        let id = post.id
+        guard !replies.contains(where: { $0.id == id }) else { return }
+        var combined = replies + [MergedReply(id: id, post: post)]
+        combined.sort { $0.post.createdAt < $1.post.createdAt }
+        replies = combined
+    }
+
     private func loadSide(_ platform: SocialPlatform) async {
         let postID =
             (platform == .mastodon) ? moment.mastodonPostID : moment.blueskyPostID
