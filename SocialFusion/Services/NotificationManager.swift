@@ -9,12 +9,24 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
 
   private let provider: NotificationProvider = PollingNotificationProvider()
   private let deliveredIdsKey = "NotificationManager.deliveredIds"
+  private let lastSeenReplyCountsKey = "NotificationManager.lastSeenReplyCounts"
 
   weak var serviceManager: SocialServiceManager?
   weak var watchedConversationStore: WatchedConversationStore?
 
   /// Per-watched-conversation last-seen reply count, used to detect new replies.
-  private var lastSeenReplyCounts: [String: Int] = [:]
+  ///
+  /// Persisted to UserDefaults so a cold launch keeps the baseline: without
+  /// this, the app loses every watched conversation's baseline at quit, then
+  /// on next launch the first poll treats the current count as "already seen"
+  /// and silently swallows any replies that arrived while the app was dead.
+  /// JSON-encoded `[String: Int]` keyed on `WatchedConversation.rootPostID`.
+  private var lastSeenReplyCounts: [String: Int] {
+    didSet {
+      guard let data = try? JSONEncoder().encode(lastSeenReplyCounts) else { return }
+      UserDefaults.standard.set(data, forKey: lastSeenReplyCountsKey)
+    }
+  }
 
   /// IDs of notifications already delivered as local notifications
   private var deliveredIds: Set<String> {
@@ -29,6 +41,14 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
   }
 
   override init() {
+    // Restore from disk so a cold launch keeps prior watched-conversation
+    // baselines. Empty dict on first run / missing key / decode failure.
+    if let data = UserDefaults.standard.data(forKey: "NotificationManager.lastSeenReplyCounts"),
+       let decoded = try? JSONDecoder().decode([String: Int].self, from: data) {
+      self.lastSeenReplyCounts = decoded
+    } else {
+      self.lastSeenReplyCounts = [:]
+    }
     super.init()
     UNUserNotificationCenter.current().delegate = self
   }
