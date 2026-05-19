@@ -119,7 +119,7 @@ public struct EchoComposeView: View {
                 }
             ))
             .labelsHidden()
-            .accessibilityLabel(platform == .mastodon ? "Reply on Mastodon" : "Reply on Bluesky")
+            .accessibilityLabel("Reply on \(platform.accessibilityLabel)")
         }
         .padding(12)
     }
