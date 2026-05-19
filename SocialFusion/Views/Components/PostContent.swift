@@ -15,8 +15,11 @@ struct PostContent: View {
     }
 
     private var attributedContent: AttributedString {
-        // Strip HTML tags from content first
-        let cleanedContent = stripHTMLTags(from: content)
+        // Strip tags first, then decode entities, so any "&amp;" inside
+        // the source HTML doesn't leak through as visible "&amp;" in
+        // the rendered string. Previously the local stripHTMLTags only
+        // removed tags — entities passed through as visible noise.
+        let cleanedContent = content.strippingHTMLTags.decodingHTMLEntities
         var attributedString = AttributedString(cleanedContent)
 
         // Apply hashtag styling
@@ -36,11 +39,6 @@ struct PostContent: View {
         }
 
         return attributedString
-    }
-
-    private func stripHTMLTags(from html: String) -> String {
-        return html.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression, range: nil)
     }
 }
 
