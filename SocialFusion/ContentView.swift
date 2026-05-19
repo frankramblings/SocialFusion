@@ -113,6 +113,19 @@ struct ContentView: View {
                 selectedTab = 3
             }
             .keyboardShortcut("f", modifiers: .command)
+
+            // ⌘1–⌘5 tab navigation, matching the Mac convention used
+            // by Mail, Notes, Twitter-class clients (Tweetbot, Ivory).
+            // Numbers map to the *visible* tab order from the picker:
+            // 1 Home, 2 Notifications, 3 Messages, 4 Search, 5 Profile.
+            // The internal tag scheme leaves a gap at value 2 (Messages
+            // is .value 2 even on the .principal layout) — translating
+            // here keeps the shortcut order intuitive.
+            Button("Home")          { selectedTab = 0 }.keyboardShortcut("1", modifiers: .command)
+            Button("Notifications") { selectedTab = 1 }.keyboardShortcut("2", modifiers: .command)
+            Button("Messages")      { selectedTab = 2 }.keyboardShortcut("3", modifiers: .command)
+            Button("Search Tab")    { selectedTab = 3 }.keyboardShortcut("4", modifiers: .command)
+            Button("Profile")       { selectedTab = 4 }.keyboardShortcut("5", modifiers: .command)
         }
         .frame(width: 0, height: 0)
         .opacity(0)
