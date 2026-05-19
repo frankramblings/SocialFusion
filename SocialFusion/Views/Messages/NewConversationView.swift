@@ -187,6 +187,8 @@ struct NewConversationView: View {
       PostPlatformBadge(platform: platform)
         .scaleEffect(0.85)
     }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(displayName ?? handle), @\(handle), on \(platform.accessibilityLabel)")
   }
 
   // MARK: - Search
