@@ -651,6 +651,9 @@ struct DirectOpenRow: View {
             .background(Color.blue.opacity(0.1))
             .cornerRadius(8)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(displayText)
+        .accessibilityAddTraits(.isButton)
     }
     
     private var iconName: String {
