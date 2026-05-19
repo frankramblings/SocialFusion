@@ -76,9 +76,9 @@ struct AddAccountView: View {
                             .foregroundColor(.secondary)
 
                         TextField("Server", text: $server)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
-                            .disableAutocorrection(true)
+                            .autocorrectionDisabled(true)
                             .submitLabel(.done)
                     } else {
                         Text("Enter your Bluesky credentials")
@@ -86,12 +86,14 @@ struct AddAccountView: View {
                             .foregroundColor(.secondary)
 
                         TextField("Email or Username", text: $username)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
-                            .disableAutocorrection(true)
-                            .submitLabel(.done)
+                            .autocorrectionDisabled(true)
+                            .submitLabel(.next)
 
                         SecureField("App Password", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled(true)
                             .submitLabel(.done)
 
                         Text(
