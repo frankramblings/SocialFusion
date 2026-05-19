@@ -519,6 +519,48 @@
       "masto": { "id": "m_076", "content": "Pulled the cross-network reply changes into main, will tag a build by Friday", "authorId": "frank_id", "createdAt": "2026-05-24T12:00:00Z" },
       "bsky":  { "id": "b_076", "content": "@indieweb-feed.bsky.social Pulled the cross-network reply changes into main, will tag a build by Friday", "authorId": "frank_id", "createdAt": "2026-05-24T12:00:08Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "URL with anchor fragment on one side, no fragment on the other — fragment-strip in URL normalization aligns them",
+      "masto": { "id": "m_077", "content": "Pinned the keyboard-shortcut section of the docs: https://docs.example.com/shortcuts", "authorId": "frank_id", "createdAt": "2026-05-24T13:00:00Z" },
+      "bsky":  { "id": "b_077", "content": "Pinned the keyboard-shortcut section of the docs: https://docs.example.com/shortcuts#cmd-r", "authorId": "frank_id", "createdAt": "2026-05-24T13:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Two posts off by a single negation ('not') — substantive meaning flip, must not fuse on the rest matching",
+      "masto": { "id": "m_078", "content": "Going to ship the unified search view today before standup", "authorId": "frank_id", "createdAt": "2026-05-24T14:00:00Z" },
+      "bsky":  { "id": "b_078", "content": "Not going to ship the unified search view today before standup", "authorId": "frank_id", "createdAt": "2026-05-24T14:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Mid-text newline (Mastodon \\n) vs continuous (Bluesky) — whitespace collapse aligns the two",
+      "masto": { "id": "m_079", "content": "Three things I'm watching:\nthe build, the streaming pipeline, and the new search index — all green so far", "authorId": "frank_id", "createdAt": "2026-05-24T15:00:00Z" },
+      "bsky":  { "id": "b_079", "content": "Three things I'm watching: the build, the streaming pipeline, and the new search index — all green so far", "authorId": "frank_id", "createdAt": "2026-05-24T15:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Identical with one side using a tab character; whitespace collapse should handle it",
+      "masto": { "id": "m_080", "content": "Switched the bottom toolbar to use system materials\tinstead of solid backgrounds, looks better on dark mode", "authorId": "frank_id", "createdAt": "2026-05-24T16:00:00Z" },
+      "bsky":  { "id": "b_080", "content": "Switched the bottom toolbar to use system materials instead of solid backgrounds, looks better on dark mode", "authorId": "frank_id", "createdAt": "2026-05-24T16:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same content but one is a question, the other is the answer it implies — partial overlap should not fuse",
+      "masto": { "id": "m_081", "content": "What's the best autocomplete UX for posting across multiple networks at once?", "authorId": "frank_id", "createdAt": "2026-05-24T17:00:00Z" },
+      "bsky":  { "id": "b_081", "content": "The best autocomplete UX for posting across multiple networks is one editor with per-network previews", "authorId": "frank_id", "createdAt": "2026-05-24T17:00:09Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical with a percentage sign and arithmetic — symbols must not be eaten by token strip or punctuation pass",
+      "masto": { "id": "m_082", "content": "Cold-launch budget audit complete — 47% faster than last release, mostly from the new image cache", "authorId": "frank_id", "createdAt": "2026-05-25T09:00:00Z" },
+      "bsky":  { "id": "b_082", "content": "Cold-launch budget audit complete — 47% faster than last release, mostly from the new image cache", "authorId": "frank_id", "createdAt": "2026-05-25T09:00:08Z" },
+      "expectFused": true
     }
   ]
 }
