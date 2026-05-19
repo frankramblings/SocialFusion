@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Hand-curated corpus of real cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Seed of 7 entries (3 positive, 4 negative) — must expand to >= 100 before v1.0 promote-to-App-Store with real-world variety: short posts, posts with media references, posts with URLs, mentions, threads, near-duplicates. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries.",
+  "description": "Hand-curated corpus of cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Currently 21 entries (12 positive, 9 negative) — most are synthetic boundary probes; must expand to >= 100 with REAL cross-post pairs pulled from production feeds before v1.0 promote-to-App-Store. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries. KNOWN GAP (deferred to v1.x): same-author copy-paste reply patterns (e.g., 'Thanks for the heads up' posted twice in different threads within the time window) currently produce a false positive — the detector has no parent-thread context. Withhold this corpus shape until a parent-thread signal lands.",
   "examples": [
     {
       "label": "positive",
@@ -49,6 +49,104 @@
       "note": "Content under 20-char short-content threshold; confidence 0.65 < 0.75 minConfidence — should NOT fuse",
       "masto": { "id": "m_007", "content": "tea time again", "authorId": "frank_id", "createdAt": "2026-05-14T16:00:00Z" },
       "bsky":  { "id": "b_007", "content": "tea time again", "authorId": "frank_id", "createdAt": "2026-05-14T16:00:05Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "URLs differ only in trailing slash — ContentSignature must normalize",
+      "masto": { "id": "m_008", "content": "Just read this great write-up: https://example.com/post", "authorId": "frank_id", "createdAt": "2026-05-15T08:00:00Z" },
+      "bsky":  { "id": "b_008", "content": "Just read this great write-up: https://example.com/post/", "authorId": "frank_id", "createdAt": "2026-05-15T08:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "URLs differ only in fragment — ContentSignature must strip #fragments",
+      "masto": { "id": "m_009", "content": "Cracking section on dataflow in here: https://example.com/docs", "authorId": "frank_id", "createdAt": "2026-05-15T09:00:00Z" },
+      "bsky":  { "id": "b_009", "content": "Cracking section on dataflow in here: https://example.com/docs#dataflow", "authorId": "frank_id", "createdAt": "2026-05-15T09:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "URL trailing punctuation — one network keeps the period inside the URL, the other doesn't",
+      "masto": { "id": "m_010", "content": "Found a beautiful walk along the coast: https://example.com/coast.", "authorId": "frank_id", "createdAt": "2026-05-15T10:00:00Z" },
+      "bsky":  { "id": "b_010", "content": "Found a beautiful walk along the coast: https://example.com/coast", "authorId": "frank_id", "createdAt": "2026-05-15T10:00:04Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Trailing @mention differs (bare handle vs federated handle@host)",
+      "masto": { "id": "m_011", "content": "Brilliant talk on cross-network thinking by @speaker@conference.tld", "authorId": "frank_id", "createdAt": "2026-05-15T11:00:00Z" },
+      "bsky":  { "id": "b_011", "content": "Brilliant talk on cross-network thinking by @speaker", "authorId": "frank_id", "createdAt": "2026-05-15T11:00:06Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Mixed case differences; ContentSignature lowercases before compare",
+      "masto": { "id": "m_012", "content": "Big News for the team — onboarding shipped today", "authorId": "frank_id", "createdAt": "2026-05-15T12:00:00Z" },
+      "bsky":  { "id": "b_012", "content": "Big news for the team — onboarding shipped today", "authorId": "frank_id", "createdAt": "2026-05-15T12:00:03Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Whitespace differences: one side wraps with extra newlines, the other doesn't",
+      "masto": { "id": "m_013", "content": "Working through the migration today.\nTakes time but worth it.", "authorId": "frank_id", "createdAt": "2026-05-15T13:00:00Z" },
+      "bsky":  { "id": "b_013", "content": "Working through the migration today. Takes time but worth it.", "authorId": "frank_id", "createdAt": "2026-05-15T13:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Both trailing hashtag AND trailing mention differ — combined normalization",
+      "masto": { "id": "m_014", "content": "Slowly rebuilding my home office, more shelves arriving soon @maker", "authorId": "frank_id", "createdAt": "2026-05-15T14:00:00Z" },
+      "bsky":  { "id": "b_014", "content": "Slowly rebuilding my home office, more shelves arriving soon #wfh", "authorId": "frank_id", "createdAt": "2026-05-15T14:00:07Z" },
+      "expectFused": true
+    },
+    {
+      "label": "boundary-positive",
+      "note": "Time gap just under 10-minute window (599s) — should still fuse",
+      "masto": { "id": "m_015", "content": "Made it to the conference, looking forward to the keynote", "authorId": "frank_id", "createdAt": "2026-05-16T09:00:00Z" },
+      "bsky":  { "id": "b_015", "content": "Made it to the conference, looking forward to the keynote", "authorId": "frank_id", "createdAt": "2026-05-16T09:09:59Z" },
+      "expectFused": true
+    },
+    {
+      "label": "boundary-negative",
+      "note": "Time gap just over 10-minute window (601s) — should NOT fuse",
+      "masto": { "id": "m_016", "content": "Lunch was decent, time to get back to work for the afternoon", "authorId": "frank_id", "createdAt": "2026-05-16T13:00:00Z" },
+      "bsky":  { "id": "b_016", "content": "Lunch was decent, time to get back to work for the afternoon", "authorId": "frank_id", "createdAt": "2026-05-16T13:10:01Z" },
+      "expectFused": false
+    },
+    {
+      "label": "negative",
+      "note": "Word-order rearrangement — same words, different sentence — should NOT fuse",
+      "masto": { "id": "m_017", "content": "The cat sat on the warm sunny windowsill all afternoon", "authorId": "frank_id", "createdAt": "2026-05-16T15:00:00Z" },
+      "bsky":  { "id": "b_017", "content": "All afternoon the cat sat on the warm sunny windowsill", "authorId": "frank_id", "createdAt": "2026-05-16T15:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "negative",
+      "note": "Leading emoji differs — different content, should NOT fuse",
+      "masto": { "id": "m_018", "content": "🎉 Out of beta and into the world, thank you for testing", "authorId": "frank_id", "createdAt": "2026-05-16T17:00:00Z" },
+      "bsky":  { "id": "b_018", "content": "🎊 Out of beta and into the world, thank you for testing", "authorId": "frank_id", "createdAt": "2026-05-16T17:00:05Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Realistic crosspost with URL and longer text — typical happy-path entry",
+      "masto": { "id": "m_020", "content": "Wrote up the design rationale for our merged-identity layer: https://example.com/merged-identity", "authorId": "frank_id", "createdAt": "2026-05-17T11:00:00Z" },
+      "bsky":  { "id": "b_020", "content": "Wrote up the design rationale for our merged-identity layer: https://example.com/merged-identity", "authorId": "frank_id", "createdAt": "2026-05-17T11:00:02Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Long content with URL + trailing hashtag on one side only",
+      "masto": { "id": "m_021", "content": "Spent the morning refactoring the timeline-buffer ringbuffer; pleasantly surprised by how much simpler it got after dropping the eviction-policy speculation https://example.com/notes", "authorId": "frank_id", "createdAt": "2026-05-17T12:00:00Z" },
+      "bsky":  { "id": "b_021", "content": "Spent the morning refactoring the timeline-buffer ringbuffer; pleasantly surprised by how much simpler it got after dropping the eviction-policy speculation https://example.com/notes #swift", "authorId": "frank_id", "createdAt": "2026-05-17T12:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Short content right at the threshold — even with same author and tight timing, baseline minus shortContentPenalty falls below minConfidence; should NOT fuse",
+      "masto": { "id": "m_022", "content": "weather is wild", "authorId": "frank_id", "createdAt": "2026-05-17T14:00:00Z" },
+      "bsky":  { "id": "b_022", "content": "weather is wild", "authorId": "frank_id", "createdAt": "2026-05-17T14:00:02Z" },
       "expectFused": false
     }
   ]
