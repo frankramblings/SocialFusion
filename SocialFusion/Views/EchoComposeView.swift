@@ -103,15 +103,18 @@ public struct EchoComposeView: View {
     }
 
     private func targetRow(_ platform: SocialPlatform) -> some View {
-        HStack(spacing: 12) {
+        let isOn = viewModel.targets.contains(platform)
+        return HStack(spacing: 12) {
             PlatformLogoBadge(platform: platform, size: 24)
+                .opacity(isOn ? 1.0 : 0.45)
             Text(platform.accessibilityLabel)
                 .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isOn ? Color.primary : .secondary)
             Spacer()
             Toggle("", isOn: Binding(
-                get: { viewModel.targets.contains(platform) },
-                set: { isOn in
-                    if isOn { viewModel.targets.insert(platform) }
+                get: { isOn },
+                set: { newOn in
+                    if newOn { viewModel.targets.insert(platform) }
                     else { viewModel.targets.remove(platform) }
                     // SwiftUI Toggle doesn't fire UISwitch's built-in
                     // selection haptic — add it manually so target toggles
@@ -123,6 +126,11 @@ public struct EchoComposeView: View {
             .accessibilityLabel("Reply on \(platform.accessibilityLabel)")
         }
         .padding(12)
+        // Soft fade reinforces which side will receive the reply.
+        // Mirrors the dim treatment already used by the per-network
+        // character counters below so the whole composer reads as one
+        // coherent active/inactive system.
+        .animation(.easeInOut(duration: 0.18), value: isOn)
     }
 
     private var editor: some View {
