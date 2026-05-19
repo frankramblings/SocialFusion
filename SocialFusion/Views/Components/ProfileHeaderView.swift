@@ -569,7 +569,12 @@ struct ProfileHeaderView: View {
           .lineLimit(bioExpanded ? nil : Layout.bioLineLimit)
 
         if !bioExpanded {
-          Button(action: { withAnimation(.easeInOut(duration: 0.2)) { bioExpanded = true } }) {
+          Button(action: {
+            // The lineLimit expansion is the user-visible signal — the
+            // easeInOut just smooths the height change. Reduce-motion
+            // users get the immediate expand without the height ease.
+            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.2)) { bioExpanded = true }
+          }) {
             Text("Show more")
               .font(.subheadline)
               .foregroundColor(.accentColor)

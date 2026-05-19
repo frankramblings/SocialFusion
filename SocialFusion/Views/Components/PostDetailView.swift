@@ -52,6 +52,8 @@ struct PostDetailView: View {
     @State private var isLoadingReplies: Bool = false
     @State private var repliesError: Error?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     // UI state
     @State private var hasScrolledToSelectedPost: Bool = false
     @State private var didInitialJump: Bool = false
@@ -150,8 +152,16 @@ struct PostDetailView: View {
                     }
                     .onChange(of: scrollTrigger) { _, _ in
                         if let targetID = scrollTargetID {
-                            withAnimation(.easeInOut(duration: 0.1)) {
+                            // Reduce-motion users land at the target
+                            // without the smoothing ease — the scroll
+                            // destination change is the user-visible
+                            // signal, not the animation curve.
+                            if reduceMotion {
                                 proxy.scrollTo(targetID, anchor: .top)
+                            } else {
+                                withAnimation(.easeInOut(duration: 0.1)) {
+                                    proxy.scrollTo(targetID, anchor: .top)
+                                }
                             }
                         }
                     }
