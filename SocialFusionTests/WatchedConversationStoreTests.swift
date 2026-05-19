@@ -67,6 +67,31 @@ final class WatchedConversationStoreTests: XCTestCase {
                       "The prefix should be the start of the input, not a different sample.")
     }
 
+    /// Callers pass `post.content` raw — Mastodon ships HTML markup —
+    /// so the model must strip tags + decode entities at the boundary
+    /// or the Watching list row renders `<p>…</p>` and `&#8217;`
+    /// literally. Belt-and-suspenders matching the strip applied in
+    /// other post-body surfaces (RootPostHeader, ReplyRow, etc).
+    func testSummaryContentPreviewStripsHTMLAndEntities() {
+        let summary = WatchedConversation.Summary(
+            authorName: "Test Author",
+            contentPreview: "<p>I&#8217;m so excited to ship this</p>"
+        )
+        XCTAssertEqual(
+            summary.contentPreview, "I\u{2019}m so excited to ship this",
+            "Tags stripped, &#8217; decoded to the curl quote.")
+    }
+
+    /// Trim runs after the strip/decode passes so the cap counts
+    /// visible content, not whitespace from the inner HTML structure.
+    func testSummaryContentPreviewTrimsAfterStripping() {
+        let summary = WatchedConversation.Summary(
+            authorName: "Test Author",
+            contentPreview: "<p>   hello world   </p>"
+        )
+        XCTAssertEqual(summary.contentPreview, "hello world")
+    }
+
     /// Re-watching an already-watched conversation must upsert, not
     /// duplicate. The store is keyed by `rootPostID`, so a second
     /// `watch(_:)` call with the same id replaces — this is what lets

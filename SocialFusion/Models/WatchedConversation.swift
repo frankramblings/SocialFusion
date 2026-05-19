@@ -19,9 +19,16 @@ public struct WatchedConversation: Identifiable, Codable, Hashable, Sendable {
 
         public init(authorName: String, contentPreview: String) {
             self.authorName = authorName
-            // Cap the preview so cold-launch decode stays bounded even
-            // if a future caller forgets to truncate at the source.
-            self.contentPreview = String(contentPreview.prefix(140))
+            // Strip HTML + entities at the model boundary so callers
+            // can pass raw post.content (Mastodon ships HTML markup)
+            // without leaking `<p>…</p>` and `&#8217;` into the
+            // Watching list preview row. Then cap at 140 chars so
+            // cold-launch decode stays bounded.
+            let cleaned = contentPreview
+                .strippingHTMLTags
+                .decodingHTMLEntities
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            self.contentPreview = String(cleaned.prefix(140))
         }
     }
 
