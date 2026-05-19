@@ -169,7 +169,7 @@ struct ProfileToggleButton: View {
         .accessibilityLabel("\(account.platform.accessibilityLabel) account: \(account.displayName ?? account.username)")
         .accessibilityValue(isSelected ? "Active" : "Inactive")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
-        .accessibilityHint(isSelected ? "Double-tap to deactivate. Long-press for account options." : "Double-tap to activate. Long-press for account options.")
+        .accessibilityHint(isSelected ? "Deactivates this account for the post. Long-press for options." : "Activates this account for the post. Long-press for options.")
     }
 }
 

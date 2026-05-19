@@ -140,9 +140,8 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
         return "Boosted by \(first), \(second) + \(remaining) more"
     }
 
-    private var collapsedAccessibilityLabel: String {
-        "\(collapsedText). Double-tap to view all boosters."
-    }
+    private var collapsedAccessibilityLabel: String { collapsedText }
+    private var collapsedAccessibilityHint: String { "Expands to show all boosters." }
 
     private var platformColor: Color {
         switch post.platform {
@@ -238,6 +237,7 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(collapsedAccessibilityLabel)
+            .accessibilityHint(collapsedAccessibilityHint)
 
             expandedContent
                 .opacity(showContent ? 1 : 0)

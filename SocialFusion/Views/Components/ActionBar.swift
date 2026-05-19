@@ -269,7 +269,8 @@ struct ActionBarV2: View {
                 onAction(.quote)
             }
         )
-        .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+        .accessibilityLabel("Quote Post")
+        .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
     }
 
     var body: some View {
@@ -283,7 +284,8 @@ struct ActionBarV2: View {
                     onAction(.reply)
                 }
             )
-            .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+            .accessibilityLabel(state.isReplied ? "Reply, already sent" : "Reply")
+            .accessibilityHint("Opens the composer.")
             .frame(maxWidth: .infinity)
 
             UnifiedRepostButton(
@@ -292,7 +294,9 @@ struct ActionBarV2: View {
                 isProcessing: isProcessing,
                 onTap: { coordinator.toggleRepost(for: post) }
             )
-            .accessibilityLabel(state.isReposted ? "Reposted. Double tap to undo repost" : "Repost. Double tap to repost")
+            .accessibilityLabel("Repost")
+            .accessibilityAddTraits(state.isReposted ? .isSelected : [])
+            .accessibilityHint(state.isReposted ? "Removes your repost." : "Reposts this to your followers.")
             .frame(maxWidth: .infinity)
 
             UnifiedLikeButton(
@@ -302,7 +306,9 @@ struct ActionBarV2: View {
                 isProcessing: isProcessing,
                 onTap: { coordinator.toggleLike(for: post) }
             )
-            .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
+            .accessibilityLabel("Like")
+            .accessibilityAddTraits(state.isLiked ? .isSelected : [])
+            .accessibilityHint(state.isLiked ? "Unlikes this post." : "")
             .frame(maxWidth: .infinity)
 
             quoteButton

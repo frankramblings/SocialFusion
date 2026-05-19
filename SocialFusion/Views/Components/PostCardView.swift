@@ -722,7 +722,7 @@ struct PostCardView: View {
         // MARK: - Accessibility Support
         .accessibilityElement(children: .contain)
         .accessibilityLabel(postAccessibilityLabel)
-        .accessibilityHint("Double tap to view full post and replies")
+        .accessibilityHint("Opens the full post and replies.")
         .accessibilityAction(named: "Reply") {
             onReply()
         }

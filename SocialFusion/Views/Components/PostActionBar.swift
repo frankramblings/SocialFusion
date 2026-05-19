@@ -122,7 +122,8 @@ struct PostActionBar: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote Post")
+                .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -170,7 +171,8 @@ struct PostActionBar: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote Post")
+                .accessibilityHint(post.isQuoted ? "You've already quoted this post — quotes it again." : "")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -393,7 +395,8 @@ struct PostActionBarWithViewModel: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote Post")
+                .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -441,7 +444,8 @@ struct PostActionBarWithViewModel: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(viewModel.post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote Post")
+                .accessibilityHint(viewModel.post.isQuoted ? "You've already quoted this post — quotes it again." : "")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
