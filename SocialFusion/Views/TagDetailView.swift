@@ -17,10 +17,16 @@ struct TagDetailView: View {
                         .font(.system(size: 40))
                         .foregroundColor(.blue)
                         .padding(.top, 20)
-                    
+                        // Decorative — the "#tagname" text below is
+                        // the actual title.
+                        .accessibilityHidden(true)
+
                     Text("#\(tag.name)")
                         .font(.title)
                         .fontWeight(.bold)
+                        // Surfaces this as a heading so VoiceOver users
+                        // on the headings rotor can land here directly.
+                        .accessibilityAddTraits(.isHeader)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 20)

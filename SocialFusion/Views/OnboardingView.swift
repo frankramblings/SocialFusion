@@ -138,6 +138,7 @@ struct EchoPolicyOnboardingPage: View {
             Text("Echo your replies?")
                 .font(.title.weight(.bold))
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
             Text("When you reply to a post that exists on both networks, SocialFusion can mirror your reply by default — so the conversation stays together.")
                 .font(.body)
                 .foregroundStyle(.secondary)
