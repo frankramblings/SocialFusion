@@ -522,7 +522,7 @@ struct PostDetailView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundColor(.orange)
-                Text("Add \(platform.rawValue) account")
+                Text("Add \(platform.accessibilityLabel) account")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
             }
