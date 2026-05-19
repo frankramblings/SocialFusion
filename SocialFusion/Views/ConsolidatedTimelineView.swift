@@ -223,6 +223,7 @@ struct ConsolidatedTimelineView: View {
             .background(fusedConversationLink)
             .background(userDetailLink)
             .background(tagDetailLink)
+            .background(timelineKeyboardShortcuts)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     NavBarPillSelector(
@@ -526,6 +527,21 @@ struct ConsolidatedTimelineView: View {
         #else
         EmptyView()
         #endif
+    }
+
+    /// ⌘R refreshes the active timeline. Standard refresh gesture for
+    /// macOS/iPadOS apps with hardware keyboards (Tweetbot, Twitterrific,
+    /// Mail) — pairs with the ⌘N / ⌘F shortcuts wired in `ContentView`
+    /// so the iPad experience has a coherent set of Cmd-key actions
+    /// without putting visible controls in the chrome.
+    private var timelineKeyboardShortcuts: some View {
+        Button("Refresh Timeline") {
+            controller.refreshTimeline()
+        }
+        .keyboardShortcut("r", modifiers: .command)
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder
