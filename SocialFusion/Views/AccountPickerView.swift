@@ -42,6 +42,12 @@ struct AccountPickerView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .padding(.vertical, 4)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("All accounts")
+                    .accessibilityAddTraits(selectedAccountId == nil ? [.isSelected, .isButton] : .isButton)
+                    .accessibilityHint(selectedAccountId == nil
+                        ? "Currently active."
+                        : "Double-tap to view all accounts in a unified timeline.")
                 }
 
                 // Mastodon accounts
