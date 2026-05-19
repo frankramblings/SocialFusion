@@ -48,6 +48,8 @@ struct ConversationSettingsView: View {
               .scaleEffect(0.85)
           }
           .listRowBackground(Color.clear)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("\(conversation.participant.displayName ?? conversation.participant.username), @\(conversation.participant.username), on \(conversation.platform.accessibilityLabel)")
         }
 
         if conversation.platform == .bluesky {
