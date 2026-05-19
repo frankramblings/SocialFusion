@@ -182,6 +182,7 @@ struct PostDetailView: View {
         .safeAreaInset(edge: .bottom) {
             inlineReplyBar
         }
+        .background(postDetailKeyboardShortcuts)
         .toolbarBackground(.clear, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -421,6 +422,21 @@ struct PostDetailView: View {
     }
 
     // MARK: - Inline Reply Composer
+
+    @ViewBuilder
+    /// Cmd+R triggers the reply action — same mnemonic as Mail and as
+    /// the Fused conversation view. Hidden zero-size button so the
+    /// shortcut is discoverable in the system menu without putting
+    /// duplicate UI in the toolbar.
+    private var postDetailKeyboardShortcuts: some View {
+        Button("Reply") {
+            handleAction(.reply)
+        }
+        .keyboardShortcut("r", modifiers: .command)
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
+    }
 
     @ViewBuilder
     private var inlineReplyBar: some View {
