@@ -47,7 +47,7 @@ struct AccountPickerView: View {
                     .accessibilityAddTraits(selectedAccountId == nil ? [.isSelected, .isButton] : .isButton)
                     .accessibilityHint(selectedAccountId == nil
                         ? "Currently active."
-                        : "Double-tap to view all accounts in a unified timeline.")
+                        : "Switches to a unified timeline of all accounts.")
                 }
 
                 // Mastodon accounts
@@ -208,8 +208,8 @@ struct AccountPickerView: View {
         .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username), on \(account.platform.accessibilityLabel)")
         .accessibilityAddTraits(selectedAccountId == account.id ? [.isSelected, .isButton] : .isButton)
         .accessibilityHint(selectedAccountId == account.id
-            ? "Currently active. Double-tap to refresh timeline."
-            : "Double-tap to switch to this account.")
+            ? "Currently active. Refreshes timeline."
+            : "Switches to this account.")
     }
 }
 

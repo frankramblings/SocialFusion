@@ -1427,7 +1427,7 @@ struct ComposeView: View {
                     : "\(remainingChars) characters remaining"
             )
             .accessibilityAddTraits(isOverLimit ? .isButton : [])
-            .accessibilityHint(isOverLimit ? "Double-tap for details" : "")
+            .accessibilityHint(isOverLimit ? "Shows character-limit details." : "")
 
             // Post button - Enhanced with platform color
             Button(action: {

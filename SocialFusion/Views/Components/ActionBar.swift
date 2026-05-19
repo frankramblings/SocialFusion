@@ -103,7 +103,8 @@ struct ActionBar: View {
                     onAction(.quote)
                 }
             )
-            .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+            .accessibilityLabel("Quote Post")
+            .accessibilityHint(post.isQuoted ? "You've already quoted this post — quotes it again." : "")
             .frame(maxWidth: .infinity)
 
             // Like button

@@ -217,9 +217,9 @@ private struct PollOptionView: View {
     private var accessibilityHintText: String {
         guard isInteractive else { return "Voting closed" }
         if allowsMultiple {
-            return isSelected ? "Double tap to deselect" : "Double tap to select"
+            return isSelected ? "Deselects this option." : "Selects this option."
         }
-        return "Double tap to vote"
+        return "Casts your vote for this option."
     }
 
     private var selectionBackground: Color {
