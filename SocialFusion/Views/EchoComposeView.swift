@@ -3,6 +3,7 @@ import SwiftUI
 public struct EchoComposeView: View {
     @StateObject var viewModel: EchoComposeViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var editorFocused: Bool
     var onSend: (String, Set<SocialPlatform>) async -> Void
 
@@ -139,8 +140,10 @@ public struct EchoComposeView: View {
         // Soft fade reinforces which side will receive the reply.
         // Mirrors the dim treatment already used by the per-network
         // character counters below so the whole composer reads as one
-        // coherent active/inactive system.
-        .animation(.easeInOut(duration: 0.18), value: isOn)
+        // coherent active/inactive system. Decorative — the toggle
+        // state is the signal — so reduce-motion users get the
+        // opacity change without the ease.
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: isOn)
     }
 
     private var editor: some View {
