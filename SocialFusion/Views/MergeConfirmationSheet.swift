@@ -92,7 +92,7 @@ public struct MergeConfirmationSheet: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(platform.rawValue.capitalized): at \(handle)")
+        .accessibilityLabel("\(platform.accessibilityLabel): at \(handle)")
     }
 
     @ViewBuilder
