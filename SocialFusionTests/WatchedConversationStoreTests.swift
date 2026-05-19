@@ -72,6 +72,20 @@ final class WatchedConversationStoreTests: XCTestCase {
     /// or the Watching list row renders `<p>…</p>` and `&#8217;`
     /// literally. Belt-and-suspenders matching the strip applied in
     /// other post-body surfaces (RootPostHeader, ReplyRow, etc).
+    /// Mastodon display names ship with HTML entities embedded
+    /// (e.g. `Frank&#8217;s account`). Without decoding at the model
+    /// boundary, the Watching-list author chip would render the
+    /// numeric entity verbatim — looks broken.
+    func testSummaryAuthorNameDecodesHTMLEntities() {
+        let summary = WatchedConversation.Summary(
+            authorName: "Frank&#8217;s",
+            contentPreview: "irrelevant"
+        )
+        XCTAssertEqual(
+            summary.authorName, "Frank\u{2019}s",
+            "Author display name should decode &#8217; to the typographic apostrophe.")
+    }
+
     func testSummaryContentPreviewStripsHTMLAndEntities() {
         let summary = WatchedConversation.Summary(
             authorName: "Test Author",

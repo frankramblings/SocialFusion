@@ -18,7 +18,11 @@ public struct WatchedConversation: Identifiable, Codable, Hashable, Sendable {
         public let contentPreview: String
 
         public init(authorName: String, contentPreview: String) {
-            self.authorName = authorName
+            // Mastodon display names also ship with HTML entities
+            // (e.g. "Frank&#8217;s") — same boundary fix as the
+            // content preview below so the Watching list doesn't
+            // leak `&#8217;` into the author chip.
+            self.authorName = authorName.decodingHTMLEntities
             // Strip HTML + entities at the model boundary so callers
             // can pass raw post.content (Mastodon ships HTML markup)
             // without leaking `<p>…</p>` and `&#8217;` into the
