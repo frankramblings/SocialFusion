@@ -537,6 +537,10 @@ struct ProfileHeaderView: View {
         foregroundColor: .primary,
         lineLimit: 2
       )
+      // Profile-page heading: the display name is what VoiceOver
+      // users land on when they activate the headings rotor on this
+      // surface. Without the trait, the page has no heading marker.
+      .accessibilityAddTraits(.isHeader)
 
       if let merged = mergedIdentity {
         MergedHandleSelector(
