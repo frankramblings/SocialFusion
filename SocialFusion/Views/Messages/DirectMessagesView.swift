@@ -136,6 +136,12 @@ struct DirectMessagesView: View {
         .accessibilityAddTraits(.isHeader)
 
       Button {
+        // Tap haptic — opens a sheet, which has a half-second slide
+        // animation. Without the haptic the tap feels uncommitted
+        // between press and the sheet appearing. Matches the haptic
+        // on AccountPickerSheet's Add Account button (2c0369b
+        // territory in the haptic vocabulary).
+        HapticEngine.tap.trigger()
         viewModel.showNewConversation = true
       } label: {
         Text("Start a conversation")
