@@ -119,6 +119,7 @@ struct AccountPickerView: View {
 
                     // Settings Button
                     Button(action: {
+                        HapticEngine.tap.trigger()
                         showSettingsView = true
                     }) {
                         HStack {

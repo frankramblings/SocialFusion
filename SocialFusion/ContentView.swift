@@ -799,17 +799,20 @@ struct AccountPickerSheet: View {
                 // Settings option
                 Section {
                     Button(action: {
+                        HapticEngine.tap.trigger()
                         showSettingsView = true
                     }) {
                         HStack {
                             Image(systemName: "gear")
                                 .font(.system(size: 22))
                                 .foregroundColor(.gray)
+                                .accessibilityHidden(true)
 
                             Text("Settings")
                                 .font(.headline)
                         }
                     }
+                    .accessibilityHint("Opens app settings.")
                 }
             }
             .listStyle(InsetGroupedListStyle())
