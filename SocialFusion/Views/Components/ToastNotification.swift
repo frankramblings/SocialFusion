@@ -109,12 +109,39 @@ struct ToastNotification: View {
         .cornerRadius(12)
         .shadow(radius: 12)
         .transition(.move(edge: .top).combined(with: .opacity))
-        .accessibilityElement(children: .combine)
+        // `.contain` keeps the Retry button independently focusable;
+        // `.combine` previously swallowed it so VoiceOver users heard
+        // the error but had no way to act on the retry affordance.
+        // The custom rotor action mirrors the button for users who
+        // rely on the rotor instead of scanning the toast geometry —
+        // only attached when a retry actually exists.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(toast.message)
+        .modifier(ToastRetryRotorAction(retry: toast.retry, onDismiss: onDismiss))
     }
 
     private var toastBackground: some View {
         Color.black.opacity(0.85)
+    }
+}
+
+/// Attaches a VoiceOver rotor action only when the toast carries a
+/// retry. Conditional `.accessibilityAction` on a parent view stays
+/// registered even when its closure does nothing, which would show a
+/// dead "Retry" entry in the rotor for non-retryable toasts.
+private struct ToastRetryRotorAction: ViewModifier {
+    let retry: ToastManager.Toast.RetryAction?
+    let onDismiss: () -> Void
+
+    func body(content: Content) -> some View {
+        if let retry = retry {
+            content.accessibilityAction(named: retry.label) {
+                retry.perform()
+                onDismiss()
+            }
+        } else {
+            content
+        }
     }
 }
 
