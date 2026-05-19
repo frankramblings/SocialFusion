@@ -372,6 +372,22 @@ public struct FusedConversationView: View {
             Button("Retry", action: retry)
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            // The viewModel's dismissedFailureBanners set was previously
+            // read but never written — there was no path to hide the
+            // banner if the user wasn't going to retry. Closes that
+            // gap. Once dismissed the banner stays hidden until the
+            // next `load()` / `retry()` clears the dismissal.
+            Button {
+                viewModel.dismissedFailureBanners.insert(platform)
+                HapticEngine.selection.trigger()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Dismiss banner")
         }
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))

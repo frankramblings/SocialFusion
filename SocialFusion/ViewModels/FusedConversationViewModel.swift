@@ -85,7 +85,12 @@ public final class FusedConversationViewModel: ObservableObject {
 
     /// Retry a single side after a failure. Flips status back to `.loading`
     /// before re-fetching so the UI can reflect the in-flight state.
+    /// Also clears any prior dismissal for this platform so a subsequent
+    /// failure can re-surface its outage banner — a user who dismissed
+    /// the banner and then chose to retry implicitly opted into seeing
+    /// failure feedback again.
     public func retry(_ platform: SocialPlatform) async {
+        dismissedFailureBanners.remove(platform)
         setStatus(.loading, for: platform)
         await loadSide(platform)
     }
