@@ -137,6 +137,8 @@
 		6BF98F5FD5EE8B093699EDD2 /* OpenHomeTimelineIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EB98DC245F95A18A59BA311 /* OpenHomeTimelineIntent.swift */; };
 		6EFB56ABBFFD09587AED9866 /* TokenExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDEB19E4D9CB05A836F77DC2 /* TokenExtractor.swift */; };
 		6F78B36882A13286D6C75FAC /* SmartPositionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9136A78FEB578FA5E6A06798 /* SmartPositionManager.swift */; };
+		C3D4E5F60718293A4B5C6D7E /* AccessibilityPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F60718293A4B5C6D7E8F /* AccessibilityPreferences.swift */; };
+		E5F60718293A4B5C6D7E8F90 /* AccessibilityPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60718293A4B5C6D7E8F9012 /* AccessibilityPreferencesTests.swift */; };
 		722CE95F78FFD415BC5286A9 /* PlatformBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B2A147BCA72B574323D9D9 /* PlatformBadge.swift */; };
 		72C1E48B2C0EBCD6D5C481D9 /* MediaFullscreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C31F0F0322B63A6705DAD32C /* MediaFullscreenView.swift */; };
 		766968986CD7B4F8D7F468FF /* PostAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9694AE38D5912C874E3898CF /* PostAvatar.swift */; };
@@ -613,6 +615,8 @@
 		8E664EAEC63FD3325C91240F /* TimelineContextSuggestionProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineContextSuggestionProvider.swift; sourceTree = "<group>"; };
 		90E1D5A8440204227DD3D34E /* ViewTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewTracker.swift; sourceTree = "<group>"; };
 		9136A78FEB578FA5E6A06798 /* SmartPositionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmartPositionManager.swift; sourceTree = "<group>"; };
+		D4E5F60718293A4B5C6D7E8F /* AccessibilityPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPreferences.swift; sourceTree = "<group>"; };
+		F60718293A4B5C6D7E8F9012 /* AccessibilityPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPreferencesTests.swift; sourceTree = "<group>"; };
 		9174B189FF99326AFF6539AD /* GIFUnfurlContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GIFUnfurlContainer.swift; sourceTree = "<group>"; };
 		91B0D02DC87780BA9667D76A /* FullscreenMediaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullscreenMediaView.swift; sourceTree = "<group>"; };
 		928385D389BB56291E72EFED /* LiquidGlassComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassComponents.swift; sourceTree = "<group>"; };
@@ -871,6 +875,7 @@
 			isa = PBXGroup;
 			children = (
 				FE7A3C1D9B0E4F2A56781236 /* Fixtures */,
+				F60718293A4B5C6D7E8F9012 /* AccessibilityPreferencesTests.swift */,
 				E12D2AD0639BCE71969DD3BC /* AppIntentsTests.swift */,
 				ABD69D015DF11873EDB8256E /* CacheHydrationPolicyTests.swift */,
 				59BEE2A98FD70BFF0690372B /* CanonicalPostStoreTests.swift */,
@@ -1221,6 +1226,7 @@
 		D59E0BD61577B7F188EF5F05 /* State */ = {
 			isa = PBXGroup;
 			children = (
+				D4E5F60718293A4B5C6D7E8F /* AccessibilityPreferences.swift */,
 				9136A78FEB578FA5E6A06798 /* SmartPositionManager.swift */,
 				95376DFC8A5E9562DC289A0B /* TimelineBuffer.swift */,
 				E05A2D305BD96F21680B8746 /* TimelineConfiguration.swift */,
@@ -1516,6 +1522,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E5F60718293A4B5C6D7E8F90 /* AccessibilityPreferencesTests.swift in Sources */,
 				BF6F61D9D4F33D4CC7939714 /* AppIntentsTests.swift in Sources */,
 				F97DCCEA3F88E5AD396A8587 /* AutoCanvasSelectionTests.swift in Sources */,
 				D18ED61FA2D8838C5FA6D15F /* CacheHydrationPolicyTests.swift in Sources */,
@@ -1814,6 +1821,7 @@
 				A7B2DA3645901F63397DC7CE /* RollingNumberView.swift in Sources */,
 				A190D269231035C1B9234C27 /* SmartMediaView.swift in Sources */,
 				6F78B36882A13286D6C75FAC /* SmartPositionManager.swift in Sources */,
+				C3D4E5F60718293A4B5C6D7E /* AccessibilityPreferences.swift in Sources */,
 				8E91F1098CA5D869B28FE77F /* SocialAccount.swift in Sources */,
 				9D883BF0FA47456CA27087FE /* SocialAccountEntity.swift in Sources */,
 				F2B3CD86D065126B32D48F84 /* SocialFusionApp.swift in Sources */,
