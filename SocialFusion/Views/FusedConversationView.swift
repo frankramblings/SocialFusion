@@ -60,6 +60,17 @@ public struct FusedConversationView: View {
                     )
                     lastReplyContext = (text: text, targets: targets)
                     lastReplyFailures = result.failed
+                    // Tactile resolution: success on all targets, warning on
+                    // partial, error when nothing went through. The Echo
+                    // composer pre-warms `.success` on appear so the snap
+                    // here has no perceptible delay.
+                    if result.failed.isEmpty {
+                        HapticEngine.success.trigger()
+                    } else if !result.succeeded.isEmpty {
+                        HapticEngine.warning.trigger()
+                    } else {
+                        HapticEngine.error.trigger()
+                    }
                 }
             )
         }

@@ -23,6 +23,11 @@ public struct EchoComposeView: View {
                 charCounts
             }
             .padding(16)
+            .onAppear {
+                // Pre-warm so the tap haptic on Send has no perceptible latency.
+                HapticEngine.prepare(.tap)
+                HapticEngine.prepare(.success)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -108,6 +113,7 @@ public struct EchoComposeView: View {
 
     private var sendButton: some View {
         Button {
+            HapticEngine.tap.trigger()
             let text = viewModel.text
             let targets = viewModel.targets
             Task {
