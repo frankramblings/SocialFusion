@@ -116,6 +116,15 @@ struct MediaGridContainerView: View {
               mediaNamespace: mediaNamespace,
               thumbnailFrames: [:]
             )
+          },
+          onAltTap: { att in
+            mediaCoordinator.present(
+              media: att,
+              allMedia: attachments,
+              showAltTextInitially: true,
+              mediaNamespace: mediaNamespace,
+              thumbnailFrames: [:]
+            )
           }
         )
       default:
@@ -130,6 +139,15 @@ struct MediaGridContainerView: View {
               media: att,
               allMedia: attachments,
               showAltTextInitially: false,
+              mediaNamespace: mediaNamespace,
+              thumbnailFrames: [:]
+            )
+          },
+          onAltTap: { att in
+            mediaCoordinator.present(
+              media: att,
+              allMedia: attachments,
+              showAltTextInitially: true,
               mediaNamespace: mediaNamespace,
               thumbnailFrames: [:]
             )
@@ -149,15 +167,16 @@ private struct MultiImageStableGrid: View {
   let isFullscreenPresented: Bool
   let selectedAttachmentID: String?
   let onTap: (Post.Attachment) -> Void
+  var onAltTap: ((Post.Attachment) -> Void)? = nil
   var extraCount: Int = 0
-  
+
   private let gridSize: CGFloat = 150
   private let spacing: CGFloat = 4
-  
+
   var body: some View {
     HStack {
       Spacer()
-      
+
       LazyVGrid(
         columns: [
           GridItem(.flexible(), spacing: spacing),
@@ -176,6 +195,7 @@ private struct MultiImageStableGrid: View {
               isFullscreenPresented: isFullscreenPresented,
               selectedAttachmentID: selectedAttachmentID,
               onTap: onTap,
+              onAltTap: onAltTap,
               extraCount: extraCount,
               isLast: attachment.id == attachments.last?.id
             )
@@ -183,7 +203,7 @@ private struct MultiImageStableGrid: View {
         }
       }
       .frame(maxWidth: gridSize * 2 + spacing)
-      
+
       Spacer()
     }
     .frame(maxWidth: .infinity)
@@ -199,6 +219,7 @@ private struct StableGridImageView: View {
   let isFullscreenPresented: Bool
   let selectedAttachmentID: String?
   let onTap: (Post.Attachment) -> Void
+  var onAltTap: ((Post.Attachment) -> Void)? = nil
   let extraCount: Int
   let isLast: Bool
   
@@ -231,10 +252,21 @@ private struct StableGridImageView: View {
         AltTextBadge()
           .padding(4)
           .onTapGesture {
-            // Handle alt text tap
+            // Previously a no-op TODO. Match UnifiedMediaGridView's behavior:
+            // a tap on the ALT badge surfaces the alt-text to the user.
+            // Fallback to opening the attachment if no alt handler is wired.
+            if let onAltTap {
+              onAltTap(attachment)
+            } else {
+              onTap(attachment)
+            }
           }
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("View alt text")
+          .accessibilityAddTraits(.isButton)
+          .accessibilityHint("Shows the image description.")
       }
-      
+
       if extraCount > 0 && isLast {
         Rectangle()
           .fill(Color.black.opacity(0.7))
@@ -246,6 +278,7 @@ private struct StableGridImageView: View {
               .fontWeight(.semibold)
               .foregroundColor(.white)
           )
+          .accessibilityHidden(true)
       }
     }
   }
