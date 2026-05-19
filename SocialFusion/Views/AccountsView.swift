@@ -385,6 +385,13 @@ struct AccountsView: View {
             // Action buttons
             HStack(spacing: 12) {
                 Button(action: {
+                    // Warning haptic before the destructive remove —
+                    // this button isn't wrapped in a confirmation alert
+                    // (unlike the other two Remove paths on this view)
+                    // because the account is already non-functional, but
+                    // the user still deserves a tactile cue that
+                    // something destructive just happened.
+                    HapticEngine.warning.trigger()
                     // Remove the account
                     Task {
                         await serviceManager.removeAccount(account)
