@@ -1597,32 +1597,12 @@ struct ComposeView: View {
             }
             .sheet(isPresented: $showAltTextSheet) {
                 NavigationView {
-                    VStack {
-                        if selectedImageIndexForAltText < threadPosts[activePostIndex].images.count
-                        {
-                            Image(
-                                uiImage: threadPosts[activePostIndex].images[
-                                    selectedImageIndexForAltText]
-                            )
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 200)
-                            .cornerRadius(8)
-                            .padding()
-                        }
-
-                        TextField(
-                            "Description for the visually impaired...", text: $currentAltText,
-                            axis: .vertical
-                        )
-                        .lineLimit(3...10)
-                        .padding()
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(8)
-                        .padding(.horizontal)
-
-                        Spacer()
-                    }
+                    AltTextEditorSheet(
+                        image: selectedImageIndexForAltText < threadPosts[activePostIndex].images.count
+                            ? threadPosts[activePostIndex].images[selectedImageIndexForAltText]
+                            : nil,
+                        text: $currentAltText
+                    )
                     .navigationTitle("Image Description")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -3024,6 +3004,56 @@ struct LinkInputDialog: View {
             }
             .onAppear {
                 isUrlFocused = true
+            }
+        }
+    }
+}
+
+/// Body of the ALT-text editor sheet. Extracted from ComposeView so the
+/// @FocusState can live in a child view — declaring focus state in
+/// ComposeView itself would tie up the field's focus to the parent
+/// view's identity, and the sheet's TextField wouldn't pick it up
+/// cleanly.
+private struct AltTextEditorSheet: View {
+    let image: UIImage?
+    @Binding var text: String
+    @FocusState private var fieldFocused: Bool
+
+    var body: some View {
+        VStack {
+            if let image = image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 200)
+                    .cornerRadius(8)
+                    .padding()
+                    // Decorative — the alt text field below is exactly
+                    // for describing this image, so VoiceOver users
+                    // don't need a placeholder announcement here.
+                    .accessibilityHidden(true)
+            }
+
+            TextField(
+                "Description for the visually impaired...", text: $text,
+                axis: .vertical
+            )
+            .lineLimit(3...10)
+            .padding()
+            .background(Color(UIColor.secondarySystemBackground))
+            .cornerRadius(8)
+            .padding(.horizontal)
+            .focused($fieldFocused)
+            .accessibilityLabel("Image description")
+            .accessibilityHint("Describe the image for VoiceOver users.")
+
+            Spacer()
+        }
+        .onAppear {
+            // The user opened this sheet specifically to type alt text;
+            // skip the second tap to focus the field.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                fieldFocused = true
             }
         }
     }
