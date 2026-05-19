@@ -92,6 +92,31 @@ struct ContentView: View {
         }
         #endif
         .withToastNotifications()
+        .background(globalKeyboardShortcuts)
+    }
+
+    /// iPadOS / hardware-keyboard shortcuts that should be available from any
+    /// tab. Hidden zero-size buttons are the SwiftUI-native way to expose a
+    /// `keyboardShortcut` without putting a visible control in the UI —
+    /// they participate in the responder chain so the system menu and
+    /// Cmd-key handlers find them, but they don't render. Matches the
+    /// pattern Mail/Messages/Notes use for ⌘N.
+    private var globalKeyboardShortcuts: some View {
+        Group {
+            Button("New Post") {
+                composeInitialText = nil
+                showComposeView = true
+            }
+            .keyboardShortcut("n", modifiers: .command)
+
+            Button("Search") {
+                selectedTab = 3
+            }
+            .keyboardShortcut("f", modifiers: .command)
+        }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 
     // MARK: - Tab View (iOS 18+ sidebarAdaptable with iOS 17 fallback)
