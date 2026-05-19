@@ -389,6 +389,9 @@ struct PostActionBarWithViewModel: View {
                     }
                 )
                 .accessibilityLabel("Reply")
+                .accessibilityValue(state.replyCount > 0
+                    ? "\(state.replyCount) repl\(state.replyCount == 1 ? "y" : "ies")"
+                    : "")
                 .frame(maxWidth: .infinity)
 
                 UnifiedRepostButton(
@@ -398,6 +401,9 @@ struct PostActionBarWithViewModel: View {
                     onTap: { coordinator.toggleRepost(for: viewModel.post) }
                 )
                 .accessibilityLabel(state.isReposted ? "Undo Repost" : "Repost")
+                .accessibilityValue(state.repostCount > 0
+                    ? "\(state.repostCount) repost\(state.repostCount == 1 ? "" : "s")"
+                    : "")
                 .frame(maxWidth: .infinity)
 
                 UnifiedLikeButton(
@@ -408,6 +414,9 @@ struct PostActionBarWithViewModel: View {
                     onTap: { coordinator.toggleLike(for: viewModel.post) }
                 )
                 .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
+                .accessibilityValue(state.likeCount > 0
+                    ? "\(state.likeCount) like\(state.likeCount == 1 ? "" : "s")"
+                    : "")
                 .frame(maxWidth: .infinity)
 
                 UnifiedQuoteButton(
@@ -438,6 +447,9 @@ struct PostActionBarWithViewModel: View {
                     }
                 )
                 .accessibilityLabel("Reply")
+                .accessibilityValue(viewModel.replyCount > 0
+                    ? "\(viewModel.replyCount) repl\(viewModel.replyCount == 1 ? "y" : "ies")"
+                    : "")
                 .frame(maxWidth: .infinity)
 
                 UnifiedRepostButton(
@@ -447,6 +459,9 @@ struct PostActionBarWithViewModel: View {
                     onTap: onRepost
                 )
                 .accessibilityLabel(viewModel.isReposted ? "Undo Repost" : "Repost")
+                .accessibilityValue(viewModel.repostCount > 0
+                    ? "\(viewModel.repostCount) repost\(viewModel.repostCount == 1 ? "" : "s")"
+                    : "")
                 .frame(maxWidth: .infinity)
 
                 UnifiedLikeButton(
@@ -457,6 +472,9 @@ struct PostActionBarWithViewModel: View {
                     onTap: onLike
                 )
                 .accessibilityLabel(viewModel.isLiked ? "Unlike" : "Like")
+                .accessibilityValue(viewModel.likeCount > 0
+                    ? "\(viewModel.likeCount) like\(viewModel.likeCount == 1 ? "" : "s")"
+                    : "")
                 .frame(maxWidth: .infinity)
 
                 UnifiedQuoteButton(
