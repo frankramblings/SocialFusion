@@ -211,6 +211,9 @@ struct FetchQuotePostView: View {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
                             .foregroundColor(.orange)
+                            // Decorative — the headline below names the
+                            // state; the warning glyph is visual context.
+                            .accessibilityHidden(true)
                         Text("Failed to load quote")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -230,6 +233,16 @@ struct FetchQuotePostView: View {
                         colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                    // `.contain` keeps the Retry Button independently
+                    // focusable — same `.combine`-swallows-button
+                    // pattern fixed on Fused outage banner, merged
+                    // identity rows, toasts, and quote-post fallback.
+                    .accessibilityElement(children: .contain)
+                    .accessibilityLabel("Failed to load quote")
+                    .accessibilityAction(named: "Retry") {
+                        retryCount = 0
+                        Task { await fetchPost() }
+                    }
                 }
             } else if let reason = terminalReason {
                 // Retries exhausted: render the unavailable placeholder
