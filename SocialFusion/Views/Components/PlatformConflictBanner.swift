@@ -33,7 +33,21 @@ struct PlatformConflictBanner: View {
       .onTapGesture {
         onTap()
       }
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(accessibilityLabel)
+      .accessibilityAddTraits(.isButton)
+      .accessibilityHint(conflicts.count > 1 ? "Shows all platform conflict details." : "")
     }
+  }
+
+  /// VoiceOver reads "Warning: <first conflict>. Tap for details." instead
+  /// of fragmenting into "exclamationmark triangle, …".
+  private var accessibilityLabel: String {
+    let primary = conflicts.first?.message ?? "Some features may not apply to all platforms"
+    if conflicts.count > 1 {
+      return "Warning: \(primary). And \(conflicts.count - 1) more."
+    }
+    return "Warning: \(primary)"
   }
 }
 
