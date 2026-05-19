@@ -687,6 +687,27 @@
       "masto": { "id": "m_100", "content": "Hit the corpus milestone today — over a hundred curated cross-post pairs and decoys, and the detector still rates zero on both error axes", "authorId": "frank_id", "createdAt": "2026-05-26T18:00:00Z" },
       "bsky":  { "id": "b_100", "content": "Hit the corpus milestone today — over a hundred curated cross-post pairs and decoys, and the detector still rates zero on both error axes", "authorId": "frank_id", "createdAt": "2026-05-26T18:00:08Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Same content, identical exact-second timestamp — the lower bound of the time window (delta = 0); detector uses <= timeWindow so this must still fuse",
+      "masto": { "id": "m_101", "content": "Both networks just shipped the build at exactly the same wall-clock second — proof the crossposter is well-tuned", "authorId": "frank_id", "createdAt": "2026-05-27T09:00:00Z" },
+      "bsky":  { "id": "b_101", "content": "Both networks just shipped the build at exactly the same wall-clock second — proof the crossposter is well-tuned", "authorId": "frank_id", "createdAt": "2026-05-27T09:00:00Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Identical body except the Bluesky side appends a thread-end emoji at the very end. Trailing-token strip doesn't remove emoji (only @mention / #hashtag tokens), so the fingerprints diverge — documents the deliberate v1.0 boundary.",
+      "masto": { "id": "m_103", "content": "The thread-continuation emoji convention I've been using is honest, but I'm starting to think it's also superfluous", "authorId": "frank_id", "createdAt": "2026-05-27T11:00:00Z" },
+      "bsky":  { "id": "b_103", "content": "The thread-continuation emoji convention I've been using is honest, but I'm starting to think it's also superfluous 🧵", "authorId": "frank_id", "createdAt": "2026-05-27T11:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical body, both networks identical mid-window — pads the corpus past the 100-entry spec gate with a clean, unambiguous positive baseline",
+      "masto": { "id": "m_104", "content": "Logging off — the unified compose ergonomics work landed in main this afternoon, going to sleep on it before the next pass", "authorId": "frank_id", "createdAt": "2026-05-27T12:00:00Z" },
+      "bsky":  { "id": "b_104", "content": "Logging off — the unified compose ergonomics work landed in main this afternoon, going to sleep on it before the next pass", "authorId": "frank_id", "createdAt": "2026-05-27T12:00:08Z" },
+      "expectFused": true
     }
   ]
 }
