@@ -222,9 +222,25 @@ struct LinkPreviewContent: View {
         .onTapGesture {
             UIApplication.shared.open(url)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(.isLink)
+        .accessibilityHint("Opens in your browser.")
         .onAppear {
             loadImage()
         }
+    }
+
+    /// Combined VoiceOver label: title (when present) + host. Without this the
+    /// card reads as three separate elements (image, title, host) and nothing
+    /// announces that it's actionable — `.onTapGesture` carries no traits.
+    private var accessibilityLabel: String {
+        let title = (metadata.title ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let host = url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link"
+        if title.isEmpty {
+            return "Link: \(host)"
+        }
+        return "\(title). Link: \(host)."
     }
 
     private func loadImage() {
