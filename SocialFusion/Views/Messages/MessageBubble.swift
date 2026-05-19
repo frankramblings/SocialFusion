@@ -99,7 +99,10 @@ struct MessageBubble: View {
 
       VStack(alignment: isFromMe ? .trailing : .leading, spacing: 2) {
         if let name = senderName, isFirstInGroup {
-          Text(name)
+          // Decode HTML entities — Mastodon DM sender displayName
+          // ships with raw entities the same as post authors. Same
+          // boundary fix pattern (afcbaa9, 1e84742).
+          Text(name.decodingHTMLEntities)
             .font(.caption)
             .foregroundColor(.secondary)
             .padding(.horizontal, 4)
@@ -185,7 +188,9 @@ struct MessageBubble: View {
     if isFromMe {
       parts.append("You said")
     } else if let name = senderName, !name.isEmpty {
-      parts.append("\(name) said")
+      // Match the visible chip's decode pass so VoiceOver hears
+      // "Frank's said" rather than the raw entity escape.
+      parts.append("\(name.decodingHTMLEntities) said")
     } else {
       parts.append("Message")
     }
