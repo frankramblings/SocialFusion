@@ -89,9 +89,7 @@ public struct FusedConversationView: View {
             EchoComposeView(
                 viewModel: EchoComposeViewModel(
                     moment: viewModel.moment,
-                    initialTargets: echoPolicyStore.initialReplyTargets(
-                        originalPlatform: viewModel.rootPost?.platform ?? .mastodon
-                    )
+                    initialTargets: dispatchableInitialTargets
                 ),
                 onSend: { text, targets in
                     await sendAndResolve(text: text, targets: targets)
@@ -156,6 +154,29 @@ public struct FusedConversationView: View {
     /// disable the toolbar Reply button so the affordance matches reality.
     private var canReply: Bool {
         viewModel.mastodonRootPost != nil || viewModel.blueskyRootPost != nil
+    }
+
+    /// Initial Echo target set, intersected with what we can actually
+    /// dispatch to: an account exists *and* the root post for that
+    /// network has loaded. Without this, a Mastodon-only user opening
+    /// a Fused conversation would land on the composer with Bluesky
+    /// pre-checked under `echoOn` policy — a confusing default that
+    /// would also fail preflight on Send. Echoes only the policy's
+    /// intent within the user's actual reach.
+    private var dispatchableInitialTargets: Set<SocialPlatform> {
+        let policyTargets = echoPolicyStore.initialReplyTargets(
+            originalPlatform: viewModel.rootPost?.platform ?? .mastodon
+        )
+        var available: Set<SocialPlatform> = []
+        if !serviceManager.mastodonAccounts.isEmpty,
+           viewModel.mastodonRootPost != nil {
+            available.insert(.mastodon)
+        }
+        if !serviceManager.blueskyAccounts.isEmpty,
+           viewModel.blueskyRootPost != nil {
+            available.insert(.bluesky)
+        }
+        return policyTargets.intersection(available)
     }
 
     private var shouldShowSkeleton: Bool {
