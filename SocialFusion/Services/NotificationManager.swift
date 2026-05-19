@@ -288,10 +288,12 @@ class NotificationManager: NSObject, UNUserNotificationCenterDelegate, Observabl
       content.title = "\(displayName) edited a post"
     }
 
-    // Body: post excerpt if available
+    // Body: post excerpt if available. Routes through the canonical
+    // strip + entity decode so iOS push banners don't show literal
+    // "&#8217;" or "&amp;" — they did before because this site only
+    // ran the tag-strip regex.
     if let post = notification.post {
-      let plainText = post.content.replacingOccurrences(
-        of: "<[^>]+>", with: "", options: .regularExpression)
+      let plainText = post.content.strippingHTMLTags.decodingHTMLEntities
       content.body = String(plainText.prefix(140))
     }
 
