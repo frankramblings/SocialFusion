@@ -1176,6 +1176,7 @@ struct ComposeView: View {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityLabel("Remove poll")
                 }
 
                 ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) {
@@ -1245,6 +1246,7 @@ struct ComposeView: View {
                                     .clipShape(Circle())
                             }
                             .padding(6)
+                            .accessibilityLabel("Remove image \(index + 1)")
 
                             // Alt Text Button with completion state
                             Button(action: {
