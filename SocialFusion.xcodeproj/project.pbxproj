@@ -205,6 +205,7 @@
 		A51B19EFDA283DF49B59BD16 /* AsyncImageFromProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9EDEC87F79BA4F393769206 /* AsyncImageFromProvider.swift */; };
 		A53B8BBBEC52C727BE4FEE8D /* AnimatedGIFView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCDF5F076D9F306C7516F540 /* AnimatedGIFView.swift */; };
 		A57FD5D983A4272FC9925755 /* PlatformLogoBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E1F023B9F7AC662A161954 /* PlatformLogoBadge.swift */; };
+		C3D4E5F60718293A4B5C6D7F /* PlatformLogoBadge+HighContrast.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F60718293A4B5C6D7E90 /* PlatformLogoBadge+HighContrast.swift */; };
 		A674B11B90B126CD8500909D /* FetchQuotePostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AE89BD2D65D95E7D8B17F95 /* FetchQuotePostView.swift */; };
 		A7B2DA3645901F63397DC7CE /* RollingNumberView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D89FE4E5B747EBC11984DA88 /* RollingNumberView.swift */; };
 		A7C1CB2554801E52296CB6BD /* UnifiedInteractionButtons.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */; };
@@ -570,6 +571,7 @@
 		65D60E1C03C83CCDFA34FCDB /* ImageSizeFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageSizeFetcher.swift; sourceTree = "<group>"; };
 		6606ED70A5854105814B981A /* UserDefaults+Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+Keychain.swift"; sourceTree = "<group>"; };
 		66E1F023B9F7AC662A161954 /* PlatformLogoBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformLogoBadge.swift; sourceTree = "<group>"; };
+		D4E5F60718293A4B5C6D7E90 /* PlatformLogoBadge+HighContrast.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlatformLogoBadge+HighContrast.swift"; sourceTree = "<group>"; };
 		673869366E4615124FBBD3E3 /* PostTimestamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostTimestamp.swift; sourceTree = "<group>"; };
 		67AC5082405C3F276EADD6AC /* DateParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateParser.swift; sourceTree = "<group>"; };
 		69738A273785F603F13D9F4D /* PostShareButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostShareButton.swift; sourceTree = "<group>"; };
@@ -1329,6 +1331,7 @@
 				2C20BC3127C72061501008AC /* PlatformConflictBanner.swift */,
 				EC99876AEDC3988BB0F10156 /* PlatformDot.swift */,
 				66E1F023B9F7AC662A161954 /* PlatformLogoBadge.swift */,
+				D4E5F60718293A4B5C6D7E90 /* PlatformLogoBadge+HighContrast.swift */,
 				E4A3C88EBD267A6FFDD144DC /* PostActionBar.swift */,
 				D732BFAB622BE1F804B17937 /* PostAuthorImageView.swift */,
 				7A775D3F2651AB9DF5BC960B /* PostAuthorView.swift */,
@@ -1749,6 +1752,7 @@
 				919DECC6EBBE0E40168B18EB /* PlatformConflictBanner.swift in Sources */,
 				0DB5E3ED99E21E910A5EE892 /* PlatformDot.swift in Sources */,
 				A57FD5D983A4272FC9925755 /* PlatformLogoBadge.swift in Sources */,
+				C3D4E5F60718293A4B5C6D7F /* PlatformLogoBadge+HighContrast.swift in Sources */,
 				8BB088BEEFAF72C48856A6ED /* Post+ContentView.swift in Sources */,
 				E88AF49A5E86650DE907FA6B /* Post+SystemActions.swift in Sources */,
 				2EE845AC73F6E96035D64073 /* Post.swift in Sources */,
