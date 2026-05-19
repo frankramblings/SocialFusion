@@ -633,7 +633,7 @@ struct AccountDetailView: View {
                     HStack {
                         Text("Platform")
                         Spacer()
-                        Text(account.platform.rawValue)
+                        Text(account.platform.accessibilityLabel)
                             .foregroundColor(.secondary)
                     }
 
