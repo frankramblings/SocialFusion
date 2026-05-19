@@ -306,7 +306,7 @@ public struct FusedConversationView: View {
         case 2: return "Reply didn't go through"
         case 1:
             let p = lastReplyFailures.first!
-            return "\(p == .mastodon ? "Mastodon" : "Bluesky") reply didn't go through"
+            return "\(p.accessibilityLabel) reply didn't go through"
         default: return "Reply failed"
         }
     }
@@ -314,7 +314,7 @@ public struct FusedConversationView: View {
     private func replyFailureMessage(for failed: Set<SocialPlatform>) -> String {
         let names = failed
             .sorted { $0.rawValue < $1.rawValue }
-            .map { $0 == .mastodon ? "Mastodon" : "Bluesky" }
+            .map(\.accessibilityLabel)
             .joined(separator: " and ")
         return "Your reply to \(names) couldn't be sent. Tap Retry to try \(failed.count == 2 ? "them" : "it") again."
     }
@@ -323,7 +323,7 @@ public struct FusedConversationView: View {
         HStack(spacing: 10) {
             PlatformLogoBadge(platform: platform, size: 20)
             VStack(alignment: .leading, spacing: 2) {
-                Text("\(platform == .mastodon ? "Mastodon" : "Bluesky") replies didn't load")
+                Text("\(platform.accessibilityLabel) replies didn't load")
                     .font(.footnote.weight(.semibold))
                 Text(message)
                     .font(.caption2)
@@ -339,7 +339,7 @@ public struct FusedConversationView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(platform == .mastodon ? "Mastodon" : "Bluesky") replies failed to load. \(message)")
+        .accessibilityLabel("\(platform.accessibilityLabel) replies failed to load. \(message)")
     }
 }
 
@@ -471,7 +471,7 @@ private struct ReplyRow: View {
     }
 
     private var accessibilityLabel: String {
-        let networkName = post.platform == .mastodon ? "Mastodon" : "Bluesky"
+        let networkName = post.platform.accessibilityLabel
         let formatter = RelativeDateTimeFormatter()
         let when = formatter.localizedString(for: post.createdAt, relativeTo: Date())
         return "\(networkName) reply from \(post.authorName), \(when): \(post.content)"
