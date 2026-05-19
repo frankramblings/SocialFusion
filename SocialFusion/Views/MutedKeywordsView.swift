@@ -17,6 +17,7 @@ struct MutedKeywordsView: View {
                             .foregroundColor(.blue)
                     }
                     .disabled(newKeyword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("Add muted keyword")
                 }
             }
             
