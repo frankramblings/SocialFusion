@@ -379,6 +379,55 @@
       "masto": { "id": "m_056", "content": "Reading the new SwiftUI rendering docs — clearer than I expected", "authorId": "frank_id", "createdAt": "2026-05-22T10:00:00Z" },
       "bsky":  { "id": "b_056", "content": "Reading the new SwiftUI rendering docs — clearer than I expected. Anyone else digging in this weekend?", "authorId": "frank_id", "createdAt": "2026-05-22T10:00:06Z" },
       "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Multiple URLs in content; URL normalization should handle each consistently",
+      "masto": { "id": "m_057", "content": "Two great writeups this morning: https://example.com/essay-one and https://example.com/essay-two", "authorId": "frank_id", "createdAt": "2026-05-22T11:00:00Z" },
+      "bsky":  { "id": "b_057", "content": "Two great writeups this morning: https://example.com/essay-one and https://example.com/essay-two", "authorId": "frank_id", "createdAt": "2026-05-22T11:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Mid-text @mention preserved on both sides; stripLeadingMentions must not touch interior mentions",
+      "masto": { "id": "m_058", "content": "Thanks @collab@indieweb.social for the early review — your feedback shaped the merge logic", "authorId": "frank_id", "createdAt": "2026-05-22T12:00:00Z" },
+      "bsky":  { "id": "b_058", "content": "Thanks @collab@indieweb.social for the early review — your feedback shaped the merge logic", "authorId": "frank_id", "createdAt": "2026-05-22T12:00:06Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Mid-text hashtag preserved; stripTrailingTokens must not touch interior #tags",
+      "masto": { "id": "m_059", "content": "After a week on the #federated networks I feel less doom-scrolly than I did in years", "authorId": "frank_id", "createdAt": "2026-05-22T13:00:00Z" },
+      "bsky":  { "id": "b_059", "content": "After a week on the #federated networks I feel less doom-scrolly than I did in years", "authorId": "frank_id", "createdAt": "2026-05-22T13:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "One side is a reply (starts with '@otheruser response text'), the other is the original post — different intent, must not fuse",
+      "masto": { "id": "m_060", "content": "The federated future is closer than it looks; small clients are the wedge", "authorId": "frank_id", "createdAt": "2026-05-22T14:00:00Z" },
+      "bsky":  { "id": "b_060", "content": "@indievisor.bsky.social — totally agree; small clients carry the wedge here", "authorId": "frank_id", "createdAt": "2026-05-22T14:00:09Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Long compound sentence near Mastodon's character limit; both sides identical",
+      "masto": { "id": "m_061", "content": "One pattern I keep coming back to is treating user-visible state as the unit of truth — the moment you split it across two stores the bugs follow, while keeping it consolidated forces you to think about ownership up front instead of as cleanup later", "authorId": "frank_id", "createdAt": "2026-05-22T15:00:00Z" },
+      "bsky":  { "id": "b_061", "content": "One pattern I keep coming back to is treating user-visible state as the unit of truth — the moment you split it across two stores the bugs follow, while keeping it consolidated forces you to think about ownership up front instead of as cleanup later", "authorId": "frank_id", "createdAt": "2026-05-22T15:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Numbers with different surrounding formatting (comma vs no comma in 1,000); whitespace+lowercase pass keeps them aligned",
+      "masto": { "id": "m_062", "content": "Coverage report: 1,247 unit tests across the codebase, up from 1,089 at the start of the quarter", "authorId": "frank_id", "createdAt": "2026-05-22T16:00:00Z" },
+      "bsky":  { "id": "b_062", "content": "Coverage report: 1,247 unit tests across the codebase, up from 1,089 at the start of the quarter", "authorId": "frank_id", "createdAt": "2026-05-22T16:00:06Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Two posts that share the same opening but the second halves are entirely different — fingerprint should reject",
+      "masto": { "id": "m_063", "content": "Late-night thinking — most app design problems come down to ownership ambiguity, not algorithm choice", "authorId": "frank_id", "createdAt": "2026-05-22T17:00:00Z" },
+      "bsky":  { "id": "b_063", "content": "Late-night thinking — going to start picking one small problem to solve per evening session", "authorId": "frank_id", "createdAt": "2026-05-22T17:00:08Z" },
+      "expectFused": false
     }
   ]
 }
