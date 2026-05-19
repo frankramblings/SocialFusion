@@ -115,6 +115,16 @@ public struct FusedConversationView: View {
         } message: { failed in
             Text(replyFailureMessage(for: failed))
         }
+        .onChange(of: viewModel.mastodonStatus) { _, new in
+            // Subtle warning haptic when a side announces failure. iOS
+            // standard for "your action surfaced a problem" rendered as a
+            // banner. The banner itself reads as an alert region; the
+            // haptic gives screen-off / Dynamic-Type users a cue too.
+            if case .failed = new { HapticEngine.warning.trigger() }
+        }
+        .onChange(of: viewModel.blueskyStatus) { _, new in
+            if case .failed = new { HapticEngine.warning.trigger() }
+        }
         .task {
             guard !didLoad else { return }
             didLoad = true
