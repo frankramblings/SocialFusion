@@ -477,6 +477,48 @@
       "masto": { "id": "m_070", "content": "Just realized (also) that the search bar's focus ring was using the wrong color asset for high-contrast mode", "authorId": "frank_id", "createdAt": "2026-05-23T15:00:00Z" },
       "bsky":  { "id": "b_070", "content": "Just realized (also) that the search bar's focus ring was using the wrong color asset for high-contrast mode", "authorId": "frank_id", "createdAt": "2026-05-23T15:00:08Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Semicolon-joined two-clause sentence; punctuation is preserved through normalization since semicolons are not in the trailing-strip set",
+      "masto": { "id": "m_071", "content": "Two things I learned this morning; one was about layout reflow timing, the other about gesture priority", "authorId": "frank_id", "createdAt": "2026-05-23T16:00:00Z" },
+      "bsky":  { "id": "b_071", "content": "Two things I learned this morning; one was about layout reflow timing, the other about gesture priority", "authorId": "frank_id", "createdAt": "2026-05-23T16:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Quote-marked content with matching quotation marks on both sides (after smart-quote fold)",
+      "masto": { "id": "m_072", "content": "The takeaway I keep returning to is \"design as the unit of attention\" — keeps everything else honest", "authorId": "frank_id", "createdAt": "2026-05-23T17:00:00Z" },
+      "bsky":  { "id": "b_072", "content": "The takeaway I keep returning to is “design as the unit of attention” — keeps everything else honest", "authorId": "frank_id", "createdAt": "2026-05-23T17:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Tags reordered AND repositioned — one side has them interior (preserved by stripTrailingTokens), the other has them trailing (stripped). Asymmetric strip means fingerprints diverge — correct behaviour since interior-tag placement is semantic information the author chose.",
+      "masto": { "id": "m_073", "content": "Day three on the new build #federated #indieweb has been productive in unexpected ways", "authorId": "frank_id", "createdAt": "2026-05-24T09:00:00Z" },
+      "bsky":  { "id": "b_073", "content": "Day three on the new build has been productive in unexpected ways #federated #indieweb", "authorId": "frank_id", "createdAt": "2026-05-24T09:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Comma-separated list content; punctuation interior to text must not get stripped",
+      "masto": { "id": "m_074", "content": "Today's stack: Swift, SwiftUI, Combine, async/await, and a lot of patience", "authorId": "frank_id", "createdAt": "2026-05-24T10:00:00Z" },
+      "bsky":  { "id": "b_074", "content": "Today's stack: Swift, SwiftUI, Combine, async/await, and a lot of patience", "authorId": "frank_id", "createdAt": "2026-05-24T10:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same-author intentional rebroadcast at 11-minute offset — just past the 10-minute window, must NOT fuse",
+      "masto": { "id": "m_075", "content": "Doors open at six for those who haven't been in a while, looking forward to seeing the regulars", "authorId": "frank_id", "createdAt": "2026-05-24T11:00:00Z" },
+      "bsky":  { "id": "b_075", "content": "Doors open at six for those who haven't been in a while, looking forward to seeing the regulars", "authorId": "frank_id", "createdAt": "2026-05-24T11:11:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical with leading '@user' that the cross-poster added on the Bluesky side as the recipient — leading-mention strip removes it",
+      "masto": { "id": "m_076", "content": "Pulled the cross-network reply changes into main, will tag a build by Friday", "authorId": "frank_id", "createdAt": "2026-05-24T12:00:00Z" },
+      "bsky":  { "id": "b_076", "content": "@indieweb-feed.bsky.social Pulled the cross-network reply changes into main, will tag a build by Friday", "authorId": "frank_id", "createdAt": "2026-05-24T12:00:08Z" },
+      "expectFused": true
     }
   ]
 }
