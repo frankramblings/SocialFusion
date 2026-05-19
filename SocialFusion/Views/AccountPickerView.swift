@@ -226,9 +226,15 @@ struct SimpleAddAccountSheet: View {
                 Section(header: Text("Select Platform")) {
                     Picker("Platform", selection: $selectedPlatform) {
                         ForEach(SocialPlatform.allCases, id: \.self) { platform in
+                            // platform.icon returns an asset name
+                            // (MastodonLogo / BlueskyLogo), not an SF
+                            // Symbol — the prior `Image(systemName:)`
+                            // rendered a missing-symbol box. Use the
+                            // properly-routed PlatformLogoBadge and
+                            // platform.accessibilityLabel for the name.
                             HStack {
-                                Image(systemName: platform.icon)
-                                Text(platform.rawValue)
+                                PlatformLogoBadge(platform: platform, size: 16, shadowEnabled: false)
+                                Text(platform.accessibilityLabel)
                             }
                             .tag(platform)
                         }
