@@ -22,36 +22,52 @@ public struct MergedIdentityChip: View {
     }
 
     public var body: some View {
-        Button(action: { onTap?() }) {
-            HStack(spacing: 4) {
-                miniGlyph
-                Text("Merged identity")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.white)
+        Group {
+            if let onTap = onTap {
+                // Interactive variant: Button so the standard tap target,
+                // double-tap-to-activate VoiceOver behavior, and pressed
+                // state all come for free.
+                Button(action: onTap) {
+                    chipBody
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Manages this merge.")
+            } else {
+                // Decorative variant: plain non-interactive group so
+                // VoiceOver doesn't announce it as a button when there's
+                // no action behind it.
+                chipBody
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        Capsule().fill(
-                            LinearGradient(
-                                colors: [purple.opacity(0.85), blue.opacity(0.85)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var chipBody: some View {
+        HStack(spacing: 4) {
+            miniGlyph
+            Text("Merged identity")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    Capsule().fill(
+                        LinearGradient(
+                            colors: [purple.opacity(0.85), blue.opacity(0.85)],
+                            startPoint: .leading,
+                            endPoint: .trailing
                         )
                     )
-            )
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5)
-            )
-            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint(onTap == nil ? "" : "Double-tap to manage this merge.")
+                )
+        )
+        .overlay(
+            Capsule().stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
     }
 
     private var miniGlyph: some View {
