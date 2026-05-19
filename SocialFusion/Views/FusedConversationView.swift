@@ -55,8 +55,11 @@ public struct FusedConversationView: View {
                     showingCompose = true
                 } label: {
                     Image(systemName: "arrowshape.turn.up.left.fill")
-                        .accessibilityLabel("Reply to this conversation")
+                        .accessibilityLabel(canReply
+                            ? "Reply to this conversation"
+                            : "Reply unavailable: neither side has loaded yet")
                 }
+                .disabled(!canReply)
             }
         }
         .sheet(isPresented: $showingCompose) {
@@ -132,6 +135,14 @@ public struct FusedConversationView: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    /// A reply can be sent if at least one side has a resolved root post.
+    /// When both sides are still loading or both failed, opening the
+    /// composer would only lead to a dead-end preflight-fail dispatch —
+    /// disable the toolbar Reply button so the affordance matches reality.
+    private var canReply: Bool {
+        viewModel.mastodonRootPost != nil || viewModel.blueskyRootPost != nil
     }
 
     private var shouldShowSkeleton: Bool {
