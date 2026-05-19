@@ -394,6 +394,7 @@ struct SearchView: View {
                                 .font(.headline)
                             Spacer()
                             Button("Clear") {
+                                HapticEngine.warning.trigger()
                                 store.clearRecentSearches()
                             }
                             .font(.subheadline)
@@ -407,6 +408,7 @@ struct SearchView: View {
                             HStack(spacing: 10) {
                                 ForEach(store.recentSearches, id: \.self) { query in
                                     Button(action: {
+                                        HapticEngine.tap.trigger()
                                         store.text = query
                                         store.performSearch()
                                     }) {
