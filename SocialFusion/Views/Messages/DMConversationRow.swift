@@ -62,7 +62,14 @@ struct DMConversationRow: View {
 
         HStack {
           if conversation.isGroup {
-            Text("\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)")
+            // Decode entities in the sender chunk — Mastodon DMs may
+            // pre-pend a display name with raw HTML entities. The
+            // content body already arrives plain-text from the
+            // MastodonService DM normalizer (HTMLString.plainText),
+            // so only the prefixed name needs the decode pass.
+            let senderName = (conversation.lastMessage.sender.displayName
+                              ?? conversation.lastMessage.sender.username).decodingHTMLEntities
+            Text("\(senderName): \(conversation.lastMessage.content)")
               .font(.subheadline)
               .foregroundColor(.secondary)
               .lineLimit(2)
@@ -96,15 +103,19 @@ struct DMConversationRow: View {
   private var combinedLabel: String {
     var parts: [String] = []
     if conversation.isGroup, let title = conversation.title {
-      parts.append("Group: \(title)")
+      // Title is built from participant displayNames; decode at the
+      // VoiceOver boundary so it doesn't read entities verbatim.
+      parts.append("Group: \(title.decodingHTMLEntities)")
       parts.append("\(conversation.participants.count) members")
     } else {
-      parts.append(conversation.participant.displayName ?? conversation.participant.username)
+      parts.append((conversation.participant.displayName ?? conversation.participant.username).decodingHTMLEntities)
       parts.append("@\(conversation.participant.username)")
     }
     let lastMessageBody: String
     if conversation.isGroup {
-      lastMessageBody = "\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)"
+      let senderName = (conversation.lastMessage.sender.displayName
+                        ?? conversation.lastMessage.sender.username).decodingHTMLEntities
+      lastMessageBody = "\(senderName): \(conversation.lastMessage.content)"
     } else {
       lastMessageBody = conversation.lastMessage.content
     }
