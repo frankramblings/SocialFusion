@@ -345,6 +345,12 @@ struct EnhancedEmptyStateView: View {
     }
 
     private func handlePrimaryAction() {
+        // Tap haptic at the funnel so every primary action — retry,
+        // re-auth, add-account, cleanup — gets the same tactile
+        // confirmation. Matches the retry-haptic vocabulary used by
+        // the other empty-state and error surfaces (3929dc2, 6028402,
+        // 23a69b4).
+        HapticEngine.tap.trigger()
         switch state {
         case .noAccounts:
             NotificationCenter.default.post(name: .showAccountSetup, object: nil)

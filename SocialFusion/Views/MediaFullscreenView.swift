@@ -163,7 +163,10 @@ struct LegacyFullscreenMediaView: View {
                             .foregroundColor(.white)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
-                        Button(action: retryLoading) {
+                        Button {
+                            HapticEngine.tap.trigger()
+                            retryLoading()
+                        } label: {
                             Text("Try Again")
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 20)
