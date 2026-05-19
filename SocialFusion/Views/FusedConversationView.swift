@@ -454,7 +454,12 @@ private struct RootPostHeader: View {
             avatar
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(post.authorName)
+                    // Mastodon display names can include raw HTML
+                    // entities (e.g. `Frank&#8217;s`) — decode at the
+                    // consumer so the header doesn't render the
+                    // numeric escape verbatim. Same boundary fix as
+                    // WatchedConversation.Summary.authorName (5b1de35).
+                    Text(post.authorName.decodingHTMLEntities)
                         .font(.subheadline.weight(.semibold))
                     bothNetworkBadges
                     Spacer(minLength: 0)
@@ -556,7 +561,12 @@ private struct ReplyRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(post.authorName)
+                    // Mastodon display names can include raw HTML
+                    // entities (e.g. `Frank&#8217;s`) — decode at the
+                    // consumer so the header doesn't render the
+                    // numeric escape verbatim. Same boundary fix as
+                    // WatchedConversation.Summary.authorName (5b1de35).
+                    Text(post.authorName.decodingHTMLEntities)
                         .font(.subheadline.weight(.semibold))
                     PlatformLogoBadge(platform: post.platform, size: 14)
                     Spacer(minLength: 0)
@@ -599,6 +609,6 @@ private struct ReplyRow: View {
             .strippingHTMLTags
             .decodingHTMLEntities
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return "\(networkName) reply from \(post.authorName), \(when): \(plain)"
+        return "\(networkName) reply from \(post.authorName.decodingHTMLEntities), \(when): \(plain)"
     }
 }
