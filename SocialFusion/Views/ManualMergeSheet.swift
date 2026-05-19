@@ -131,6 +131,9 @@ public struct ManualMergeSheet: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(user.displayName ?? user.username), @\(user.username), on \(user.platform.accessibilityLabel)")
+                .accessibilityHint("Selects this account as the merged twin.")
             }
             .listStyle(.plain)
         }
