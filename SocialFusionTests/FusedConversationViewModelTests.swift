@@ -104,6 +104,51 @@ final class FusedConversationViewModelTests: XCTestCase {
             "Inserting a reply whose id already exists must be a no-op.")
     }
 
+    /// Retry contract: a side that previously failed should re-fetch
+    /// and, on success, flip to `.loaded` and merge its replies into
+    /// the stream. Pins the recovery path the Fused outage banner's
+    /// Retry button and the rotor action depend on.
+    func testRetrySucceedsAfterFailure() async {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let mastoRoot = makePost(id: "m1", platform: .mastodon, createdAt: base)
+        let mastoReply = makePost(
+            id: "m_r1", platform: .mastodon,
+            createdAt: base.addingTimeInterval(1))
+        let bskyRoot = makePost(id: "b1", platform: .bluesky, createdAt: base)
+        let bskyReply = makePost(
+            id: "b_r1", platform: .bluesky,
+            createdAt: base.addingTimeInterval(2))
+
+        let fetcher = MutableStubThreadFetcher(
+            mastodonResult: .success((root: mastoRoot, replies: [mastoReply])),
+            blueskyResult: .failure(TestError.boom)
+        )
+
+        let vm = FusedConversationViewModel(
+            moment: FusedMoment(
+                mastodonPostID: "m1",
+                blueskyPostID: "b1",
+                authorIdentityKey: "a",
+                firstSeenAt: base,
+                confidence: 0.9
+            ),
+            threadFetcher: fetcher
+        )
+
+        await vm.load()
+        guard case .failed = vm.blueskyStatus else {
+            return XCTFail("Precondition: Bluesky side must be failed before retry.")
+        }
+
+        // Bluesky comes back online for the retry call.
+        fetcher.blueskyResult = .success((root: bskyRoot, replies: [bskyReply]))
+        await vm.retry(.bluesky)
+
+        XCTAssertEqual(vm.blueskyStatus, .loaded)
+        XCTAssertEqual(vm.replies.map(\.id).sorted(), ["b_r1", "m_r1"],
+                       "Bluesky reply must merge into the stream after retry.")
+    }
+
     func testHandlesOneSideOutageGracefully() async {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
         let mastoRoot = makePost(id: "m1", platform: .mastodon, createdAt: base)
@@ -180,6 +225,33 @@ private final class StubThreadFetcher: FusedConversationThreadFetching {
 
     let mastodonResult: FetchResult
     let blueskyResult: FetchResult
+
+    init(mastodonResult: FetchResult, blueskyResult: FetchResult) {
+        self.mastodonResult = mastodonResult
+        self.blueskyResult = blueskyResult
+    }
+
+    func fetchThread(
+        postID: String,
+        platform: SocialPlatform
+    ) async throws -> (root: Post, replies: [Post]) {
+        switch platform {
+        case .mastodon: return try mastodonResult.get()
+        case .bluesky: return try blueskyResult.get()
+        }
+    }
+}
+
+/// Same shape as `StubThreadFetcher` but the per-platform results are
+/// mutable, so tests can change the canned outcome between successive
+/// `fetchThread` calls — needed to simulate an outage that resolves
+/// before the user retries.
+@MainActor
+private final class MutableStubThreadFetcher: FusedConversationThreadFetching {
+    typealias FetchResult = Result<(root: Post, replies: [Post]), Error>
+
+    var mastodonResult: FetchResult
+    var blueskyResult: FetchResult
 
     init(mastodonResult: FetchResult, blueskyResult: FetchResult) {
         self.mastodonResult = mastodonResult
