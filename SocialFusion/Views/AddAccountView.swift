@@ -23,6 +23,12 @@ struct AddAccountView: View {
     @State private var serverName = ""
     @State private var showError = false
 
+    /// Wires the .next/.done submit-label chain for the credential
+    /// fields. Without a FocusState binding, the labels show but
+    /// the keyboard's Return key doesn't navigate between fields.
+    @FocusState private var focusedField: CredentialField?
+    private enum CredentialField { case server, username, password }
+
     // App lifecycle persistence to prevent 1Password autofill from dismissing the view
     @State private var wasInBackground = false
     @State private var preserveFormState = false
@@ -79,6 +85,7 @@ struct AddAccountView: View {
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
                             .autocorrectionDisabled(true)
+                            .focused($focusedField, equals: .server)
                             .submitLabel(.done)
                     } else {
                         Text("Enter your Bluesky credentials")
@@ -89,11 +96,14 @@ struct AddAccountView: View {
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                             .autocorrectionDisabled(true)
+                            .focused($focusedField, equals: .username)
                             .submitLabel(.next)
+                            .onSubmit { focusedField = .password }
 
                         SecureField("App Password", text: $password)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled(true)
+                            .focused($focusedField, equals: .password)
                             .submitLabel(.done)
 
                         Text(
