@@ -107,5 +107,9 @@ private struct PerformantLinkPreviewPlaceholder: View {
         .onTapGesture {
             UIApplication.shared.open(url)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Link: \(url.host?.replacingOccurrences(of: "www.", with: "") ?? url.absoluteString)")
+        .accessibilityAddTraits(.isLink)
+        .accessibilityHint("Opens in your browser.")
     }
 }
