@@ -47,6 +47,22 @@ public struct EchoComposeView: View {
                     sendButton
                 }
             }
+            .modifier(EchoComposeKeyboardShortcuts(
+                canSend: viewModel.canSend,
+                send: sendIfPossible
+            ))
+        }
+    }
+
+    /// Cmd+Return entry point shared with the toolbar Send button.
+    private func sendIfPossible() {
+        guard viewModel.canSend else { return }
+        HapticEngine.tap.trigger()
+        let text = viewModel.text
+        let targets = viewModel.targets
+        Task {
+            await onSend(text, targets)
+            dismiss()
         }
     }
 
@@ -148,13 +164,7 @@ public struct EchoComposeView: View {
 
     private var sendButton: some View {
         Button {
-            HapticEngine.tap.trigger()
-            let text = viewModel.text
-            let targets = viewModel.targets
-            Task {
-                await onSend(text, targets)
-                dismiss()
-            }
+            sendIfPossible()
         } label: {
             Text(viewModel.sendActionLabel)
                 .font(.subheadline.weight(.semibold))
@@ -187,6 +197,31 @@ public struct EchoComposeView: View {
             return AnyShapeStyle(Color(red: 0.00, green: 0.59, blue: 1.00))
         case .disabled:
             return AnyShapeStyle(Color.gray)
+        }
+    }
+}
+
+/// Cmd+Return → Send. Matches the primary `ComposeView` keyboard
+/// shortcut so iPad and external-keyboard users have one consistent
+/// "ship it" gesture for both composers. iOS 17+; on older OSes the
+/// modifier is a no-op (the toolbar Send button still works).
+private struct EchoComposeKeyboardShortcuts: ViewModifier {
+    let canSend: Bool
+    let send: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, *) {
+            content.onKeyPress { keyPress in
+                if keyPress.key == .return,
+                   keyPress.modifiers.contains(.command),
+                   canSend {
+                    send()
+                    return .handled
+                }
+                return .ignored
+            }
+        } else {
+            content
         }
     }
 }
