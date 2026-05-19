@@ -342,20 +342,12 @@ struct AccountsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                if account.platform.usesSFSymbol {
-                    Image(systemName: account.platform.sfSymbol)
-                        .foregroundColor(platformColor(for: account.platform))
-                        .font(.system(size: 24))
-                        .frame(width: 32, height: 32)
-                } else {
-                    Image(account.platform.icon)
-                        .resizable()
-                        .renderingMode(.template)
-                        .foregroundColor(platformColor(for: account.platform))
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 28, height: 28)
-                        .padding(2)
-                }
+                // Route through PlatformLogoBadge so the system-wide
+                // high-contrast toggle applies here. Replaces the prior
+                // inline Image(platform.icon) + foregroundColor pattern,
+                // and quietly retires the usesSFSymbol branch (currently
+                // always false on SocialPlatform).
+                PlatformLogoBadge(platform: account.platform, size: 32, shadowEnabled: false)
 
                 VStack(alignment: .leading, spacing: 2) {
                     EmojiDisplayNameText(
