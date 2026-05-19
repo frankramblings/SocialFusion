@@ -175,7 +175,11 @@ struct NewConversationView: View {
       }
 
       VStack(alignment: .leading, spacing: 2) {
-        Text(displayName ?? handle)
+        // Decode HTML entities — Mastodon API ships display names
+        // with raw entities (e.g. "Frank&#8217;s"). Same boundary fix
+        // as the canonical EmojiDisplayNameText (afcbaa9). This view
+        // builds plain Text directly, so it needs its own decode pass.
+        Text((displayName ?? handle).decodingHTMLEntities)
           .font(.body)
           .fontWeight(.medium)
           .foregroundColor(.primary)
