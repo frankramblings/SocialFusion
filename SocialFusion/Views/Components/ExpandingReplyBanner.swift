@@ -410,6 +410,19 @@ struct ExpandingReplyBanner: View {
                     }
                 }, perform: {}
             )
+            // VoiceOver previously had no label at all — the banner
+            // read as the EmojiText component's raw "Replying to X"
+            // characters with no role or expand-state cue. Matches the
+            // BoostBanner accessibility model: combined label, hint
+            // describes effect, accessibilityValue carries state.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Replying to \(displayUsername)")
+            .accessibilityHint(
+                isExpanded
+                    ? "Collapses the parent post preview."
+                    : "Expands to show the parent post."
+            )
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
             expandedContent
                 .opacity(showContent ? 1 : 0)
