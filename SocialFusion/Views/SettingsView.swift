@@ -864,7 +864,15 @@ private struct MergedIdentitiesManagementView: View {
             .buttonStyle(.bordered)
         }
         .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Merged: at \(merge.mastodon.handle) and at \(merge.bluesky.handle). Double-tap Unmerge to separate.")
+        // `.contain` keeps the destructive Unmerge button independently
+        // focusable (the previous `.combine` collapsed it into the row's
+        // label so VoiceOver users heard "double-tap Unmerge" but
+        // couldn't actually reach the button). The custom rotor action
+        // also exposes Unmerge through swipe-actions.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Merged identity: at \(merge.mastodon.handle) on Mastodon, at \(merge.bluesky.handle) on Bluesky")
+        .accessibilityAction(named: "Unmerge") {
+            mergedIdentityStore.unmerge(id: merge.id)
+        }
     }
 }
