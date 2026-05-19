@@ -13,13 +13,10 @@ extension Color {
         Color("TextColor")
     }
 
-    static var accentPurple: Color {
-        Color("AccentPurple")
-    }
-
-    static var cardBackground: Color {
-        Color("CardBackground")
-    }
+    // `accentPurple` and `cardBackground` are auto-generated from the
+    // Color asset catalog (GeneratedAssetSymbols.swift) — declaring
+    // them manually here would collide. Removed; call sites continue
+    // to work since the synthesised symbols have identical shape.
 
     static var subtleBorder: Color {
         // Use a more subtle border that adapts to color scheme
