@@ -13,6 +13,7 @@ public struct FusedGlyph: View {
 
     @State private var bloomScale: CGFloat = 1.0
     @State private var bloomOpacity: Double = 0.0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Colors from LaunchAnimationView for exact brand alignment.
     private let purple = Color(red: 0.54, green: 0.39, blue: 1.00)
@@ -63,8 +64,12 @@ public struct FusedGlyph: View {
         .accessibilityHidden(true) // Decorative; semantics live on the badge text.
         .onAppear {
             guard bloomOnAppear else { return }
-            // Reduce-motion respect: skip bloom if reduce motion is on.
-            if UIAccessibility.isReduceMotionEnabled { return }
+            // Reduce-motion respect: use the SwiftUI environment value
+            // rather than the static UIAccessibility flag so any
+            // mid-session change to the user's preference takes effect
+            // immediately — also keeps this view independent of UIKit
+            // for testability and previewability.
+            if reduceMotion { return }
             withAnimation(.easeOut(duration: 0.18)) {
                 bloomScale = 1.4
                 bloomOpacity = 1.0
