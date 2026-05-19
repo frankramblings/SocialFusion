@@ -231,6 +231,12 @@ struct FullscreenMediaView: View {
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 .onChange(of: currentIndex) {
+                    // Selection haptic on page change — matches Photos.app's
+                    // subtle tactile cue when scrubbing between images. Fires
+                    // for both swipe and arrow-key navigation since both
+                    // funnel through this onChange.
+                    HapticEngine.selection.trigger()
+
                     // Reset zoom and drag when switching images
                     withAnimation {
                         currentScale = 1.0
