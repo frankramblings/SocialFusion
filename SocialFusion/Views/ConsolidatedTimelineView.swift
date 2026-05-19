@@ -239,7 +239,11 @@ struct ConsolidatedTimelineView: View {
                         title: currentFeedTitle,
                         isExpanded: showFeedPicker,
                         action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            // Spring on the picker pop-down is decorative —
+                            // the visible state change is the signal.
+                            // Reduce-motion users get the toggle without
+                            // the bounce so it's not jarring.
+                            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFeedPicker.toggle()
                             }
                         }
@@ -258,7 +262,7 @@ struct ConsolidatedTimelineView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFeedPicker = false
                             }
                         }
