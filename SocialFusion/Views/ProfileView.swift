@@ -492,6 +492,11 @@ struct ProfileView: View {
       .padding(.bottom, 16)
     }
     .redacted(reason: .placeholder)
+    // Same fix as LoadingQuoteView: VoiceOver would announce each
+    // placeholder shape's geometry from the redacted skeleton. Hide
+    // the structure and announce the load state as one element.
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Loading profile")
   }
 
   // MARK: - Profile Error View

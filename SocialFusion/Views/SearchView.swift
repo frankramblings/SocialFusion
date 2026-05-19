@@ -565,6 +565,11 @@ struct SearchView: View {
             .background(Color(.secondarySystemGroupedBackground))
             .cornerRadius(12)
             .padding(.horizontal)
+            // VoiceOver hides the placeholder geometry; announces the
+            // load state once instead of streaming through each row's
+            // redacted shapes.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading trending topics")
         }
     }
 
