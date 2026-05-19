@@ -13,6 +13,7 @@ struct ProfileMediaGridView: View {
       ForEach(mediaPosts) { post in
         if let firstMedia = post.attachments.first(where: { $0.type != .audio }) {
           Button {
+            HapticEngine.tap.trigger()
             onPostTap?(post)
           } label: {
             mediaThumbnail(for: firstMedia)
@@ -41,7 +42,14 @@ struct ProfileMediaGridView: View {
       case .audio:                    parts.append("Audio")
       }
     }
-    let excerpt = post.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    // Strip HTML + entities so a Mastodon post's "<p>…</p>" wrapper
+    // doesn't leak into the VoiceOver announcement. Same path used by
+    // ReplyRow's accessibility label and the canonical post-body
+    // renderers.
+    let excerpt = post.content
+      .strippingHTMLTags
+      .decodingHTMLEntities
+      .trimmingCharacters(in: .whitespacesAndNewlines)
     if !excerpt.isEmpty {
       parts.append("from post: \"\(excerpt.prefix(100))\"")
     }
