@@ -98,6 +98,11 @@ public struct EchoComposeView: View {
             Text("Replying in a Fused conversation")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                // Heading trait so VoiceOver's headings rotor lands
+                // here on the Echo composer surface — matches the
+                // Fused-conversation root caption (af05798) and the
+                // rotor-anchor sweep across empty/landing states.
+                .accessibilityAddTraits(.isHeader)
         }
     }
 
