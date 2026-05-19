@@ -126,29 +126,49 @@ struct AutocompleteSuggestionRow: View {
       
       Spacer()
       
-      // Platform badges
+      // Platform badges — routed through PlatformLogoBadge so high-contrast
+      // mode reaches this surface (was raw inline color-tinted images).
       HStack(spacing: 4) {
         ForEach(Array(suggestion.platforms), id: \.self) { platform in
-          Image(platform.icon)
-            .resizable()
-            .renderingMode(.template)
-            .foregroundStyle(platform == .mastodon 
-              ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-              : Color(red: 0, green: 133 / 255, blue: 255 / 255))  // #0085FF
-            .frame(width: 12, height: 12)
+          PlatformLogoBadge(platform: platform, size: 14, shadowEnabled: false)
         }
       }
-      
+
       // Recent indicator
       if suggestion.isRecent {
         Image(systemName: "clock.fill")
           .font(.caption2)
           .foregroundColor(.secondary)
+          .accessibilityLabel("Recent")
       }
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
     .background(isSelected ? Color(UIColor.secondarySystemBackground) : Color.clear)
     .contentShape(Rectangle())
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(combinedLabel)
+    .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+  }
+
+  /// Combine the suggestion's text, subtitle, platform set, and "recent"
+  /// flag into one VoiceOver announcement. Without this each row read as
+  /// 4+ sub-elements (avatar, name, subtitle, platform icons, clock).
+  private var combinedLabel: String {
+    var parts: [String] = [suggestion.displayText]
+    if let subtitle = suggestion.subtitle {
+      parts.append(subtitle)
+    }
+    let platformsList = suggestion.platforms
+      .map(\.accessibilityLabel)
+      .sorted()
+      .joined(separator: " and ")
+    if !platformsList.isEmpty {
+      parts.append("on \(platformsList)")
+    }
+    if suggestion.isRecent {
+      parts.append("Recent")
+    }
+    return parts.joined(separator: ", ")
   }
 }
