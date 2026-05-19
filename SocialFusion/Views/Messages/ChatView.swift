@@ -623,7 +623,11 @@ struct ChatView: View {
     Task {
       do {
         try await serviceManager.deleteChatMessage(conversation: conversation, messageId: message.id)
+        // Delete is optimistic — the animation IS the success
+        // signal. No haptic needed; matches iMessage's silent
+        // delete behavior.
       } catch {
+        HapticEngine.error.trigger()
         loadMessages()
         errorMessage = "Failed to delete message"
       }
