@@ -480,6 +480,15 @@ private struct SimpleWaveformView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Stable bar-height fractions, computed once per instance via a seeded
+    /// RNG so the placeholder waveform doesn't visibly jitter on every
+    /// redraw. (Previously `CGFloat.random(in:)` was called inside body,
+    /// which recomputed heights on every SwiftUI update.)
+    private static let barFractions: [CGFloat] = {
+        var generator = SeededGenerator(seed: 0xFEED_CAFE)
+        return (0..<50).map { _ in CGFloat.random(in: 0.2...1.0, using: &generator) }
+    }()
+
     var body: some View {
         GeometryReader { geometry in
             let progressX = geometry.size.width * progress
@@ -487,19 +496,20 @@ private struct SimpleWaveformView: View {
             ZStack(alignment: .leading) {
                 // Background bars
                 HStack(spacing: 2) {
-                    ForEach(0..<50, id: \.self) { index in
+                    ForEach(0..<Self.barFractions.count, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 1)
                             .fill(Color.secondary.opacity(0.3))
-                            .frame(width: 3, height: CGFloat.random(in: height * 0.2...height))
+                            .frame(width: 3, height: height * Self.barFractions[index])
                     }
                 }
 
-                // Progress overlay
+                // Progress overlay — uses the SAME stable fractions so the
+                // overlay and background line up bar-for-bar.
                 HStack(spacing: 2) {
-                    ForEach(0..<50, id: \.self) { index in
+                    ForEach(0..<Self.barFractions.count, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 1)
                             .fill(Color.primary)
-                            .frame(width: 3, height: CGFloat.random(in: height * 0.2...height))
+                            .frame(width: 3, height: height * Self.barFractions[index])
                     }
                 }
                 .mask(
@@ -513,8 +523,21 @@ private struct SimpleWaveformView: View {
                 let progress = location.x / geometry.size.width
                 onSeek(Double(progress))
             }
+            .accessibilityHidden(true)
         }
         .frame(height: height)
+    }
+}
+
+/// Deterministic PRNG so the simple waveform's placeholder bars look
+/// the same every launch, every render. Linear congruential, sufficient
+/// for placeholder visuals — not cryptographically meaningful.
+private struct SeededGenerator: RandomNumberGenerator {
+    var state: UInt64
+    init(seed: UInt64) { self.state = seed }
+    mutating func next() -> UInt64 {
+        state = state &* 2862933555777941757 &+ 3037000493
+        return state
     }
 }
 
