@@ -165,6 +165,11 @@ struct ProfileToggleButton: View {
         // Note: sensoryFeedback is iOS 17+, removed for iOS 16 compatibility
         .animation(.easeInOut(duration: 0.15), value: isSelected)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(account.platform.accessibilityLabel) account: \(account.displayName ?? account.username)")
+        .accessibilityValue(isSelected ? "Active" : "Inactive")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+        .accessibilityHint(isSelected ? "Double-tap to deactivate. Long-press for account options." : "Double-tap to activate. Long-press for account options.")
     }
 }
 
