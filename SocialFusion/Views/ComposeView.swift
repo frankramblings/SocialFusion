@@ -1601,6 +1601,13 @@ struct ComposeView: View {
             .modifier(lifecycleModifier)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            // Block swipe-to-dismiss while a post is being published —
+            // a stray pull during the toolbar ProgressView leaves the
+            // user staring at a closed sheet while the post continues
+            // dispatching in the background. Cancel stays available in
+            // the toolbar as the explicit out. Matches the Echo
+            // composer's same guard (dd7dd19).
+            .interactiveDismissDisabled(isPosting)
             .sheet(isPresented: $showImagePicker) {
                 PhotoPicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
