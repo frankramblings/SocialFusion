@@ -299,6 +299,12 @@ struct AccountSwitcherSheet: View {
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
+                            // Selection haptic on account-pick — matches
+                            // the rest of the picker-style flows in the
+                            // app. Fires regardless of whether the picked
+                            // account is the same as current, since the
+                            // user committed a tap.
+                            HapticEngine.selection.trigger()
                             onAccountSelected(account.id)
                         }
                     }
