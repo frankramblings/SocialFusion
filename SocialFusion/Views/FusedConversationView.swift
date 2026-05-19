@@ -18,6 +18,7 @@ public struct FusedConversationView: View {
     /// fetches and replies streaming in don't, so a reader's scroll
     /// position is preserved while older content paginates.
     @State private var scrollToLatestTrigger: Int = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(viewModel: FusedConversationViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -64,9 +65,16 @@ public struct FusedConversationView: View {
                 // Only fires after a send (we never bump this on a thread
                 // fetch). Scroll to the newest reply so the user sees the
                 // outcome of the action they just took without hunting.
+                // Reduce-motion users get an instant jump — the visible
+                // change of position is enough; the animation isn't
+                // carrying information they need.
                 guard let lastID = viewModel.replies.last?.id else { return }
-                withAnimation(.easeOut(duration: 0.30)) {
+                if reduceMotion {
                     proxy.scrollTo(lastID, anchor: .bottom)
+                } else {
+                    withAnimation(.easeOut(duration: 0.30)) {
+                        proxy.scrollTo(lastID, anchor: .bottom)
+                    }
                 }
             }
         }
