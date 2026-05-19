@@ -95,8 +95,15 @@ public struct QuotePostUnavailableView: View {
         .background(backgroundStyle)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(borderOverlay)
-        .accessibilityElement(children: .combine)
+        // `.contain` keeps the "Open original link" Button independently
+        // focusable for VoiceOver (the previous `.combine` collapsed it
+        // into this element so the recovery affordance vanished). The
+        // custom rotor action also exposes the open-link path through
+        // the rotor — same pattern as the Fused outage banner Retry
+        // and the merged-identity Unmerge rows.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(Text("\(reason.headline). \(platform.accessibilityLabel)."))
+        .modifier(QuotePostOpenLinkRotorAction(url: originalURL, openURL: openURL))
     }
 
     private var backgroundStyle: some View {
@@ -113,5 +120,23 @@ public struct QuotePostUnavailableView: View {
                     : Color.black.opacity(0.08),
                 style: StrokeStyle(lineWidth: 0.5, dash: [3, 3])
             )
+    }
+}
+
+/// Conditional rotor action — only registers when an originalURL is
+/// actually available. Avoids a dead "Open original link" entry on
+/// surfaces where the placeholder is shown without a URL.
+private struct QuotePostOpenLinkRotorAction: ViewModifier {
+    let url: URL?
+    let openURL: OpenURLAction
+
+    func body(content: Content) -> some View {
+        if let url = url {
+            content.accessibilityAction(named: "Open original link") {
+                openURL(url)
+            }
+        } else {
+            content
+        }
     }
 }
