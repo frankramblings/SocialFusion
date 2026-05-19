@@ -353,50 +353,34 @@ struct ConsolidatedTimelineView: View {
                 controller.refreshTimeline()
             }
             .onChange(of: controller.error?.localizedDescription) { _, _ in
+                // Spec acceptance criterion: "Error toasts surface for
+                // timeline failures." Previously a modal alert; the toast
+                // is lighter-touch, doesn't block the existing posts
+                // already on screen, and carries the same Retry affordance.
+                //
+                // Suppressed when the timeline is empty: the empty-state
+                // surface owns its own error rendering (see surfaceState
+                // below), and double-showing both would be redundant.
                 guard !controller.posts.isEmpty else {
                     timelineAlertState = nil
+                    ToastManager.shared.dismiss()
                     return
                 }
                 guard let error = controller.error else {
                     timelineAlertState = nil
+                    ToastManager.shared.dismiss()
                     return
                 }
                 if timelineAlertState?.error.localizedDescription != error.localizedDescription {
                     timelineAlertState = TimelineAlertState(error: error)
-                }
-            }
-            .alert(
-                "Error",
-                isPresented: Binding(
-                    get: { timelineAlertState != nil },
-                    set: { isPresented in
-                        if !isPresented {
-                            timelineAlertState = nil
-                            controller.clearError()
-                        }
-                    }
-                )
-            ) {
-                Button("Retry") {
-                    let error = timelineAlertState?.error
-                    timelineAlertState = nil
-                    controller.clearError()
-                    if let error = error {
+                    ToastManager.shared.showError(error.localizedDescription) {
+                        controller.clearError()
+                        timelineAlertState = nil
                         ErrorHandler.shared.handleError(error) {
                             controller.refreshTimeline()
                         }
+                        controller.refreshTimeline()
                     }
-                    controller.refreshTimeline()
-                }
-                Button("Dismiss", role: .cancel) {
-                    timelineAlertState = nil
-                    controller.clearError()
-                }
-            } message: {
-                if let error = timelineAlertState?.error {
-                    Text(error.localizedDescription)
-                } else {
-                    Text("Unknown error")
                 }
             }
             .overlay(alignment: .topLeading) {
