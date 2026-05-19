@@ -395,9 +395,10 @@ private struct RootPostHeader: View {
                         .font(.subheadline.weight(.semibold))
                     bothNetworkBadges
                     Spacer(minLength: 0)
-                    Text(post.createdAt, style: .relative)
+                    Text(post.createdAt.relativeTimeString)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
                 // Use PostContent so Mastodon HTML is stripped and
                 // hashtags / mentions get the standard tinted styling.
@@ -496,9 +497,10 @@ private struct ReplyRow: View {
                         .font(.subheadline.weight(.semibold))
                     PlatformLogoBadge(platform: post.platform, size: 14)
                     Spacer(minLength: 0)
-                    Text(post.createdAt, style: .relative)
+                    Text(post.createdAt.relativeTimeString)
                         .font(.caption2)
                         .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
                 // Same reason as RootPostHeader: a bare Text(post.content)
                 // renders raw <p>…</p> from Mastodon replies. Routing
