@@ -274,6 +274,12 @@ struct FullscreenMediaView: View {
                                         .font(.callout)
                                         .fontWeight(.medium)
                                         .foregroundColor(.white)
+                                        // Long-press-to-copy lets users
+                                        // grab the description text for
+                                        // their own captions, accessibility
+                                        // testing, or to flag a bad alt
+                                        // on the original post.
+                                        .textSelection(.enabled)
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 16)
                                         .background(
