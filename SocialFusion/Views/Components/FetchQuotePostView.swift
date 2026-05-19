@@ -167,6 +167,11 @@ struct FetchQuotePostView: View {
     @State private var isLoading = true
     @State private var error: Error? = nil
     @State private var retryCount = 0
+    /// Set once retries are exhausted; classifies the failure so the UI can
+    /// render `QuotePostUnavailableView` with an honest reason instead of
+    /// falling through to a generic LinkPreview that strips the "this was a
+    /// quoted post" framing. nil means we haven't given up yet.
+    @State private var terminalReason: QuotePostUnavailableView.Reason? = nil
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @Environment(\.colorScheme) private var colorScheme
@@ -226,6 +231,16 @@ struct FetchQuotePostView: View {
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
+            } else if let reason = terminalReason {
+                // Retries exhausted: render the unavailable placeholder
+                // with a classified reason so the user knows this *was*
+                // a quoted post that couldn't load — rather than a generic
+                // link card that pretends nothing was attempted.
+                QuotePostUnavailableView(
+                    reason: reason,
+                    originalURL: url,
+                    platform: platform
+                )
             } else {
                 // Fallback to regular link preview if we can't fetch the post
                 // This ensures something always displays, preventing posts from disappearing
@@ -265,6 +280,59 @@ struct FetchQuotePostView: View {
         }
         
         return isValid
+    }
+
+    /// Maps a quote-fetch error to a user-facing reason. Conservative: when
+    /// the error doesn't fit a known shape, returns `.unknown` (which the
+    /// view renders with the same "no longer available" copy as `.deleted`
+    /// — both are accurate at the end of a retry cycle when the post still
+    /// isn't reachable).
+    static func classify(error: Error?) -> QuotePostUnavailableView.Reason {
+        guard let error = error else { return .unknown }
+        let nsError = error as NSError
+
+        // URLError → almost always a transient connectivity problem; the
+        // user CAN open the original URL in their browser.
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorNotConnectedToInternet,
+                 NSURLErrorNetworkConnectionLost,
+                 NSURLErrorTimedOut,
+                 NSURLErrorCannotConnectToHost,
+                 NSURLErrorDNSLookupFailed:
+                return .network
+            default:
+                return .network
+            }
+        }
+
+        // Decoding / JSON errors → server replied with something we
+        // couldn't parse. Distinct from "post is gone" — show malformed.
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == 3840 {
+            return .malformed
+        }
+        if error is DecodingError {
+            return .malformed
+        }
+
+        // HTTP status codes if surfaced via NSError.code (some services do).
+        switch nsError.code {
+        case 404, 410:
+            return .deleted
+        case 401, 403:
+            return .blocked
+        default:
+            // Inspect localized description for HTTP hints (some services
+            // bury the status code inside the message rather than .code).
+            let desc = nsError.localizedDescription.lowercased()
+            if desc.contains("404") || desc.contains("not found") || desc.contains("gone") {
+                return .deleted
+            }
+            if desc.contains("401") || desc.contains("403") || desc.contains("forbidden") || desc.contains("unauthorized") {
+                return .blocked
+            }
+            return .unknown
+        }
     }
 
     private func fetchPost() async {
@@ -354,12 +422,16 @@ struct FetchQuotePostView: View {
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 await fetchPost()
             } else {
-                // After max retries, fallback to LinkPreview instead of showing error
-                // This ensures the post still displays
-                DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded, falling back to LinkPreview")
+                // Retries exhausted. Classify the final error so the
+                // placeholder can show an honest reason ("deleted",
+                // "blocked", "network", etc.) instead of falling through
+                // to LinkPreview, which strips the quoted-post framing.
+                let classified = Self.classify(error: error)
+                DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded, classified as \(classified)")
                 await MainActor.run {
                     self.isLoading = false
-                    self.error = nil  // Clear error so it falls through to LinkPreview
+                    self.error = nil
+                    self.terminalReason = classified
                 }
             }
         }
