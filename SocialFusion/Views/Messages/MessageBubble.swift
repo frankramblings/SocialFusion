@@ -173,6 +173,52 @@ struct MessageBubble: View {
 
       if !isFromMe { Spacer(minLength: 60) }
     }
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel(combinedAccessibilityLabel)
+  }
+
+  /// Combine sender / content / time / state into one coherent VoiceOver
+  /// announcement so a single swipe lands one message. Reactions stay as
+  /// children (containable) because they're independently tappable.
+  private var combinedAccessibilityLabel: String {
+    var parts: [String] = []
+    if isFromMe {
+      parts.append("You said")
+    } else if let name = senderName, !name.isEmpty {
+      parts.append("\(name) said")
+    } else {
+      parts.append("Message")
+    }
+    let body = messageBodyLabel
+    if !body.isEmpty {
+      parts.append(body)
+    }
+    let formatter = DateFormatter()
+    formatter.timeStyle = .short
+    formatter.dateStyle = .none
+    parts.append("at \(formatter.string(from: message.sentAt))")
+    if showSeenIndicator {
+      parts.append("Seen")
+    }
+    if !reactions.isEmpty {
+      parts.append("\(reactions.count) reaction\(reactions.count == 1 ? "" : "s")")
+    }
+    return parts.joined(separator: ", ")
+  }
+
+  private var messageBodyLabel: String {
+    if !message.text.isEmpty && message.text != "(Empty message)" {
+      return "\"\(message.text)\""
+    }
+    if message.hasMedia {
+      let imageCount = message.mediaAttachments.filter { $0.type == .image || $0.type == .gifv }.count
+      if imageCount > 0 {
+        return imageCount == 1
+          ? "with an image"
+          : "with \(imageCount) images"
+      }
+    }
+    return ""
   }
 
   @ViewBuilder
