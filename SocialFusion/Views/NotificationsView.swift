@@ -166,6 +166,7 @@ struct NotificationsView: View {
             }
         }
         .background(Color(.systemBackground))
+        .background(notificationsKeyboardShortcut)
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -216,6 +217,22 @@ struct NotificationsView: View {
         #endif
     }
     
+    /// ⌘R refreshes notifications, mirroring the timeline shortcut so
+    /// iPadOS users have a consistent "refresh active surface" gesture
+    /// across the app.
+    private var notificationsKeyboardShortcut: some View {
+        Button("Refresh Notifications") {
+            Task {
+                await fetchNotifications()
+                HapticEngine.tap.trigger()
+            }
+        }
+        .keyboardShortcut("r", modifiers: .command)
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
+    }
+
     private func fetchNotifications() async {
         isLoading = true
         let previousNotifications = notifications
