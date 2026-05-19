@@ -68,6 +68,7 @@ struct SearchChipRow: View {
                   .font(.caption)
                   .foregroundColor(.secondary)
               }
+              .accessibilityLabel("About this instance")
             }
           }
         }
