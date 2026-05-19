@@ -233,6 +233,9 @@ struct AccountsView: View {
                     }
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityLabel(serviceManager.selectedAccountIds.contains(account.id)
+                    ? "Selected, double-tap to deselect"
+                    : "Not selected, double-tap to select")
             }
             .padding(.vertical, 8)
             .padding(.horizontal, 8)
