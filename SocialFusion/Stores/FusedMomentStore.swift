@@ -26,7 +26,14 @@ public final class FusedMomentStore: ObservableObject {
 
     /// IDs of moments whose D-state bloom hasn't played yet. Read once by
     /// the timeline card; cleared on first appearance.
-    @Published public private(set) var pendingBloom: Set<String> = []
+    ///
+    /// Deliberately NOT `@Published`: `consumePendingBloom` mutates this
+    /// set, and if SwiftUI body code ever invokes that during view
+    /// evaluation, a `@Published` change would trigger a re-evaluation
+    /// before the FusedGlyph was rendered — recomputing `shouldBloom` to
+    /// `false` and silently swallowing the animation. No external code
+    /// observes this set; the consume-on-appearance API is the only path.
+    public private(set) var pendingBloom: Set<String> = []
 
     public init() {}
 
