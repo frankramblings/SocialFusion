@@ -89,19 +89,20 @@ public final class RelationshipViewModel: ObservableObject {
         #endif
       }
       state = previousState
+      HapticEngine.error.trigger()
       self.error = error
       ErrorHandler.shared.handleError(error)
     }
   }
-  
+
   /// Unfollow the actor (optimistic update)
   public func unfollow() async {
     let previousState = state
-    
+
     // Optimistic update
     state.isFollowing = false
     state.followRequested = false
-    
+
     do {
       let newState = try await graphService.unfollow(actorID, account: account)
       state = newState
@@ -109,6 +110,7 @@ public final class RelationshipViewModel: ObservableObject {
     } catch {
       // Revert on failure
       state = previousState
+      HapticEngine.error.trigger()
       self.error = error
       ErrorHandler.shared.handleError(error)
     }
@@ -117,62 +119,73 @@ public final class RelationshipViewModel: ObservableObject {
   /// Mute the actor (optimistic update)
   public func mute() async {
     let previousState = state
-    
+
     // Optimistic update
     state.isMuting = true
     relationshipStore.setMuted(actorID, true)
-    
+
     do {
       let newState = try await graphService.mute(actorID, account: account)
       state = newState
       relationshipStore.setMuted(actorID, newState.isMuting)
+      // Mute is a protective action — the user wants to confirm
+      // their boundary held. Success haptic mirrors follow/unfollow;
+      // failure haptic alerts them that the protection didn't apply.
+      HapticEngine.success.trigger()
     } catch {
       // Revert on failure
       state = previousState
       relationshipStore.setMuted(actorID, false)
+      HapticEngine.error.trigger()
       self.error = error
       ErrorHandler.shared.handleError(error)
     }
   }
-  
+
   /// Unmute the actor (optimistic update)
   public func unmute() async {
     let previousState = state
-    
+
     // Optimistic update
     state.isMuting = false
     relationshipStore.setMuted(actorID, false)
-    
+
     do {
       let newState = try await graphService.unmute(actorID, account: account)
       state = newState
       relationshipStore.setMuted(actorID, newState.isMuting)
+      HapticEngine.success.trigger()
     } catch {
       // Revert on failure
       state = previousState
       relationshipStore.setMuted(actorID, true)
+      HapticEngine.error.trigger()
       self.error = error
       ErrorHandler.shared.handleError(error)
     }
   }
-  
+
   /// Block the actor (optimistic update)
   public func block() async {
     let previousState = state
-    
+
     // Optimistic update
     state.isBlocking = true
     state.isFollowing = false  // Can't follow while blocked
     relationshipStore.setBlocked(actorID, true)
-    
+
     do {
       let newState = try await graphService.block(actorID, account: account)
       state = newState
       relationshipStore.setBlocked(actorID, newState.isBlocking)
+      // Block is the strongest protective action — the user picked it
+      // deliberately and deserves clear tactile confirmation it held.
+      HapticEngine.success.trigger()
     } catch {
       // Revert on failure
       state = previousState
       relationshipStore.setBlocked(actorID, false)
+      HapticEngine.error.trigger()
       self.error = error
       ErrorHandler.shared.handleError(error)
     }
@@ -181,19 +194,21 @@ public final class RelationshipViewModel: ObservableObject {
   /// Unblock the actor (optimistic update)
   public func unblock() async {
     let previousState = state
-    
+
     // Optimistic update
     state.isBlocking = false
     relationshipStore.setBlocked(actorID, false)
-    
+
     do {
       let newState = try await graphService.unblock(actorID, account: account)
       state = newState
       relationshipStore.setBlocked(actorID, newState.isBlocking)
+      HapticEngine.success.trigger()
     } catch {
       // Revert on failure
       state = previousState
       relationshipStore.setBlocked(actorID, true)
+      HapticEngine.error.trigger()
       self.error = error
       ErrorHandler.shared.handleError(error)
     }
