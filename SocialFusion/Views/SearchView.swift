@@ -373,6 +373,8 @@ struct SearchView: View {
                             }
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .accessibilityLabel("Clear recent searches")
+                            .accessibilityHint("Removes all entries from the Recent list.")
                         }
                         .padding(.horizontal)
 
