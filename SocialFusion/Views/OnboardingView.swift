@@ -194,6 +194,13 @@ struct EchoPolicyOnboardingPage: View {
                     .font(.headline)
             }
             .padding(.horizontal, 24)
+            // Hint reflects the toggle's current state so the
+            // VoiceOver user knows exactly what choice they're
+            // committing to — Continue with Echo on means mirror
+            // replies; off means don't.
+            .accessibilityHint(echoOn
+                ? "Continues with replies mirrored to both networks by default."
+                : "Continues with replies only on the original network by default.")
 
             Button {
                 HapticEngine.tap.trigger()
@@ -205,6 +212,7 @@ struct EchoPolicyOnboardingPage: View {
                     .foregroundStyle(Color.accentColor)
             }
             .padding(.bottom, 24)
+            .accessibilityHint("Continues without a default; the composer will ask each time.")
         }
     }
 }
