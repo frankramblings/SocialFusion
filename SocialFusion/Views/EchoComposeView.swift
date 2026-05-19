@@ -163,16 +163,16 @@ public struct EchoComposeView: View {
     private var charCounts: some View {
         HStack(spacing: 12) {
             Spacer()
-            counterChip(label: "M", value: viewModel.mastodonRemaining,
+            counterChip(network: "Mastodon", label: "M", value: viewModel.mastodonRemaining,
                         dimmed: !viewModel.targets.contains(.mastodon),
                         color: Color(red: 0.54, green: 0.39, blue: 1.00))
-            counterChip(label: "B", value: viewModel.blueskyRemaining,
+            counterChip(network: "Bluesky", label: "B", value: viewModel.blueskyRemaining,
                         dimmed: !viewModel.targets.contains(.bluesky),
                         color: Color(red: 0.00, green: 0.59, blue: 1.00))
         }
     }
 
-    private func counterChip(label: String, value: Int, dimmed: Bool, color: Color) -> some View {
+    private func counterChip(network: String, label: String, value: Int, dimmed: Bool, color: Color) -> some View {
         HStack(spacing: 4) {
             Text(label).font(.caption2.weight(.bold))
             Text("\(value)").font(.caption2.monospacedDigit())
@@ -182,6 +182,14 @@ public struct EchoComposeView: View {
         .background(color.opacity(dimmed ? 0.05 : 0.15), in: Capsule())
         .foregroundStyle(value < 0 ? .red : color)
         .opacity(dimmed ? 0.4 : 1.0)
+        // "M 47" alone is gibberish to VoiceOver — and the visual
+        // dim/red state encodes meaning a screen reader can't see.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            value < 0
+                ? "\(network): over by \(-value) characters"
+                : "\(network): \(value) characters remaining"
+        )
     }
 
     private var sendButton: some View {
