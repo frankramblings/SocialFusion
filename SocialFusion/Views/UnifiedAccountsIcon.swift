@@ -135,15 +135,15 @@ struct UnifiedAccountsIconMinimal: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.secondary)
             } else {
-                // Platform logos with counts
+                // Route through PlatformLogoBadge so the system-wide
+                // high-contrast toggle (Settings → Accessibility) reaches
+                // this surface automatically. Counts stay tinted with the
+                // platform color since they're text — high-contrast mode
+                // changes the badge fill style, not the surrounding chrome.
                 HStack(spacing: 6) {
                     if !mastodonAccounts.isEmpty {
                         VStack(spacing: 2) {
-                            Image("MastodonLogo")
-                                .resizable()
-                                .renderingMode(.template)
-                                .foregroundStyle(Color.mastodonColor)
-                                .frame(width: 12, height: 12)
+                            PlatformLogoBadge(platform: .mastodon, size: 16, shadowEnabled: false)
                             if mastodonAccounts.count > 1 {
                                 Text("\(mastodonAccounts.count)")
                                     .font(.system(size: 8, weight: .bold))
@@ -153,11 +153,7 @@ struct UnifiedAccountsIconMinimal: View {
                     }
                     if !blueskyAccounts.isEmpty {
                         VStack(spacing: 2) {
-                            Image("BlueskyLogo")
-                                .resizable()
-                                .renderingMode(.template)
-                                .foregroundStyle(Color.blueskyColor)
-                                .frame(width: 12, height: 12)
+                            PlatformLogoBadge(platform: .bluesky, size: 16, shadowEnabled: false)
                             if blueskyAccounts.count > 1 {
                                 Text("\(blueskyAccounts.count)")
                                     .font(.system(size: 8, weight: .bold))
