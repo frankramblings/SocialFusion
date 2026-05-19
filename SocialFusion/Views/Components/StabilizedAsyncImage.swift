@@ -85,6 +85,7 @@ private struct StabilizedImageLoadingView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
     @State private var phase: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Rectangle()
@@ -106,10 +107,15 @@ private struct StabilizedImageLoadingView: View {
             )
             .cornerRadius(cornerRadius)
             .onAppear {
+                // Skip the looping shimmer when reduce-motion is on. The
+                // static mid-phase gradient still reads as a placeholder
+                // without the moving sweep.
+                guard !reduceMotion else { return }
                 withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
                     phase = 1.3
                 }
             }
+            .accessibilityHidden(true)
     }
 }
 
