@@ -239,6 +239,41 @@
       "masto": { "id": "m_035", "content": "View from the office today", "authorId": "frank_id", "createdAt": "2026-05-20T11:30:00Z" },
       "bsky":  { "id": "b_035", "content": "", "authorId": "frank_id", "createdAt": "2026-05-20T11:30:05Z" },
       "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical content with inline emoji — must fuse since signature normalization preserves emoji",
+      "masto": { "id": "m_036", "content": "Shipping the new release tonight thanks to everyone who tested for the past two weeks", "authorId": "frank_id", "createdAt": "2026-05-20T12:00:00Z" },
+      "bsky":  { "id": "b_036", "content": "Shipping the new release tonight thanks to everyone who tested for the past two weeks", "authorId": "frank_id", "createdAt": "2026-05-20T12:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Case-only difference (cross-poster lowercased one side); fingerprint lowercases — must fuse",
+      "masto": { "id": "m_037", "content": "Working on cross-network conversation stitching today, more soon", "authorId": "frank_id", "createdAt": "2026-05-20T13:00:00Z" },
+      "bsky":  { "id": "b_037", "content": "WORKING ON CROSS-NETWORK CONVERSATION STITCHING TODAY, MORE SOON", "authorId": "frank_id", "createdAt": "2026-05-20T13:00:05Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same author, intentional repost of same content the next day — outside time window, must not fuse",
+      "masto": { "id": "m_038", "content": "Friendly reminder that the open-source meetup is Thursday at 7pm", "authorId": "frank_id", "createdAt": "2026-05-19T08:00:00Z" },
+      "bsky":  { "id": "b_038", "content": "Friendly reminder that the open-source meetup is Thursday at 7pm", "authorId": "frank_id", "createdAt": "2026-05-20T08:00:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "negative",
+      "note": "Same content, same author, but the Bluesky side is a verbatim repost from a year prior — far outside the time window",
+      "masto": { "id": "m_040", "content": "An old idea I've been chewing on: notification fatigue is just attention without consent", "authorId": "frank_id", "createdAt": "2026-05-20T15:00:00Z" },
+      "bsky":  { "id": "b_040", "content": "An old idea I've been chewing on: notification fatigue is just attention without consent", "authorId": "frank_id", "createdAt": "2025-06-10T09:00:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Trailing punctuation difference between sides; ContentSignature trims trailing punctuation",
+      "masto": { "id": "m_041", "content": "The hardest part of designing for accessibility is realizing how much you took for granted", "authorId": "frank_id", "createdAt": "2026-05-20T16:00:00Z" },
+      "bsky":  { "id": "b_041", "content": "The hardest part of designing for accessibility is realizing how much you took for granted.", "authorId": "frank_id", "createdAt": "2026-05-20T16:00:06Z" },
+      "expectFused": true
     }
   ]
 }
