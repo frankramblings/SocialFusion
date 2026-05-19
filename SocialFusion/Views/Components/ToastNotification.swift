@@ -46,7 +46,19 @@ final class ToastManager: ObservableObject {
     /// Show an error toast with an actionable retry button. Persistent —
     /// stays on screen until the user taps Retry, swipes away, or until
     /// another show() supersedes it.
+    ///
+    /// Fires an error haptic on present: the toast slides in from the top
+    /// and is easy to miss if the user's eye is elsewhere on screen.
+    /// The haptic draws attention to the recoverable failure so they
+    /// notice the Retry affordance.
     func showError(_ message: String, retryLabel: String = "Retry", retry: @escaping @MainActor () -> Void) {
+        // Suppress duplicate haptics when the same error message
+        // re-appears (e.g., the timeline's onChange fires twice as the
+        // controller's error stabilizes). Identity by message is good
+        // enough — the toast's own dedup logic uses the same key.
+        if currentToast?.message != message || currentToast?.style != .error {
+            HapticEngine.error.trigger()
+        }
         let toast = Toast(
             message: message,
             style: .error,
