@@ -353,6 +353,10 @@ public final class ProfileViewModel: ObservableObject {
     store.confirmMerge(mastodon: mastoKey, bluesky: bskyKey)
     mergedIdentity = store.merge(forPlatform: profile.platform, accountID: profile.id)
     mergedTwinProfile = twinProfile
+    // Merging two identities is a deliberate, persistent commitment.
+    // Success haptic confirms the binding landed — matches the
+    // follow/mute/block pattern in RelationshipViewModel.
+    HapticEngine.success.trigger()
   }
 
   /// Unmerge this profile from its twin and clear local state.
@@ -362,6 +366,10 @@ public final class ProfileViewModel: ObservableObject {
     mergedIdentity = nil
     mergedTwinProfile = nil
     selectedSide = profile?.platform ?? user.platform
+    // Selection haptic on unmerge — it's a destructive-ish action
+    // (the user is unbinding) but reversible, so a soft tactile
+    // cue is enough; success would feel celebratory and wrong.
+    HapticEngine.selection.trigger()
   }
 
   // MARK: - Post Loading (Per-Tab, Lazy)
