@@ -58,6 +58,7 @@ struct AccountTimelineView: View {
                 contentView
             }
         }
+        .background(refreshKeyboardShortcut)
         .navigationDestination(
             isPresented: Binding(
                 get: { navigationEnvironment.selectedUser != nil },
@@ -106,6 +107,19 @@ struct AccountTimelineView: View {
                 debugOverlay
             }
         }
+    }
+
+    /// ⌘R refreshes the active account's timeline — matches the
+    /// shortcut already wired in ConsolidatedTimelineView and the
+    /// Mail/Tweetbot/Twitterrific convention.
+    private var refreshKeyboardShortcut: some View {
+        Button("Refresh") {
+            Task { await controller.manualRefresh() }
+        }
+        .keyboardShortcut("r", modifiers: .command)
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 
     private var loadingView: some View {
