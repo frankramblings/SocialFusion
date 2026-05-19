@@ -36,6 +36,10 @@ public struct QuotedPostView: View {
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
         .contentShape(Rectangle())
         .onTapGesture {
+            // Mirror PostCardView's tap-to-navigate haptic so tapping a
+            // quoted post embed feels the same as tapping a regular
+            // timeline post — both navigate to the post detail.
+            HapticEngine.tap.trigger()
             onTap?()
         }
     }
