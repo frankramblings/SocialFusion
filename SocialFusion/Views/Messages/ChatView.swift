@@ -465,6 +465,10 @@ struct ChatView: View {
   }
 
   private func toggleReaction(messageId: String, emoji: String, alreadyReacted: Bool) {
+    // Tapback-style selection haptic on add or remove. iMessage's
+    // reactions fire this same haptic; without it the visual change
+    // (a small chip below the bubble) is easy to miss.
+    HapticEngine.selection.trigger()
     if alreadyReacted {
       for myId in myAccountIds {
         reactions[messageId, default: [:]][emoji]?.remove(myId)
