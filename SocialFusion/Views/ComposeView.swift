@@ -1566,6 +1566,16 @@ struct ComposeView: View {
                 if let replyingTo = replyingTo, let provider = timelineContextProvider {
                     updateThreadSnapshot(for: replyingTo, provider: provider)
                 }
+
+                // Pre-warm haptics so the tap-to-Post / warning / error
+                // feedback fires with zero perceptible latency. Same
+                // pattern as the Echo composer — the first cold trigger
+                // can otherwise eat 50–100ms on the very first action
+                // after the sheet opens.
+                HapticEngine.prepare(.tap)
+                HapticEngine.prepare(.success)
+                HapticEngine.prepare(.warning)
+                HapticEngine.prepare(.error)
             }
             .onChange(of: activePostIndex) { _, newIndex in
                 // Sync composerTextModel when switching between thread posts
