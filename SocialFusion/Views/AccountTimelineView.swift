@@ -118,6 +118,10 @@ struct AccountTimelineView: View {
             Image(systemName: "person.crop.circle")
                 .font(.system(size: 60))
                 .foregroundColor(Color(hex: account.platform.colorHex))
+                // Decorative — the title text already says what state
+                // this is. VoiceOver would otherwise pronounce the
+                // SF Symbol name verbatim.
+                .accessibilityHidden(true)
 
             Text("No posts to display")
                 .font(.headline)
@@ -128,6 +132,7 @@ struct AccountTimelineView: View {
                 .padding(.horizontal)
                 .foregroundColor(.secondary)
         }
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

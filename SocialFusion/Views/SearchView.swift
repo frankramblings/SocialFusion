@@ -127,12 +127,16 @@ struct SearchView: View {
                         Image(systemName: "magnifyingglass")
                             .font(.largeTitle)
                             .foregroundColor(.secondary)
+                            // Decorative — the title below already says
+                            // what state this is.
+                            .accessibilityHidden(true)
                         Text("No Results")
                             .font(.headline)
                         Text("Try a different search term")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+                    .accessibilityElement(children: .combine)
                     Spacer()
                 } else if observedStore.phase.hasResults {
                     resultsList(store: observedStore)
