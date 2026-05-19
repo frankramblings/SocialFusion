@@ -704,11 +704,19 @@ struct EditProfileView: View {
           avatarData: selectedImageData
         )
         await MainActor.run {
+          // Success haptic — the upload took a beat and the visible
+          // signal is the sheet animating away. Confirms the action
+          // landed before the dismiss transition takes over.
+          HapticEngine.success.trigger()
           isLoading = false
           dismiss()
         }
       } catch {
         await MainActor.run {
+          // Error haptic so the user knows the save didn't land; the
+          // error string surfaces below the form, but a quiet failure
+          // could be missed at a glance.
+          HapticEngine.error.trigger()
           self.error = error.localizedDescription
           isLoading = false
         }
