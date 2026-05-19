@@ -61,6 +61,13 @@ public struct EchoComposeView: View {
                 send: sendIfPossible,
                 cancel: { dismiss() }
             ))
+            // Block swipe-down dismissal while a send is in flight. The
+            // toolbar still shows a ProgressView, the Send button is
+            // already disabled, and a stray pull-to-dismiss would
+            // orphan the in-flight reply behind a closed sheet —
+            // confusing for the user even though the dispatch survives.
+            // Cancel stays available in the toolbar as an explicit out.
+            .interactiveDismissDisabled(viewModel.isSending)
         }
     }
 
