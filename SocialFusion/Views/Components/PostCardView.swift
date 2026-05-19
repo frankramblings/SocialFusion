@@ -763,6 +763,11 @@ struct PostCardView: View {
                 .frame(width: 8, height: 8)
                 .shadow(color: Color.black.opacity(0.15), radius: 2, x: 0, y: 1)
                 .offset(x: -4, y: 4)
+                // Visual-only blue dot meant nothing to VoiceOver users —
+                // they had no signal that the post was unread. Single-
+                // word label so the announcement is "Unread" once,
+                // adjacent to the post-card's own combined label.
+                .accessibilityLabel("Unread")
         }
     }
 
