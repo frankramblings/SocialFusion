@@ -76,6 +76,14 @@ struct PostAuthorImageView: View {
             )
             .offset(x: 2, y: 2)  // Small offset to position badge properly
         }
+        // VoiceOver: combine the avatar + badge + initials into a single
+        // element. Without this the user gets three sub-elements for one
+        // semantic thing ("avatar of @user on Mastodon"), with no way to
+        // tell the platform indicator is part of the same person.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(authorName.isEmpty
+            ? "\(platform.accessibilityLabel) avatar"
+            : "\(platform.accessibilityLabel) avatar for \(authorName)")
     }
 
     // Computed property for initials background (like Twitter, Instagram, etc.)
