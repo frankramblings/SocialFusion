@@ -344,7 +344,8 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+      .accessibilityLabel(state.isReplied ? "Reply, already sent" : "Reply")
+      .accessibilityHint("Opens the composer.")
 
       Spacer()
 
@@ -356,7 +357,9 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isReposted ? "Reposted. Double tap to undo repost" : "Repost. Double tap to repost")
+      .accessibilityLabel("Repost")
+      .accessibilityAddTraits(state.isReposted ? .isSelected : [])
+      .accessibilityHint(state.isReposted ? "Removes your repost." : "Reposts this to your followers.")
 
       Spacer()
 
@@ -369,7 +372,9 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
+      .accessibilityLabel("Like")
+      .accessibilityAddTraits(state.isLiked ? .isSelected : [])
+      .accessibilityHint(state.isLiked ? "Unlikes this post." : "")
 
       Spacer()
 
@@ -383,7 +388,8 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+      .accessibilityLabel("Quote Post")
+      .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
 
       if includeShare {
         Spacer()
