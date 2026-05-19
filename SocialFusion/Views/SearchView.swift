@@ -489,6 +489,12 @@ struct SearchView: View {
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
                     }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(
+                        tag.formattedUsageCount.map { "Hashtag #\(tag.name), \($0) uses" }
+                            ?? "Hashtag #\(tag.name)"
+                    )
+                    .accessibilityHint("Opens posts tagged with this hashtag.")
                     if index < trendingTags.count - 1 {
                         Divider().padding(.leading, 16)
                     }
