@@ -9,6 +9,12 @@ struct LaunchAnimationView: View {
     @State private var bloomOpacity: Double = 0
     @State private var textSpacing: CGFloat = 80
 
+    // Honors the system reduce-motion accessibility flag. Spec acceptance
+    // criterion: "Reduce-motion respected on launch animation, Fused
+    // bloom, profile parallax." When enabled, snap to the final state
+    // instead of animating circles together.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     // MARK: – Geometry
     private let circleSize: CGFloat = 180
     private let startGap: CGFloat = 80
@@ -91,6 +97,18 @@ struct LaunchAnimationView: View {
             // Use Task to defer state updates outside view rendering cycle
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                if reduceMotion {
+                    // Snap to the final fused-and-glow state without
+                    // animating. Holds for a moment so the user sees the
+                    // brand mark before onFinished hands off.
+                    fused = true
+                    textSpacing = 0
+                    bloomScale = 1.0
+                    bloomOpacity = 0.85
+                    try? await Task.sleep(nanoseconds: 600_000_000)  // 0.6s static hold
+                    onFinished()
+                    return
+                }
                 withAnimation(anim) {
                     fused = true  // circles and text converge over 0.6 s
                     textSpacing = 0
