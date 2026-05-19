@@ -101,6 +101,8 @@ struct SocialFusionApp: App {
                     .environmentObject(fusedMomentStore)
                     .environmentObject(echoPolicyStore)
                     .environmentObject(watchedConversationStore)
+                    .environmentObject(accessibilityPreferences)
+                    .environment(\.accessibilityPreferences, accessibilityPreferences)
                     .enableLiquidGlass()
             } else {
                 ContentView()
@@ -116,6 +118,8 @@ struct SocialFusionApp: App {
                     .environmentObject(fusedMomentStore)
                     .environmentObject(echoPolicyStore)
                     .environmentObject(watchedConversationStore)
+                    .environmentObject(accessibilityPreferences)
+                    .environment(\.accessibilityPreferences, accessibilityPreferences)
                     .enableLiquidGlass()
                     .onAppear {
                         notificationManager.serviceManager = serviceManager
