@@ -4,18 +4,71 @@ import SwiftUI
 final class ToastManager: ObservableObject {
     static let shared = ToastManager()
 
+    /// One user-visible toast. Plain ones auto-dismiss; retry-bearing toasts
+    /// are persistent (no auto-dismiss) so the user has time to act on
+    /// them — matches Apple HIG for "inform + offer recovery."
     struct Toast: Identifiable, Equatable {
         let id = UUID()
         let message: String
+        let style: Style
+        let retry: RetryAction?
+
+        enum Style: Equatable {
+            case info
+            case error
+        }
+
+        /// Wrapper so closures don't break Equatable. Identity is the
+        /// RetryAction's UUID, not the closure pointer.
+        struct RetryAction: Equatable {
+            let id = UUID()
+            let label: String
+            let perform: @MainActor () -> Void
+
+            static func == (lhs: RetryAction, rhs: RetryAction) -> Bool {
+                lhs.id == rhs.id
+            }
+        }
+
+        static func == (lhs: Toast, rhs: Toast) -> Bool {
+            lhs.id == rhs.id && lhs.message == rhs.message
+                && lhs.style == rhs.style && lhs.retry == rhs.retry
+        }
     }
 
     @Published private(set) var currentToast: Toast?
 
+    /// Show a transient info toast. Auto-dismisses after `duration`.
     func show(_ message: String, duration: TimeInterval = 2.0) {
-        currentToast = Toast(message: message)
+        present(Toast(message: message, style: .info, retry: nil), duration: duration)
+    }
+
+    /// Show an error toast with an actionable retry button. Persistent —
+    /// stays on screen until the user taps Retry, swipes away, or until
+    /// another show() supersedes it.
+    func showError(_ message: String, retryLabel: String = "Retry", retry: @escaping @MainActor () -> Void) {
+        let toast = Toast(
+            message: message,
+            style: .error,
+            retry: Toast.RetryAction(label: retryLabel, perform: retry)
+        )
+        currentToast = toast
+        // No auto-dismiss timer here — actionable toasts stay until acted on.
+    }
+
+    /// Dismiss the current toast (programmatic; e.g. when underlying state
+    /// changes so the message no longer applies).
+    func dismiss() {
+        currentToast = nil
+    }
+
+    private func present(_ toast: Toast, duration: TimeInterval) {
+        currentToast = toast
+        let messageSnapshot = toast.message
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
-            if currentToast?.message == message {
+            // Only auto-dismiss if no newer toast has superseded us.
+            if currentToast?.message == messageSnapshot && currentToast?.style == .info {
                 currentToast = nil
             }
         }
@@ -24,18 +77,44 @@ final class ToastManager: ObservableObject {
 
 struct ToastNotification: View {
     let toast: ToastManager.Toast
+    var onDismiss: () -> Void = {}
 
     var body: some View {
-        Text(toast.message)
-            .font(.footnote.weight(.semibold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.black.opacity(0.85))
-            .cornerRadius(12)
-            .shadow(radius: 12)
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .accessibilityLabel(toast.message)
+        HStack(spacing: 12) {
+            if toast.style == .error {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(Color.yellow)
+                    .accessibilityHidden(true)
+            }
+            Text(toast.message)
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if let retry = toast.retry {
+                Button(retry.label) {
+                    retry.perform()
+                    onDismiss()
+                }
+                .font(.footnote.weight(.bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.18), in: Capsule())
+                .accessibilityHint("Retries the operation that just failed.")
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(toastBackground)
+        .cornerRadius(12)
+        .shadow(radius: 12)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(toast.message)
+    }
+
+    private var toastBackground: some View {
+        Color.black.opacity(0.85)
     }
 }
 
@@ -48,8 +127,11 @@ struct ToastHostModifier: ViewModifier {
                 Group {
                     if let toast = toastManager.currentToast {
                         VStack {
-                            ToastNotification(toast: toast)
-                                .padding(.top, 12)
+                            ToastNotification(toast: toast, onDismiss: {
+                                toastManager.dismiss()
+                            })
+                            .padding(.top, 12)
+                            .padding(.horizontal, 12)
                             Spacer()
                         }
                         .animation(.spring(response: 0.3, dampingFraction: 0.85), value: toastManager.currentToast)
