@@ -310,7 +310,7 @@ struct AccountSwitcherSheet: View {
                             .foregroundStyle(Color(hex: platform.colorHex))
                             .frame(width: 16, height: 16)
 
-                        Text("\(platform.rawValue.capitalized) Accounts")
+                        Text("\(platform.accessibilityLabel) Accounts")
                     }
                 }
             }

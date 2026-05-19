@@ -513,7 +513,7 @@ struct PlatformButton: View {
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundColor(isSelected ? .white : platformColor(for: platform))
 
-                        Text(platform.rawValue.capitalized)
+                        Text(platform.accessibilityLabel)
                             .font(.headline)
                             .fontWeight(.semibold)
                             .foregroundColor(isSelected ? .white : .primary)

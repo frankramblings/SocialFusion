@@ -58,7 +58,7 @@ struct PlatformConflict: Identifiable {
   let platforms: [SocialPlatform]
   
   var message: String {
-    let platformNames = platforms.map { $0.rawValue.capitalized }.joined(separator: ", ")
+    let platformNames = platforms.map { $0.accessibilityLabel }.joined(separator: ", ")
     return "\(feature) will not apply to: \(platformNames)"
   }
 }

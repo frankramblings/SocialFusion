@@ -75,7 +75,7 @@ public struct MergedHandleSelector: View {
         )
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(platform.rawValue.capitalized) handle, at \(handle)")
+        .accessibilityLabel("\(platform.accessibilityLabel) handle, at \(handle)")
         .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 }
