@@ -369,6 +369,26 @@ struct NotificationRow: View {
             }
         }
         .padding(.vertical, 8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(combinedAccessibilityLabel)
+    }
+
+    /// One-shot VoiceOver label: "Brent Simmons liked your post: '...',
+    /// 5 minutes ago." Without this each NotificationRow fragments into
+    /// 5+ sub-elements (icon, avatar, name, action text, time, excerpt).
+    private var combinedAccessibilityLabel: String {
+        var parts: [String] = []
+        let name = notification.fromAccount.displayName ?? notification.fromAccount.username
+        parts.append("\(name) \(notificationText)")
+        if let post = notification.post {
+            let excerpt = PostNormalizerImpl.shared.normalizeContent(post.content)
+            if !excerpt.isEmpty {
+                parts.append("\"\(excerpt.prefix(140))\"")
+            }
+        }
+        let relative = RelativeDateTimeFormatter()
+        parts.append(relative.localizedString(for: notification.createdAt, relativeTo: Date()))
+        return parts.joined(separator: ", ")
     }
     
     @ViewBuilder
