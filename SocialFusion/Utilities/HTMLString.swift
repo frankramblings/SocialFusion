@@ -238,9 +238,15 @@ private struct CachedEmojiTextView: View {
                         .environment(\.layoutDirection, .leftToRight)
                 } else {
                     // Use EmojiText library for inline emoji rendering
-                    // The library handles remote loading, caching, and inline display
+                    // The library handles remote loading, caching, and inline display.
+                    // .textSelection propagates via the SwiftUI environment so
+                    // the underlying Text supports long-press-to-copy — without
+                    // it, posts with custom emoji (the EmojiText path) were
+                    // un-copyable while plain posts (the Text path below)
+                    // could be copied. Inconsistent UX otherwise.
                     EmojiText(String(attributed.characters), emojis: remoteEmojis)
                         .lineLimit(lineLimit)
+                        .textSelection(.enabled)
                         .environment(\.layoutDirection, .leftToRight)
                 }
             } else {
