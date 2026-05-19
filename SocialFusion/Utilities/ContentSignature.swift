@@ -11,6 +11,13 @@ public enum ContentSignature {
     public static func fingerprint(for text: String) -> String {
         var s = text
 
+        // 0. Fold smart-punctuation variants to their ASCII equivalents.
+        //    iOS's "Smart Punctuation" keyboard setting + various
+        //    cross-poster pipelines auto-substitute curly quotes,
+        //    em/en dashes, and ellipses inconsistently between
+        //    networks. Equality should survive that round-trip.
+        s = foldSmartPunctuation(in: s)
+
         // 1. Normalize URLs: strip trailing punctuation, fragments, and trailing slashes.
         s = normalizeURLs(in: s)
 
@@ -36,6 +43,37 @@ public enum ContentSignature {
 
         // 6. Lowercase for case-insensitive matching.
         return s.lowercased()
+    }
+
+    /// Smart-punctuation → ASCII map. Folding before any other pass so the
+    /// downstream normalizers don't have to know about Unicode variants.
+    /// `\u{2019}` (right single quotation mark) is the most common offender
+    /// — iOS substitutes it for `'` by default, but cross-posters and copy
+    /// pipelines disagree on whether to preserve it. Same for the
+    /// double-quote pair (`\u{201C}` / `\u{201D}`), en/em dashes, and
+    /// the ellipsis character.
+    private static let smartPunctuationFolds: [Character: Character] = [
+        "\u{2018}": "'",  // left single quotation mark
+        "\u{2019}": "'",  // right single quotation mark / typographic apostrophe
+        "\u{201C}": "\"", // left double quotation mark
+        "\u{201D}": "\"", // right double quotation mark
+        "\u{2013}": "-",  // en dash
+        "\u{2014}": "-",  // em dash
+    ]
+
+    private static func foldSmartPunctuation(in text: String) -> String {
+        var result = ""
+        result.reserveCapacity(text.count)
+        for ch in text {
+            if let folded = smartPunctuationFolds[ch] {
+                result.append(folded)
+            } else if ch == "\u{2026}" {  // horizontal ellipsis → three dots
+                result.append("...")
+            } else {
+                result.append(ch)
+            }
+        }
+        return result
     }
 
     /// Punctuation characters that should be treated as outside the URL when they

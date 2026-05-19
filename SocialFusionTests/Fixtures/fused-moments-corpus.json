@@ -274,6 +274,55 @@
       "masto": { "id": "m_041", "content": "The hardest part of designing for accessibility is realizing how much you took for granted", "authorId": "frank_id", "createdAt": "2026-05-20T16:00:00Z" },
       "bsky":  { "id": "b_041", "content": "The hardest part of designing for accessibility is realizing how much you took for granted.", "authorId": "frank_id", "createdAt": "2026-05-20T16:00:06Z" },
       "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "URLs differ in trailing slash; URL normalization in ContentSignature must align them",
+      "masto": { "id": "m_042", "content": "New essay up about cross-network identity: https://example.com/identity-essay", "authorId": "frank_id", "createdAt": "2026-05-20T17:00:00Z" },
+      "bsky":  { "id": "b_042", "content": "New essay up about cross-network identity: https://example.com/identity-essay/", "authorId": "frank_id", "createdAt": "2026-05-20T17:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Author tense-shifted one side ('shipped' vs 'will ship') — substantive content drift, must not fuse",
+      "masto": { "id": "m_043", "content": "Just shipped the keyboard-shortcut polish pass on the Mac client", "authorId": "frank_id", "createdAt": "2026-05-20T18:00:00Z" },
+      "bsky":  { "id": "b_043", "content": "Will ship the keyboard-shortcut polish pass on the Mac client soon", "authorId": "frank_id", "createdAt": "2026-05-20T18:00:09Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Numbers and units in content; signature normalization must preserve them",
+      "masto": { "id": "m_044", "content": "Finished the cold-launch budget audit — down to 380ms from 720ms last quarter", "authorId": "frank_id", "createdAt": "2026-05-21T09:00:00Z" },
+      "bsky":  { "id": "b_044", "content": "Finished the cold-launch budget audit — down to 380ms from 720ms last quarter", "authorId": "frank_id", "createdAt": "2026-05-21T09:00:07Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Same opener, but the rest of the sentence diverges — fingerprint should reject",
+      "masto": { "id": "m_045", "content": "Finished the cold-launch budget audit and the numbers look great this quarter", "authorId": "frank_id", "createdAt": "2026-05-21T09:30:00Z" },
+      "bsky":  { "id": "b_045", "content": "Finished the cold-launch budget audit and now I'm onto the warm-launch one", "authorId": "frank_id", "createdAt": "2026-05-21T09:30:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Carriage return / line feed differences between platforms; fingerprint collapses whitespace",
+      "masto": { "id": "m_046", "content": "Two-line release note:\nfixed the launch crash and shipped reduce-motion gates everywhere", "authorId": "frank_id", "createdAt": "2026-05-21T10:00:00Z" },
+      "bsky":  { "id": "b_046", "content": "Two-line release note: fixed the launch crash and shipped reduce-motion gates everywhere", "authorId": "frank_id", "createdAt": "2026-05-21T10:00:09Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Identical opening greeting, divergent continuation — must not fuse; short opener doesn't carry the weight alone",
+      "masto": { "id": "m_047", "content": "Good morning all — heading into a deep-focus block until noon, see you on the other side", "authorId": "frank_id", "createdAt": "2026-05-21T11:00:00Z" },
+      "bsky":  { "id": "b_047", "content": "Good morning all — anyone got recommendations for a good Sunday read?", "authorId": "frank_id", "createdAt": "2026-05-21T11:00:11Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Curly vs straight apostrophe normalization-equivalent content; signature should treat as identical",
+      "masto": { "id": "m_048", "content": "It's a strange feeling shipping something you've thought about for two years and seeing it in the wild", "authorId": "frank_id", "createdAt": "2026-05-21T12:00:00Z" },
+      "bsky":  { "id": "b_048", "content": "It’s a strange feeling shipping something you’ve thought about for two years and seeing it in the wild", "authorId": "frank_id", "createdAt": "2026-05-21T12:00:06Z" },
+      "expectFused": true
     }
   ]
 }

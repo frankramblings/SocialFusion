@@ -185,4 +185,33 @@ final class ContentSignatureTests: XCTestCase {
         let b = ContentSignature.fingerprint(for: "Welcome. #onboarding")
         XCTAssertEqual(a, b)
     }
+
+    /// iOS "Smart Punctuation" substitutes curly quotes by default;
+    /// many cross-poster pipelines disagree about whether to preserve
+    /// the curls. Equality must survive that round-trip.
+    func testSmartQuotesFoldToStraightEquivalents() {
+        let straight = ContentSignature.fingerprint(for: "It's a strange feeling shipping it")
+        let curly = ContentSignature.fingerprint(for: "It\u{2019}s a strange feeling shipping it")
+        XCTAssertEqual(straight, curly,
+                       "Right-single-quote (\\u{2019}) should fold to ASCII apostrophe.")
+    }
+
+    func testSmartDoubleQuotesFold() {
+        let straight = ContentSignature.fingerprint(for: "He said \"hello\" politely")
+        let curly = ContentSignature.fingerprint(for: "He said \u{201C}hello\u{201D} politely")
+        XCTAssertEqual(straight, curly)
+    }
+
+    func testEmDashFoldsToHyphen() {
+        let hyphen = ContentSignature.fingerprint(for: "Native craft - the floor, not the goal")
+        let em = ContentSignature.fingerprint(for: "Native craft \u{2014} the floor, not the goal")
+        XCTAssertEqual(hyphen, em)
+    }
+
+    func testEllipsisCharacterFoldsToThreeDots() {
+        let dots = ContentSignature.fingerprint(for: "Heading out for a bit...")
+        let glyph = ContentSignature.fingerprint(for: "Heading out for a bit\u{2026}")
+        XCTAssertEqual(dots, glyph,
+                       "Horizontal-ellipsis glyph should fold to three ASCII dots before trailing-punctuation strip.")
+    }
 }
