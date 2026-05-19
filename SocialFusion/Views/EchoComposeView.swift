@@ -63,11 +63,13 @@ public struct EchoComposeView: View {
         viewModel.beginSending()
         Task {
             await onSend(text, targets)
-            // beginSending/finishSending bracket the dispatch so canSend
-            // returns false during the in-flight window — prevents a
-            // double-tap on Send from spawning a second dispatch with the
-            // same text + targets.
-            viewModel.finishSending()
+            // Don't call finishSending() here. The sheet's dismiss is
+            // animated (~250ms); if we cleared the gate before the
+            // animation completes, a quick re-tap on Send during that
+            // window would spawn a second dispatch. Leaving isSending
+            // true means canSend stays false for the rest of the view
+            // model's life — and the model is torn down once the sheet
+            // disappears, so the state never leaks to a future open.
             dismiss()
         }
     }
