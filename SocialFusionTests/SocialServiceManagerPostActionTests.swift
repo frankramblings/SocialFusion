@@ -295,6 +295,56 @@ final class ComposeAutocompleteLatencyTests: XCTestCase {
 
         XCTAssertNotEqual(oneAccount, twoAccounts)
     }
+
+    // MARK: - activeAccount(on:)
+
+    /// On the unified feed, `activeAccount(on:)` returns nil for both
+    /// platforms — there's no single account "in focus." Callers fall
+    /// back to `.first` in this case (e.g., the Echo dispatcher's
+    /// `?? mastodonAccounts.first`).
+    @MainActor
+    func testActiveAccountReturnsNilOnUnifiedFeed() {
+        let manager = SocialServiceManager()
+        let masto = makeAccount(id: "m1", platform: .mastodon)
+        let bsky = makeAccount(id: "b1", platform: .bluesky)
+        manager.accounts = [masto, bsky]
+        manager.selectedAccountIds = ["all"]
+
+        XCTAssertNil(manager.activeAccount(on: .mastodon))
+        XCTAssertNil(manager.activeAccount(on: .bluesky))
+    }
+
+    /// When the timeline is scoped to a single Mastodon account, the
+    /// active-account lookup returns it for Mastodon and nil for
+    /// Bluesky — there's no Bluesky account "in focus" on a Mastodon
+    /// timeline.
+    @MainActor
+    func testActiveAccountReturnsMatchingPlatformOnScopedFeed() {
+        let manager = SocialServiceManager()
+        let mastoA = makeAccount(id: "ma", platform: .mastodon)
+        let mastoB = makeAccount(id: "mb", platform: .mastodon)
+        let bsky = makeAccount(id: "b1", platform: .bluesky)
+        manager.accounts = [mastoA, mastoB, bsky]
+        manager.selectedAccountIds = ["mb"]
+
+        XCTAssertEqual(manager.activeAccount(on: .mastodon)?.id, "mb",
+                       "Must return the timeline-selected Mastodon account, not just .first.")
+        XCTAssertNil(manager.activeAccount(on: .bluesky))
+    }
+
+    /// Same contract on the Bluesky side.
+    @MainActor
+    func testActiveAccountReturnsBlueskyOnBlueskyScopedFeed() {
+        let manager = SocialServiceManager()
+        let masto = makeAccount(id: "m1", platform: .mastodon)
+        let bskyA = makeAccount(id: "ba", platform: .bluesky)
+        let bskyB = makeAccount(id: "bb", platform: .bluesky)
+        manager.accounts = [masto, bskyA, bskyB]
+        manager.selectedAccountIds = ["bb"]
+
+        XCTAssertEqual(manager.activeAccount(on: .bluesky)?.id, "bb")
+        XCTAssertNil(manager.activeAccount(on: .mastodon))
+    }
 }
 
 final class PaginationReliabilityTests: XCTestCase {
