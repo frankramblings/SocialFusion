@@ -32,6 +32,7 @@ struct MutedKeywordsView: View {
                 } else {
                     ForEach(keywords, id: \.self) { keyword in
                         Text(keyword)
+                            .accessibilityLabel("Muted keyword: \(keyword)")
                     }
                     .onDelete(perform: removeKeywords)
                 }
