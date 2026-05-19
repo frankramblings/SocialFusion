@@ -398,6 +398,7 @@ struct SearchView: View {
                         HStack {
                             Text("Recent")
                                 .font(.headline)
+                                .accessibilityAddTraits(.isHeader)
                             Spacer()
                             Button("Clear") {
                                 HapticEngine.warning.trigger()
@@ -447,6 +448,7 @@ struct SearchView: View {
                         Text("Pinned")
                             .font(.headline)
                             .padding(.horizontal)
+                            .accessibilityAddTraits(.isHeader)
 
                         VStack(spacing: 0) {
                             ForEach(Array(store.pinnedSearches.enumerated()), id: \.element.id) { index, savedSearch in
@@ -509,6 +511,11 @@ struct SearchView: View {
             Text("Trending on Mastodon")
                 .font(.headline)
                 .padding(.horizontal)
+                // Heading trait for VoiceOver's headings rotor —
+                // matches the rotor-anchor sweep across landing
+                // surfaces (af05798, ed63fd6, 638a2d5, 3b244b1,
+                // d3c81a0, 63017aa).
+                .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
                 ForEach(Array(trendingTags.enumerated()), id: \.element.id) { index, tag in
