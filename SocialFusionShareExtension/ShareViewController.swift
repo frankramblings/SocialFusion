@@ -14,7 +14,17 @@ class ShareViewController: SLComposeServiceViewController {
   }
 
   override func isContentValid() -> Bool {
-    return true
+    // Block Post when there's nothing to send — either typed text in
+    // the composer, a shared URL from the host app, or shared text.
+    // Otherwise the user can ship an empty deep-link that opens an
+    // empty composer for no reason.
+    let typed = (contentText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    if !typed.isEmpty { return true }
+    if sharedURL != nil { return true }
+    if let s = sharedText, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      return true
+    }
+    return false
   }
 
   override func didSelectPost() {
@@ -74,6 +84,11 @@ class ShareViewController: SLComposeServiceViewController {
             if let url = item as? URL {
               DispatchQueue.main.async {
                 self?.sharedURL = url
+                // Re-evaluate `isContentValid()` so the Post button
+                // enables once the async URL extraction lands. Without
+                // this the user has to type something — even though
+                // the URL is enough — to make the button live.
+                self?.validateContent()
               }
             }
           }
@@ -84,6 +99,7 @@ class ShareViewController: SLComposeServiceViewController {
             if let text = item as? String {
               DispatchQueue.main.async {
                 self?.sharedText = text
+                self?.validateContent()
               }
             }
           }
