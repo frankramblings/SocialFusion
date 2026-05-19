@@ -2213,8 +2213,24 @@ struct ComposeView: View {
             activePostIndex: activePostIndex,
             toggleCW: toggleCW,
             toggleLabels: toggleLabels,
-            insertLink: insertLink
+            insertLink: insertLink,
+            cancelCompose: cancelCompose
         )
+    }
+
+    /// Mirrors the Cancel toolbar button's logic so the Escape keyboard
+    /// shortcut shows the drafts-action sheet when the user has typed
+    /// content, and dismisses cleanly when they haven't.
+    private func cancelCompose() {
+        let hasContent = threadPosts.contains { post in
+            !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !post.images.isEmpty
+        }
+        if hasContent {
+            showDraftActionSheet = true
+        } else {
+            dismiss()
+        }
     }
 
     /// Toggle content warning

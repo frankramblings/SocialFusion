@@ -13,7 +13,8 @@ private struct KeyboardShortcutsModifier: ViewModifier {
     @Binding var currentAutocompleteToken: AutocompleteToken?
     @Binding var autocompleteSuggestions: [AutocompleteSuggestion]
     let autocompleteService: AutocompleteService?
-    
+    let cancelCompose: () -> Void
+
     func body(content: Content) -> some View {
         if #available(iOS 17.0, *) {
             content
@@ -56,6 +57,14 @@ private struct KeyboardShortcutsModifier: ViewModifier {
                         autocompleteService?.cancelSearch()
                         return .handled
                     }
+                    // Escape mirrors the Cancel toolbar button — including
+                    // the "you have unsaved content" draft prompt when the
+                    // buffer isn't empty. EchoComposeView and the primary
+                    // composer now share this exit gesture.
+                    if keyPress.key == .escape {
+                        cancelCompose()
+                        return .handled
+                    }
                     return .ignored
                 }
         } else {
@@ -83,7 +92,8 @@ struct ComposeViewLifecycleModifier: ViewModifier {
     let toggleCW: () -> Void
     let toggleLabels: () -> Void
     let insertLink: () -> Void
-    
+    let cancelCompose: () -> Void
+
     func body(content: Content) -> some View {
         content
             .onAppear {
@@ -113,7 +123,8 @@ struct ComposeViewLifecycleModifier: ViewModifier {
                 insertLink: insertLink,
                 currentAutocompleteToken: $currentAutocompleteToken,
                 autocompleteSuggestions: $autocompleteSuggestions,
-                autocompleteService: autocompleteService
+                autocompleteService: autocompleteService,
+                cancelCompose: cancelCompose
             ))
             .onDisappear {
                 socialServiceManager.isComposing = false
