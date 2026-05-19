@@ -51,6 +51,22 @@ final class WatchedConversationStoreTests: XCTestCase {
     /// cleanly: `summary` is optional and the new field's absence in the
     /// JSON should yield `summary == nil`, not a decode failure.
     /// Regression guard for the new model field.
+    /// The Summary type caps contentPreview at 140 chars at init time so a
+    /// caller that forgets to truncate at the source can't blow out the
+    /// stored size. Belt-and-suspenders; the call site in ActionBar does
+    /// pass the full post.content.
+    func testSummaryContentPreviewIsCappedAt140Chars() {
+        let longContent = String(repeating: "x", count: 500)
+        let summary = WatchedConversation.Summary(
+            authorName: "Test Author",
+            contentPreview: longContent
+        )
+        XCTAssertEqual(summary.contentPreview.count, 140,
+                       "Summary should cap contentPreview at 140 characters at init.")
+        XCTAssertTrue(summary.contentPreview.allSatisfy { $0 == "x" },
+                      "The prefix should be the start of the input, not a different sample.")
+    }
+
     func testDecodesLegacyRecordWithoutSummary() throws {
         // Hand-rolled legacy JSON shaped like a record from before the
         // Summary field existed. UserDefaults stores the store's
