@@ -78,7 +78,7 @@ public struct ManualMergeSheet: View {
     private var searchField: some View {
         HStack {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-            TextField("Search \(targetPlatform == .mastodon ? "Mastodon" : "Bluesky")", text: $query)
+            TextField("Search \(targetPlatform.accessibilityLabel)", text: $query)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .onChange(of: query) { _, newValue in
@@ -101,7 +101,7 @@ public struct ManualMergeSheet: View {
                 Image(systemName: "person.2.circle")
                     .font(.system(size: 36))
                     .foregroundStyle(.secondary)
-                Text("Search for their account on \(targetPlatform == .mastodon ? "Mastodon" : "Bluesky")")
+                Text("Search for their account on \(targetPlatform.accessibilityLabel)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

@@ -104,7 +104,7 @@ public struct EchoComposeView: View {
     private func targetRow(_ platform: SocialPlatform) -> some View {
         HStack(spacing: 12) {
             PlatformLogoBadge(platform: platform, size: 24)
-            Text(platform == .mastodon ? "Mastodon" : "Bluesky")
+            Text(platform.accessibilityLabel)
                 .font(.subheadline.weight(.semibold))
             Spacer()
             Toggle("", isOn: Binding(
