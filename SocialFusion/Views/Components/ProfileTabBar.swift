@@ -12,6 +12,12 @@ struct ProfileTabBar: View {
       HStack(spacing: 0) {
         ForEach(ProfileTab.allCases, id: \.self) { tab in
           Button {
+            // Only haptic on a real change — re-tapping the active
+            // tab shouldn't feel like a selection event since
+            // nothing visibly changes.
+            if selectedTab != tab {
+              HapticEngine.selection.trigger()
+            }
             withAnimation(.easeInOut(duration: 0.2)) {
               selectedTab = tab
             }
