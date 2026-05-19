@@ -130,7 +130,10 @@ struct EchoPolicyOnboardingPage: View {
 
     var body: some View {
         VStack(spacing: 22) {
-            FusedGlyph(size: 64)
+            // Bloom on appear: this is the user's first encounter with the
+            // signature Fused mark in onboarding. Honors reduce-motion via
+            // the glyph's own internal check.
+            FusedGlyph(size: 64, bloomOnAppear: true)
                 .padding(.top, 40)
             Text("Echo your replies?")
                 .font(.title.weight(.bold))
@@ -142,7 +145,13 @@ struct EchoPolicyOnboardingPage: View {
                 .padding(.horizontal, 28)
 
             VStack {
-                Toggle(isOn: $echoOn) {
+                Toggle(isOn: Binding(
+                    get: { echoOn },
+                    set: { newValue in
+                        echoOn = newValue
+                        HapticEngine.selection.trigger()
+                    }
+                )) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Echo replies by default")
                             .font(.subheadline.weight(.semibold))
@@ -159,6 +168,7 @@ struct EchoPolicyOnboardingPage: View {
             Spacer()
 
             Button {
+                HapticEngine.success.trigger()
                 echoPolicyStore.policy = echoOn ? .echoOn : .echoOff
                 onContinue()
             } label: {
@@ -172,6 +182,7 @@ struct EchoPolicyOnboardingPage: View {
             .padding(.horizontal, 24)
 
             Button {
+                HapticEngine.tap.trigger()
                 echoPolicyStore.policy = .askEachTime
                 onAskEachTime()
             } label: {
