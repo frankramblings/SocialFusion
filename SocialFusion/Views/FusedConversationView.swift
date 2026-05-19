@@ -341,8 +341,15 @@ public struct FusedConversationView: View {
         .padding(10)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
         .padding(.horizontal)
-        .accessibilityElement(children: .combine)
+        // `.combine` previously swallowed the Retry button so VoiceOver
+        // users got the announcement but no way to act on it. `.contain`
+        // keeps the banner as one logical group while preserving the
+        // Retry button as its own focusable element; the custom action
+        // also exposes Retry through the VoiceOver rotor so it's
+        // reachable without hunting for the visible button.
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("\(platform.accessibilityLabel) replies failed to load. \(message)")
+        .accessibilityAction(named: "Retry", retry)
     }
 }
 
