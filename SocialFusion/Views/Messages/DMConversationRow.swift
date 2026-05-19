@@ -84,6 +84,43 @@ struct DMConversationRow: View {
       }
     }
     .padding(.vertical, 4)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(combinedLabel)
+  }
+
+  /// Combined VoiceOver label so a conversation row reads as one chunk:
+  /// "Group: Foo, 5 members, last message Bar said 'hi', 2 minutes ago,
+  ///  3 unread, on Mastodon".
+  /// Without this, the row fragmented into 6-8 sub-elements per row in
+  /// a list with many conversations.
+  private var combinedLabel: String {
+    var parts: [String] = []
+    if conversation.isGroup, let title = conversation.title {
+      parts.append("Group: \(title)")
+      parts.append("\(conversation.participants.count) members")
+    } else {
+      parts.append(conversation.participant.displayName ?? conversation.participant.username)
+      parts.append("@\(conversation.participant.username)")
+    }
+    let lastMessageBody: String
+    if conversation.isGroup {
+      lastMessageBody = "\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)"
+    } else {
+      lastMessageBody = conversation.lastMessage.content
+    }
+    if !lastMessageBody.isEmpty {
+      parts.append("Last message: \(lastMessageBody)")
+    }
+    let relative = RelativeDateTimeFormatter()
+    parts.append(relative.localizedString(for: conversation.lastMessage.createdAt, relativeTo: Date()))
+    if conversation.unreadCount > 0 {
+      parts.append("\(conversation.unreadCount) unread")
+    }
+    if conversation.isMuted {
+      parts.append("Muted")
+    }
+    parts.append("on \(conversation.platform.accessibilityLabel)")
+    return parts.joined(separator: ", ")
   }
 
   @ViewBuilder
