@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Hand-curated corpus of cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Must expand to >= 100 with REAL cross-post pairs pulled from production feeds before v1.0 promote-to-App-Store. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries. KNOWN GAPS (deferred to v1.x): (1) same-author copy-paste reply patterns produce a false positive without parent-thread context; (2) trailing-punctuation differences (period vs no period) currently break the signature match — ContentSignature doesn't strip them; (3) prepended @mention on one side breaks the signature match — the mention's bytes are folded into the fingerprint. Withhold these corpus shapes until ContentSignature lands richer normalization.",
+  "description": "Hand-curated corpus of cross-post pairs plus near-miss decoys. Used to measure FusedMomentDetector false-positive and false-negative rates against the spec acceptance criteria. Must expand to >= 100 with REAL cross-post pairs pulled from production feeds before v1.0 promote-to-App-Store. Design rule for negatives: every negative entry must be NEAR the positive class along at least one axis — same content/different author, identical content/different timing, short content under the confidence threshold, etc. Rejection by content mismatch alone tests nothing about the detector's decision boundaries. KNOWN GAPS (deferred to v1.x): same-author copy-paste reply patterns produce a false positive without parent-thread context. Withhold this corpus shape until a parent-thread signal lands.",
   "examples": [
     {
       "label": "positive",
@@ -154,6 +154,20 @@
       "note": "Emoji + sentence — Unicode in content must not affect fingerprinting",
       "masto": { "id": "m_023", "content": "Finally got the bloom animation right ✨ Took three rewrites but it's worth it", "authorId": "frank_id", "createdAt": "2026-05-18T08:30:00Z" },
       "bsky":  { "id": "b_023", "content": "Finally got the bloom animation right ✨ Took three rewrites but it's worth it", "authorId": "frank_id", "createdAt": "2026-05-18T08:30:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Trailing punctuation differs (period dropped on one side) — ContentSignature strips terminal punctuation",
+      "masto": { "id": "m_024", "content": "Reading group meets Thursdays at 7 — Mastodon and Bluesky both welcome.", "authorId": "frank_id", "createdAt": "2026-05-18T10:00:00Z" },
+      "bsky":  { "id": "b_024", "content": "Reading group meets Thursdays at 7 — Mastodon and Bluesky both welcome", "authorId": "frank_id", "createdAt": "2026-05-18T10:00:04Z" },
+      "expectFused": true
+    },
+    {
+      "label": "positive",
+      "note": "Cross-poster prepends '@mention' on one side; ContentSignature strips leading mentions",
+      "masto": { "id": "m_025", "content": "Big thanks to everyone who reviewed the early build last week — feedback was invaluable", "authorId": "frank_id", "createdAt": "2026-05-18T13:15:00Z" },
+      "bsky":  { "id": "b_025", "content": "@beta-testers.bsky.social Big thanks to everyone who reviewed the early build last week — feedback was invaluable", "authorId": "frank_id", "createdAt": "2026-05-18T13:15:11Z" },
       "expectFused": true
     },
     {

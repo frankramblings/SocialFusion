@@ -21,10 +21,20 @@ public enum ContentSignature {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        // 3. Strip trailing mentions (@user, @user@host) and hashtags.
+        // 3. Strip leading mentions (@user, @user@host). Cross-posters that
+        //    convert a Mastodon-style @-prefix into a Bluesky mention often
+        //    add the recipient handle on one side but not the other.
+        s = stripLeadingMentions(in: s)
+
+        // 4. Strip trailing mentions (@user, @user@host) and hashtags.
         s = stripTrailingTokens(in: s)
 
-        // 4. Lowercase for case-insensitive matching.
+        // 5. Strip trailing terminal punctuation (period, exclamation, etc.)
+        //    so "Welcome." and "Welcome" match. Crossposters often drop the
+        //    period when one network's character count is tight.
+        s = stripTrailingPunctuation(in: s)
+
+        // 6. Lowercase for case-insensitive matching.
         return s.lowercased()
     }
 
@@ -107,5 +117,40 @@ public enum ContentSignature {
             }
         }
         return tokens.joined(separator: " ")
+    }
+
+    /// Removes contiguous `@mention` tokens from the START of the text. Mirrors
+    /// `stripTrailingTokens` but only handles mentions — leading `#hashtag` is
+    /// less common as cross-poster noise and is semantically meaningful when it
+    /// appears at the beginning (e.g., `#protip Don't forget…`). Does NOT
+    /// touch mid-text mentions.
+    private static func stripLeadingMentions(in text: String) -> String {
+        var tokens = text.split(separator: " ", omittingEmptySubsequences: true)
+        while let first = tokens.first {
+            if first.hasPrefix("@") {
+                tokens.removeFirst()
+            } else {
+                break
+            }
+        }
+        return tokens.joined(separator: " ")
+    }
+
+    /// Trailing terminal punctuation that cross-posters frequently drop on
+    /// one network but keep on the other. Question marks and exclamations
+    /// included — they're semantically meaningful but cross-posters
+    /// occasionally trim them for character-count reasons; the small risk
+    /// of a content-signature collision between a question and a statement
+    /// is worth the recall gain.
+    private static let trailingTextPunctuation: Set<Character> = [
+        ".", "!", "?", "…"
+    ]
+
+    private static func stripTrailingPunctuation(in text: String) -> String {
+        var s = text
+        while let last = s.last, trailingTextPunctuation.contains(last) {
+            s.removeLast()
+        }
+        return s
     }
 }
