@@ -13,18 +13,12 @@ public class HTMLString {
         return Data(raw.utf8)
     }
 
-    /// Plain text version with HTML tags removed
+    /// Plain text version with HTML tags removed and entities decoded.
+    /// Routes through the canonical String+HTML extensions so the
+    /// entity table is maintained in one place — and gets the smart-
+    /// quote decoding for free, which the previous inline list missed.
     public var plainText: String {
-        // Robust HTML tag stripping for fallback
-        return raw.replacingOccurrences(
-            of: "<[^>]+>", with: "", options: .regularExpression, range: nil
-        )
-        .replacingOccurrences(of: "&nbsp;", with: " ")
-        .replacingOccurrences(of: "&amp;", with: "&")
-        .replacingOccurrences(of: "&lt;", with: "<")
-        .replacingOccurrences(of: "&gt;", with: ">")
-        .replacingOccurrences(of: "&quot;", with: "\"")
-        .replacingOccurrences(of: "&#39;", with: "'")
+        return raw.strippingHTMLTags.decodingHTMLEntities
     }
 
     /// Initialize with raw HTML content
