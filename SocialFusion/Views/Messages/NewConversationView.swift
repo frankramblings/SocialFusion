@@ -236,6 +236,9 @@ struct NewConversationView: View {
   // MARK: - Selection
 
   private func toggleBlueskySelection(_ actor: BlueskyActor) {
+    // Selection haptic on add or remove — feels like every other iOS
+    // selection toggle (Mail's recipient picker, Photos' multi-select).
+    HapticEngine.selection.trigger()
     if selectedParticipants.contains(where: { $0.did == actor.did }) {
       selectedParticipants.removeAll { $0.did == actor.did }
     } else {
@@ -253,6 +256,9 @@ struct NewConversationView: View {
         selectedConversation = conversation
         navigateToChat = true
       } catch {
+        // Error haptic so the failure draws attention — the alert that
+        // surfaces the errorMessage can lag the keyboard dismiss.
+        HapticEngine.error.trigger()
         errorMessage = "Failed to start conversation: \(error.localizedDescription)"
       }
     }
