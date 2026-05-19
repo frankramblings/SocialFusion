@@ -46,6 +46,9 @@ struct SocialFusionApp: App {
     // Persisted set of conversations the user is watching for new replies.
     @StateObject private var watchedConversationStore = WatchedConversationStore()
 
+    // Accessibility preferences (high-contrast network indicators, etc.).
+    @StateObject private var accessibilityPreferences = AccessibilityPreferences()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -79,6 +82,8 @@ struct SocialFusionApp: App {
                 .environmentObject(fusedMomentStore)
                 .environmentObject(echoPolicyStore)
                 .environmentObject(watchedConversationStore)
+                .environmentObject(accessibilityPreferences)
+                .environment(\.accessibilityPreferences, accessibilityPreferences)
                 .enableLiquidGlass()
                 .onOpenURL { url in
                     handleURL(url)

@@ -6,6 +6,7 @@ import UserNotifications
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
+    @EnvironmentObject private var accessibilityPreferences: AccessibilityPreferences
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
@@ -195,6 +196,45 @@ struct SettingsView: View {
                     NavigationLink(destination: WatchedConversationsView()) {
                         Label("Watching", systemImage: "bell")
                     }
+                }
+
+                Section(header: Text("Accessibility")) {
+                    Toggle(
+                        "High-Contrast Network Indicators",
+                        isOn: $accessibilityPreferences.highContrastNetworkIndicators
+                    )
+
+                    // Live preview row — flips alongside the toggle so the
+                    // user can see exactly what the choice changes before
+                    // committing to it across the app.
+                    HStack(spacing: 16) {
+                        VStack(spacing: 6) {
+                            PlatformLogoBadge(
+                                platform: .bluesky,
+                                size: 28,
+                                highContrast: accessibilityPreferences.highContrastNetworkIndicators
+                            )
+                            Text("Bluesky").font(.caption2)
+                        }
+                        VStack(spacing: 6) {
+                            PlatformLogoBadge(
+                                platform: .mastodon,
+                                size: 28,
+                                highContrast: accessibilityPreferences.highContrastNetworkIndicators
+                            )
+                            Text("Mastodon").font(.caption2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Preview of current network indicator style")
+
+                    Text(
+                        "Switches network indicators to a filled-vs-outlined scheme that stays distinguishable for colorblind readers. Shape-coded logos are always used, regardless of this setting."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
 
                 Section(header: Text("About")) {
