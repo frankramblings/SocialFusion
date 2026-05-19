@@ -140,7 +140,12 @@ struct SearchView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
+                    // Header trait so VoiceOver's headings rotor lands
+                    // here — matches the rotor-anchor pass across the
+                    // app's other primary empty states (af05798, ed63fd6,
+                    // 638a2d5, 3b244b1).
                     .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
                     Spacer()
                 } else if observedStore.phase.hasResults {
                     resultsList(store: observedStore)
