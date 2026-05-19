@@ -1,34 +1,55 @@
 import SwiftUI
 
-/// A view that displays a platform indicator badge
-/// Enhanced with Liquid Glass styling
+/// Labeled platform indicator badge — small logo + "Mastodon"/"Bluesky"
+/// text inside a colored capsule. Used in DM views and other places that
+/// need an explicit network label, not just an icon.
+///
+/// Honors the system high-contrast toggle: under high-contrast the badge's
+/// glyph switches to filled-vs-outlined and the capsule chrome neutralizes
+/// so the two networks remain visually distinct under colorblind simulation.
 struct PostPlatformBadge: View {
     let platform: SocialPlatform
 
+    @Environment(\.accessibilityPreferences) private var prefs
+
     var body: some View {
         HStack(spacing: 4) {
-            Image(platform.icon)
-                .resizable()
-                .renderingMode(.template)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
-                .foregroundColor(platform.swiftUIColor)
-
-            Text(platform == .bluesky ? "Bluesky" : "Mastodon")
+            PlatformLogoBadge(platform: platform, size: 14, shadowEnabled: false)
+            Text(platform.accessibilityLabel)
                 .font(.caption2)
                 .fontWeight(.medium)
-                .foregroundColor(platform.swiftUIColor)
+                .foregroundColor(textColor)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(
             Capsule()
-                .fill(platform.swiftUIColor.opacity(0.1))
+                .fill(capsuleFill)
                 .overlay(
                     Capsule()
-                        .stroke(platform.swiftUIColor.opacity(0.3), lineWidth: 0.5)
+                        .stroke(capsuleStroke, lineWidth: 0.5)
                 )
         )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(platform.accessibilityLabel)
+    }
+
+    private var isHighContrast: Bool { prefs.highContrastNetworkIndicators }
+
+    private var textColor: Color {
+        isHighContrast ? .primary : platform.swiftUIColor
+    }
+
+    private var capsuleFill: Color {
+        isHighContrast
+            ? Color(.systemGray6)
+            : platform.swiftUIColor.opacity(0.1)
+    }
+
+    private var capsuleStroke: Color {
+        isHighContrast
+            ? Color.primary.opacity(0.35)
+            : platform.swiftUIColor.opacity(0.3)
     }
 }
 
