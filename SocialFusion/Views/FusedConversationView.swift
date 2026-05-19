@@ -13,39 +13,56 @@ public struct FusedConversationView: View {
     /// "Retry" action in the failure alert can re-dispatch only to the
     /// failed side(s) without re-sending the already-successful side.
     @State private var lastReplyContext: (text: String, targets: Set<SocialPlatform>)? = nil
+    /// Bumped after every successful send so a ScrollViewReader observer
+    /// scrolls to the just-inserted reply. Only sends move this — thread
+    /// fetches and replies streaming in don't, so a reader's scroll
+    /// position is preserved while older content paginates.
+    @State private var scrollToLatestTrigger: Int = 0
 
     public init(viewModel: FusedConversationViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
 
     public var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 12) {
-                rootHeader
-                outageBanners
-                ForEach(viewModel.replies) { merged in
-                    ReplyRow(post: merged.post)
-                        .padding(.horizontal)
-                }
-                if shouldShowSkeleton {
-                    // Spec acceptance criterion ("skeleton scaffolding"):
-                    // show placeholder rows while we have no real replies
-                    // yet but at least one side is still in flight.
-                    ForEach(0..<3, id: \.self) { _ in
-                        ReplySkeletonRow()
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    rootHeader
+                    outageBanners
+                    ForEach(viewModel.replies) { merged in
+                        ReplyRow(post: merged.post)
                             .padding(.horizontal)
+                            .id(merged.id)
                     }
-                } else if viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading {
-                    // Trailing spinner: replies have started arriving from
-                    // one side; the other is still streaming.
-                    HStack { Spacer(); ProgressView().padding(); Spacer() }
-                } else if shouldShowEmptyState {
-                    emptyReplyState
-                        .padding(.horizontal)
-                        .padding(.top, 24)
+                    if shouldShowSkeleton {
+                        // Spec acceptance criterion ("skeleton scaffolding"):
+                        // show placeholder rows while we have no real replies
+                        // yet but at least one side is still in flight.
+                        ForEach(0..<3, id: \.self) { _ in
+                            ReplySkeletonRow()
+                                .padding(.horizontal)
+                        }
+                    } else if viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading {
+                        // Trailing spinner: replies have started arriving from
+                        // one side; the other is still streaming.
+                        HStack { Spacer(); ProgressView().padding(); Spacer() }
+                    } else if shouldShowEmptyState {
+                        emptyReplyState
+                            .padding(.horizontal)
+                            .padding(.top, 24)
+                    }
+                }
+                .padding(.vertical, 8)
+            }
+            .onChange(of: scrollToLatestTrigger) { _, _ in
+                // Only fires after a send (we never bump this on a thread
+                // fetch). Scroll to the newest reply so the user sees the
+                // outcome of the action they just took without hunting.
+                guard let lastID = viewModel.replies.last?.id else { return }
+                withAnimation(.easeOut(duration: 0.30)) {
+                    proxy.scrollTo(lastID, anchor: .bottom)
                 }
             }
-            .padding(.vertical, 8)
         }
         .navigationTitle("Fused conversation")
         .navigationBarTitleDisplayMode(.inline)
@@ -87,6 +104,12 @@ public struct FusedConversationView: View {
                         HapticEngine.warning.trigger()
                     } else {
                         HapticEngine.error.trigger()
+                    }
+                    // Any successful side means a new reply is in the
+                    // merged list — bump the scroll trigger so the user
+                    // sees the just-sent reply land.
+                    if !result.succeeded.isEmpty {
+                        scrollToLatestTrigger &+= 1
                     }
                 }
             )
