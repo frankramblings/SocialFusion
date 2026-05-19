@@ -104,27 +104,30 @@ public struct EchoComposeView: View {
 
     private func targetRow(_ platform: SocialPlatform) -> some View {
         let isOn = viewModel.targets.contains(platform)
-        return HStack(spacing: 12) {
-            PlatformLogoBadge(platform: platform, size: 24)
-                .opacity(isOn ? 1.0 : 0.45)
-            Text(platform.accessibilityLabel)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isOn ? Color.primary : .secondary)
-            Spacer()
-            Toggle("", isOn: Binding(
-                get: { isOn },
-                set: { newOn in
-                    if newOn { viewModel.targets.insert(platform) }
-                    else { viewModel.targets.remove(platform) }
-                    // SwiftUI Toggle doesn't fire UISwitch's built-in
-                    // selection haptic — add it manually so target toggles
-                    // feel like every other iOS toggle.
-                    HapticEngine.selection.trigger()
-                }
-            ))
-            .labelsHidden()
-            .accessibilityLabel("Reply on \(platform.accessibilityLabel)")
+        // Toggle wrapping its own label makes the entire row tappable
+        // — previously only the small switch on the right edge would
+        // toggle, leaving a wide dead zone across the badge + label.
+        // Native iOS Settings rows behave this way and users expect it.
+        return Toggle(isOn: Binding(
+            get: { isOn },
+            set: { newOn in
+                if newOn { viewModel.targets.insert(platform) }
+                else { viewModel.targets.remove(platform) }
+                // SwiftUI Toggle doesn't fire UISwitch's built-in
+                // selection haptic — add it manually so target toggles
+                // feel like every other iOS toggle.
+                HapticEngine.selection.trigger()
+            }
+        )) {
+            HStack(spacing: 12) {
+                PlatformLogoBadge(platform: platform, size: 24)
+                    .opacity(isOn ? 1.0 : 0.45)
+                Text(platform.accessibilityLabel)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(isOn ? Color.primary : .secondary)
+            }
         }
+        .accessibilityLabel("Reply on \(platform.accessibilityLabel)")
         .padding(12)
         // Soft fade reinforces which side will receive the reply.
         // Mirrors the dim treatment already used by the per-network
