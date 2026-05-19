@@ -144,6 +144,27 @@ struct ParentPostPreview: View {
 
                 onTap?()
             })
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(combinedAccessibilityLabel)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Opens the parent post.")
+    }
+
+    /// One-shot VoiceOver label for the parent-post preview:
+    /// "Parent post on Mastodon, by Brent Simmons, \"Hello world\""
+    private var combinedAccessibilityLabel: String {
+        var parts: [String] = ["Parent post on \(post.platform.accessibilityLabel)"]
+        let author = post.authorName.isEmpty ? "@\(post.authorUsername)" : post.authorName
+        parts.append("by \(author)")
+        let trimmed = post.content.prefix(200)
+        if !trimmed.isEmpty {
+            parts.append("\"\(trimmed)\"")
+        }
+        if !post.attachments.isEmpty {
+            let count = post.attachments.count
+            parts.append("with \(count) attachment\(count == 1 ? "" : "s")")
+        }
+        return parts.joined(separator: ", ")
     }
 }
 
