@@ -99,6 +99,11 @@ struct ChatView: View {
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
+          // Selection haptic — the bar slides in or out, which is
+          // significant enough chrome change to deserve tactile
+          // confirmation. Matches the haptic vocabulary used elsewhere
+          // for chrome toggles (FilterPicker, FeedPicker).
+          HapticEngine.selection.trigger()
           withAnimation { isSearching.toggle() }
           if !isSearching {
             searchText = ""
