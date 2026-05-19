@@ -117,11 +117,18 @@ struct ReplyContextHeader: View {
                     Spacer()
                 }
 
-                // Post content (truncated)
-                Text(post.content)
-                    .font(.subheadline)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
+                // Post content (truncated) — route through PostContent so
+                // Mastodon HTML strips and entities decode. Previously
+                // showed raw `<p>…</p>` and `&#8217;m` literally.
+                PostContent(
+                    content: post.content,
+                    hashtags: post.tags,
+                    mentions: post.mentions,
+                    onHashtagTap: { _ in },
+                    onMentionTap: { _ in }
+                )
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
