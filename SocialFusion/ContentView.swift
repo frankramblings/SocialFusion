@@ -628,7 +628,13 @@ struct ContentView: View {
     }
 
     private func handleHomeTabDoubleTap() {
-        // Implementation of handleHomeTabDoubleTap method
+        // No-op at the ContentView level. The actual scroll-to-top
+        // behavior lives in ConsolidatedTimelineView, which observes the
+        // same `.homeTabDoubleTapped` notification because it owns the
+        // ScrollViewReader / proxy. This stub exists only so the
+        // .onReceive hook in modernTabView has a target — removing the
+        // hook entirely would mean other future observers couldn't
+        // depend on the notification being posted reliably.
     }
 }
 
