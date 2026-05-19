@@ -169,6 +169,10 @@ struct AccountPickerView: View {
     // Helper for rendering an account row
     private func accountRow(_ account: SocialAccount) -> some View {
         Button(action: {
+            // Selection haptic so the choice lands tactilely — the
+            // visible checkmark + sheet dismiss + timeline refresh all
+            // happen asynchronously, so a silent tap felt unconfirmed.
+            HapticEngine.selection.trigger()
             selectedAccountId = account.id
             serviceManager.selectedAccountIds = [account.id]
             Task {
