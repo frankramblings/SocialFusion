@@ -411,7 +411,6 @@ private struct ReplyRow: View {
                     Text(post.authorName)
                         .font(.subheadline.weight(.semibold))
                     PlatformLogoBadge(platform: post.platform, size: 14)
-                        .accessibilityLabel(post.platform == .mastodon ? "Mastodon" : "Bluesky")
                     Spacer(minLength: 0)
                     Text(post.createdAt, style: .relative)
                         .font(.caption2)
@@ -421,5 +420,18 @@ private struct ReplyRow: View {
                     .font(.body)
             }
         }
+        // Combine into a single VoiceOver element so a swipe lands one
+        // reply at a time, not four sub-elements (avatar/author/badge/time
+        // sub-swipes felt fiddly). Custom label spells out the network
+        // since the PlatformLogoBadge is no longer separately readable.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        let networkName = post.platform == .mastodon ? "Mastodon" : "Bluesky"
+        let formatter = RelativeDateTimeFormatter()
+        let when = formatter.localizedString(for: post.createdAt, relativeTo: Date())
+        return "\(networkName) reply from \(post.authorName), \(when): \(post.content)"
     }
 }
