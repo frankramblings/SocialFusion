@@ -179,7 +179,13 @@ public struct UnifiedAdapter {
         userMapping: inout [String: String]
     ) -> (displayName: String, handle: String) {
         guard hideUsernames else {
-            return (displayName ?? handle, handle)
+            // Decode HTML entities at the share-card boundary —
+            // Mastodon ships display names with raw entities
+            // ("Frank&#8217;s"), which would otherwise be baked into
+            // the exported image PNG. Same boundary fix pattern as
+            // afcbaa9, a4148ba, f8b014b; idempotent on already-decoded
+            // text, so anonymized "User N" strings pass through cleanly.
+            return ((displayName ?? handle).decodingHTMLEntities, handle)
         }
         
         let key = id ?? handle
