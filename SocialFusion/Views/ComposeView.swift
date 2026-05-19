@@ -1417,6 +1417,17 @@ struct ComposeView: View {
                     showAlert = true
                 }
             }
+            // VoiceOver: "47" alone is meaningless. Surface what the
+            // number represents, the over-limit state, and that it's
+            // actionable (taps open the over-limit alert).
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(
+                isOverLimit
+                    ? "Over character limit by \(-remainingChars)"
+                    : "\(remainingChars) characters remaining"
+            )
+            .accessibilityAddTraits(isOverLimit ? .isButton : [])
+            .accessibilityHint(isOverLimit ? "Double-tap for details" : "")
 
             // Post button - Enhanced with platform color
             Button(action: {
