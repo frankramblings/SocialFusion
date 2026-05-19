@@ -42,6 +42,11 @@ struct NavBarPillSelector<LeadingContent: View>: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(isExpanded ? "Closes the menu." : "Opens the menu.")
     }
 }
 
