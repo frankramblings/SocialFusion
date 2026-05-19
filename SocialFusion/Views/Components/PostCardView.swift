@@ -1100,11 +1100,22 @@ struct ListSelectionView: View {
                     account: platformAccount
                 )
                 await MainActor.run {
+                    // Success haptic before the dismiss animation so
+                    // the user feels the action landed — the visual
+                    // confirmation is just the sheet closing, which is
+                    // ambiguous (the sheet also closes on Cancel).
+                    HapticEngine.success.trigger()
                     isLoading = false
                     dismiss()
                 }
             } catch {
                 await MainActor.run {
+                    // Same rationale as the success haptic — without
+                    // an error haptic, the only signal that the
+                    // operation failed is the inline error text, which
+                    // is easy to miss when the user's eye was on the
+                    // tapped list row.
+                    HapticEngine.error.trigger()
                     self.error = error.localizedDescription
                     self.isLoading = false
                 }
