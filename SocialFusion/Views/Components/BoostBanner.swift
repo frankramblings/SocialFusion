@@ -141,7 +141,11 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
     }
 
     private var collapsedAccessibilityLabel: String { collapsedText }
-    private var collapsedAccessibilityHint: String { "Expands to show all boosters." }
+    private var collapsedAccessibilityHint: String {
+        isExpanded
+            ? "Collapses the booster list."
+            : "Expands to show all boosters."
+    }
 
     private var platformColor: Color {
         switch post.platform {
@@ -238,6 +242,11 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(collapsedAccessibilityLabel)
             .accessibilityHint(collapsedAccessibilityHint)
+            // Communicate the current expansion state. VoiceOver's
+            // expanded/collapsed state announcement makes the tap target
+            // self-describing without the user needing to infer state
+            // from the hint's verb tense.
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
             expandedContent
                 .opacity(showContent ? 1 : 0)
