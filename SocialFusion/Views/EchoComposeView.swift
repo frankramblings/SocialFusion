@@ -41,7 +41,16 @@ public struct EchoComposeView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .principal) {
-                    Text("Reply").font(.headline)
+                    if viewModel.isSending {
+                        // Tiny inline progress signal while the dispatch
+                        // is running — matches the iOS-native pattern
+                        // (Mail toolbar shows a ProgressView while sending).
+                        ProgressView()
+                            .controlSize(.small)
+                            .accessibilityLabel("Sending reply")
+                    } else {
+                        Text("Reply").font(.headline)
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     sendButton
