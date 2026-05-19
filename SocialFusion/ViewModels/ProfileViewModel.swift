@@ -324,11 +324,17 @@ public final class ProfileViewModel: ObservableObject {
         }
       }
     }
+    // Same rationale as manualMerge: the user just confirmed a
+    // persistent identity binding. Success haptic.
+    HapticEngine.success.trigger()
   }
 
   /// Dismiss a pending heuristic match without persisting anything.
   func dismissPendingMatch() {
     pendingMatchCandidate = nil
+    // The user explicitly said "no" to a system suggestion —
+    // soft tactile acknowledgment.
+    HapticEngine.selection.trigger()
   }
 
   /// Manually bind this profile to a twin profile on the opposite network.
