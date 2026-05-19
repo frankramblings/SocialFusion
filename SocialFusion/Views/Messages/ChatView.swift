@@ -153,6 +153,11 @@ struct ChatView: View {
         accounts: serviceManager.accounts
       )
       Task { await serviceManager.markConversationRead(conversation: conversation) }
+      // Pre-warm the error haptic so a send failure fires without
+      // the engine's cold-start latency — matches ComposeView /
+      // EchoComposeView. We only use .error on this surface (sends
+      // stay silent on success to match iMessage), so just that one.
+      HapticEngine.prepare(.error)
     }
     .onDisappear {
       chatStreamService.stopAllStreaming()
