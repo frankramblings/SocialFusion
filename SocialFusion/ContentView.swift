@@ -655,6 +655,7 @@ struct AccountPickerSheet: View {
                 Section(header: Text("Accounts")) {
                     // All accounts option
                     Button(action: {
+                        HapticEngine.selection.trigger()
                         onSelectAccount(nil)
                         isPresented = false
                     }) {
@@ -686,6 +687,7 @@ struct AccountPickerSheet: View {
                     // Mastodon accounts
                     ForEach(serviceManager.mastodonAccounts) { account in
                         Button(action: {
+                            HapticEngine.selection.trigger()
                             onSelectAccount(account.id)
                             isPresented = false
                         }) {
@@ -724,6 +726,7 @@ struct AccountPickerSheet: View {
                     // Bluesky accounts
                     ForEach(serviceManager.blueskyAccounts) { account in
                         Button(action: {
+                            HapticEngine.selection.trigger()
                             onSelectAccount(account.id)
                             isPresented = false
                         }) {
