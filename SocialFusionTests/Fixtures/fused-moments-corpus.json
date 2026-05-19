@@ -428,6 +428,55 @@
       "masto": { "id": "m_063", "content": "Late-night thinking — most app design problems come down to ownership ambiguity, not algorithm choice", "authorId": "frank_id", "createdAt": "2026-05-22T17:00:00Z" },
       "bsky":  { "id": "b_063", "content": "Late-night thinking — going to start picking one small problem to solve per evening session", "authorId": "frank_id", "createdAt": "2026-05-22T17:00:08Z" },
       "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Sentence with URL in the middle (not at the end); URL normalization must handle interior URLs",
+      "masto": { "id": "m_064", "content": "Posted my notes from the offsite https://example.com/notes-offsite — feedback welcome before Friday", "authorId": "frank_id", "createdAt": "2026-05-23T09:00:00Z" },
+      "bsky":  { "id": "b_064", "content": "Posted my notes from the offsite https://example.com/notes-offsite — feedback welcome before Friday", "authorId": "frank_id", "createdAt": "2026-05-23T09:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Tracking query params (utm_source) on one URL but not the other — current URL normalization preserves queries (some carry real meaning), so these fingerprint differently. Documents the deliberate v1.0 boundary; query-param stripping is a future enhancement worth its own corpus pass.",
+      "masto": { "id": "m_065", "content": "Coverage report posted: https://example.com/q2-coverage-report", "authorId": "frank_id", "createdAt": "2026-05-23T10:00:00Z" },
+      "bsky":  { "id": "b_065", "content": "Coverage report posted: https://example.com/q2-coverage-report?utm_source=bsky", "authorId": "frank_id", "createdAt": "2026-05-23T10:00:09Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Sentence with both opening (start-stripped) and trailing (end-stripped) mentions — both passes must run",
+      "masto": { "id": "m_066", "content": "@beta-testers really excited to ship this build — thank you for all the prep work @collab@indieweb.social", "authorId": "frank_id", "createdAt": "2026-05-23T11:00:00Z" },
+      "bsky":  { "id": "b_066", "content": "really excited to ship this build — thank you for all the prep work @collab.bsky.social", "authorId": "frank_id", "createdAt": "2026-05-23T11:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Tense + verb differ ('writing' vs 'wrote') — partial-overlap drift should reject",
+      "masto": { "id": "m_067", "content": "Writing up the spec for the next quarter's release tonight, more by Monday", "authorId": "frank_id", "createdAt": "2026-05-23T12:00:00Z" },
+      "bsky":  { "id": "b_067", "content": "Wrote up the spec for the next quarter's release tonight, more by Monday", "authorId": "frank_id", "createdAt": "2026-05-23T12:00:08Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Question mark + exclamation combined trailing punctuation; trailing-punct strip handles both",
+      "masto": { "id": "m_068", "content": "Has anyone else noticed how good the new iPad keyboard shortcut autocomplete has gotten?!", "authorId": "frank_id", "createdAt": "2026-05-23T13:00:00Z" },
+      "bsky":  { "id": "b_068", "content": "Has anyone else noticed how good the new iPad keyboard shortcut autocomplete has gotten", "authorId": "frank_id", "createdAt": "2026-05-23T13:00:08Z" },
+      "expectFused": true
+    },
+    {
+      "label": "negative",
+      "note": "Identical content, identical timestamp, but a third bystander's content collides because IDs only have author-uniqueness — must NOT fuse without matching author",
+      "masto": { "id": "m_069", "content": "Calling it for the night — see everyone tomorrow morning at standup", "authorId": "bob_id", "createdAt": "2026-05-23T22:00:00Z" },
+      "bsky":  { "id": "b_069", "content": "Calling it for the night — see everyone tomorrow morning at standup", "authorId": "carol_id", "createdAt": "2026-05-23T22:00:00Z" },
+      "expectFused": false
+    },
+    {
+      "label": "positive",
+      "note": "Identical content with an inline parenthetical — '(also)' interior — must preserve parens through normalization",
+      "masto": { "id": "m_070", "content": "Just realized (also) that the search bar's focus ring was using the wrong color asset for high-contrast mode", "authorId": "frank_id", "createdAt": "2026-05-23T15:00:00Z" },
+      "bsky":  { "id": "b_070", "content": "Just realized (also) that the search bar's focus ring was using the wrong color asset for high-contrast mode", "authorId": "frank_id", "createdAt": "2026-05-23T15:00:08Z" },
+      "expectFused": true
     }
   ]
 }
