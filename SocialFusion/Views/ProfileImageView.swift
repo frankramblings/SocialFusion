@@ -74,6 +74,13 @@ public struct ProfileImageView: View {
             }
         }
         .id(refreshTrigger)  // Force view refresh when trigger changes
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        let name = account.displayName ?? account.username
+        return "Profile picture for \(name), on \(account.platform.accessibilityLabel)"
     }
 }
 
