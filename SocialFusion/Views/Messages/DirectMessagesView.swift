@@ -130,6 +130,10 @@ struct DirectMessagesView: View {
         .font(.title3)
         .fontWeight(.semibold)
         .foregroundColor(.secondary)
+        // Heading trait so VoiceOver's headings rotor lands here on
+        // the empty inbox — same pattern as the Watching and
+        // Notifications empty states (ed63fd6, 638a2d5).
+        .accessibilityAddTraits(.isHeader)
 
       Button {
         viewModel.showNewConversation = true

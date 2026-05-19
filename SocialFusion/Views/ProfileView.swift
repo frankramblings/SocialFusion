@@ -377,6 +377,7 @@ struct ProfileView: View {
         .foregroundColor(.secondary)
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
+        .accessibilityAddTraits(.isHeader)
     } else {
       ForEach(viewModel.currentPosts) { post in
         PostCardView(
@@ -431,6 +432,7 @@ struct ProfileView: View {
         .foregroundColor(.secondary)
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
+        .accessibilityAddTraits(.isHeader)
     } else {
       ProfileMediaGridView(posts: viewModel.currentPosts) { post in
         navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore)
