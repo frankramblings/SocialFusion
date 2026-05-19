@@ -377,6 +377,7 @@ struct FullscreenMediaView: View {
         .onDisappear {
             cleanupPlaybackResources()
         }
+        .modifier(FullscreenMediaKeyboardDismiss(onDismiss: onDismiss))
 
     }
 
@@ -778,6 +779,34 @@ private struct FullscreenVideoPlayerView: View {
             player.seek(to: .zero)
             player.rate = 1.0
             player.play()
+        }
+    }
+}
+
+/// Escape dismisses fullscreen media. Matches Photos.app on the Mac and
+/// the convention iPadOS users expect from any modal viewer — without
+/// this they're stuck reaching for the close button or doing the
+/// swipe-to-dismiss gesture on a trackpad. Cmd+W also dismisses; that's
+/// the "close window" mnemonic and aligns with Safari/Finder.
+private struct FullscreenMediaKeyboardDismiss: ViewModifier {
+    let onDismiss: () -> Void
+
+    func body(content: Content) -> some View {
+        if #available(iOS 17.0, *) {
+            content.onKeyPress { keyPress in
+                if keyPress.key == .escape {
+                    onDismiss()
+                    return .handled
+                }
+                if keyPress.key == KeyEquivalent("w"),
+                   keyPress.modifiers.contains(.command) {
+                    onDismiss()
+                    return .handled
+                }
+                return .ignored
+            }
+        } else {
+            content
         }
     }
 }
