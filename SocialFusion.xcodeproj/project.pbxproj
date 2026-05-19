@@ -277,6 +277,7 @@
 		F1D313E3571C2C375796651F /* ContentSignatureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80E01B2304D900E863BE1C31 /* ContentSignatureTests.swift */; };
 		C7F2A8D45E913B7C0826F1A4 /* FusedMomentDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */; };
 		E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* EchoReplyDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6D /* EchoReplyDispatcher.swift */; };
 		A2D8F3E1C75B4901E682CB47 /* IdentityMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C18AF6D952B374E0C9BA1D45 /* IdentityMatcherTests.swift */; };
 		B9E7C04A2DF1683C7195AE38 /* IdentityMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = D640EB23A1F578C9482EBF61 /* IdentityMatcher.swift */; };
 		F4B81C2D9E5A607382D14CF6 /* MergedIdentityStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E3D851629FB04C8175D2EA /* MergedIdentityStore.swift */; };
@@ -294,6 +295,7 @@
 		D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */; };
 		E1A47B25C9F6803DA51E284C /* EchoPolicyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F8C7D52A14E0F6BD739A2 /* EchoPolicyStore.swift */; };
 		D8F6E2A1B47C3F8519A02E65 /* EchoPolicyStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2D91F84B5E6A1380CDF928 /* EchoPolicyStoreTests.swift */; };
+		A1B2C3D4E5F60718293A4B5E /* EchoReplyDispatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F60718293A4B5C6E /* EchoReplyDispatcherTests.swift */; };
 		B2E9F5C6DA38B7D41F5C9D03 /* FusedConversationViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1F8E4D5C9B27A6C30F4E8B2 /* FusedConversationViewModel.swift */; };
 		D4EB17F8FC5AD9F63B7EBF25 /* FusedConversationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DA06E7EB49C8E52A6DAE14 /* FusedConversationViewModelTests.swift */; };
 		4F5D4D4204674B8682B7CC5B /* FusedConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A82E959958C0497189576461 /* FusedConversationView.swift */; };
@@ -476,6 +478,7 @@
 		80E01B2304D900E863BE1C31 /* ContentSignatureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSignatureTests.swift; sourceTree = "<group>"; };
 		D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentDetectorTests.swift; sourceTree = "<group>"; };
 		F7C3D2A1E0B948F65C2A7D38 /* FusedMomentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentDetector.swift; sourceTree = "<group>"; };
+		B2C3D4E5F60718293A4B5C6D /* EchoReplyDispatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoReplyDispatcher.swift; sourceTree = "<group>"; };
 		C18AF6D952B374E0C9BA1D45 /* IdentityMatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityMatcherTests.swift; sourceTree = "<group>"; };
 		D640EB23A1F578C9482EBF61 /* IdentityMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityMatcher.swift; sourceTree = "<group>"; };
 		A7E3D851629FB04C8175D2EA /* MergedIdentityStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityStore.swift; sourceTree = "<group>"; };
@@ -493,6 +496,7 @@
 		7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStoreTests.swift; sourceTree = "<group>"; };
 		9B3F8C7D52A14E0F6BD739A2 /* EchoPolicyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoPolicyStore.swift; sourceTree = "<group>"; };
 		7C2D91F84B5E6A1380CDF928 /* EchoPolicyStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoPolicyStoreTests.swift; sourceTree = "<group>"; };
+		B2C3D4E5F60718293A4B5C6E /* EchoReplyDispatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoReplyDispatcherTests.swift; sourceTree = "<group>"; };
 		A1F8E4D5C9B27A6C30F4E8B2 /* FusedConversationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedConversationViewModel.swift; sourceTree = "<group>"; };
 		C3DA06E7EB49C8E52A6DAE14 /* FusedConversationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedConversationViewModelTests.swift; sourceTree = "<group>"; };
 		A82E959958C0497189576461 /* FusedConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedConversationView.swift; sourceTree = "<group>"; };
@@ -877,6 +881,7 @@
 				D4B1E3A6F9285C4D71F08B62 /* FusedMomentDetectorTests.swift */,
 				7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */,
 				7C2D91F84B5E6A1380CDF928 /* EchoPolicyStoreTests.swift */,
+				B2C3D4E5F60718293A4B5C6E /* EchoReplyDispatcherTests.swift */,
 				D9F4C28B7A516E03B1DC4E82 /* EchoComposeViewModelTests.swift */,
 				D9F4C28B7A516E03B1DC4E85 /* WatchedConversationStoreTests.swift */,
 				D9F4C28B7A516E03B1DC4E87 /* FuseEndToEndTests.swift */,
@@ -1171,6 +1176,7 @@
 				CB89B60860B8FEE52CC8B7B5 /* CanonicalPostResolver.swift */,
 				FE8AEF3436E829C336FBE0A8 /* ChatStreamProvider.swift */,
 				2B09D157C0EBD0D8D66F7BEF /* ChatStreamService.swift */,
+				B2C3D4E5F60718293A4B5C6D /* EchoReplyDispatcher.swift */,
 				C32820ED8FED8FD37D8F9964 /* EdgeCaseHandler.swift */,
 				5F362CACBB2B62FE4BCC8ADE /* EmojiService.swift */,
 				538483652800B54C0E66D677 /* FollowGraphCache.swift */,
@@ -1518,6 +1524,7 @@
 				C7F2A8D45E913B7C0826F1A4 /* FusedMomentDetectorTests.swift in Sources */,
 				D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */,
 				D8F6E2A1B47C3F8519A02E65 /* EchoPolicyStoreTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5E /* EchoReplyDispatcherTests.swift in Sources */,
 				C5A1B3D49E72F18A3C04B703 /* EchoComposeViewModelTests.swift in Sources */,
 				C5A1B3D49E72F18A3C04B706 /* WatchedConversationStoreTests.swift in Sources */,
 				C5A1B3D49E72F18A3C04B708 /* FuseEndToEndTests.swift in Sources */,
@@ -1602,6 +1609,7 @@
 				B0E3A5D8C270ADDB10D5203B /* ContentSignature.swift in Sources */,
 				A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */,
 				E5A0F2B4C7D816E93A4F5B71 /* FusedMomentDetector.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* EchoReplyDispatcher.swift in Sources */,
 				E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */,
 				E1A47B25C9F6803DA51E284C /* EchoPolicyStore.swift in Sources */,
 				B2E9F5C6DA38B7D41F5C9D03 /* FusedConversationViewModel.swift in Sources */,

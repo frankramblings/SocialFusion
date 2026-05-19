@@ -51,6 +51,12 @@ public final class FusedConversationViewModel: ObservableObject {
 
     @Published public private(set) var moment: FusedMoment
     @Published public private(set) var rootPost: Post?
+    /// Per-platform root posts. Each is populated when that side's thread
+    /// fetch resolves successfully. The reply dispatch path needs both
+    /// (a real `Post` object — Bluesky needs `cid`, Mastodon needs
+    /// `originalURL` for cross-instance resolution).
+    @Published public private(set) var mastodonRootPost: Post?
+    @Published public private(set) var blueskyRootPost: Post?
     @Published public private(set) var replies: [MergedReply] = []
     @Published public private(set) var mastodonStatus: SideStatus = .loading
     @Published public private(set) var blueskyStatus: SideStatus = .loading
@@ -91,6 +97,10 @@ public final class FusedConversationViewModel: ObservableObject {
             let result = try await threadFetcher.fetchThread(
                 postID: postID, platform: platform)
             if rootPost == nil { rootPost = result.root }
+            switch platform {
+            case .mastodon: mastodonRootPost = result.root
+            case .bluesky: blueskyRootPost = result.root
+            }
             mergeAndPublish(result.replies)
             setStatus(.loaded, for: platform)
         } catch {

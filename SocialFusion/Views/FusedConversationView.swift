@@ -3,8 +3,16 @@ import SwiftUI
 public struct FusedConversationView: View {
     @StateObject var viewModel: FusedConversationViewModel
     @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
+    @EnvironmentObject private var serviceManager: SocialServiceManager
     @State private var didLoad = false
     @State private var showingCompose = false
+    /// Platforms that failed in the most recent send. Drives the
+    /// post-send failure alert; empty set means no failure to surface.
+    @State private var lastReplyFailures: Set<SocialPlatform> = []
+    /// The text + target set from the most recent send, kept so the
+    /// "Retry" action in the failure alert can re-dispatch only to the
+    /// failed side(s) without re-sending the already-successful side.
+    @State private var lastReplyContext: (text: String, targets: Set<SocialPlatform>)? = nil
 
     public init(viewModel: FusedConversationViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
@@ -46,13 +54,38 @@ public struct FusedConversationView: View {
                     )
                 ),
                 onSend: { text, targets in
-                    // v1.0: the actual cross-network reply dispatch (sendEchoedReply)
-                    // is implemented in a follow-up commit that knows about each
-                    // service's reply API. For now we log; the composer's UX and
-                    // model are testable on their own.
-                    print("[Echo] would send '\(text)' to \(targets)")
+                    let result = await dispatchEchoedReply(
+                        text: text,
+                        targets: targets
+                    )
+                    lastReplyContext = (text: text, targets: targets)
+                    lastReplyFailures = result.failed
                 }
             )
+        }
+        .alert(
+            replyFailureTitle,
+            isPresented: Binding(
+                get: { !lastReplyFailures.isEmpty },
+                set: { if !$0 { lastReplyFailures = [] } }
+            ),
+            presenting: lastReplyFailures
+        ) { failed in
+            Button("Retry") {
+                guard let ctx = lastReplyContext else { return }
+                Task {
+                    let result = await dispatchEchoedReply(
+                        text: ctx.text,
+                        targets: failed
+                    )
+                    lastReplyFailures = result.failed
+                }
+            }
+            Button("Dismiss", role: .cancel) {
+                lastReplyFailures = []
+            }
+        } message: { failed in
+            Text(replyFailureMessage(for: failed))
         }
         .task {
             guard !didLoad else { return }
@@ -90,6 +123,87 @@ public struct FusedConversationView: View {
                 Task { await viewModel.retry(.bluesky) }
             }
         }
+    }
+
+    /// Dispatches a Fused reply to the requested target platforms.
+    ///
+    /// Looks up the loaded root post and the first account for each
+    /// requested platform. If either is missing (one side hasn't loaded,
+    /// or the user has no account on that platform), that side is
+    /// reported as a failure without invoking the API — the user can
+    /// still see which side didn't go through.
+    private func dispatchEchoedReply(
+        text: String,
+        targets: Set<SocialPlatform>
+    ) async -> EchoReplyResult {
+        let mastoRoot = viewModel.mastodonRootPost
+        let bskyRoot = viewModel.blueskyRootPost
+        let mastoAccount = serviceManager.mastodonAccounts.first
+        let bskyAccount = serviceManager.blueskyAccounts.first
+        let mastoService = serviceManager.mastodonService
+        let bskyService = serviceManager.blueskyService
+
+        // Pre-flight: if a target lacks a loaded root post or an account,
+        // we can't send. Synthesize a failure for that side and exclude
+        // it from the parallel dispatch so we don't call into the
+        // services with bad inputs.
+        var preflightFailures: Set<SocialPlatform> = []
+        var dispatchable = targets
+        if targets.contains(.mastodon), mastoRoot == nil || mastoAccount == nil {
+            preflightFailures.insert(.mastodon)
+            dispatchable.remove(.mastodon)
+        }
+        if targets.contains(.bluesky), bskyRoot == nil || bskyAccount == nil {
+            preflightFailures.insert(.bluesky)
+            dispatchable.remove(.bluesky)
+        }
+
+        let result = await sendEchoedReply(
+            targets: dispatchable,
+            sendToMastodon: { [text] in
+                guard let post = mastoRoot, let account = mastoAccount else {
+                    throw EchoReplyError.missingContext
+                }
+                _ = try await mastoService.replyToPost(
+                    post,
+                    content: text,
+                    account: account
+                )
+            },
+            sendToBluesky: { [text] in
+                guard let post = bskyRoot, let account = bskyAccount else {
+                    throw EchoReplyError.missingContext
+                }
+                _ = try await bskyService.replyToPost(
+                    post,
+                    content: text,
+                    account: account
+                )
+            }
+        )
+
+        return EchoReplyResult(
+            succeeded: result.succeeded,
+            failed: result.failed.union(preflightFailures)
+        )
+    }
+
+    private var replyFailureTitle: String {
+        switch lastReplyFailures.count {
+        case 2: return "Reply didn't go through"
+        case 1:
+            let p = lastReplyFailures.first!
+            return "\(p == .mastodon ? "Mastodon" : "Bluesky") reply didn't go through"
+        default: return "Reply failed"
+        }
+    }
+
+    private func replyFailureMessage(for failed: Set<SocialPlatform>) -> String {
+        let names = failed
+            .sorted { $0.rawValue < $1.rawValue }
+            .map { $0 == .mastodon ? "Mastodon" : "Bluesky" }
+            .joined(separator: " and ")
+        return "Your reply to \(names) couldn't be sent. Tap Retry to try \(failed.count == 2 ? "them" : "it") again."
     }
 
     private func outageBanner(platform: SocialPlatform, message: String, retry: @escaping () -> Void) -> some View {
