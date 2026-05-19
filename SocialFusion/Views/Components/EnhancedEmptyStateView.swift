@@ -196,6 +196,7 @@ struct EnhancedEmptyStateView: View {
                     ProgressView()
                         .scaleEffect(1.2)
                         .tint(state.color)
+                        .accessibilityLabel(state.title)
                 } else {
                     Image(systemName: state.icon)
                         .font(.system(size: 64, weight: .light))
@@ -207,6 +208,8 @@ struct EnhancedEmptyStateView: View {
                                 view
                             }
                         }
+                        // Decorative — title/message below name the state.
+                        .accessibilityHidden(true)
                 }
             }
 
@@ -216,6 +219,7 @@ struct EnhancedEmptyStateView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
                     .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
 
                 Text(state.message)
                     .font(.body)
@@ -224,6 +228,10 @@ struct EnhancedEmptyStateView: View {
                     .padding(.horizontal, 32)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            // Combine the empty-state intro into one VoiceOver swipe so
+            // users hear "Welcome to SocialFusion. Add your first account
+            // …" as a single announcement instead of as two stops.
+            .accessibilityElement(children: .combine)
 
             // System status (if relevant)
             if shouldShowSystemStatus {

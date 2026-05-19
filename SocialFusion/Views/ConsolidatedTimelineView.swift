@@ -20,11 +20,17 @@ struct ConsolidatedTimelineEmptyStateView: View {
             image
                 .font(.system(size: 48))
                 .foregroundColor(.secondary)
+                // Decorative — the title/message below name the state.
+                // VoiceOver would otherwise read SF Symbol names like
+                // "person crop circle badge plus" verbatim before
+                // getting to the actual content.
+                .accessibilityHidden(true)
 
             Text(title)
                 .font(.title2)
                 .fontWeight(.medium)
                 .multilineTextAlignment(.center)
+                .accessibilityAddTraits(.isHeader)
 
             Text(message)
                 .foregroundColor(.secondary)
@@ -42,12 +48,14 @@ struct ConsolidatedTimelineEmptyStateView: View {
                         .cornerRadius(25)
                 }
                 .padding(.top, 8)
+                .accessibilityHint("Opens the add-account flow.")
             } else if let onRetry = onRetry, state != .loading {
                 Button("Retry") {
                     onRetry()
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 8)
+                .accessibilityHint("Retries loading the timeline.")
             }
         }
         .padding()
