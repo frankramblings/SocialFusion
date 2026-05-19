@@ -39,6 +39,10 @@ public struct FusedConversationView: View {
                     // Trailing spinner: replies have started arriving from
                     // one side; the other is still streaming.
                     HStack { Spacer(); ProgressView().padding(); Spacer() }
+                } else if shouldShowEmptyState {
+                    emptyReplyState
+                        .padding(.horizontal)
+                        .padding(.top, 24)
                 }
             }
             .padding(.vertical, 8)
@@ -133,6 +137,34 @@ public struct FusedConversationView: View {
     private var shouldShowSkeleton: Bool {
         guard viewModel.replies.isEmpty else { return false }
         return viewModel.mastodonStatus == .loading || viewModel.blueskyStatus == .loading
+    }
+
+    /// True when both sides finished loading (loaded or failed) and produced
+    /// no replies. We treat "failed on both sides" as outage rather than
+    /// emptiness — the outage banners already speak to that case.
+    private var shouldShowEmptyState: Bool {
+        guard viewModel.replies.isEmpty else { return false }
+        let bothNotLoading = viewModel.mastodonStatus != .loading && viewModel.blueskyStatus != .loading
+        guard bothNotLoading else { return false }
+        // If neither side actually loaded successfully, this is an outage,
+        // not an empty conversation — banners handle it.
+        let anyLoaded = viewModel.mastodonStatus == .loaded || viewModel.blueskyStatus == .loaded
+        return anyLoaded
+    }
+
+    private var emptyReplyState: some View {
+        VStack(spacing: 8) {
+            FusedGlyph(size: 28, bloomOnAppear: false)
+            Text("No replies yet on either side.")
+                .font(.subheadline.weight(.semibold))
+            Text("Be the first to reply — your reply can echo to both networks.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("No replies yet on either Mastodon or Bluesky. Be the first to reply.")
     }
 
     @ViewBuilder
