@@ -363,9 +363,10 @@ struct NotificationRow: View {
                         
                         Spacer()
                         
-                        Text(notification.createdAt, style: .relative)
+                        Text(notification.createdAt.relativeTimeString)
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .monospacedDigit()
                     }
                     
                     if let post = notification.post {
