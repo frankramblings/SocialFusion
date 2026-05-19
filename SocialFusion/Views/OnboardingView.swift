@@ -70,6 +70,11 @@ struct OnboardingView: View {
                 VStack(spacing: 20) {
                     if isOnLastPage {
                         Button(action: {
+                            // The "first account" tap is the user's
+                            // commitment to start using the app — a
+                            // small tap haptic acknowledges the choice
+                            // before the sheet animation takes over.
+                            HapticEngine.tap.trigger()
                             showingAddAccount = true
                         }) {
                             Text("Add Your First Account")
