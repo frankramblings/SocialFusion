@@ -87,9 +87,17 @@ public struct WatchedConversationsView: View {
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                 Spacer()
-                Text(conv.watchedAt, style: .relative)
+                // Match the Twitter-style abbreviated cadence used in
+                // FusedConversationView ("2m", "3h") instead of the
+                // verbose "2 minutes ago" SwiftUI produces by default —
+                // visual consistency with the rest of the app, plus
+                // monospaced digits so the number doesn't shimmer when
+                // it ticks. VoiceOver gets a friendlier expansion via
+                // the combined label below.
+                Text(conv.watchedAt.relativeTimeString)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
             if let preview = conv.summary?.contentPreview, !preview.isEmpty {
                 Text(preview)
@@ -116,9 +124,12 @@ public struct WatchedConversationsView: View {
     private func accessibilityLabel(for conv: WatchedConversation, isFused: Bool) -> String {
         let who = conv.summary?.authorName ?? fallbackTitle(for: conv)
         let scope = isFused ? "Fused conversation" : (conv.platform == .mastodon ? "Mastodon conversation" : "Bluesky conversation")
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        let when = "watched \(formatter.localizedString(for: conv.watchedAt, relativeTo: Date()))"
         if let preview = conv.summary?.contentPreview, !preview.isEmpty {
-            return "\(scope) by \(who): \(preview)"
+            return "\(scope) by \(who): \(preview), \(when)"
         }
-        return "\(scope) by \(who)"
+        return "\(scope) by \(who), \(when)"
     }
 }
