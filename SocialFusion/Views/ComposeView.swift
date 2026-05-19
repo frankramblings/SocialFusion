@@ -895,7 +895,10 @@ struct ComposeView: View {
     // Placeholder text based on context
     private var placeholderText: String {
         if let replyingTo = replyingTo {
-            return "Reply to \(replyingTo.authorName)..."
+            // Decode entities — Mastodon API ships display names with
+            // raw HTML entities, which would render as "Reply to
+            // Frank&#8217;s..." in the empty composer otherwise.
+            return "Reply to \(replyingTo.authorName.decodingHTMLEntities)..."
         }
         return "What's on your mind?"
     }

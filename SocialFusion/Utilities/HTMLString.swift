@@ -291,7 +291,15 @@ public struct EmojiDisplayNameText: View {
         foregroundColor: Color = .primary,
         lineLimit: Int = 1
     ) {
-        self.text = text
+        // Decode HTML entities at the component boundary so every
+        // caller passing a raw Mastodon display name (which can ship
+        // entities like "Frank&#8217;s") gets the cleaned form
+        // automatically. Idempotent — decoding already-clean text is a
+        // no-op. Matches the WatchedConversation.Summary author-name
+        // boundary fix (5b1de35) and the Fused thread fix (366a752),
+        // but at the canonical render component so future callers
+        // don't have to remember.
+        self.text = text.decodingHTMLEntities
         // Convert [String: String] to [String: URL]
         if let map = emojiMap {
             var urlMap: [String: URL] = [:]
