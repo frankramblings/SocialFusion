@@ -345,6 +345,51 @@ final class ComposeAutocompleteLatencyTests: XCTestCase {
         XCTAssertEqual(manager.activeAccount(on: .bluesky)?.id, "bb")
         XCTAssertNil(manager.activeAccount(on: .mastodon))
     }
+
+    // MARK: - Bluesky mention / tag extraction
+
+    /// Bluesky's typed `BlueskyPostRecord` doesn't surface facets, so
+    /// the converter falls back to regex extraction. These tests pin
+    /// the shape PostContent's tinting expects.
+    func testBlueskyExtractMentionsRequiresTLDToMatch() {
+        let mentions = BlueskyService.extractMentions(
+            from: "Hello @alice.bsky.social and @bob, ping @carol.example.com")
+        // @bob lacks a TLD, so it shouldn't match — Bluesky handles
+        // are always dotted. Otherwise emails and stray @-strings
+        // would all be styled as mentions.
+        XCTAssertEqual(Set(mentions), Set(["alice.bsky.social", "carol.example.com"]))
+    }
+
+    func testBlueskyExtractMentionsDedupes() {
+        let mentions = BlueskyService.extractMentions(
+            from: "@same.bsky.social hi @same.bsky.social again")
+        XCTAssertEqual(mentions, ["same.bsky.social"])
+    }
+
+    func testBlueskyExtractTagsAndUnicode() {
+        let tags = BlueskyService.extractTags(
+            from: "Posting about #SwiftUI and #日本 and #café — also #_underscore")
+        // Tags must start with a letter, so `#_underscore` is rejected
+        // (matches Mastodon's convention; Bluesky's facet model would
+        // be the source of truth in a richer pass).
+        XCTAssertEqual(Set(tags), Set(["SwiftUI", "日本", "café"]))
+    }
+
+    func testBlueskyExtractTagsDedupes() {
+        let tags = BlueskyService.extractTags(
+            from: "#swift is fun. #Swift is also fun.")
+        // Case-sensitive — Bluesky preserves casing on the wire, and
+        // PostContent's substring match is also case-sensitive, so
+        // dedup here would mask real distinct surface tags.
+        XCTAssertEqual(Set(tags), Set(["swift", "Swift"]))
+    }
+
+    func testBlueskyExtractorsReturnEmptyOnPlainText() {
+        XCTAssertTrue(
+            BlueskyService.extractMentions(from: "no mentions or tags here").isEmpty)
+        XCTAssertTrue(
+            BlueskyService.extractTags(from: "no mentions or tags here").isEmpty)
+    }
 }
 
 final class PaginationReliabilityTests: XCTestCase {

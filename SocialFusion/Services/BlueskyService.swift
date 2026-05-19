@@ -2444,8 +2444,18 @@ public final class BlueskyService: Sendable {
                 }
             }
         }
-        let mentions: [String] = []  // TODO: Extract mentions from Bluesky post if available
-        let tags: [String] = []  // TODO: Extract tags from Bluesky post if available
+        // Bluesky's typed-record model doesn't surface facets through the
+        // decoded `BlueskyPostRecord` (only `text`, `createdAt`, `reply`),
+        // so a precise facet-based extractor isn't available here. The
+        // post text uses literal `#tag` and `@handle.tld` syntax, so a
+        // regex extraction gets the user-visible styling right without
+        // pulling in a richer model surgery. False positives (e.g. an
+        // email address containing `@`) just pick up the styling — the
+        // tap handlers in PostContent are no-op closures for these
+        // anyway, so no incorrect navigation can result.
+        let postText = post.record.text
+        let mentions = Self.extractMentions(from: postText)
+        let tags = Self.extractTags(from: postText)
         let cid = post.cid  // Use the real cid from BlueskyPost
         let external = post.embed?.external
         var finalContent = post.record.text
@@ -4406,6 +4416,49 @@ public final class BlueskyService: Sendable {
         }
     }
 
+    // MARK: - Mention / Tag extraction
+
+    /// Regex-based extractor for Bluesky `@handle.tld` mentions.
+    /// Bluesky uses full-handle mentions including a TLD, so the
+    /// matcher requires at least one dot to avoid false-matching
+    /// `@foo` strings that aren't actually mentions.
+    /// Returns the handles without the leading `@`, matching the
+    /// shape `PostContent` expects (it prepends `@` when looking
+    /// up substrings).
+    static func extractMentions(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        let pattern = #"@([A-Za-z0-9][A-Za-z0-9._-]*\.[A-Za-z0-9._-]+)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let ns = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        var seen = Set<String>()
+        var result: [String] = []
+        for m in matches where m.numberOfRanges >= 2 {
+            let handle = ns.substring(with: m.range(at: 1))
+            if seen.insert(handle).inserted { result.append(handle) }
+        }
+        return result
+    }
+
+    /// Regex-based extractor for `#hashtag` tokens. Allows Unicode
+    /// letters/digits/`_` (so `#日本` and `#café` survive). Returns
+    /// the tag without the leading `#`, matching `PostContent`'s
+    /// substring expectations.
+    static func extractTags(from text: String) -> [String] {
+        guard !text.isEmpty else { return [] }
+        // \p{L} = unicode letter, \p{N} = unicode digit.
+        let pattern = #"#(\p{L}[\p{L}\p{N}_]*)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return [] }
+        let ns = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        var seen = Set<String>()
+        var result: [String] = []
+        for m in matches where m.numberOfRanges >= 2 {
+            let tag = ns.substring(with: m.range(at: 1))
+            if seen.insert(tag).inserted { result.append(tag) }
+        }
+        return result
+    }
 }
 
 extension URL {
