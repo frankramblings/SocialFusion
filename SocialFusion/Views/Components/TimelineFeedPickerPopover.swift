@@ -328,11 +328,18 @@ struct TimelineFeedPickerPopover: View {
     }
 
     private func select(_ selection: TimelineFeedSelection) {
+        // Selection haptic on feed change — matches the
+        // NavBarPillDropdownRow haptic pattern and the iOS Picker
+        // convention. The dismissal animation is good visual feedback
+        // but the haptic confirms the choice landed before the
+        // animation finishes.
+        HapticEngine.selection.trigger()
         onSelect(selection)
         dismiss()
     }
 
     private func selectInstance(_ server: String, for account: SocialAccount) {
+        HapticEngine.selection.trigger()
         viewModel.recordRecentInstance(server)
         onSelect(.mastodon(accountId: account.id, feed: .instance(server: server)))
         dismiss()
