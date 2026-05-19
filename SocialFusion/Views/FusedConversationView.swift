@@ -88,29 +88,7 @@ public struct FusedConversationView: View {
                     )
                 ),
                 onSend: { text, targets in
-                    let result = await dispatchEchoedReply(
-                        text: text,
-                        targets: targets
-                    )
-                    lastReplyContext = (text: text, targets: targets)
-                    lastReplyFailures = result.failed
-                    // Tactile resolution: success on all targets, warning on
-                    // partial, error when nothing went through. The Echo
-                    // composer pre-warms `.success` on appear so the snap
-                    // here has no perceptible delay.
-                    if result.failed.isEmpty {
-                        HapticEngine.success.trigger()
-                    } else if !result.succeeded.isEmpty {
-                        HapticEngine.warning.trigger()
-                    } else {
-                        HapticEngine.error.trigger()
-                    }
-                    // Any successful side means a new reply is in the
-                    // merged list — bump the scroll trigger so the user
-                    // sees the just-sent reply land.
-                    if !result.succeeded.isEmpty {
-                        scrollToLatestTrigger &+= 1
-                    }
+                    await sendAndResolve(text: text, targets: targets)
                 }
             )
         }
@@ -125,11 +103,7 @@ public struct FusedConversationView: View {
             Button("Retry") {
                 guard let ctx = lastReplyContext else { return }
                 Task {
-                    let result = await dispatchEchoedReply(
-                        text: ctx.text,
-                        targets: failed
-                    )
-                    lastReplyFailures = result.failed
+                    await sendAndResolve(text: ctx.text, targets: failed)
                 }
             }
             Button("Dismiss", role: .cancel) {
@@ -214,6 +188,27 @@ public struct FusedConversationView: View {
             outageBanner(platform: .bluesky, message: msg) {
                 Task { await viewModel.retry(.bluesky) }
             }
+        }
+    }
+
+    /// Single funnel for both the initial send and the failure-alert
+    /// Retry: dispatches, then resolves all post-send side effects
+    /// (haptics, scroll trigger, failure-alert state, retry-context
+    /// bookkeeping) consistently. Keeps initial-send and retry from
+    /// drifting apart on what feels "complete" to the user.
+    private func sendAndResolve(text: String, targets: Set<SocialPlatform>) async {
+        let result = await dispatchEchoedReply(text: text, targets: targets)
+        lastReplyContext = (text: text, targets: targets)
+        lastReplyFailures = result.failed
+        if result.failed.isEmpty {
+            HapticEngine.success.trigger()
+        } else if !result.succeeded.isEmpty {
+            HapticEngine.warning.trigger()
+        } else {
+            HapticEngine.error.trigger()
+        }
+        if !result.succeeded.isEmpty {
+            scrollToLatestTrigger &+= 1
         }
     }
 
