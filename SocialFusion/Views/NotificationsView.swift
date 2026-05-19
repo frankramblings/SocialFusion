@@ -79,7 +79,12 @@ struct NotificationsView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 100)
+                            // Combined element + header trait so the
+                            // empty state lands on the headings rotor
+                            // — matches Watching empty state (ed63fd6)
+                            // and the Fused-conversation caption.
                             .accessibilityElement(children: .combine)
+                            .accessibilityAddTraits(.isHeader)
                         } else {
                             ForEach(filteredNotifications) { notification in
                                 if let post = notification.post {
