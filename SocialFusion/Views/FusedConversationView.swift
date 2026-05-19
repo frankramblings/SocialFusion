@@ -74,6 +74,9 @@ public struct FusedConversationView: View {
                     Image(systemName: "arrowshape.turn.up.left.fill")
                 }
                 .disabled(!canReply)
+                // Cmd+R opens the reply composer — standard iPad/Mac
+                // convention for "reply." Matches Apple Mail and similar.
+                .keyboardShortcut("r", modifiers: .command)
                 .accessibilityLabel(canReply
                     ? "Reply to this Fused conversation"
                     : "Reply unavailable: neither side has loaded yet")
