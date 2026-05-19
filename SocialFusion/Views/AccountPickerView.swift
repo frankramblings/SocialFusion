@@ -148,6 +148,7 @@ struct AccountPickerView: View {
                     Button("Done") {
                         isPresented = false
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                 }
             }
             .sheet(isPresented: $showSettingsView) {
@@ -313,6 +314,7 @@ struct SimpleAddAccountSheet: View {
                     Button("Cancel") {
                         presentationMode.wrappedValue.dismiss()
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                 }
             }
         }

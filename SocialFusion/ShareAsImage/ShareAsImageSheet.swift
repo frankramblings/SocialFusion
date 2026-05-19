@@ -35,6 +35,7 @@ public struct ShareAsImageSheet: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                 }
                 
                 ToolbarItem(placement: .primaryAction) {
