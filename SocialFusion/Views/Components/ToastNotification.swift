@@ -121,6 +121,18 @@ struct ToastNotification: View {
         .cornerRadius(12)
         .shadow(radius: 12)
         .transition(.move(edge: .top).combined(with: .opacity))
+        // Swipe-up to dismiss. Persistent error toasts otherwise have
+        // no escape short of tapping Retry — fine if the user wants to
+        // retry, but a dead end if they've already addressed the issue
+        // some other way. Matches iOS notification-banner conventions.
+        .gesture(
+            DragGesture(minimumDistance: 20)
+                .onEnded { value in
+                    if value.translation.height < -20 {
+                        onDismiss()
+                    }
+                }
+        )
         // `.contain` keeps the Retry button independently focusable;
         // `.combine` previously swallowed it so VoiceOver users heard
         // the error but had no way to act on the retry affordance.
@@ -130,6 +142,11 @@ struct ToastNotification: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel(toast.message)
         .modifier(ToastRetryRotorAction(retry: toast.retry, onDismiss: onDismiss))
+        // VoiceOver users can't perform the swipe-up dismiss gesture
+        // reliably with the screen reader's gesture vocabulary already
+        // occupying that area. Expose Dismiss via the rotor so they
+        // have a path out that isn't tied to acting on the failure.
+        .accessibilityAction(named: "Dismiss", onDismiss)
     }
 
     private var toastBackground: some View {
