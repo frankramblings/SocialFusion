@@ -86,6 +86,17 @@ struct SettingsView: View {
                             Text("\(serviceManager.currentBlockedKeywords.count)")
                                 .foregroundColor(.secondary)
                         }
+                        // Combine the row's title and count so VoiceOver
+                        // hears "Muted Keywords, 7" as a single
+                        // announcement instead of two stops. Pluralizes
+                        // the count for natural reading.
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel({
+                            let n = serviceManager.currentBlockedKeywords.count
+                            return n == 1
+                                ? "Muted Keywords, 1 keyword"
+                                : "Muted Keywords, \(n) keywords"
+                        }())
                     }
 
                     Toggle("Show Sensitive Trending Tags", isOn: $showSensitiveTrending)
