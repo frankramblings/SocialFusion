@@ -2708,7 +2708,10 @@ struct PlatformToggleButton: View {
                     .scaledToFit()
                     .frame(width: 14, height: 14)
 
-                Text(platform.rawValue)
+                // accessibilityLabel returns the properly-cased name
+                // ("Mastodon" / "Bluesky"); rawValue would render
+                // lowercased, which looked like a debug string.
+                Text(platform.accessibilityLabel)
                     .font(.subheadline)
             }
             .padding(.horizontal, 12)
