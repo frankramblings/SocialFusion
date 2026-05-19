@@ -141,6 +141,40 @@ final class FusedConversationViewModelTests: XCTestCase {
         }
     }
 
+    /// Retry contract part 2: if the user dismissed the outage banner
+    /// for a side and then chose to retry that side, the dismissal is
+    /// cleared so a subsequent failure can re-surface the banner.
+    /// Without this clear, a "dismiss → retry → fail again" sequence
+    /// would land in a silent state where the banner never re-appears.
+    func testRetryClearsDismissedFailureBannerForThatPlatform() async {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let fetcher = MutableStubThreadFetcher(
+            mastodonResult: .failure(TestError.boom),
+            blueskyResult: .failure(TestError.boom)
+        )
+
+        let vm = FusedConversationViewModel(
+            moment: FusedMoment(
+                mastodonPostID: "m1",
+                blueskyPostID: "b1",
+                authorIdentityKey: "a",
+                firstSeenAt: base,
+                confidence: 0.9
+            ),
+            threadFetcher: fetcher
+        )
+
+        await vm.load()
+        vm.dismissedFailureBanners.insert(.bluesky)
+        vm.dismissedFailureBanners.insert(.mastodon)
+
+        await vm.retry(.bluesky)
+        XCTAssertFalse(vm.dismissedFailureBanners.contains(.bluesky),
+                       "Retrying Bluesky must clear its dismissal.")
+        XCTAssertTrue(vm.dismissedFailureBanners.contains(.mastodon),
+                      "Retrying Bluesky must not touch Mastodon's dismissal.")
+    }
+
     /// Retry contract: a side that previously failed should re-fetch
     /// and, on success, flip to `.loaded` and merge its replies into
     /// the stream. Pins the recovery path the Fused outage banner's
