@@ -51,6 +51,8 @@ struct AccountsView: View {
                         header: HStack {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.orange)
+                                // Decorative — title text reads the state.
+                                .accessibilityHidden(true)
                             Text("Authentication Required")
                                 .foregroundColor(.orange)
                         }
@@ -374,6 +376,10 @@ struct AccountsView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundColor(.orange)
                     .font(.system(size: 20))
+                    // Decorative — the section header (above) already
+                    // announces "Authentication Required", and the
+                    // guidance text below explains the next step.
+                    .accessibilityHidden(true)
             }
 
             // Guidance text
