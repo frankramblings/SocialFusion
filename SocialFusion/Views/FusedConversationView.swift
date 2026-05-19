@@ -233,6 +233,12 @@ public struct FusedConversationView: View {
 /// Compact rendering of the root post at the top of the conversation.
 /// Intentionally light — not a full `PostCardView` because the conversation
 /// header doesn't need the action bar (replies appear below).
+///
+/// Shows **both** platform badges side-by-side, never just the network whose
+/// thread happened to resolve first. The root of a Fused conversation
+/// belongs to both networks by definition — single-badging it would
+/// silently re-introduce the "Mastodon detail vs. Bluesky detail" framing
+/// the Fuse exists to dissolve.
 private struct RootPostHeader: View {
     let post: Post
 
@@ -243,7 +249,7 @@ private struct RootPostHeader: View {
                 HStack(spacing: 6) {
                     Text(post.authorName)
                         .font(.subheadline.weight(.semibold))
-                    PlatformLogoBadge(platform: post.platform, size: 14)
+                    bothNetworkBadges
                     Spacer(minLength: 0)
                     Text(post.createdAt, style: .relative)
                         .font(.caption2)
@@ -255,6 +261,15 @@ private struct RootPostHeader: View {
         }
         .padding(12)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private var bothNetworkBadges: some View {
+        HStack(spacing: 2) {
+            PlatformLogoBadge(platform: .mastodon, size: 14)
+            PlatformLogoBadge(platform: .bluesky, size: 14)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Posted on both Mastodon and Bluesky")
     }
 
     private var avatar: some View {
