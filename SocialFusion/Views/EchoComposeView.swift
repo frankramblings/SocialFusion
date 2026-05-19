@@ -3,6 +3,7 @@ import SwiftUI
 public struct EchoComposeView: View {
     @StateObject var viewModel: EchoComposeViewModel
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var editorFocused: Bool
     var onSend: (String, Set<SocialPlatform>) async -> Void
 
     public init(
@@ -27,6 +28,13 @@ public struct EchoComposeView: View {
                 // Pre-warm so the tap haptic on Send has no perceptible latency.
                 HapticEngine.prepare(.tap)
                 HapticEngine.prepare(.success)
+                // Auto-focus the editor — matches Mail, Messages, and the
+                // primary compose flow. Without it the user has to tap
+                // twice (open sheet, then tap the text area) before they
+                // can type, which is friction.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    editorFocused = true
+                }
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -80,11 +88,38 @@ public struct EchoComposeView: View {
     }
 
     private var editor: some View {
-        TextEditor(text: $viewModel.text)
-            .frame(minHeight: 120)
-            .padding(8)
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.2)))
-            .accessibilityLabel("Reply text")
+        // TextEditor still has no native placeholder API, so the overlay
+        // mimics one — visible only when the buffer is empty, sits behind
+        // the editor so it can't intercept taps, and dims as soon as
+        // typing begins.
+        ZStack(alignment: .topLeading) {
+            if viewModel.text.isEmpty {
+                Text(editorPlaceholder)
+                    .font(.body)
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 13)
+                    .padding(.vertical, 16)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            TextEditor(text: $viewModel.text)
+                .focused($editorFocused)
+                .frame(minHeight: 120)
+                .padding(8)
+        }
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.secondary.opacity(0.2)))
+        .accessibilityLabel("Reply text")
+    }
+
+    /// Placeholder reflects the active send policy so the empty-state hint
+    /// is coherent with what the Send button actually says it'll do.
+    private var editorPlaceholder: String {
+        switch viewModel.sendStyle {
+        case .dual: return "Reply to both networks…"
+        case .mastodonOnly: return "Reply on Mastodon…"
+        case .blueskyOnly: return "Reply on Bluesky…"
+        case .disabled: return "Pick a network and write your reply…"
+        }
     }
 
     private var charCounts: some View {
