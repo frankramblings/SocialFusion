@@ -277,7 +277,9 @@ struct AccountTimelineView: View {
                         Task {
                             do {
                                 try await serviceManager.reportPost(entry.post)
+                                HapticEngine.success.trigger()
                             } catch {
+                                HapticEngine.error.trigger()
                                 ErrorHandler.shared.handleError(error)
                             }
                         }

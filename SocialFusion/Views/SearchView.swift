@@ -648,7 +648,9 @@ struct SearchView: View {
         Task {
             do {
                 try await serviceManager.reportPost(post)
+                HapticEngine.success.trigger()
             } catch {
+                HapticEngine.error.trigger()
                 ErrorHandler.shared.handleError(error)
             }
         }

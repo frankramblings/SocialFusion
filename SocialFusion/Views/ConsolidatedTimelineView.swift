@@ -1081,8 +1081,14 @@ struct ConsolidatedTimelineView: View {
         Task {
             do {
                 try await serviceManager.reportPost(post, reason: reason)
+                // Reporting is a deliberate moderation action — success
+                // haptic confirms the report landed. The sheet has
+                // already dismissed by this point, so the haptic is the
+                // only feedback the user gets.
+                HapticEngine.success.trigger()
                 DebugLog.verbose("✅ Successfully reported post")
             } catch {
+                HapticEngine.error.trigger()
                 DebugLog.verbose("❌ Failed to report post: \(error.localizedDescription)")
             }
             reportingPost = nil
