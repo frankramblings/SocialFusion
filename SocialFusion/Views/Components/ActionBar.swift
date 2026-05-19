@@ -202,7 +202,11 @@ struct ActionBar: View {
                 watchedConversationStore.watch(WatchedConversation(
                     rootPostID: post.id,
                     platform: post.platform,
-                    fusedMomentID: moment?.id
+                    fusedMomentID: moment?.id,
+                    summary: WatchedConversation.Summary(
+                        authorName: post.authorName,
+                        contentPreview: post.content
+                    )
                 ))
                 // Starting a watch is a commitment ("ping me on either
                 // network"), worth the success notification. Unwatch is
@@ -375,7 +379,11 @@ struct ActionBarV2: View {
                 watchedConversationStore.watch(WatchedConversation(
                     rootPostID: post.id,
                     platform: post.platform,
-                    fusedMomentID: moment?.id
+                    fusedMomentID: moment?.id,
+                    summary: WatchedConversation.Summary(
+                        authorName: post.authorName,
+                        contentPreview: post.content
+                    )
                 ))
                 // Starting a watch is a commitment ("ping me on either
                 // network"), worth the success notification. Unwatch is

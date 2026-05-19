@@ -35,32 +35,64 @@ public struct WatchedConversationsView: View {
 
     private var listContent: some View {
         List(store.allWatched()) { conv in
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 8) {
-                    if let momentID = conv.fusedMomentID,
-                       fusedMomentStore.moments[momentID] != nil {
-                        FusedGlyph(size: 16)
-                    } else {
-                        PlatformLogoBadge(platform: conv.platform, size: 16)
+            row(for: conv)
+                .swipeActions {
+                    Button(role: .destructive) {
+                        store.unwatch(rootPostID: conv.rootPostID)
+                        HapticEngine.selection.trigger()
+                    } label: {
+                        Label("Unwatch", systemImage: "bell.slash")
                     }
-                    Text(conv.rootPostID)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Text(conv.watchedAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
+        }
+    }
+
+    @ViewBuilder
+    private func row(for conv: WatchedConversation) -> some View {
+        let isFused = conv.fusedMomentID.flatMap { fusedMomentStore.moments[$0] } != nil
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                if isFused {
+                    FusedGlyph(size: 16)
+                } else {
+                    PlatformLogoBadge(platform: conv.platform, size: 16)
+                }
+                Text(conv.summary?.authorName ?? fallbackTitle(for: conv))
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Spacer()
+                Text(conv.watchedAt, style: .relative)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
             }
-            .padding(.vertical, 4)
-            .swipeActions {
-                Button(role: .destructive) {
-                    store.unwatch(rootPostID: conv.rootPostID)
-                } label: {
-                    Label("Unwatch", systemImage: "bell.slash")
-                }
+            if let preview = conv.summary?.contentPreview, !preview.isEmpty {
+                Text(preview)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
         }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel(for: conv, isFused: isFused))
+    }
+
+    /// Fallback title used when an older watched record was persisted before
+    /// `summary` existed. Still useful — communicates the network — but the
+    /// author name is preferred when present.
+    private func fallbackTitle(for conv: WatchedConversation) -> String {
+        switch conv.platform {
+        case .mastodon: return "Conversation on Mastodon"
+        case .bluesky: return "Conversation on Bluesky"
+        }
+    }
+
+    private func accessibilityLabel(for conv: WatchedConversation, isFused: Bool) -> String {
+        let who = conv.summary?.authorName ?? fallbackTitle(for: conv)
+        let scope = isFused ? "Fused conversation" : (conv.platform == .mastodon ? "Mastodon conversation" : "Bluesky conversation")
+        if let preview = conv.summary?.contentPreview, !preview.isEmpty {
+            return "\(scope) by \(who): \(preview)"
+        }
+        return "\(scope) by \(who)"
     }
 }
