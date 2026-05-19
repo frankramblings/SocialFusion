@@ -114,6 +114,14 @@ struct OnboardingView: View {
     }
 
     private func advanceToNextPage() {
+        // Selection haptic on Next/Continue so the page transition has
+        // tactile feedback — paired with the visual page-dot advance.
+        // Matches the haptic vocabulary already used on the Echo Policy
+        // page's Continue button. Suppressed on the last page since the
+        // call there is a no-op (the button there does the real action).
+        if currentPage < totalPageCount - 1 {
+            HapticEngine.selection.trigger()
+        }
         withAnimation {
             if currentPage < totalPageCount - 1 {
                 currentPage += 1
