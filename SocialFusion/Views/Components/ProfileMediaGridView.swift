@@ -19,9 +19,33 @@ struct ProfileMediaGridView: View {
               .aspectRatio(1, contentMode: .fill)
               .clipped()
           }
+          .accessibilityLabel(accessibilityLabel(for: firstMedia, post: post))
+          .accessibilityHint("Opens the post.")
         }
       }
     }
+  }
+
+  /// Composed label: alt text when available (most informative), media-type
+  /// fallback otherwise. Includes the post excerpt so VoiceOver users get
+  /// context for the visual content they can't see.
+  private func accessibilityLabel(for attachment: Post.Attachment, post: Post) -> String {
+    var parts: [String] = []
+    if let alt = attachment.altText, !alt.isEmpty {
+      parts.append(alt)
+    } else {
+      switch attachment.type {
+      case .video:                    parts.append("Video")
+      case .gifv, .animatedGIF:       parts.append("Animated image")
+      case .image:                    parts.append("Image")
+      case .audio:                    parts.append("Audio")
+      }
+    }
+    let excerpt = post.content.trimmingCharacters(in: .whitespacesAndNewlines)
+    if !excerpt.isEmpty {
+      parts.append("from post: \"\(excerpt.prefix(100))\"")
+    }
+    return parts.joined(separator: ", ")
   }
 
   // MARK: - Helpers
