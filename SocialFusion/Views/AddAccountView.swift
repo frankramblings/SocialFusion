@@ -524,6 +524,8 @@ struct PlatformButton: View {
             }
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityLabel("Choose \(platform.accessibilityLabel)")
+        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
     // Get platform color for a specific platform
