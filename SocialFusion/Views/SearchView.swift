@@ -19,6 +19,7 @@ private struct SearchStoreWrapper<Content: View>: View {
 
 struct SearchView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @EnvironmentObject var fusedMomentStore: FusedMomentStore
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
 
@@ -347,8 +348,8 @@ struct SearchView: View {
             postActionStore: serviceManager.postActionStore,
             postActionCoordinator: serviceManager.postActionCoordinator,
             layoutSnapshot: nil, // No snapshot for search results
-            onPostTap: { navigationEnvironment.navigateToPost(post) },
-            onParentPostTap: { parentPost in navigationEnvironment.navigateToPost(parentPost) },
+            onPostTap: { navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore) },
+            onParentPostTap: { parentPost in navigationEnvironment.navigateToPostFusedAware(parentPost, fusedMomentStore: fusedMomentStore) },
             onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
             onReply: {
                 replyingToPost = post.originalPost ?? post
@@ -616,7 +617,7 @@ struct SearchView: View {
         case .profile(let user):
             navigationEnvironment.navigateToUser(from: user)
         case .post(let post):
-            navigationEnvironment.navigateToPost(post)
+            navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore)
         case .tag(let tag):
             navigationEnvironment.navigateToTag(tag)
         }

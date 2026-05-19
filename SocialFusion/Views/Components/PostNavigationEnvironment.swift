@@ -49,6 +49,23 @@ class PostNavigationEnvironment: ObservableObject {
         }
     }
 
+    /// Fused-aware tap routing: if the tapped post participates in a known
+    /// `FusedMoment`, open the unified conversation view; otherwise fall back
+    /// to the per-network post detail. The spec ("Move 2 — Unified
+    /// conversation view") requires this everywhere a Fused post can be
+    /// tapped, not just in the home timeline — Profile and Search were
+    /// dropping users into the per-network detail for Fused posts before this
+    /// helper existed.
+    @MainActor
+    func navigateToPostFusedAware(_ post: Post, fusedMomentStore: FusedMomentStore) {
+        let candidate = post.originalPost ?? post
+        if let moment = fusedMomentStore.moment(for: candidate.id) {
+            navigateToFusedConversation(moment)
+        } else {
+            navigateToPost(post)
+        }
+    }
+
     /// Navigate to the unified Fused conversation view for a given moment.
     /// Used by the timeline when the tapped post participates in a known
     /// `FusedMoment` (see `FusedMomentStore`). Non-Fused posts continue to

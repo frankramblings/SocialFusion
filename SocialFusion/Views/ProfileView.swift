@@ -7,6 +7,7 @@ import SwiftUI
 struct ProfileView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @EnvironmentObject var mergedIdentityStore: MergedIdentityStore
+  @EnvironmentObject var fusedMomentStore: FusedMomentStore
   @StateObject private var viewModel: ProfileViewModel
   @StateObject private var navigationEnvironment = PostNavigationEnvironment()
   @State private var relationshipViewModel: RelationshipViewModel?
@@ -386,7 +387,7 @@ struct ProfileView: View {
             createdAt: post.createdAt
           ),
           postActionStore: serviceManager.postActionStore,
-          onPostTap: { navigationEnvironment.navigateToPost(post) },
+          onPostTap: { navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore) },
           onAuthorTap: { navigationEnvironment.navigateToUser(from: post) },
           onReply: {
             replyingToPost = post.isReposted ? (post.originalPost ?? post) : post
@@ -432,7 +433,7 @@ struct ProfileView: View {
         .padding(.top, 40)
     } else {
       ProfileMediaGridView(posts: viewModel.currentPosts) { post in
-        navigationEnvironment.navigateToPost(post)
+        navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore)
       }
       .padding(.top, 2)
 
