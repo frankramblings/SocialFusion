@@ -178,6 +178,7 @@ struct FetchQuotePostView: View {
     @State private var terminalReason: QuotePostUnavailableView.Reason? = nil
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
+    @EnvironmentObject private var fusedMomentStore: FusedMomentStore
     @Environment(\.colorScheme) private var colorScheme
 
     private let maxRetries = 2
@@ -278,8 +279,13 @@ struct FetchQuotePostView: View {
             DebugLog.verbose("🔗 [FetchQuotePostView] Using provided onQuotePostTap callback")
             onQuotePostTap(post)
         } else {
-            DebugLog.verbose("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPost")
-            navigationEnvironment.navigateToPost(post)
+            // Fused-aware: if this quoted post participates in a known
+            // FusedMoment, open the unified conversation view rather
+            // than the per-network detail. Same rule as ProfileView and
+            // SearchView (3828b0c) — closes the last surface where a
+            // tap on a Fused post could land on the per-network detail.
+            DebugLog.verbose("🔗 [FetchQuotePostView] Using navigationEnvironment.navigateToPostFusedAware")
+            navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore)
         }
     }
 
