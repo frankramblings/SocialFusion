@@ -47,6 +47,7 @@ public struct ManualMergeSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
+                        .keyboardShortcut(.escape, modifiers: [])
                 }
             }
             .alert(

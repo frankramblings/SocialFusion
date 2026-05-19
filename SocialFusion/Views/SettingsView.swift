@@ -496,7 +496,8 @@ struct AboutView: View {
             .navigationBarItems(
                 trailing: Button("Done") {
                     dismiss()
-                })
+                }
+                .keyboardShortcut(.escape, modifiers: []))
         }
     }
 }

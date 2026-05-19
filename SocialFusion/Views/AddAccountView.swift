@@ -198,6 +198,7 @@ struct AddAccountView: View {
                             dismiss()
                         }
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
             )
             .alert(isPresented: $showError) {
                 Alert(

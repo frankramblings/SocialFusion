@@ -77,6 +77,7 @@ struct ConversationSettingsView: View {
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
           Button("Done") { dismiss() }
+            .keyboardShortcut(.escape, modifiers: [])
         }
       }
       .alert("Leave Conversation", isPresented: $showLeaveConfirm) {
