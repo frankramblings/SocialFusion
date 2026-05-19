@@ -83,7 +83,7 @@ struct PostAuthorImageView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(authorName.isEmpty
             ? "\(platform.accessibilityLabel) avatar"
-            : "\(platform.accessibilityLabel) avatar for \(authorName)")
+            : "\(platform.accessibilityLabel) avatar for \(authorName.decodingHTMLEntities)")
     }
 
     // Computed property for initials background (like Twitter, Instagram, etc.)

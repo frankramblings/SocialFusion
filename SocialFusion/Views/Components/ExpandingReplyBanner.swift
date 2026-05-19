@@ -126,11 +126,15 @@ struct ExpandingReplyBanner: View {
     private var displayUsername: String {
         // Priority 1: Use the real display name from the fetched parent post if available
         if let parent = parent {
-            // Use display name (real name) if available and not empty
+            // Use display name (real name) if available and not empty.
+            // Decode HTML entities — Mastodon API ships display names
+            // with raw entities like "Frank&#8217;s"; the banner is
+            // rendered with plain SwiftUI Text, not via
+            // EmojiDisplayNameText, so it needs its own decode pass.
             if !parent.authorName.isEmpty && parent.authorName != "unknown"
                 && parent.authorName != "Loading..." && !parent.isPlaceholder
             {
-                return parent.authorName
+                return parent.authorName.decodingHTMLEntities
             }
             // Use username without @ symbol if display name not available
             if !parent.authorUsername.isEmpty && parent.authorUsername != "unknown.bsky.social"
@@ -149,7 +153,7 @@ struct ExpandingReplyBanner: View {
                 if !cachedParent.authorName.isEmpty && cachedParent.authorName != "unknown"
                     && cachedParent.authorName != "Loading..." && !cachedParent.isPlaceholder
                 {
-                    return cachedParent.authorName
+                    return cachedParent.authorName.decodingHTMLEntities
                 }
                 if !cachedParent.authorUsername.isEmpty
                     && cachedParent.authorUsername != "unknown.bsky.social"
