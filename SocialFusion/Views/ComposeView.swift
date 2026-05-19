@@ -1081,6 +1081,7 @@ struct ComposeView: View {
                                 VStack(spacing: 8) {
                                     Image(systemName: "exclamationmark.triangle")
                                         .foregroundColor(.orange)
+                                        .accessibilityHidden(true)
                                     Text("Network unavailable")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
@@ -1092,6 +1093,7 @@ struct ComposeView: View {
                                 .background(Color(UIColor.secondarySystemBackground))
                                 .cornerRadius(8)
                                 .frame(maxWidth: 200)
+                                .accessibilityElement(children: .combine)
                             } else {
                                 // Show empty state - token detected but no suggestions yet
                                 // This handles the case immediately after typing @ or #

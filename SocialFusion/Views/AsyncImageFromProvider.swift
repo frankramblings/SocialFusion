@@ -29,6 +29,7 @@ struct AsyncImageFromProvider: View {
                             Image(systemName: "exclamationmark.triangle")
                                 .font(.largeTitle)
                                 .foregroundColor(.gray)
+                                .accessibilityHidden(true)
 
                             if let errorMessage = errorMessage {
                                 Text(errorMessage)
@@ -39,13 +40,20 @@ struct AsyncImageFromProvider: View {
                             }
                         }
                     )
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(
+                        errorMessage.map { "Image failed to load. \($0)" }
+                            ?? "Image failed to load"
+                    )
             } else {
                 Color.gray.opacity(0.1)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.largeTitle)
                             .foregroundColor(.gray)
+                            .accessibilityHidden(true)
                     )
+                    .accessibilityLabel("Image placeholder")
             }
         }
         .onAppear {
