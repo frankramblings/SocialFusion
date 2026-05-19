@@ -48,6 +48,11 @@ public struct MergeConfirmationSheet: View {
             Text("Looks like the same person")
                 .font(.title2.weight(.semibold))
                 .multilineTextAlignment(.center)
+                // Section heading so VoiceOver's headings rotor lands
+                // on the sheet's title — matches the rotor-anchor
+                // pattern applied across the app's other landing
+                // surfaces (af05798 → 666153e).
+                .accessibilityAddTraits(.isHeader)
             Text("Confirm to view both profiles as one.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
