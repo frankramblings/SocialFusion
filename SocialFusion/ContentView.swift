@@ -433,20 +433,28 @@ struct ContentView: View {
 
             if serviceManager.accounts.isEmpty {
                 Text("No Accounts Added").font(.title3).fontWeight(.medium)
-                Button("Add Account") { showAddAccountView = true }
-                    .buttonStyle(.borderedProminent)
+                Button("Add Account") {
+                    HapticEngine.tap.trigger()
+                    showAddAccountView = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             } else {
                 Text("No Account Selected").font(.title3).fontWeight(.medium)
-                Button("Select Account") { showAccountPicker = true }
-                    .buttonStyle(.borderedProminent)
-                    .sheet(isPresented: $showAccountPicker) {
-                        AccountPickerSheet(
-                            selectedAccountId: $selectedAccountId,
-                            previousAccountId: $previousAccountId,
-                            isPresented: $showAccountPicker,
-                            onSelectAccount: { switchToAccount(id: $0) }
-                        )
-                    }
+                Button("Select Account") {
+                    HapticEngine.tap.trigger()
+                    showAccountPicker = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .sheet(isPresented: $showAccountPicker) {
+                    AccountPickerSheet(
+                        selectedAccountId: $selectedAccountId,
+                        previousAccountId: $previousAccountId,
+                        isPresented: $showAccountPicker,
+                        onSelectAccount: { switchToAccount(id: $0) }
+                    )
+                }
             }
         }
     }
