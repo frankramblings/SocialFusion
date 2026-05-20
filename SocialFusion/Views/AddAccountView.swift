@@ -285,6 +285,8 @@ struct AddAccountView: View {
                 _ = try await serviceManager.addMastodonAccountWithOAuth(
                     credentials: credentials)
 
+                let welcomeName = "@\(credentials.username)"
+
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
                     self.isLoading = false
@@ -298,6 +300,10 @@ struct AddAccountView: View {
 
                     // Notify about the account change
                     NotificationCenter.default.post(name: .accountUpdated, object: nil)
+
+                    // Welcome toast — confirms the account is signed in
+                    // by name, after the sheet dismisses.
+                    ToastManager.shared.show("Welcome, \(welcomeName)", severity: .success, duration: 1.8)
                 }
 
             } catch {
@@ -332,10 +338,12 @@ struct AddAccountView: View {
 
                 // No need to create a URL here, the manager will handle it
                 // Use the SocialServiceManager to add the Bluesky account
-                _ = try await serviceManager.addBlueskyAccount(
+                let addedAccount = try await serviceManager.addBlueskyAccount(
                     username: username,
                     password: password
                 )
+
+                let welcomeName = "@\(addedAccount.username)"
 
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
@@ -350,6 +358,10 @@ struct AddAccountView: View {
 
                     // Notify about the account change
                     NotificationCenter.default.post(name: .accountUpdated, object: nil)
+
+                    // Welcome toast — confirms the account is signed in
+                    // by name, after the sheet dismisses.
+                    ToastManager.shared.show("Welcome, \(welcomeName)", severity: .success, duration: 1.8)
                 }
 
             } catch {
