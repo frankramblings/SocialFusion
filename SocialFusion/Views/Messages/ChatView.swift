@@ -497,6 +497,10 @@ struct ChatView: View {
       .frame(maxWidth: .infinity)
   }
 
+  private var navAvatarInitial: String {
+    String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased()
+  }
+
   @ViewBuilder
   private var navAvatar: some View {
     Group {
@@ -507,7 +511,13 @@ struct ChatView: View {
         CachedAsyncImage(url: url, priority: .high) { image in
           image.resizable().aspectRatio(contentMode: .fill)
         } placeholder: {
-          Circle().fill(Color(.systemGray5))
+          Circle()
+            .fill(Color(.systemGray5))
+            .overlay(
+              Text(navAvatarInitial)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(.systemGray))
+            )
         }
         .frame(width: 28, height: 28)
         .clipShape(Circle())
