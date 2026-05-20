@@ -248,15 +248,49 @@ public struct ShareAsImageSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Show")
                 .font(.headline)
-            
+
             // Dynamic toggles based on whether sharing a post or reply
             if viewModel.isReply {
                 // Reply: Show both toggles
-                Toggle("Earlier replies", isOn: $viewModel.includeEarlier)
-                Toggle("Later replies", isOn: $viewModel.includeLater)
+                Toggle(isOn: $viewModel.includeEarlier) {
+                    Label {
+                        Text("Earlier replies")
+                    } icon: {
+                        Image(systemName: "arrow.up.message")
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
+                .onChange(of: viewModel.includeEarlier) { _, _ in
+                    HapticEngine.selection.trigger()
+                }
+
+                Toggle(isOn: $viewModel.includeLater) {
+                    Label {
+                        Text("Later replies")
+                    } icon: {
+                        Image(systemName: "arrow.down.message")
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
+                .onChange(of: viewModel.includeLater) { _, _ in
+                    HapticEngine.selection.trigger()
+                }
             } else {
                 // Post: Only show "Later replies" (labeled as "Replies" for both networks)
-                Toggle("Replies", isOn: $viewModel.includeLater)
+                Toggle(isOn: $viewModel.includeLater) {
+                    Label {
+                        Text("Replies")
+                    } icon: {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
+                .onChange(of: viewModel.includeLater) { _, _ in
+                    HapticEngine.selection.trigger()
+                }
             }
         }
     }
