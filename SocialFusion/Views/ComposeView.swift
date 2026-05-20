@@ -1136,8 +1136,10 @@ struct ComposeView: View {
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(12)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color(UIColor.secondarySystemBackground))
+                                )
                                 .frame(maxWidth: 200)
                             } else {
                                 // Show empty state - token detected but no suggestions yet
@@ -1145,16 +1147,19 @@ struct ComposeView: View {
                                 VStack(spacing: 8) {
                                     ProgressView()
                                         .scaleEffect(0.8)
-                                    Text("Loading suggestions...")
-                                        .font(.caption)
+                                    Text("Loading suggestions")
+                                        .font(.caption.weight(.medium))
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(UIColor.systemBackground))
-                                        .shadow(
-                                            color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                        .fill(.regularMaterial)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                                        )
+                                        .shadow(color: .black.opacity(0.16), radius: 10, x: 0, y: 4)
                                 )
                                 .frame(maxWidth: 200)
                             }
