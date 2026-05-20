@@ -5,6 +5,7 @@ import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
@@ -86,7 +87,7 @@ struct SettingsView: View {
                                 .foregroundColor(.secondary)
                                 .monospacedDigit()
                                 .contentTransition(.numericText(value: Double(serviceManager.currentBlockedKeywords.count)))
-                                .animation(.easeOut(duration: 0.2), value: serviceManager.currentBlockedKeywords.count)
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: serviceManager.currentBlockedKeywords.count)
                         }
                     }
 
@@ -223,7 +224,7 @@ struct SettingsView: View {
                                 // Cache size morphs as bytes change after
                                 // a clear — smooth the digit transition.
                                 .contentTransition(.numericText())
-                                .animation(.easeOut(duration: 0.25), value: totalCacheSize)
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: totalCacheSize)
                         }
                     }
                     .onAppear {
