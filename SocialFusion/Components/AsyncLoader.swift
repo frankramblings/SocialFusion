@@ -48,8 +48,8 @@ struct AsyncLoader<T, Content: View, EmptyContent: View>: View {
             )
         ) {
             Alert(
-                title: Text("Error"),
-                message: Text(error?.localizedDescription ?? "An unknown error occurred"),
+                title: Text("Something Went Wrong"),
+                message: Text(error?.localizedDescription ?? "Please try again in a moment."),
                 dismissButton: .default(Text("OK"))
             )
         }

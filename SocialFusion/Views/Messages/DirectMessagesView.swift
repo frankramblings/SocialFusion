@@ -82,7 +82,7 @@ struct DirectMessagesView: View {
     .onReceive(chatStreamService.$recentEvents) { events in
       viewModel.handleStreamEvents(events, serviceManager: serviceManager)
     }
-    .alert("Error", isPresented: Binding(
+    .alert("Couldn't Load Messages", isPresented: Binding(
       get: { viewModel.errorMessage != nil },
       set: { if !$0 { viewModel.errorMessage = nil } }
     )) {

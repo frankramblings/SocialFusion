@@ -167,7 +167,7 @@ struct NewConversationView: View {
           ChatView(conversation: conversation)
         }
       }
-      .alert("Error", isPresented: Binding(
+      .alert("Couldn't Start Conversation", isPresented: Binding(
         get: { errorMessage != nil },
         set: { if !$0 { errorMessage = nil } }
       )) {

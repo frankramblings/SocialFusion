@@ -143,7 +143,7 @@ struct ChatView: View {
       }
       .environmentObject(serviceManager)
     }
-    .alert("Error", isPresented: Binding(
+    .alert("Something Went Wrong", isPresented: Binding(
       get: { errorMessage != nil },
       set: { if !$0 { errorMessage = nil } }
     )) {
