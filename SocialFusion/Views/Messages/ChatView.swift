@@ -63,7 +63,7 @@ struct ChatView: View {
 
           if !matchingMessageIds.isEmpty {
             Text("\(currentMatchIndex + 1) of \(matchingMessageIds.count)")
-              .font(.caption.weight(.medium))
+              .font(.caption.weight(.medium).monospacedDigit())
               .foregroundColor(.secondary)
               .fixedSize()
               .contentTransition(.numericText(value: Double(currentMatchIndex)))

@@ -73,7 +73,7 @@ private struct ReactionPill: View {
           .font(.caption)
         if reaction.count > 1 {
           Text("\(reaction.count)")
-            .font(.caption2.weight(.semibold))
+            .font(.caption2.weight(.semibold).monospacedDigit())
             .foregroundColor(isFromMe ? .white : .primary.opacity(0.75))
             .contentTransition(.numericText(value: Double(reaction.count)))
             .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.82), value: reaction.count)

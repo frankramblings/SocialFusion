@@ -26,7 +26,13 @@ struct RollingNumberView: View {
   var body: some View {
     if value > 0 {
       Text(formattedValue)
-        .font(font)
+        // monospacedDigit() keeps digit columns the same width as
+        // they tick from 9→10→11, so action-bar counts don't jiggle
+        // sideways during the .numericText morph. Same beat Ivory
+        // uses on its action-bar counters — it reads as the number
+        // smoothly *changing* rather than the surrounding layout
+        // shifting.
+        .font(font.monospacedDigit())
         .foregroundColor(color)
         .contentTransition(.numericText(value: Double(value)))
         .animation(
