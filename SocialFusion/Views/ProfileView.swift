@@ -304,10 +304,7 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
-      Text("No posts yet")
-        .foregroundColor(.secondary)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
+      tabEmptyState(symbol: "doc.text", title: "No posts yet")
     } else {
       ForEach(viewModel.currentPosts) { post in
         PostCardView(
@@ -356,10 +353,7 @@ struct ProfileView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
-      Text("No media yet")
-        .foregroundColor(.secondary)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
+      tabEmptyState(symbol: "photo.on.rectangle.angled", title: "No media yet")
     } else {
       ProfileMediaGridView(posts: viewModel.currentPosts) { post in
         navigationEnvironment.navigateToPost(post)
@@ -425,6 +419,39 @@ struct ProfileView: View {
       .padding(.bottom, 16)
     }
     .redacted(reason: .placeholder)
+  }
+
+  // MARK: - Tab Empty State
+
+  /// Compact empty state shared between the Posts / Replies / Media tabs.
+  /// Matches the tinted-halo language used elsewhere but at a smaller scale
+  /// since it lives inside an already-tall profile surface.
+  @ViewBuilder
+  private func tabEmptyState(symbol: String, title: String) -> some View {
+    VStack(spacing: 10) {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [Color.secondary.opacity(0.18), Color.secondary.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 50
+            )
+          )
+          .frame(width: 100, height: 100)
+        Image(systemName: symbol)
+          .font(.system(size: 30, weight: .light))
+          .foregroundStyle(Color.secondary.gradient)
+          .symbolRenderingMode(.hierarchical)
+      }
+      Text(title)
+        .font(.subheadline.weight(.medium))
+        .foregroundColor(.secondary)
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 36)
+    .accessibilityElement(children: .combine)
   }
 
   // MARK: - Profile Error View
