@@ -33,25 +33,32 @@ enum HapticEngine {
     func trigger() {
         switch self {
         case .tap:
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            Generators.lightImpact.impactOccurred()
+            Generators.lightImpact.prepare()  // keep warm for the next call
 
         case .selection:
-            UISelectionFeedbackGenerator().selectionChanged()
+            Generators.selection.selectionChanged()
+            Generators.selection.prepare()
 
         case .success:
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            Generators.notification.notificationOccurred(.success)
+            Generators.notification.prepare()
 
         case .warning:
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            Generators.notification.notificationOccurred(.warning)
+            Generators.notification.prepare()
 
         case .error:
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            Generators.notification.notificationOccurred(.error)
+            Generators.notification.prepare()
 
         case .refreshComplete(let hasNewContent):
             if hasNewContent {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                Generators.notification.notificationOccurred(.success)
+                Generators.notification.prepare()
             } else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Generators.lightImpact.impactOccurred()
+                Generators.lightImpact.prepare()
             }
         }
     }
@@ -61,13 +68,25 @@ enum HapticEngine {
     static func prepare(_ pattern: HapticEngine) {
         switch pattern {
         case .tap:
-            UIImpactFeedbackGenerator(style: .light).prepare()
+            Generators.lightImpact.prepare()
 
         case .selection:
-            UISelectionFeedbackGenerator().prepare()
+            Generators.selection.prepare()
 
         case .success, .warning, .error, .refreshComplete:
-            UINotificationFeedbackGenerator().prepare()
+            Generators.notification.prepare()
         }
     }
+}
+
+/// Long-lived generator instances. iOS optimizes haptic engine warm-up only
+/// when the generator is retained across calls — previously every trigger
+/// allocated a fresh generator, so `prepare()` was effectively a no-op
+/// (the prepared instance was released before the next call could use it).
+/// Holding singletons cuts first-haptic latency noticeably, especially
+/// after the app has been idle.
+private enum Generators {
+    static let lightImpact = UIImpactFeedbackGenerator(style: .light)
+    static let selection = UISelectionFeedbackGenerator()
+    static let notification = UINotificationFeedbackGenerator()
 }
