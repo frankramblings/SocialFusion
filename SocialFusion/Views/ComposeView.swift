@@ -79,7 +79,7 @@ struct ReplyContextHeader: View {
                                 .scaledToFill()
                         } placeholder: {
                             Circle()
-                                .fill(Color.gray.opacity(0.3))
+                                .fill(Color(.systemGray5))
                                 .overlay(
                                     ProgressView()
                                         .scaleEffect(0.6)
@@ -1192,17 +1192,22 @@ struct ComposeView: View {
     @ViewBuilder
     private var threadPaginationSection: some View {
         if threadPosts.count > 1 {
-            HStack {
+            HStack(spacing: 6) {
                 ForEach(0..<threadPosts.count, id: \.self) { index in
-                    Circle()
-                        .fill(
-                            index == activePostIndex
-                                ? platformColor : Color.gray.opacity(0.3)
-                        )
-                        .frame(width: 8, height: 8)
+                    // Active page renders as an elongated pill (matching the
+                    // FullscreenMediaView page dots), inactive as a small dot.
+                    // Spring animation so taps glide between pages.
+                    let isActive = index == activePostIndex
+                    Capsule(style: .continuous)
+                        .fill(isActive ? AnyShapeStyle(platformColor) : AnyShapeStyle(Color.secondary.opacity(0.3)))
+                        .frame(width: isActive ? 18 : 7, height: 7)
                         .onTapGesture {
+                            HapticEngine.selection.trigger()
                             activePostIndex = index
                         }
+                        .accessibilityLabel("Thread post \(index + 1) of \(threadPosts.count)")
+                        .accessibilityAddTraits(isActive ? .isSelected : [])
+                        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isActive)
                 }
 
                 Spacer()

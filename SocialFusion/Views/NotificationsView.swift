@@ -350,7 +350,7 @@ struct NotificationRow: View {
                                 image.resizable()
                                     .aspectRatio(contentMode: .fill)
                             } placeholder: {
-                                Circle().fill(Color.gray.opacity(0.3))
+                                Circle().fill(Color(.systemGray5))
                                     .overlay(
                                         ProgressView()
                                             .scaleEffect(0.5)
@@ -359,7 +359,7 @@ struct NotificationRow: View {
                             .frame(width: 32, height: 32)
                             .clipShape(Circle())
                         } else {
-                            Circle().fill(Color.gray.opacity(0.3))
+                            Circle().fill(Color(.systemGray5))
                                 .frame(width: 32, height: 32)
                         }
 
