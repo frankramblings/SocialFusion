@@ -174,7 +174,28 @@ struct AudioPlayerView: View {
                 isDragging = editing
             }
             .accentColor(.primary)
+            .accessibilityLabel("Playback position")
+            .accessibilityValue(playbackPositionAccessibility)
         }
+    }
+
+    /// VoiceOver value for the playback slider — 'N minutes M seconds
+    /// of total' rather than the raw 0-1 percentage Slider would say
+    /// by default.
+    private var playbackPositionAccessibility: String {
+        let current = Int(currentTime)
+        let total = Int(duration)
+        return "\(formatSeconds(current)) of \(formatSeconds(total))"
+    }
+
+    private func formatSeconds(_ totalSeconds: Int) -> String {
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        let minutePart = "\(minutes) minute\(minutes == 1 ? "" : "s")"
+        let secondPart = "\(seconds) second\(seconds == 1 ? "" : "s")"
+        if minutes == 0 { return secondPart }
+        if seconds == 0 { return minutePart }
+        return "\(minutePart) \(secondPart)"
     }
 
     private var controlsView: some View {
