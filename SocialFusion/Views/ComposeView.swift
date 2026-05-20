@@ -722,6 +722,7 @@ struct ComposeView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Reply and quote context
     let replyingTo: Post?
@@ -1244,7 +1245,13 @@ struct ComposeView: View {
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(.regularMaterial)
+                                        // Same Reduce Transparency fallback
+                                        // as AutocompleteOverlay (3a785f4) —
+                                        // the loading tooltip floats over the
+                                        // composer and keyboard.
+                                        .fill(reduceTransparency
+                                              ? AnyShapeStyle(Color(.secondarySystemBackground))
+                                              : AnyShapeStyle(.regularMaterial))
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 12, style: .continuous)
                                                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
@@ -1949,7 +1956,12 @@ struct ComposeView: View {
                             .padding(24)
                             .background(
                                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(.regularMaterial)
+                                    // Solid fallback for Reduce Transparency
+                                    // so the "Posting…" card stays opaque
+                                    // against the dimmed compose backdrop.
+                                    .fill(reduceTransparency
+                                          ? AnyShapeStyle(Color(.secondarySystemBackground))
+                                          : AnyShapeStyle(.regularMaterial))
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                                             .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
