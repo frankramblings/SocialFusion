@@ -93,16 +93,39 @@ struct TagDetailView: View {
                     }
                     .padding(.top, 40)
                 } else if posts.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "tray")
-                            .font(.system(size: 36, weight: .light))
-                            .foregroundStyle(Color.secondary.gradient)
-                            .symbolRenderingMode(.hierarchical)
-                        Text("No posts yet")
-                            .font(.subheadline.weight(.medium))
-                            .foregroundColor(.secondary)
+                    VStack(spacing: 14) {
+                        // Tinted-halo composition matching other empty
+                        // states across the app.
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [Color.accentColor.opacity(0.14), Color.accentColor.opacity(0.0)],
+                                        center: .center,
+                                        startRadius: 4,
+                                        endRadius: 60
+                                    )
+                                )
+                                .frame(width: 120, height: 120)
+                            Image(systemName: "tray")
+                                .font(.system(size: 36, weight: .light))
+                                .foregroundStyle(Color.accentColor.gradient)
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                        VStack(spacing: 6) {
+                            Text("No posts yet")
+                                .font(.title3.weight(.semibold))
+                                .foregroundColor(.primary.opacity(0.85))
+                            Text("Be the first — try this hashtag from your timeline.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .padding(.top, 40)
+                    .accessibilityElement(children: .combine)
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(posts) { post in
