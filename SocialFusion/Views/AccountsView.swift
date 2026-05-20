@@ -536,8 +536,9 @@ struct AccountRow: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 14))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
         .sheet(isPresented: $showingAccountDetails) {

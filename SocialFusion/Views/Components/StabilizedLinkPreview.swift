@@ -543,8 +543,9 @@ private struct StabilizedLinkCompactContentView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.secondary.opacity(0.5))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(10)
             .background(
@@ -608,8 +609,9 @@ private struct StabilizedLinkFallbackView: View {
                 Spacer()
 
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.secondary.opacity(0.6))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(10)
             .background(
