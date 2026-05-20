@@ -4,7 +4,7 @@ import PhotosUI
 struct SystemImagePicker: UIViewControllerRepresentable {
     @Binding var selectedImages: [UIImage]
     let maxSelection: Int
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var configuration = PHPickerConfiguration()
@@ -30,7 +30,7 @@ struct SystemImagePicker: UIViewControllerRepresentable {
         }
 
         func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
-            parent.presentationMode.wrappedValue.dismiss()
+            parent.dismiss()
             
             for result in results {
                 if result.itemProvider.canLoadObject(ofClass: UIImage.self) {

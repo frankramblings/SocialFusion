@@ -124,7 +124,7 @@ struct SafariAuthView: UIViewControllerRepresentable {
     let onComplete: (URL) -> Void
     let onCancel: () -> Void
 
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     class Coordinator: NSObject, SFSafariViewControllerDelegate {
         let parent: SafariAuthView
@@ -134,7 +134,7 @@ struct SafariAuthView: UIViewControllerRepresentable {
         }
 
         func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-            parent.presentationMode.wrappedValue.dismiss()
+            parent.dismiss()
             parent.onCancel()
         }
     }
@@ -151,7 +151,7 @@ struct SafariAuthView: UIViewControllerRepresentable {
             queue: .main
         ) { notification in
             if let url = notification.object as? URL {
-                self.presentationMode.wrappedValue.dismiss()
+                self.dismiss()
                 self.onComplete(url)
             }
         }
