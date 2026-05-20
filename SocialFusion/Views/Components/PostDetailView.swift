@@ -77,6 +77,8 @@ struct PostDetailView: View {
     @State private var selectedAndBelowHeight: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Thread scroll position keys
     private let selectedPostScrollID = "selected-post"
@@ -582,8 +584,8 @@ struct PostDetailView: View {
                             }
                         }
                         .scaleEffect(canSendInlineReply ? 1.0 : 0.92)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.78), value: canSendInlineReply)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isSendingQuickReply)
+                        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: canSendInlineReply)
+                        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: isSendingQuickReply)
                         // 36pt visible, 44pt hit area — same recipe as
                         // the chat send button and other primary
                         // affordances in the app.
@@ -593,11 +595,19 @@ struct PostDetailView: View {
                     .buttonStyle(.plain)
                     .disabled(!canSendInlineReply || isSendingQuickReply)
                     .accessibilityLabel(isSendingQuickReply ? "Sending reply" : "Send reply")
-                    .accessibilityLabel(isSendingQuickReply ? "Sending reply" : "Send reply")
+                    .accessibilityHint(canSendInlineReply
+                                       ? "Posts your reply"
+                                       : "Add text or stay under the character limit to enable")
                 }
             }
             .padding(12)
-            .background(.ultraThinMaterial)
+            // Solid container fallback for Reduce Transparency. The
+            // quick-reply card floats over the timeline, so without
+            // this users with the setting on see post text bleed
+            // through.
+            .background(reduceTransparency
+                        ? AnyShapeStyle(Color(.secondarySystemBackground))
+                        : AnyShapeStyle(.ultraThinMaterial))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
             .padding(.horizontal, 12)
@@ -862,7 +872,7 @@ struct PostDetailView: View {
         if prefill && inlineReplyText.isEmpty {
             inlineReplyText = "@\(targetPost.authorUsername) "
         }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
             isQuickReplyActive = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -1027,7 +1037,7 @@ struct PostDetailView: View {
             scrollTrigger += 1
 
             // Finally reveal the view
-            withAnimation(.easeIn(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeIn(duration: 0.2)) {
                 isInitialPositioned = true
             }
             hasScrolledToSelectedPost = true
@@ -1078,7 +1088,7 @@ struct PostDetailView: View {
         scrollOffset = offset
         let shouldShow = offset < -120 && !parentPosts.isEmpty
         if showParentIndicator != shouldShow {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 showParentIndicator = shouldShow
             }
         }
