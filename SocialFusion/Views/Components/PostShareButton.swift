@@ -58,8 +58,9 @@ struct PostShareButton: View {
             }, perform: {}
         )
         .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel(showConfirmation ? "Shared" : "Share post")
-        .accessibilityHint("Opens share options")
+        .accessibilityLabel("Share")
+        .accessibilityValue(showConfirmation ? "Shared" : "")
+        .accessibilityHint(showConfirmation ? "" : "Opens share options for this post")
     }
 }
 
