@@ -248,7 +248,8 @@ struct FullscreenMediaView: View {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
-                                    .padding(10)
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(GlassyButtonStyle())
                             .accessibilityLabel("Close fullscreen viewer")

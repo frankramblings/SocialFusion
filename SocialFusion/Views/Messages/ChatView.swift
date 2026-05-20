@@ -118,6 +118,7 @@ struct ChatView: View {
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
+          HapticEngine.selection.trigger()
           withAnimation { isSearching.toggle() }
           if !isSearching {
             searchText = ""
@@ -126,15 +127,19 @@ struct ChatView: View {
         } label: {
           Image(systemName: isSearching ? "xmark" : "magnifyingglass")
             .foregroundColor(.secondary)
+            .contentTransition(.symbolEffect(.replace))
         }
+        .accessibilityLabel(isSearching ? "Close search" : "Search messages")
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
+          HapticEngine.tap.trigger()
           showSettings = true
         } label: {
           Image(systemName: "info.circle")
             .foregroundColor(.secondary)
         }
+        .accessibilityLabel("Conversation settings")
       }
     }
     .sheet(isPresented: $showSettings) {
