@@ -167,21 +167,24 @@ class ErrorHandler {
         )
     }
 
-    /// Get an appropriate title for error alerts based on error type
+    /// Get an appropriate title for error alerts based on error type.
+    /// Voice: warm noun phrases (Apple HIG: avoid "Error" as a generic
+    /// title — it tells the user nothing more than the alert presentation
+    /// already conveys).
     func errorTitle(for type: AppErrorType) -> String {
         switch type {
         case .network:
-            return "Connection Error"
+            return "Connection Trouble"
         case .authentication:
-            return "Authentication Error"
+            return "Sign-In Problem"
         case .data:
-            return "Data Error"
+            return "Couldn't Load That"
         case .permission:
-            return "Permission Required"
+            return "Permission Needed"
         case .account:
-            return "Account Error"
+            return "Account Issue"
         case .general:
-            return "Error"
+            return "Something Went Wrong"
         }
     }
 
