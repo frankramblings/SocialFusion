@@ -24,17 +24,34 @@ final class ToastManager: ObservableObject {
 
 struct ToastNotification: View {
     let toast: ToastManager.Toast
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Text(toast.message)
             .font(.footnote.weight(.semibold))
-            .foregroundColor(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.black.opacity(0.85))
-            .cornerRadius(12)
-            .shadow(radius: 12)
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .foregroundColor(.primary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        // Hairline border picks up the system tint subtly
+                        Capsule()
+                            .strokeBorder(
+                                Color.primary.opacity(colorScheme == .dark ? 0.12 : 0.06),
+                                lineWidth: 0.5
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.18), radius: 14, x: 0, y: 6)
+                    .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
+            )
+            .transition(
+                .asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.92, anchor: .top)),
+                    removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
+                )
+            )
             .accessibilityLabel(toast.message)
     }
 }
@@ -44,18 +61,17 @@ struct ToastHostModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .overlay(
-                Group {
-                    if let toast = toastManager.currentToast {
-                        VStack {
-                            ToastNotification(toast: toast)
-                                .padding(.top, 12)
-                            Spacer()
+            .overlay(alignment: .top) {
+                if let toast = toastManager.currentToast {
+                    ToastNotification(toast: toast)
+                        .padding(.top, 14)
+                        .id(toast.id)
+                        .transaction { t in
+                            t.animation = .spring(response: 0.42, dampingFraction: 0.78)
                         }
-                        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: toastManager.currentToast)
-                    }
                 }
-            )
+            }
+            .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toastManager.currentToast)
     }
 }
 

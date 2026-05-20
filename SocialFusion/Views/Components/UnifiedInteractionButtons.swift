@@ -14,6 +14,90 @@ struct ShakeEffect: GeometryEffect {
   }
 }
 
+// MARK: - Heart Burst Particle
+
+/// A single particle in the heart-burst effect that radiates outward when liking a post.
+/// Each particle has its own angle, distance, scale, and opacity curve to feel organic.
+private struct HeartBurstParticle: View {
+  let angle: Double
+  let distance: CGFloat
+  let scale: CGFloat
+  let color: Color
+  let symbol: String
+  let progress: CGFloat  // 0 -> 1
+
+  var body: some View {
+    // Custom easing: fast out, slow in, fade at the end
+    let eased = 1 - pow(1 - progress, 2.4)
+    let x = cos(angle * .pi / 180) * distance * eased
+    let y = sin(angle * .pi / 180) * distance * eased
+    // Particles grow quickly, then settle
+    let currentScale = scale * (progress < 0.3
+      ? (progress / 0.3) * 1.2
+      : 1.0 + (1 - progress) * 0.15)
+    // Opacity ramps up fast, fades smoothly
+    let opacity: Double = progress < 0.15
+      ? Double(progress / 0.15)
+      : Double(1.0 - max(0, (progress - 0.55) / 0.45))
+
+    Image(systemName: symbol)
+      .font(.system(size: 7, weight: .bold))
+      .foregroundColor(color)
+      .scaleEffect(currentScale)
+      .opacity(opacity)
+      .offset(x: x, y: y)
+  }
+}
+
+/// A burst of hearts radiating from a center point.
+/// Uses TimelineView for buttery-smooth particle animation independent of view updates.
+private struct HeartBurstView: View {
+  let color: Color
+  let startDate: Date
+  let duration: Double = 0.7
+
+  // 8 particles at varying angles, distances, and sizes for an organic feel
+  private let particles: [(angle: Double, distance: CGFloat, scale: CGFloat, symbol: String)] = [
+    (angle:  -90, distance: 28, scale: 1.0,  symbol: "heart.fill"),
+    (angle:  -50, distance: 24, scale: 0.85, symbol: "heart.fill"),
+    (angle:  -10, distance: 30, scale: 1.0,  symbol: "heart.fill"),
+    (angle:   30, distance: 24, scale: 0.8,  symbol: "heart.fill"),
+    (angle:   90, distance: 26, scale: 0.9,  symbol: "heart.fill"),
+    (angle:  130, distance: 22, scale: 0.75, symbol: "heart.fill"),
+    (angle:  170, distance: 28, scale: 0.95, symbol: "heart.fill"),
+    (angle: -130, distance: 24, scale: 0.8,  symbol: "heart.fill"),
+  ]
+
+  var body: some View {
+    TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
+      let elapsed = context.date.timeIntervalSince(startDate)
+      let progress = CGFloat(min(max(elapsed / duration, 0), 1))
+
+      ZStack {
+        // Radial ring flash — a single white-hot pulse that fades immediately
+        Circle()
+          .stroke(color.opacity(0.6), lineWidth: 2)
+          .frame(width: 8 + progress * 36, height: 8 + progress * 36)
+          .opacity(progress < 0.5 ? Double(1.0 - progress * 2) : 0)
+          .blur(radius: progress * 1.5)
+
+        ForEach(0..<particles.count, id: \.self) { i in
+          let p = particles[i]
+          HeartBurstParticle(
+            angle: p.angle,
+            distance: p.distance,
+            scale: p.scale,
+            color: color,
+            symbol: p.symbol,
+            progress: progress
+          )
+        }
+      }
+      .allowsHitTesting(false)
+    }
+  }
+}
+
 // MARK: - Unified Like Button
 
 struct UnifiedLikeButton: View {
@@ -26,6 +110,7 @@ struct UnifiedLikeButton: View {
   @State private var isPressed = false
   @State private var errorShake = false
   @State private var animateLike = false
+  @State private var burstStart: Date? = nil
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var likeColor: Color {
@@ -44,6 +129,15 @@ struct UnifiedLikeButton: View {
         HapticEngine.tap.trigger()
 
         if !reduceMotion {
+          // Trigger particle burst
+          burstStart = Date()
+          // Auto-clear after burst completes
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            if let start = burstStart, Date().timeIntervalSince(start) >= 0.7 {
+              burstStart = nil
+            }
+          }
+
           withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.5)) {
             animateLike = true
           }
@@ -58,14 +152,23 @@ struct UnifiedLikeButton: View {
       Task { await onTap() }
     } label: {
       HStack(spacing: 4) {
-        Image(systemName: isLiked ? "heart.fill" : "heart")
-          .font(.system(size: 18))
-          .foregroundColor(isLiked ? likeColor : .secondary)
-          .scaleEffect(animateLike ? 1.3 : (isLiked ? 1.05 : 1.0))
-          .animation(
-            reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
-            value: isLiked
-          )
+        ZStack {
+          // Particle burst overlays the heart without affecting layout
+          if let start = burstStart, !reduceMotion {
+            HeartBurstView(color: likeColor, startDate: start)
+              .frame(width: 1, height: 1)
+              .allowsHitTesting(false)
+          }
+
+          Image(systemName: isLiked ? "heart.fill" : "heart")
+            .font(.system(size: 18))
+            .foregroundColor(isLiked ? likeColor : .secondary)
+            .scaleEffect(animateLike ? 1.35 : (isLiked ? 1.05 : 1.0))
+            .animation(
+              reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.6, blendDuration: 0.05),
+              value: isLiked
+            )
+        }
 
         RollingNumberView(count, font: .caption, color: isLiked ? likeColor : .secondary)
       }
