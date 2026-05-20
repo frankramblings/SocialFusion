@@ -65,6 +65,9 @@ struct MutedKeywordsView: View {
             }
         }
         .navigationTitle("Muted Keywords")
+        // Drop the keyboard when the user scrolls the list — same
+        // convention as the search lists.
+        .scrollDismissesKeyboard(.immediately)
         .onAppear {
             keywords = serviceManager.currentBlockedKeywords
         }
