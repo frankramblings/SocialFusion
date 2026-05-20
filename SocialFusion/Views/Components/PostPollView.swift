@@ -10,6 +10,8 @@ struct PostPollView: View {
     @State private var hasVoted: Bool
     @State private var showsResultsOverride: Bool = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     init(poll: Post.Poll, allowsVoting: Bool = false, onVote: @escaping ([Int]) -> Void) {
         self.poll = poll
         self.allowsVoting = allowsVoting
@@ -62,7 +64,7 @@ struct PostPollView: View {
                 Button {
                     HapticEngine.success.trigger()
                     let choices = Array(selectedOptions).sorted()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) {
                         onVote(choices)
                         hasVoted = true
                     }
@@ -96,7 +98,7 @@ struct PostPollView: View {
             if !hasVoted && !poll.expired {
                 Button {
                     HapticEngine.tap.trigger()
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) {
                         showsResultsOverride.toggle()
                     }
                 } label: {
@@ -165,6 +167,8 @@ private struct PollOptionView: View {
     let allowsMultiple: Bool
     let onTap: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var percentage: Double {
         guard let votesCount = option.votesCount, totalVotes > 0 else { return 0 }
         return Double(votesCount) / Double(totalVotes)
@@ -199,7 +203,7 @@ private struct PollOptionView: View {
                                 .font(.subheadline.weight(.semibold).monospacedDigit())
                                 .foregroundColor(isSelected ? .accentColor : .secondary)
                                 .contentTransition(.numericText(value: percentage))
-                                .animation(.easeOut(duration: 0.5), value: percentage)
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.5), value: percentage)
                                 .transition(.opacity)
                         }
                     }
@@ -223,7 +227,7 @@ private struct PollOptionView: View {
                                     width: max(0, geometry.size.width * CGFloat(displayedPercentage)),
                                     height: 8
                                 )
-                                .animation(.spring(response: 0.6, dampingFraction: 0.82), value: displayedPercentage)
+                                .animation(reduceMotion ? nil : .spring(response: 0.6, dampingFraction: 0.82), value: displayedPercentage)
                         }
                     }
                     .frame(height: 8)
@@ -239,7 +243,7 @@ private struct PollOptionView: View {
                     .strokeBorder(selectionBorder, lineWidth: isVoted && isSelected ? 1.5 : 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isSelected)
+            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85), value: isSelected)
         }
         .buttonStyle(PollOptionPressStyle())
         .disabled(isVoted || !isInteractive)

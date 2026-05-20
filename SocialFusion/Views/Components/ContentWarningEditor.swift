@@ -5,6 +5,8 @@ struct ContentWarningEditor: View {
   @Binding var cwEnabled: Bool
   @Binding var cwText: String
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   private let cwPresets = ["Spoilers", "Politics", "NSFW", "Violence", "Food"]
 
   var body: some View {
@@ -25,7 +27,7 @@ struct ContentWarningEditor: View {
 
           Button {
             HapticEngine.tap.trigger()
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
               cwEnabled = false
               cwText = ""
             }
@@ -83,7 +85,7 @@ struct ContentWarningEditor: View {
     let isActive = cwText == preset
     Button {
       HapticEngine.selection.trigger()
-      withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+      withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82)) {
         cwText = isActive ? "" : preset
       }
     } label: {
