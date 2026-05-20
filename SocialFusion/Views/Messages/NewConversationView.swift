@@ -135,6 +135,9 @@ struct NewConversationView: View {
         }
       }
       .searchable(text: $searchText, prompt: "Search people...")
+      // Drop the keyboard the moment the list scrolls — feels right
+      // when the user is browsing results, no need to keep typing space.
+      .scrollDismissesKeyboard(.immediately)
       .onChange(of: searchText) { _, newValue in
         searchTask?.cancel()
         guard newValue.count >= 2 else {

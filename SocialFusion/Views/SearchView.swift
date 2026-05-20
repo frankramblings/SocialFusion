@@ -141,6 +141,7 @@ struct SearchView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.immediately)
         .onSubmit(of: .search) {
             HapticEngine.tap.trigger()
             searchStore?.performSearch()
