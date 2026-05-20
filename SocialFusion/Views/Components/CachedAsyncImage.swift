@@ -427,8 +427,13 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
         if hasError && retryCount >= maxRetries {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.caption2)
-                .foregroundColor(.orange)
-                .background(Circle().fill(Color.white).frame(width: 16, height: 16))
+                .foregroundStyle(Color.orange.gradient)
+                .symbolRenderingMode(.hierarchical)
+                .background(
+                    // System background so the badge doesn't render as a
+                    // bright white dot on dark thumbnails.
+                    Circle().fill(Color(.systemBackground)).frame(width: 16, height: 16)
+                )
                 .offset(x: 6, y: 6)
         }
     }
