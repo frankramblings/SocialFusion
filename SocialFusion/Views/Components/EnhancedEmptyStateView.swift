@@ -107,8 +107,14 @@ struct EnhancedEmptyStateView: View {
             case .rateLimited(let retryAfter):
                 if let retryAfter = retryAfter {
                     let minutes = Int(retryAfter / 60)
+                    let waitPhrase: String
+                    if minutes > 0 {
+                        waitPhrase = "\(minutes) minute\(minutes == 1 ? "" : "s")"
+                    } else {
+                        waitPhrase = "a moment"
+                    }
                     return
-                        "You've made too many requests. Please wait \(minutes > 0 ? "\(minutes) minutes" : "a moment") before trying again."
+                        "You've made too many requests. Please wait \(waitPhrase) before trying again."
                 } else {
                     return "You've made too many requests. Please wait before trying again."
                 }
