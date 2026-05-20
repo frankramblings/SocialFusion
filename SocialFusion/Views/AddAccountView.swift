@@ -137,14 +137,16 @@ struct AddAccountView: View {
             .navigationBarBackButtonHidden(true)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .navigationBarItems(
-                leading:
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         if !preserveFormState {
                             dismiss()
                         }
                     }
-            )
+                }
+            }
             .alert(isPresented: $showError) {
                 Alert(
                     title: Text("Couldn't Add Account"),
