@@ -278,9 +278,11 @@ struct AccountsView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 4)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(UIColor.secondarySystemBackground))
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
         .padding(.vertical, 4)
     }
 

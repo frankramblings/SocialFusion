@@ -1680,18 +1680,20 @@ struct ComposeView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(height: 200)
-                            .cornerRadius(8)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .padding()
                         }
 
                         TextField(
-                            "Description for the visually impaired...", text: $currentAltText,
+                            "Describe the image for screen readers", text: $currentAltText,
                             axis: .vertical
                         )
                         .lineLimit(3...10)
                         .padding()
-                        .background(Color(UIColor.secondarySystemBackground))
-                        .cornerRadius(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(UIColor.secondarySystemBackground))
+                        )
                         .padding(.horizontal)
 
                         Spacer()
