@@ -255,20 +255,6 @@ public class PostViewModel: ObservableObject {
         }
     }
 
-    /// Report the post
-    public func reportPost(reason: String? = nil) async {
-        guard !isLoading else { return }
-        isLoading = true
-        error = nil
-        do {
-            try await serviceManager.reportPost(post, reason: reason)
-            isLoading = false
-        } catch {
-            self.error = error
-            isLoading = false
-        }
-    }
-
     // MARK: - Private Helpers
 
     /// Process post actions using proper intent pattern

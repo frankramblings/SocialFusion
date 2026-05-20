@@ -749,9 +749,7 @@ struct PostDetailView: View {
         case .shareSheet:
             viewModel.post.presentShareSheet()
         case .report:
-            Task {
-                await viewModel.reportPost()
-            }
+            viewModel.post.report(via: serviceManager)
         @unknown default:
             break
         }
