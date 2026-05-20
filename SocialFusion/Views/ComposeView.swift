@@ -1405,6 +1405,7 @@ struct ComposeView: View {
                                 .scaledToFill()
                                 .frame(width: 100, height: 100)
                                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .accessibilityLabel("Image \(index + 1) of \(threadPosts[activePostIndex].images.count)")
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                                         .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)

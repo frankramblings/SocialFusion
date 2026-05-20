@@ -574,6 +574,7 @@ struct EditProfileView: View {
                   .scaledToFill()
                   .frame(width: 100, height: 100)
                   .clipShape(Circle())
+                  .accessibilityLabel("Selected new profile image")
               } else {
                 ProfileImageView(account: account)
                   .frame(width: 100, height: 100)
