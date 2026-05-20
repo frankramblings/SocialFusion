@@ -118,7 +118,7 @@ struct DMConversationRow: View {
         .overlay(
           Text(String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased())
             .font(.title3.bold())
-            .foregroundColor(.gray)
+            .foregroundColor(Color(.systemGray))
         )
     }
   }

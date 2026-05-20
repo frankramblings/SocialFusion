@@ -396,7 +396,7 @@ private struct StabilizedLinkRichContentView: View {
                     let title = passedTitle ?? metadata?.title
                     if let title = title, !title.isEmpty, title != url.host {
                         Text(title)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                             .lineLimit(2)
                             .foregroundColor(.primary)
                             .multilineTextAlignment(.leading)
@@ -406,7 +406,7 @@ private struct StabilizedLinkRichContentView: View {
                     let description = passedDescription ?? metadata.flatMap { extractDescription(from: $0) }
                     if let description = description, !description.isEmpty {
                         Text(description)
-                            .font(.system(size: 13))
+                            .font(.footnote)
                             .lineLimit(2)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.leading)
@@ -414,9 +414,9 @@ private struct StabilizedLinkRichContentView: View {
 
                     HStack(spacing: 4) {
                         Image(systemName: "link")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                         Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                            .font(.system(size: 12))
+                            .font(.caption)
                     }
                     .foregroundColor(.secondary)
                     .padding(.top, 2)
@@ -530,12 +530,12 @@ private struct StabilizedLinkCompactContentView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     let title = passedTitle ?? metadata.title ?? url.host ?? "Link"
                     Text(title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .lineLimit(1)
                         .foregroundColor(.primary)
 
                     Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "External Link")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -597,11 +597,11 @@ private struct StabilizedLinkFallbackView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(.primary)
 
                     Text("External Link")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
