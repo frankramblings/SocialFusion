@@ -118,15 +118,7 @@ struct TagDetailView: View {
                                 onShare: { post.presentShareSheet() },
                                 onOpenInBrowser: { post.openInBrowser() },
                                 onCopyLink: { post.copyLink() },
-                                onReport: {
-                                    Task {
-                                        do {
-                                            try await serviceManager.reportPost(post)
-                                        } catch {
-                                            ErrorHandler.shared.handleError(error)
-                                        }
-                                    }
-                                }
+                                onReport: { post.report(via: serviceManager) }
                             )
                             Divider().padding(.horizontal)
                         }

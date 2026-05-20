@@ -1115,15 +1115,8 @@ struct ConsolidatedTimelineView: View {
 
     private func report(reason: String) {
         guard let post = reportingPost else { return }
-        Task {
-            do {
-                try await serviceManager.reportPost(post, reason: reason)
-                DebugLog.verbose("✅ Successfully reported post")
-            } catch {
-                DebugLog.verbose("❌ Failed to report post: \(error.localizedDescription)")
-            }
-            reportingPost = nil
-        }
+        post.report(via: serviceManager, reason: reason)
+        reportingPost = nil
     }
 
     /// Count of new posts above viewport

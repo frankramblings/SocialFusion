@@ -289,15 +289,7 @@ struct AccountTimelineView: View {
                     onShare: { entry.post.presentShareSheet() },
                     onOpenInBrowser: { entry.post.openInBrowser() },
                     onCopyLink: { entry.post.copyLink() },
-                    onReport: {
-                        Task {
-                            do {
-                                try await serviceManager.reportPost(entry.post)
-                            } catch {
-                                ErrorHandler.shared.handleError(error)
-                            }
-                        }
-                    }
+                    onReport: { entry.post.report(via: serviceManager) }
                 )
                 .id(entry.id)
                 .background(

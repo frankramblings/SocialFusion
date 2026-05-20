@@ -31,4 +31,27 @@ extension Post {
     func openAuthorProfile(openURL: OpenURLAction? = nil) {
         PostSystemActions.openAuthorProfile(self, openURL: openURL)
     }
+
+    /// Reports the post via the service manager with consistent feedback.
+    /// Centralizes haptic + toast feedback for the five UI sites that
+    /// otherwise fire-and-forget the report Task. Without this wrapper,
+    /// users got no visible confirmation that the report went through,
+    /// which is exactly the wrong feel for a serious moderation action.
+    func report(via serviceManager: SocialServiceManager, reason: String? = nil) {
+        Task {
+            do {
+                try await serviceManager.reportPost(self, reason: reason)
+                await MainActor.run {
+                    HapticEngine.success.trigger()
+                    ToastManager.shared.show("Report sent", severity: .success, duration: 1.6)
+                }
+            } catch {
+                await MainActor.run {
+                    HapticEngine.error.trigger()
+                    ToastManager.shared.show("Couldn't send report", severity: .error, duration: 2.0)
+                }
+                ErrorHandler.shared.handleError(error)
+            }
+        }
+    }
 }

@@ -529,13 +529,7 @@ struct ProfileView: View {
   // MARK: - Helpers
 
   private func reportPost(_ post: Post) {
-    Task {
-      do {
-        try await serviceManager.reportPost(post)
-      } catch {
-        ErrorHandler.shared.handleError(error)
-      }
-    }
+    post.report(via: serviceManager)
   }
 }
 

@@ -669,13 +669,7 @@ struct SearchView: View {
     }
     
     private func report(_ post: Post) {
-        Task {
-            do {
-                try await serviceManager.reportPost(post)
-            } catch {
-                ErrorHandler.shared.handleError(error)
-            }
-        }
+        post.report(via: serviceManager)
     }
     
 }
