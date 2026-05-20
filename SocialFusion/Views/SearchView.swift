@@ -371,10 +371,12 @@ struct SearchView: View {
                                 .font(.headline)
                             Spacer()
                             Button("Clear") {
+                                HapticEngine.warning.trigger()
                                 store.clearRecentSearches()
                             }
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .accessibilityHint("Removes all recent search history")
                         }
                         .padding(.horizontal)
 
