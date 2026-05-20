@@ -293,28 +293,36 @@ struct FullscreenMediaView: View {
                             HStack(alignment: .bottom) {
                                 // Info button (lower left) - only show if alt text exists
                                 if let altText = allMedia[currentIndex].altText, !altText.isEmpty {
-                                    Button(action: {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                    Button {
+                                        HapticEngine.selection.trigger()
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
                                             showAltText.toggle()
                                         }
-                                        HapticEngine.tap.trigger()
-                                    }) {
+                                    } label: {
                                         Text("ALT")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
+                                            .font(.caption2.weight(.bold))
                                             .foregroundColor(showAltText ? .black : .white)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 3)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
                                             .background(
                                                 showAltText
-                                                    ? Color.yellow : Color.white.opacity(0.2),
+                                                    ? Color.yellow : Color.white.opacity(0.22),
                                                 in: Capsule()
+                                            )
+                                            .overlay(
+                                                Capsule()
+                                                    .strokeBorder(
+                                                        showAltText ? Color.clear : Color.white.opacity(0.15),
+                                                        lineWidth: 0.5
+                                                    )
                                             )
                                             .padding(10)
                                     }
                                     .buttonStyle(GlassyButtonStyle())
-                                    .accessibilityLabel("Show image description")
-                                    .accessibilityHint("Toggles the alt text overlay")
+                                    .accessibilityLabel("Image description")
+                                    .accessibilityValue(showAltText ? "Visible" : "Hidden")
+                                    .accessibilityHint(showAltText ? "Hides the description" : "Shows the description")
+                                    .accessibilityAddTraits(showAltText ? .isSelected : [])
                                 }
 
                                 Spacer()
