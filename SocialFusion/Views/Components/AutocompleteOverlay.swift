@@ -48,6 +48,13 @@ struct AutocompleteOverlay: View {
             withAnimation(.easeInOut(duration: 0.2)) {
               proxy.scrollTo(newIndex, anchor: .center)
             }
+            // Match the keyboard-driven highlight with the same
+            // tactile click the tap path already fires (line 39).
+            // Without this, arrow-key navigation feels mute — like
+            // the suggestion list is only really "alive" under the
+            // finger. Same beat Apple uses on Spotlight / macOS
+            // menu navigation.
+            HapticEngine.selection.trigger()
           }
         }
         .background(
