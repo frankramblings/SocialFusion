@@ -77,6 +77,7 @@ struct ReplyContextHeader: View {
                         navigationEnvironment.navigateToUser(from: post)
                     }) {
                         let stableImageURL = URL(string: post.authorProfilePictureURL)
+                        let replyInitial = String((post.authorName.isEmpty ? post.authorUsername : post.authorName).prefix(1)).uppercased()
                         CachedAsyncImage(url: stableImageURL) { image in
                             image
                                 .resizable()
@@ -85,8 +86,9 @@ struct ReplyContextHeader: View {
                             Circle()
                                 .fill(Color(.systemGray5))
                                 .overlay(
-                                    ProgressView()
-                                        .scaleEffect(0.6)
+                                    Text(replyInitial.isEmpty ? "?" : replyInitial)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundColor(Color(.systemGray))
                                 )
                         }
                         .frame(width: 32, height: 32)

@@ -25,13 +25,10 @@ public struct ProfileImageView: View {
                         .frame(width: 30, height: 30)
                         .clipShape(Circle())
                 } placeholder: {
-                    Circle()
-                        .fill(Color(.systemGray5))
-                        .frame(width: 30, height: 30)
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(0.6)
-                        )
+                    // Initials while the image is loading — same identity
+                    // as the no-URL InitialView branch, so the avatar
+                    // doesn't flash between spinner and letter.
+                    InitialView(account: account)
                 }
                 .frame(width: 30, height: 30)
                 .clipShape(Circle())
