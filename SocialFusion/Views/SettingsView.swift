@@ -220,6 +220,10 @@ struct SettingsView: View {
                             Text(formattedSize(totalCacheSize))
                                 .foregroundColor(.secondary)
                                 .monospacedDigit()
+                                // Cache size morphs as bytes change after
+                                // a clear — smooth the digit transition.
+                                .contentTransition(.numericText())
+                                .animation(.easeOut(duration: 0.25), value: totalCacheSize)
                         }
                     }
                     .onAppear {
