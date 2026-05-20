@@ -256,6 +256,8 @@ struct ConsolidatedTimelineView: View {
 
     // Ambient unread pulse
     @State private var unreadPulseActive = false
+    @State private var pillBumpScale: CGFloat = 1.0
+    @State private var lastSeenPillCount: Int = 0
 
     // Scroll-to-top fade
     @State private var scrollToTopOpacity: Double = 1.0
@@ -1173,9 +1175,15 @@ struct ConsolidatedTimelineView: View {
             // The pill's prominent ultraThinMaterial + accent glow is enough
             // standing presence; a perpetual breathing animation just creates
             // visual noise as you read the feed below it.
-            .scaleEffect(unreadPulseActive ? 1.0 : 0.96)
+            //
+            // pillBumpScale multiplies in on top of the entrance scale when
+            // the count *increases* while the pill is visible — a subtle
+            // 'more new posts just arrived' signal. Composes multiplicatively
+            // with the entrance: 0.96 → 1.0 → 1.06 → 1.0.
+            .scaleEffect((unreadPulseActive ? 1.0 : 0.96) * pillBumpScale)
             .opacity(unreadPulseActive ? 1.0 : 0.0)
             .onAppear {
+                lastSeenPillCount = count
                 if reduceMotion {
                     unreadPulseActive = true
                 } else {
@@ -1184,7 +1192,27 @@ struct ConsolidatedTimelineView: View {
                     }
                 }
             }
-            .onDisappear { unreadPulseActive = false }
+            .onDisappear {
+                unreadPulseActive = false
+                pillBumpScale = 1.0
+                lastSeenPillCount = 0
+            }
+            .onChange(of: count) { _, newValue in
+                guard !reduceMotion, newValue > lastSeenPillCount, lastSeenPillCount > 0 else {
+                    lastSeenPillCount = newValue
+                    return
+                }
+                lastSeenPillCount = newValue
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                    pillBumpScale = 1.06
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
+                        pillBumpScale = 1.0
+                    }
+                }
+            }
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
