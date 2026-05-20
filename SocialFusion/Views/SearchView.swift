@@ -440,6 +440,7 @@ struct SearchView: View {
                                         Image(systemName: "chevron.right")
                                             .font(.caption2.weight(.semibold))
                                             .foregroundStyle(.quaternary)
+                                            .accessibilityHidden(true)
                                     }
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
@@ -506,6 +507,7 @@ struct SearchView: View {
                             Image(systemName: "chevron.right")
                                 .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.quaternary)
+                                .accessibilityHidden(true)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
