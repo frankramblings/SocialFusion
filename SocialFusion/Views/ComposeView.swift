@@ -1313,35 +1313,26 @@ struct ComposeView: View {
 
     @ViewBuilder
     private var bottomToolbar: some View {
-        HStack {
+        HStack(spacing: 4) {
             // Add image button
-            Button(action: {
+            composeToolButton(symbol: "photo", isActive: false) {
+                HapticEngine.tap.trigger()
                 showImagePicker = true
-            }) {
-                Image(systemName: "photo")
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    .clipShape(Circle())
             }
 
-            // CW toggle button
-            Button(action: {
-                threadPosts[activePostIndex].cwEnabled.toggle()
-                if !threadPosts[activePostIndex].cwEnabled {
-                    threadPosts[activePostIndex].cwText = ""
+            // CW toggle button — warning orange when active to match its semantics
+            composeToolButton(
+                symbol: threadPosts[activePostIndex].cwEnabled ? "eye.slash.fill" : "eye.slash",
+                isActive: threadPosts[activePostIndex].cwEnabled,
+                activeTint: .orange
+            ) {
+                HapticEngine.selection.trigger()
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    threadPosts[activePostIndex].cwEnabled.toggle()
+                    if !threadPosts[activePostIndex].cwEnabled {
+                        threadPosts[activePostIndex].cwText = ""
+                    }
                 }
-            }) {
-                Image(
-                    systemName: threadPosts[activePostIndex].cwEnabled
-                        ? "eye.slash.fill" : "eye.slash"
-                )
-                .font(.system(size: 20))
-                .foregroundColor(threadPosts[activePostIndex].cwEnabled ? .blue : .secondary)
-                .padding(8)
-                .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                .clipShape(Circle())
             }
             .contextMenu {
                 // Long-press presets
@@ -1356,34 +1347,30 @@ struct ComposeView: View {
             }
 
             // Add post to thread button
-            Button(action: {
-                let newPost = ThreadPost()
-                threadPosts.append(newPost)
-                activePostIndex = threadPosts.count - 1
-            }) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    .clipShape(Circle())
+            composeToolButton(symbol: "plus.circle", isActive: false) {
+                HapticEngine.tap.trigger()
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                    let newPost = ThreadPost()
+                    threadPosts.append(newPost)
+                    activePostIndex = threadPosts.count - 1
+                }
             }
 
             // Add poll button
-            Button(action: {
+            composeToolButton(
+                symbol: "chart.bar",
+                isActive: threadPosts[activePostIndex].showPoll,
+                activeTint: .accentColor,
+                isDisabled: threadPosts[activePostIndex].showPoll
+            ) {
+                HapticEngine.tap.trigger()
                 if !threadPosts[activePostIndex].showPoll {
-                    threadPosts[activePostIndex].showPoll = true
-                    threadPosts[activePostIndex].pollOptions = ["", ""]
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        threadPosts[activePostIndex].showPoll = true
+                        threadPosts[activePostIndex].pollOptions = ["", ""]
+                    }
                 }
-            }) {
-                Image(systemName: "chart.bar")
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    .clipShape(Circle())
             }
-            .disabled(threadPosts[activePostIndex].showPoll)
 
             Spacer()
 
@@ -1438,6 +1425,51 @@ struct ComposeView: View {
             Divider(),
             alignment: .top
         )
+    }
+
+    /// Compose toolbar button — circular tinted background, scales on press,
+    /// shows an active tint when toggled on. Subtle but consistent feedback.
+    private func composeToolButton(
+        symbol: String,
+        isActive: Bool,
+        activeTint: Color = .accentColor,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .regular))
+                .foregroundColor(isActive ? activeTint : .secondary)
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle()
+                        .fill(
+                            isActive
+                                ? activeTint.opacity(0.16)
+                                : Color(UIColor.secondarySystemBackground).opacity(0.7)
+                        )
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            isActive ? activeTint.opacity(0.28) : Color.clear,
+                            lineWidth: 0.5
+                        )
+                )
+                .contentTransition(.symbolEffect(.replace))
+                .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isActive)
+        }
+        .buttonStyle(ComposeToolPressStyle())
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.4 : 1.0)
+    }
+
+    private struct ComposeToolPressStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+        }
     }
 
     var body: some View {
