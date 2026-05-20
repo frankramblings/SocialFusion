@@ -492,8 +492,10 @@ struct ProfileHeaderView: View {
           fieldRow(field)
         }
       }
-      .background(Color(.secondarySystemBackground))
-      .clipShape(RoundedRectangle(cornerRadius: Layout.fieldCornerRadius))
+      .background(
+        RoundedRectangle(cornerRadius: Layout.fieldCornerRadius, style: .continuous)
+          .fill(Color(.secondarySystemBackground))
+      )
       .padding(.horizontal, Layout.horizontalPadding)
       .padding(.top, 12)
     }
