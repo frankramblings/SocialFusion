@@ -54,6 +54,9 @@ struct ChatView: View {
           TextField("Search messages...", text: $searchText)
             .textFieldStyle(.plain)
             .font(.subheadline)
+            .submitLabel(.search)
+            .autocorrectionDisabled(true)
+            .textInputAutocapitalization(.never)
             .onChange(of: searchText) { _, _ in
               currentMatchIndex = 0
             }
