@@ -42,15 +42,21 @@ public struct UnifiedAccountsIcon: View {
                         Text("\(totalAccountCount)")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundColor(.white)
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: Double(totalAccountCount)))
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
-                            .background(Color.red)
-                            .clipShape(Capsule())
+                            .background(
+                                Capsule()
+                                    .fill(Color.red.gradient)
+                                    .shadow(color: Color.red.opacity(0.32), radius: 2, x: 0, y: 1)
+                            )
                     }
                     Spacer()
                 }
                 .frame(width: 32, height: 32)
                 .offset(x: 4, y: -4)
+                .accessibilityHidden(true)
             }
         }
         .id(refreshTrigger)
