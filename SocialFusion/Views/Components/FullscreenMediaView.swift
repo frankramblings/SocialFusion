@@ -455,13 +455,13 @@ struct FullscreenMediaView: View {
                     .resizable()
                     .scaledToFit()
             } placeholder: {
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(2)
-                    Text("Loading...")
-                        .foregroundColor(.white)
-                        .font(.subheadline)
+                        .scaleEffect(1.6)
+                    Text("Loading image")
+                        .foregroundColor(.white.opacity(0.85))
+                        .font(.subheadline.weight(.medium))
                 }
             }
             // Use a stable ID based on URL only (not attachment.id) to allow cache reuse

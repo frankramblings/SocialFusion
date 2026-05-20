@@ -698,16 +698,18 @@ private struct VideoPlayerView: View {
             return "Video unavailable in Simulator"
         }
         if hasError {
-            return "Video failed to load. Double tap to retry."
+            // System-synthesized "Double tap to activate" handles the verb;
+            // label just describes the state.
+            return "Video failed to load"
         } else if isLoading {
-            return "Video loading..."
+            return "Loading video"
         } else if playerModel.isBuffering {
             let progress = Int(playerModel.bufferProgress * 100)
-            return "Video buffering, \(progress)% loaded"
+            return "Video buffering, \(progress) percent loaded"
         } else if isGIF {
-            return "Animated GIF video"
+            return "Animated GIF"
         } else {
-            return "Video content"
+            return "Video"
         }
     }
 
