@@ -1400,12 +1400,14 @@ struct ComposeView: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 4)
                                 .background(
-                                    index < threadPosts[activePostIndex].imageAltTexts.count
-                                        && !threadPosts[activePostIndex].imageAltTexts[index]
-                                            .isEmpty
-                                        ? Color.blue : Color.black.opacity(0.6)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(
+                                            index < threadPosts[activePostIndex].imageAltTexts.count
+                                                && !threadPosts[activePostIndex].imageAltTexts[index]
+                                                    .isEmpty
+                                                ? Color.blue : Color.black.opacity(0.6)
+                                        )
                                 )
-                                .cornerRadius(4)
                             }
                             .padding(6)
                             .frame(

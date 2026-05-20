@@ -175,8 +175,7 @@ struct SmartMediaView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .cornerRadius(cornerRadius)
-            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .onAppear { DebugLog.verbose("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
             // Flag-driven unfurling with local fallback
