@@ -39,11 +39,51 @@ class TimeFormatters {
 
     /// Returns a detailed date format for profile views or permalinks
     func detailedDateTimeString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        SharedFormatters.detailedDateTime.string(from: date)
     }
+}
+
+/// Cached, thread-safe formatter instances. RelativeDateTimeFormatter
+/// and DateFormatter are both expensive to instantiate — across a
+/// feed full of posts each rendering its own header, we were
+/// allocating one formatter per post per body re-evaluation. Holding
+/// these as static lets pays the cost once.
+///
+/// Apple's docs confirm RelativeDateTimeFormatter and DateFormatter
+/// are thread-safe for read-only use (formatting), which is all we do.
+enum SharedFormatters {
+    /// "5m", "2h", "1d" — for visual scanning under post timestamps.
+    static let relativeAbbreviated: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
+
+    /// "5 minutes ago", "2 hours ago" — for VoiceOver and other
+    /// accessibility surfaces where the abbreviated form sounds off.
+    static let relativeFull: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .full
+        return f
+    }()
+
+    /// "Yesterday", "5 minutes ago" — uses named substitutions where
+    /// the locale provides them (e.g. yesterday/tomorrow), falling
+    /// back to the standard relative phrasing otherwise.
+    static let relativeNamedFull: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.dateTimeStyle = .named
+        f.unitsStyle = .full
+        return f
+    }()
+
+    /// "Mar 4, 2026 at 3:42 PM" — for detail views and permalinks.
+    static let detailedDateTime: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .short
+        return f
+    }()
 }
 
 // Extension on Date to easily access formatted strings

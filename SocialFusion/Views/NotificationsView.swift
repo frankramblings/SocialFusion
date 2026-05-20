@@ -487,9 +487,7 @@ struct NotificationRow: View {
         // Append a natural-language timestamp ('5 minutes ago') rather
         // than relying on the visible '5m' shorthand — same readability
         // treatment we apply elsewhere.
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        label += ". \(formatter.localizedString(for: notification.createdAt, relativeTo: Date()))"
+        label += ". \(SharedFormatters.relativeFull.localizedString(for: notification.createdAt, relativeTo: Date()))"
 
         return label
     }

@@ -36,9 +36,8 @@ struct DMConversationRow: View {
     // Natural-language timestamp — the visible row shows '5m', but
     // VoiceOver should hear the full form so the recency reads as a
     // recognizable English phrase, not a cryptic abbreviation.
-    let formatter = RelativeDateTimeFormatter()
-    formatter.unitsStyle = .full
-    parts.append(formatter.localizedString(for: conversation.lastMessage.createdAt, relativeTo: Date()))
+    parts.append(SharedFormatters.relativeFull.localizedString(
+        for: conversation.lastMessage.createdAt, relativeTo: Date()))
     return parts.joined(separator: ", ")
   }
 

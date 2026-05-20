@@ -90,23 +90,19 @@ struct PostAuthorView: View {
     }
 
     private var timeAgoString: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: post.createdAt, relativeTo: Date())
+        SharedFormatters.relativeAbbreviated.localizedString(
+            for: post.createdAt, relativeTo: Date()
+        )
     }
 
     private func formatRelativeTime(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        SharedFormatters.relativeAbbreviated.localizedString(for: date, relativeTo: Date())
     }
 
     /// Full-word relative time for VoiceOver — '6 minutes ago' rather
     /// than '6m'. Visual UI keeps the abbreviated form.
     private func formatRelativeTimeFull(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
+        SharedFormatters.relativeFull.localizedString(for: date, relativeTo: Date())
     }
 }
 

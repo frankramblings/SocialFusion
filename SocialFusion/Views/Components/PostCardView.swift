@@ -936,11 +936,12 @@ struct PostCardView: View {
         return components.joined(separator: ". ")
     }
 
-    /// Formats timestamp for accessibility
+    /// Formats timestamp for accessibility.
+    /// Uses the named/full shared formatter so VoiceOver hears
+    /// '5 minutes ago' (or 'Yesterday') rather than the abbreviated
+    /// '5 min. ago'.
     private func formatAccessibilityTimestamp(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.dateTimeStyle = .named
-        return formatter.localizedString(for: date, relativeTo: Date())
+        SharedFormatters.relativeNamedFull.localizedString(for: date, relativeTo: Date())
     }
     
     // MARK: - Share as Image

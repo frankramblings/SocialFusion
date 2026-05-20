@@ -831,9 +831,7 @@ struct RelativeTimeView: View {
     }
 
     private func formatAccessibleTime(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
-        return formatter.localizedString(for: date, relativeTo: Date())
+        SharedFormatters.relativeFull.localizedString(for: date, relativeTo: Date())
     }
 }
 
