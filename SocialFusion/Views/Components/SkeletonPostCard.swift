@@ -82,25 +82,32 @@ struct SkeletonTimelineView: View {
   }
 
   var body: some View {
-    if reduceMotion {
-      staticContent
-    } else {
-      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-        let elapsed = context.date.timeIntervalSinceReferenceDate
-        let period: Double = 1.5
-        let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+    Group {
+      if reduceMotion {
+        staticContent
+      } else {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+          let elapsed = context.date.timeIntervalSinceReferenceDate
+          let period: Double = 1.5
+          let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
 
-        ScrollView {
-          LazyVStack(spacing: 0) {
-            ForEach(0..<clampedCount, id: \.self) { _ in
-              SkeletonPostCard(phase: phase, reduceMotion: false)
-              Divider()
+          ScrollView {
+            LazyVStack(spacing: 0) {
+              ForEach(0..<clampedCount, id: \.self) { _ in
+                SkeletonPostCard(phase: phase, reduceMotion: false)
+                Divider()
+              }
             }
           }
+          .scrollDisabled(true)
         }
-        .scrollDisabled(true)
       }
     }
+    // Collapse the entire skeleton stack into a single VoiceOver
+    // utterance — otherwise the user hears 'Loading post' once per
+    // card (up to 6 times) as they navigate.
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Loading timeline")
   }
 
   private var staticContent: some View {
