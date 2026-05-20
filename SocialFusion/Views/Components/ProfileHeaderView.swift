@@ -550,7 +550,11 @@ struct ProfileHeaderView: View {
     .padding(.top, 12)
     .padding(.bottom, 8)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel("\(profile.statusesCount) posts, \(profile.followingCount) following, \(profile.followersCount) followers")
+    .accessibilityLabel(
+      "\(profile.statusesCount) post\(profile.statusesCount == 1 ? "" : "s"), "
+      + "\(profile.followingCount) following, "
+      + "\(profile.followersCount) follower\(profile.followersCount == 1 ? "" : "s")"
+    )
   }
 
   private func statItem(count: Int, label: String) -> some View {

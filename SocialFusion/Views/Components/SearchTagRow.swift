@@ -47,6 +47,18 @@ struct SearchTagRow: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .accessibilityLabel("Hashtag \(tag.name)\(tag.formattedUsageCount.map { ", \($0) posts" } ?? "")")
+    .accessibilityLabel(searchTagAccessibilityLabel)
+  }
+
+  /// VoiceOver label: 'Hashtag <name>' plus an optional post-count
+  /// suffix that uses the singular form for exactly one post.
+  /// Without this, '1 post' would read as '1 posts' for solo-post tags.
+  private var searchTagAccessibilityLabel: String {
+    var label = "Hashtag \(tag.name)"
+    if let count = tag.usageCount, count > 0 {
+      let displayed = tag.formattedUsageCount ?? "\(count)"
+      label += ", \(displayed) post\(count == 1 ? "" : "s")"
+    }
+    return label
   }
 }
