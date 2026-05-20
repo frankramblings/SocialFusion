@@ -1314,16 +1314,23 @@ struct ConsolidatedTimelineView: View {
             // animated scroll over hundreds of items is visibly janky;
             // a brief crossfade masks the jump so it reads as 'whoosh
             // back to the top' rather than 'scroll bar shoots away'.
-            withAnimation(.easeOut(duration: 0.15)) {
-                scrollToTopOpacity = 0.3
+            //
+            // Opacity floor lifted from 0.3 → 0.65: the deeper dip read
+            // like a glitch (background flashing through, posts ghosting
+            // out). 0.65 still hides the index swap but keeps content
+            // visually present throughout the transition. Net duration
+            // tightened to 0.30s — the gesture should feel quick.
+            withAnimation(.easeOut(duration: 0.12)) {
+                scrollToTopOpacity = 0.65
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 120_000_000)
                 if #available(iOS 17.0, *) {
                     scrollAnchorId = topId
                 } else {
                     proxy.scrollTo(topId, anchor: .top)
                 }
-                withAnimation(.easeIn(duration: 0.25)) {
+                withAnimation(.easeOut(duration: 0.18)) {
                     scrollToTopOpacity = 1.0
                 }
             }
