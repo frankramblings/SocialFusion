@@ -209,14 +209,28 @@ public struct GIFUnfurlContainer: View {
                     .onAppear(perform: loadIfNeeded)
                 }
             } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.08))
-                    .overlay(
-                        Text("GIF unfurling disabled")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                // GIF unfurling is feature-flagged off — show a discreet
+                // placeholder rather than a bare gray block.
+                VStack(spacing: 6) {
+                    Image(systemName: "play.rectangle")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundStyle(Color.secondary.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                    Text("GIF preview disabled")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .background(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color(.systemGray6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                        )
+                )
+                .accessibilityLabel("GIF preview is disabled")
             }
         }
         .onAppear(perform: loadIfNeeded)

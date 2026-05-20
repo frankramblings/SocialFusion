@@ -441,47 +441,95 @@ private struct SettingsIcon: View {
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
+    private var bundleVersion: String {
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "Version \(short) (\(build))"
+    }
+
+    private var copyrightYear: String {
+        String(Calendar.current.component(.year, from: Date()))
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    Image(systemName: "globe.americas.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(Color("PrimaryColor"))
-                        .padding(.top, 40)
+                VStack(spacing: 24) {
+                    // Logo composition — the brand purple + blue circles fusing,
+                    // mirroring the launch animation. Static here since it's a
+                    // header element rather than a moment.
+                    ZStack {
+                        // Outer glow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color(red: 0.54, green: 0.39, blue: 1.00).opacity(0.22),
+                                        Color.clear,
+                                    ],
+                                    center: .center,
+                                    startRadius: 4,
+                                    endRadius: 90
+                                )
+                            )
+                            .frame(width: 180, height: 180)
 
-                    Text("SocialFusion")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                        // Mastodon purple
+                        Circle()
+                            .fill(Color(red: 0.54, green: 0.39, blue: 1.00))
+                            .frame(width: 64, height: 64)
+                            .offset(x: -16)
+                            .blendMode(.plusLighter)
 
-                    Text("Version 1.0.0")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        // Bluesky blue
+                        Circle()
+                            .fill(Color(red: 0.00, green: 0.59, blue: 1.00))
+                            .frame(width: 64, height: 64)
+                            .offset(x: 16)
+                            .blendMode(.plusLighter)
 
-                    Divider()
-                        .padding(.horizontal, 40)
+                        // Center fusion lens
+                        Circle()
+                            .fill(Color(red: 0.11, green: 0.91, blue: 1.00))
+                            .frame(width: 24, height: 24)
+                            .blur(radius: 4)
+                    }
+                    .padding(.top, 36)
+                    .accessibilityHidden(true)
+
+                    VStack(spacing: 6) {
+                        Text("SocialFusion")
+                            .font(.largeTitle.weight(.bold))
+
+                        Text(bundleVersion)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
 
                     Text(
                         "A streamlined, modern native iOS social media aggregator that seamlessly integrates content from Mastodon (ActivityPub) and Bluesky (AT Protocol) into one intuitive interface."
                     )
                     .font(.body)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
+                    .foregroundColor(.primary.opacity(0.85))
+                    .padding(.horizontal, 28)
+                    .padding(.top, 8)
 
-                    Spacer()
+                    Spacer(minLength: 24)
 
-                    Text("© 2023 SocialFusion Team")
+                    Text("© \(copyrightYear) SocialFusion")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 24)
                 }
+                .frame(maxWidth: .infinity)
                 .padding()
             }
-
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .navigationBarItems(
                 trailing: Button("Done") {
+                    HapticEngine.tap.trigger()
                     dismiss()
                 })
         }
@@ -498,15 +546,26 @@ struct WebContentView: View {
         NavigationStack {
             ScrollView {
                 Text(content)
-                    .padding()
+                    .font(.body)
+                    .foregroundColor(.primary.opacity(0.9))
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
             }
-
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    dismiss()
-                })
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                }
+            }
         }
     }
 }
