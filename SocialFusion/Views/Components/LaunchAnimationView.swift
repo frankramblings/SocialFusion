@@ -103,10 +103,32 @@ struct LaunchAnimationView: View {
     @MainActor
     private func runSequence() {
         Task { @MainActor in
-            // Pre-warm haptic so the fusion impact lands without latency
-            HapticEngine.prepare(.tap)
-
             try? await Task.sleep(nanoseconds: 1_000_000)
+
+            // Reduce Motion: skip the converging-circles + bloom +
+            // haptic-impact sequence entirely. Show the rested,
+            // fused state with a gentle opacity fade and hand off
+            // quickly. Same brand beat, no motion — matches Apple's
+            // own behavior on launch animations under Reduce Motion.
+            if reduceMotion {
+                fused = true
+                textSpacing = 0
+                bloomScale = 1.0
+                bloomOpacity = 0.88
+                rootScale = 1.0
+                withAnimation(.easeOut(duration: 0.32)) {
+                    rootOpacity = 1.0
+                }
+                try? await Task.sleep(nanoseconds: 700_000_000)
+                onFinished()
+                return
+            }
+
+            // Pre-warm the fusion-impact generator. Held as a
+            // singleton instance so the prepare() actually takes
+            // effect — a per-trigger generator gets deallocated
+            // before its prepared state is consumed.
+            Self.fusionImpactGenerator.prepare()
 
             // Stage 0: gentle entrance — root fades in and settles to scale 1
             withAnimation(.easeOut(duration: 0.28)) {
@@ -124,9 +146,7 @@ struct LaunchAnimationView: View {
             try? await Task.sleep(nanoseconds: 280_000_000)
 
             // The fusion moment — haptic impact synced with the bloom
-            if !reduceMotion {
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
-            }
+            Self.fusionImpactGenerator.impactOccurred(intensity: 0.8)
 
             withAnimation(.spring(response: 0.18, dampingFraction: 0.55)) {
                 bloomScale = 1.45
@@ -145,6 +165,12 @@ struct LaunchAnimationView: View {
             onFinished()
         }
     }
+
+    /// Held singleton so prepare() actually warms a generator the
+    /// trigger can use. Allocating per-call (the prior pattern) made
+    /// the warm-up a no-op because the prepared instance was
+    /// released before impactOccurred fired.
+    private static let fusionImpactGenerator = UIImpactFeedbackGenerator(style: .medium)
 }
 
 #if DEBUG
