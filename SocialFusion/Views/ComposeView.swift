@@ -2781,24 +2781,48 @@ struct PlatformToggleButton: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
+        Button {
+            HapticEngine.selection.trigger()
+            action()
+        } label: {
+            HStack(spacing: 5) {
                 Image(platform.icon)
                     .resizable()
+                    .renderingMode(.template)
                     .scaledToFit()
                     .frame(width: 14, height: 14)
 
-                Text(platform.rawValue)
-                    .font(.subheadline)
+                Text(platform.rawValue.capitalized)
+                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .foregroundColor(isSelected ? .white : getPlatformColor())
             .background(
                 Capsule()
                     .fill(isSelected ? getPlatformColor() : getLightPlatformColor())
             )
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        isSelected ? Color.clear : getPlatformColor().opacity(0.22),
+                        lineWidth: 0.5
+                    )
+            )
+            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
         }
+        .buttonStyle(PlatformTogglePressStyle())
+        .accessibilityLabel(platform.rawValue.capitalized)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct PlatformTogglePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
