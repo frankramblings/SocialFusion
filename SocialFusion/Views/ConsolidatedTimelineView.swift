@@ -261,6 +261,7 @@ struct ConsolidatedTimelineView: View {
 
     // Scroll-to-top fade
     @State private var scrollToTopOpacity: Double = 1.0
+    @State private var scrollToTopFadeTask: Task<Void, Never>?
 
     // New post highlight glow
     @State private var highlightedPostIds: Set<String> = []
@@ -1360,18 +1361,29 @@ struct ConsolidatedTimelineView: View {
             // out). 0.65 still hides the index swap but keeps content
             // visually present throughout the transition. Net duration
             // tightened to 0.30s — the gesture should feel quick.
+            //
+            // Cancel any in-flight fade Task before starting a new one
+            // so back-to-back triggers (e.g. tap pill then tap home tab)
+            // can't leave opacity stuck at 0.65. The defer guarantees
+            // restoration to 1.0 even if the Task is cancelled mid-sleep.
+            scrollToTopFadeTask?.cancel()
             withAnimation(.easeOut(duration: 0.12)) {
                 scrollToTopOpacity = 0.65
             }
-            Task { @MainActor in
+            scrollToTopFadeTask = Task { @MainActor in
+                defer {
+                    if scrollToTopOpacity != 1.0 {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            scrollToTopOpacity = 1.0
+                        }
+                    }
+                }
                 try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled else { return }
                 if #available(iOS 17.0, *) {
                     scrollAnchorId = topId
                 } else {
                     proxy.scrollTo(topId, anchor: .top)
-                }
-                withAnimation(.easeOut(duration: 0.18)) {
-                    scrollToTopOpacity = 1.0
                 }
             }
         } else {

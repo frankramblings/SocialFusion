@@ -20,6 +20,7 @@ struct AccountTimelineView: View {
     @State private var mergeOffsetCompensation: CGFloat = 0
     @State private var mergePillVisible = false
     @State private var scrollToTopOpacity: Double = 1.0
+    @State private var scrollToTopFadeTask: Task<Void, Never>?
     @State private var pillBumpScale: CGFloat = 1.0
     @State private var lastSeenPillCount: Int = 0
     @Environment(\.scenePhase) private var scenePhase
@@ -568,20 +569,28 @@ struct AccountTimelineView: View {
         if isFarFromTop && !reduceMotion {
             // Brief crossfade masks the scroll-position teleport so the
             // jump reads as 'whoosh to the top' rather than a snap.
+            // Cancellation-safe: defer restores opacity even if a new
+            // tap fires before this Task finishes.
+            scrollToTopFadeTask?.cancel()
             withAnimation(.easeOut(duration: 0.12)) {
                 scrollToTopOpacity = 0.65
             }
-            Task { @MainActor in
+            scrollToTopFadeTask = Task { @MainActor in
+                defer {
+                    if scrollToTopOpacity != 1.0 {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            scrollToTopOpacity = 1.0
+                        }
+                    }
+                }
                 try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled else { return }
                 if #available(iOS 17.0, *) {
                     var t = Transaction()
                     t.disablesAnimations = true
                     withTransaction(t) { scrollAnchorId = topId }
                 } else {
                     withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
-                }
-                withAnimation(.easeOut(duration: 0.18)) {
-                    scrollToTopOpacity = 1.0
                 }
             }
         } else {
