@@ -36,6 +36,7 @@ struct AutocompleteOverlay: View {
                 )
                 .id(index)
                 .onTapGesture {
+                  HapticEngine.selection.trigger()
                   onSelect(suggestion)
                 }
               }
@@ -50,10 +51,16 @@ struct AutocompleteOverlay: View {
           }
         }
         .background(
-          RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(UIColor.systemBackground))
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(.regularMaterial)
+            .overlay(
+              RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+            .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 6)
+            .shadow(color: Color.black.opacity(0.06), radius: 1, x: 0, y: 1)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .frame(maxWidth: 300)
         .position(
           x: max(150, min(geometry.size.width - 150, token.caretRect.midX)),
