@@ -376,6 +376,7 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
