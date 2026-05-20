@@ -92,30 +92,29 @@ struct AutocompleteSuggestionRow: View {
             .aspectRatio(contentMode: .fill)
         } placeholder: {
           Circle()
-            .fill(Color.gray.opacity(0.3))
+            .fill(Color(.systemGray5))
         }
         .frame(width: 32, height: 32)
         .clipShape(Circle())
       } else if suggestion.entityPayload.platform == .mastodon || suggestion.entityPayload.platform == .bluesky {
         // Placeholder circle for mentions without avatar
         Circle()
-          .fill(Color.gray.opacity(0.3))
+          .fill(Color(.systemGray5))
           .frame(width: 32, height: 32)
           .overlay(
             Text(suggestion.displayText.prefix(1).uppercased())
-              .font(.caption)
+              .font(.caption.weight(.semibold))
               .foregroundColor(.secondary)
           )
       }
-      
+
       // Text content
       VStack(alignment: .leading, spacing: 2) {
         Text(suggestion.displayText)
-          .font(.subheadline)
-          .fontWeight(.medium)
+          .font(.subheadline.weight(.medium))
           .foregroundColor(.primary)
           .lineLimit(1)
-        
+
         if let subtitle = suggestion.subtitle {
           Text(subtitle)
             .font(.caption)
@@ -123,32 +122,43 @@ struct AutocompleteSuggestionRow: View {
             .lineLimit(1)
         }
       }
-      
+
       Spacer()
-      
-      // Platform badges
+
+      // Platform badges — use template renderer with hex brand colors
+      // (already on-brand; the explicit hex calls survive here because
+      // SwiftUI doesn't have a Color.brand(.mastodon) extension yet).
       HStack(spacing: 4) {
         ForEach(Array(suggestion.platforms), id: \.self) { platform in
           Image(platform.icon)
             .resizable()
             .renderingMode(.template)
-            .foregroundStyle(platform == .mastodon 
-              ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-              : Color(red: 0, green: 133 / 255, blue: 255 / 255))  // #0085FF
+            .foregroundStyle(platform == .mastodon
+              ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
+              : Color(red: 0, green: 133 / 255, blue: 255 / 255))
             .frame(width: 12, height: 12)
         }
       }
-      
-      // Recent indicator
+
+      // Recent indicator — hierarchical so it picks up theme contrast
       if suggestion.isRecent {
         Image(systemName: "clock.fill")
           .font(.caption2)
-          .foregroundColor(.secondary)
+          .foregroundStyle(Color.secondary.gradient)
+          .symbolRenderingMode(.hierarchical)
+          .accessibilityLabel("Recent")
       }
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .background(isSelected ? Color(UIColor.secondarySystemBackground) : Color.clear)
+    .background(
+      // Accent-tinted highlight for the keyboard-selected row, matching
+      // the menu-row press treatment used in NavBarPillDropdownRow.
+      isSelected
+        ? Color.accentColor.opacity(0.12)
+        : Color.clear
+    )
+    .animation(.easeOut(duration: 0.12), value: isSelected)
     .contentShape(Rectangle())
   }
 }
