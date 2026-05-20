@@ -87,18 +87,26 @@ private struct ChipLabel: View {
   var body: some View {
     HStack(spacing: 4) {
       Text(text)
-        .font(.caption)
+        .font(.caption.weight(isInteractive ? .semibold : .regular))
       if isInteractive {
         Image(systemName: "chevron.down")
           .font(.system(size: 8, weight: .bold))
       }
     }
+    .foregroundColor(isInteractive ? .primary.opacity(0.85) : .primary.opacity(0.6))
     .padding(.horizontal, 12)
     .padding(.vertical, 6)
-    .background(Color(.systemGray5))
-    .foregroundColor(.primary)
-    .cornerRadius(16)
-    .opacity(isInteractive ? 1.0 : 0.7)
+    .background(
+      Capsule(style: .continuous)
+        .fill(isInteractive ? Color(.systemGray5) : Color(.systemGray6))
+        .overlay(
+          Capsule(style: .continuous)
+            .strokeBorder(
+              isInteractive ? Color.primary.opacity(0.08) : Color.clear,
+              lineWidth: 0.5
+            )
+        )
+    )
   }
 }
 
