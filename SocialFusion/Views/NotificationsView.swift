@@ -422,20 +422,27 @@ struct NotificationRow: View {
 
     @ViewBuilder
     private var notificationIcon: some View {
-        switch notification.type {
-        case .like:
-            Image(systemName: "heart.fill").foregroundStyle(Color.red.gradient)
-        case .repost:
-            Image(systemName: "arrow.2.squarepath").foregroundStyle(Color.green.gradient)
-        case .mention:
-            Image(systemName: "at").foregroundStyle(Color.blue.gradient)
-        case .follow:
-            Image(systemName: "person.badge.plus.fill").foregroundStyle(Color.purple.gradient)
-        case .poll:
-            Image(systemName: "chart.bar.fill").foregroundStyle(Color.orange.gradient)
-        case .update:
-            Image(systemName: "pencil").foregroundStyle(Color.gray.gradient)
+        Group {
+            switch notification.type {
+            case .like:
+                Image(systemName: "heart.fill").foregroundStyle(Color.red.gradient)
+            case .repost:
+                Image(systemName: "arrow.2.squarepath").foregroundStyle(Color.green.gradient)
+            case .mention:
+                Image(systemName: "at").foregroundStyle(Color.blue.gradient)
+            case .follow:
+                Image(systemName: "person.badge.plus.fill").foregroundStyle(Color.purple.gradient)
+            case .poll:
+                Image(systemName: "chart.bar.fill").foregroundStyle(Color.orange.gradient)
+            case .update:
+                Image(systemName: "pencil").foregroundStyle(Color(.systemGray).gradient)
+            }
         }
+        // Hierarchical rendering gives all the notification glyphs the
+        // same depth language used throughout the polished surfaces.
+        // .gray → systemGray for the same dark-mode-adaptive reasons
+        // we converted elsewhere.
+        .symbolRenderingMode(.hierarchical)
     }
 
     /// The accent color used for the quoted-post side bar — picks up the
