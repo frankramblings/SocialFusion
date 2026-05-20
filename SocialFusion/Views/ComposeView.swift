@@ -1130,11 +1130,12 @@ struct ComposeView: View {
                             } else if autocompleteService?.networkError != nil {
                                 // Show network error state
                                 VStack(spacing: 8) {
-                                    Image(systemName: "exclamationmark.triangle")
-                                        .foregroundColor(.orange)
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(Color.orange.gradient)
+                                        .symbolRenderingMode(.hierarchical)
                                     Text("Network unavailable")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.primary.opacity(0.78))
                                     Text("Showing recent suggestions only")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)

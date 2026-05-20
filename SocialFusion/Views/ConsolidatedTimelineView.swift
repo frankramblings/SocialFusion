@@ -1343,19 +1343,23 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var endOfTimelineView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundColor(.green)
-            Text("You're all caught up!")
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .foregroundStyle(.white, Color.green)
+                .symbolRenderingMode(.palette)
+            Text("You're all caught up")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
             Text("No more posts to load")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
+        .padding(.vertical, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("You're all caught up, no more posts to load")
     }
 
     private func postCard(for post: Post) -> some View {
