@@ -156,7 +156,7 @@ struct ToastNotification: View {
             )
         )
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Tap to dismiss")
+        .accessibilityHint("Dismisses this notification")
         .accessibilityAddTraits(.updatesFrequently)
     }
 
