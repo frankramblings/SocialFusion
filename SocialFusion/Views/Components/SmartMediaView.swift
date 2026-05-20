@@ -719,11 +719,11 @@ private struct VideoPlayerView: View {
             return "Video playback is disabled in Simulator"
         }
         if hasError {
-            return "Double tap to retry loading the video"
+            return "Retries loading the video"
         } else if isLoading || playerModel.isBuffering {
             return "Please wait while the video loads"
         } else {
-            return "Double tap to play or pause"
+            return "Plays or pauses the video"
         }
     }
 

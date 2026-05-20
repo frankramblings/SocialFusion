@@ -122,7 +122,9 @@ struct PostActionBar: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote Post")
+                .accessibilityValue(state.isQuoted ? "Already quoted" : "")
+                .accessibilityHint("Opens the composer with this post quoted")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -170,7 +172,9 @@ struct PostActionBar: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote Post")
+                .accessibilityValue(post.isQuoted ? "Already quoted" : "")
+                .accessibilityHint("Opens the composer with this post quoted")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
