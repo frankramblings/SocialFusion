@@ -278,16 +278,18 @@ struct SearchView: View {
 
             // Bottom pagination indicator
             if store.isLoadingNextPage {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Loading more...")
+                        .scaleEffect(0.85)
+                    Text("Loading more results")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
                 .listRowSeparator(.hidden)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading more results")
             }
         }
         .listStyle(PlainListStyle())

@@ -1328,15 +1328,18 @@ struct ConsolidatedTimelineView: View {
     }
 
     private var infiniteScrollLoadingView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ProgressView()
-                .scaleEffect(0.8)
-            Text("Loading more posts...")
+                .scaleEffect(0.85)
+            Text("Loading more posts")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
         .padding(.horizontal)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading more posts")
     }
 
     private var endOfTimelineView: some View {
