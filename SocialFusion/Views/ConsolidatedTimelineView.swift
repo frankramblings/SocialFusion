@@ -434,7 +434,7 @@ struct ConsolidatedTimelineView: View {
                 }
             }
             .alert(
-                "Error",
+                "Couldn't Load Timeline",
                 isPresented: Binding(
                     get: { timelineAlertState != nil },
                     set: { isPresented in
