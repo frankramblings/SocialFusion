@@ -6,7 +6,6 @@ import UIKit
 struct AddAccountView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var oauthManager: OAuthManager
-    @Environment(\.presentationMode) var presentationMode
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) private var scenePhase
 

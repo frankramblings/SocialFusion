@@ -2,7 +2,7 @@ import SwiftUI
 
 struct DirectTokenEntryView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     @State private var serverURL = ""
     @State private var accessToken = ""
@@ -135,7 +135,7 @@ struct DirectTokenEntryView: View {
 
                     // Dismiss after a short delay
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                 }
             } catch {
