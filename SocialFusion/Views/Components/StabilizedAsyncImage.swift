@@ -10,6 +10,7 @@ struct StabilizedAsyncImage: View {
 
     @State private var imageSize: CGSize = .zero
     @State private var hasLoaded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Stabilize the URL to prevent cancellation during view updates
     private let stableURL: URL?
@@ -39,9 +40,15 @@ struct StabilizedAsyncImage: View {
                     .aspectRatio(aspectRatio, contentMode: contentMode)
                     .frame(maxWidth: .infinity, maxHeight: idealHeight)
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    // Drop the scale-in on Reduce Motion — the
+                    // fade-in alone communicates "image arrived"
+                    // without the subtle pop that the setting is
+                    // meant to suppress.
+                    .transition(reduceMotion
+                                ? .opacity
+                                : .opacity.combined(with: .scale(scale: 0.95)))
                     .onAppear {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                             hasLoaded = true
                         }
                     }
@@ -74,7 +81,7 @@ struct StabilizedAsyncImage: View {
             }
         }
         .id(stableURL?.absoluteString ?? "no-url")  // Stable ID to prevent cancellation
-        .animation(.easeInOut(duration: 0.2), value: hasLoaded)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: hasLoaded)
     }
 }
 
