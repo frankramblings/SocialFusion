@@ -1363,8 +1363,26 @@ public final class BlueskyService: Sendable {
                 inReplyToID = parentUri
                 logger.info("Found reply post with parent: \(parentUri)")
 
-                // Try to extract username from parent
-                if let parentAuthor = parent["author"] as? [String: Any],
+                // AT Protocol surfaces unfetchable parents as `notFoundPost`
+                // or `blockedPost` views. Detect those up front so the UI
+                // can render graceful phrasing instead of the generic
+                // DID-fallback that leads to "Replying to someone".
+                let parentType = parent["$type"] as? String
+                let isNotFound = parentType == "app.bsky.feed.defs#notFoundPost"
+                    || (parent["notFound"] as? Bool) == true
+                let isBlocked = parentType == "app.bsky.feed.defs#blockedPost"
+                    || (parent["blocked"] as? Bool) == true
+
+                if isNotFound {
+                    inReplyToUsername = "__sf_parent_not_found__"
+                    logger.info("[Bluesky] Parent \(parentUri) is notFoundPost")
+                } else if isBlocked {
+                    inReplyToUsername = "__sf_parent_blocked__"
+                    logger.info("[Bluesky] Parent \(parentUri) is blockedPost")
+                }
+                // Try to extract username from parent (skipped if we
+                // already classified the parent as blocked/notFound above).
+                else if let parentAuthor = parent["author"] as? [String: Any],
                     let parentHandle = parentAuthor["handle"] as? String
                 {
                     inReplyToUsername = parentHandle

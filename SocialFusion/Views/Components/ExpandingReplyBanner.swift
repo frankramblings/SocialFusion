@@ -82,6 +82,20 @@ class PostParentCache: ObservableObject {
     }
 }
 
+/// Sentinel strings the Bluesky parser stores in `inReplyToUsername` when
+/// the parent post can't be loaded — not because we just don't have its
+/// handle yet, but because the AT Protocol response told us it's
+/// genuinely unfetchable. The banner detects these and renders graceful
+/// phrasing instead of "Replying to someone".
+enum ReplyParentSentinel {
+    static let blocked = "__sf_parent_blocked__"
+    static let notFound = "__sf_parent_not_found__"
+
+    static func isSentinel(_ username: String) -> Bool {
+        username == blocked || username == notFound
+    }
+}
+
 struct ExpandingReplyBanner: View {
     // MARK: - Properties
     let username: String
@@ -129,7 +143,12 @@ struct ExpandingReplyBanner: View {
     /// These are the cases where fetching the parent post will actually
     /// resolve the name; for any clean handle we already have, no fetch
     /// is needed.
+    ///
+    /// Known-unfetchable parents (blocked/deleted, see `ReplyParentSentinel`)
+    /// deliberately return false — we already know the right phrasing and
+    /// shouldn't waste an API call confirming it.
     private var needsParentResolution: Bool {
+        if ReplyParentSentinel.isSentinel(username) { return false }
         if username.isEmpty { return true }
         if username == "someone" { return true }
         if username == "unknown" { return true }
@@ -141,6 +160,15 @@ struct ExpandingReplyBanner: View {
     }
 
     private var displayUsername: String {
+        // Priority 0: AT Protocol told us this parent is genuinely
+        // unfetchable. Render the human phrasing into the existing
+        // "Replying to {name}" template, e.g. "Replying to a deleted post".
+        switch username {
+        case ReplyParentSentinel.notFound: return "a deleted post"
+        case ReplyParentSentinel.blocked: return "a blocked account"
+        default: break
+        }
+
         // Priority 1: Use the real display name from the fetched parent post if available
         if let parent = parent {
             // Use display name (real name) if available and not empty
@@ -291,7 +319,9 @@ struct ExpandingReplyBanner: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        if let parent = parent, !parent.isPlaceholder {
+        if ReplyParentSentinel.isSentinel(username) {
+            unfetchableParentContent
+        } else if let parent = parent, !parent.isPlaceholder {
             ParentPostPreview(post: parent) {
                 onParentPostTap?(parent)
             }
@@ -306,6 +336,46 @@ struct ExpandingReplyBanner: View {
         } else if isExpanded {
             placeholderContent
         }
+    }
+
+    /// Expanded state for parents the AT Protocol marked as blocked or
+    /// notFound. No retry button — there's nothing to retry.
+    private var unfetchableParentContent: some View {
+        let icon: String
+        let heading: String
+        let detail: String
+        switch username {
+        case ReplyParentSentinel.blocked:
+            icon = "hand.raised.fill"
+            heading = "Blocked account"
+            detail = "The post being replied to is from an account you've blocked or that has blocked you."
+        case ReplyParentSentinel.notFound:
+            icon = "trash"
+            heading = "Post deleted"
+            detail = "The post being replied to was deleted by its author or is no longer available."
+        default:
+            icon = "questionmark.circle"
+            heading = "Unavailable"
+            detail = "The original post can't be shown."
+        }
+        return VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(.tertiary)
+                .symbolRenderingMode(.hierarchical)
+                .accessibilityHidden(true)
+            Text(heading)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
+            Text(detail)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
     }
 
     private func errorContent(error: String) -> some View {
@@ -525,6 +595,13 @@ struct ExpandingReplyBanner: View {
     }
 
     private func triggerParentFetch(parentId: String, silent: Bool = false) {
+        // Known-unfetchable parents (blocked / deleted): no point hitting
+        // the API — the AT Protocol already told us during feed parsing.
+        // The expanded state renders a graceful message instead.
+        if ReplyParentSentinel.isSentinel(username) {
+            return
+        }
+
         // Skip if already loading, attempted, or if we already have the parent.
         // Also skip if the shared cache already has it — populated by either
         // SocialServiceManager.proactivelyFetchParentPosts or a prior banner.
