@@ -1251,13 +1251,19 @@ struct ComposeView: View {
                     Text("Poll")
                         .font(.headline)
                     Spacer()
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         threadPosts[activePostIndex].showPoll = false
                         threadPosts[activePostIndex].pollOptions = []
-                    }) {
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                            .font(.title3)
+                            .foregroundStyle(Color(.systemGray3))
+                            .symbolRenderingMode(.hierarchical)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel("Remove poll")
                 }
 
                 ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) {
@@ -1318,20 +1324,27 @@ struct ComposeView: View {
                                 )
                                 .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
 
-                            Button(action: {
+                            Button {
+                                HapticEngine.tap.trigger()
                                 threadPosts[activePostIndex].images.remove(at: index)
                                 if index < threadPosts[activePostIndex].imageAltTexts.count {
                                     threadPosts[activePostIndex].imageAltTexts.remove(
                                         at: index)
                                 }
-                            }) {
+                            } label: {
+                                // 44pt minimum tap target — icon stays anchored to
+                                // the top-trailing corner of the frame, extra hit
+                                // area extends inward/down (off the image edge
+                                // toward the user's thumb).
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 18))
                                     .foregroundColor(.white)
                                     .background(Color.black.opacity(0.6))
                                     .clipShape(Circle())
+                                    .frame(width: 44, height: 44, alignment: .topTrailing)
+                                    .contentShape(Rectangle())
                             }
-                            .padding(6)
+                            .accessibilityLabel("Remove image \(index + 1)")
 
                             // Alt Text Button with completion state
                             Button(action: {
