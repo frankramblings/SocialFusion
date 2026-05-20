@@ -80,38 +80,51 @@ struct StabilizedAsyncImage: View {
     }
 }
 
-/// Loading state for stabilized images
+/// Loading state for stabilized images.
+///
+/// Drives the shimmer phase via TimelineView so all visible image
+/// skeletons pulse in perfect sync against the system clock — and
+/// to avoid AttributeGraph cycles that the older
+/// `withAnimation(.repeatForever)` + `@State phase` pattern can
+/// trigger when used inside other view updates. Matches the
+/// SkeletonPostCard + StabilizedLinkPreview shimmer pattern.
 private struct StabilizedImageLoadingView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
-    @State private var phase: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        // System-named grays adapt to dark mode; the literal Color.gray.opacity()
-        // pattern previously used here rendered as brown-tinted in dark mode.
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    stops: [
-                        .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
-                        .init(color: Color(.systemGray4), location: phase),
-                        .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .frame(
-                maxWidth: .infinity,
-                idealHeight: height,
-                maxHeight: height
-            )
-            .cornerRadius(cornerRadius)
-            .onAppear {
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    phase = 1.3
+        Group {
+            if reduceMotion {
+                // Static fallback — same band of color, no motion.
+                Rectangle().fill(Color(.systemGray5))
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let elapsed = context.date.timeIntervalSinceReferenceDate
+                    let period: Double = 1.5
+                    let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+                    Rectangle().fill(shimmerGradient(phase: phase))
                 }
             }
+        }
+        .frame(
+            maxWidth: .infinity,
+            idealHeight: height,
+            maxHeight: height
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    private func shimmerGradient(phase: CGFloat) -> LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+                .init(color: Color(.systemGray4), location: phase),
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }
 
