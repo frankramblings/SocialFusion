@@ -836,14 +836,18 @@ struct ConsolidatedTimelineView: View {
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .stroke(
+                                            // Brand stroke routes through
+                                            // SocialPlatform.swiftUIColor — was
+                                            // hand-rolled RGB tuples that
+                                            // happened to match the canonical
+                                            // hex (86a7ca5). Single source of
+                                            // truth across the app.
                                             highlightedPostIds.contains(post.stableId)
-                                                ? (post.platform == .mastodon
-                                                    ? Color(red: 99/255, green: 100/255, blue: 255/255)
-                                                    : Color(red: 0, green: 133/255, blue: 255/255))
+                                                ? post.platform.swiftUIColor
                                                 : Color.clear,
                                             lineWidth: 1
                                         )
-                                        .animation(.easeOut(duration: 1.0), value: highlightedPostIds.contains(post.stableId))
+                                        .animation(reduceMotion ? nil : .easeOut(duration: 1.0), value: highlightedPostIds.contains(post.stableId))
                                 )
 
                             if post.id != controller.posts.last?.id {

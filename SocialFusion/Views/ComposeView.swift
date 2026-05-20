@@ -27,14 +27,9 @@ struct ReplyContextHeader: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
 
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    // Brand color — single source of truth via SocialPlatform.swiftUIColor
+    // (resolves to the canonical hex per 86a7ca5).
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -969,15 +964,12 @@ struct ComposeView: View {
         }
     }
 
-    // Platform color for reply context
+    // Platform color for reply context — routes through the
+    // unified brand color source. Fallback for "not replying"
+    // case stays Color.accentColor so the chrome respects the
+    // user's app-level tint rather than defaulting to fixed blue.
     private var platformColor: Color {
-        guard let replyingTo = replyingTo else { return .blue }
-        switch replyingTo.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
+        replyingTo?.platform.swiftUIColor ?? .accentColor
     }
 
     private struct PlatformLimitStatus: Identifiable {
