@@ -61,13 +61,18 @@ struct SearchChipRow: View {
             ChipLabel(text: "\(instanceDomain) index", isInteractive: false)
 
             if model.showInstanceInfo {
-              Button(action: {
+              Button {
+                HapticEngine.tap.trigger()
                 showInstanceInfo.toggle()
-              }) {
+              } label: {
                 Image(systemName: "info.circle")
                   .font(.caption)
                   .foregroundColor(.secondary)
+                  .frame(width: 32, height: 32)
+                  .contentShape(Rectangle())
               }
+              .accessibilityLabel("Instance information")
+              .accessibilityHint("Shows details about the search index source")
             }
           }
         }
