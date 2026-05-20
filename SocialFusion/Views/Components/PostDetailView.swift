@@ -1097,13 +1097,19 @@ struct PostDetailView: View {
     @ViewBuilder
     private func parentPostsIndicator() -> some View {
         Button(action: {
+            HapticEngine.tap.trigger()
             scrollTargetID = topScrollID
             scrollTrigger += 1
             showParentIndicator = false
         }) {
             ZStack {
                 Circle()
-                    .fill(.ultraThinMaterial)
+                    // Solid fallback for Reduce Transparency — the
+                    // floating "scroll up to parents" chevron should
+                    // stay a distinct shape over the timeline.
+                    .fill(reduceTransparency
+                          ? AnyShapeStyle(Color(.secondarySystemBackground))
+                          : AnyShapeStyle(.ultraThinMaterial))
                     .frame(width: 44, height: 44)
                     .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
                 Image(systemName: "chevron.up")
@@ -1113,7 +1119,10 @@ struct PostDetailView: View {
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-        .transition(.scale.combined(with: .opacity))
+        // Reduce Motion drops the scale pop-in — opacity fade alone.
+        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+        .accessibilityLabel("Scroll to parent posts")
+        .accessibilityHint("Returns to the top of the thread")
     }
 }
 
