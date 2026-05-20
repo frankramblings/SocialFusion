@@ -551,6 +551,10 @@ struct ChatView: View {
       .foregroundColor(.secondary)
       .padding(.vertical, 8)
       .frame(maxWidth: .infinity)
+      // Section headers in the messages list — .isHeader lets VoiceOver
+      // users navigate between date sections via the rotor, the same
+      // way iOS Messages does.
+      .accessibilityAddTraits(.isHeader)
   }
 
   private var navAvatarInitial: String {
