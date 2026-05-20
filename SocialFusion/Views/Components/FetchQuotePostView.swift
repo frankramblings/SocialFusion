@@ -50,12 +50,19 @@ public struct QuotedPostView: View {
             }) {
                 ZStack(alignment: .bottomTrailing) {
                     let stableImageURL = URL(string: post.authorProfilePictureURL)
+                    let quoteInitial = String((post.authorName.isEmpty ? post.authorUsername : post.authorName).prefix(1)).uppercased()
                     CachedAsyncImage(url: stableImageURL, priority: .high) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     } placeholder: {
-                        Circle().fill(Color(.systemGray5))
+                        Circle()
+                            .fill(Color(.systemGray5))
+                            .overlay(
+                                Text(quoteInitial.isEmpty ? "?" : quoteInitial)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundColor(Color(.systemGray))
+                            )
                     }
                     .frame(width: 32, height: 32)
                     .clipShape(Circle())

@@ -348,6 +348,7 @@ struct NotificationRow: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
+                        let initial = String((notification.fromAccount.displayName ?? notification.fromAccount.username).prefix(1)).uppercased()
                         if let avatarURL = notification.fromAccount.avatarURL, let url = URL(string: avatarURL) {
                             CachedAsyncImage(url: url, priority: .high) { image in
                                 image.resizable()
@@ -355,8 +356,9 @@ struct NotificationRow: View {
                             } placeholder: {
                                 Circle().fill(Color(.systemGray5))
                                     .overlay(
-                                        ProgressView()
-                                            .scaleEffect(0.5)
+                                        Text(initial)
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundColor(Color(.systemGray))
                                     )
                             }
                             .frame(width: 32, height: 32)
@@ -364,6 +366,11 @@ struct NotificationRow: View {
                         } else {
                             Circle().fill(Color(.systemGray5))
                                 .frame(width: 32, height: 32)
+                                .overlay(
+                                    Text(initial)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundColor(Color(.systemGray))
+                                )
                         }
 
                         VStack(alignment: .leading) {
