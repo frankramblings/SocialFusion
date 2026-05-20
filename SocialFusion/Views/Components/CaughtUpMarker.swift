@@ -107,19 +107,19 @@ struct CaughtUpMarker: View {
       ringOpacity = 1
     }
 
-    // Stage 2: checkmark draws — slightly delayed for choreography
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+    // Stage 2: checkmark draws — slightly delayed for choreography.
+    // No haptic here: the marker is rendered inside a LazyVStack and
+    // SwiftUI rebuilds it every time it scrolls back into view, so
+    // firing a haptic on .onAppear would fire on every scroll-past,
+    // not just the first encounter. The checkmark stroke is the
+    // visual delight; the haptic was originally 'quiet pride' but
+    // became scroll noise.
+    Task { @MainActor in
+      try? await Task.sleep(nanoseconds: 180_000_000)
       withAnimation(.easeOut(duration: 0.38)) {
         checkmarkProgress = 1
       }
-      // Haptic on the final stroke landing — quiet pride
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-        HapticEngine.tap.trigger()
-      }
-    }
-
-    // Stage 3: text fades up
-    DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
+      try? await Task.sleep(nanoseconds: 140_000_000)
       withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
         hasAppeared = true
       }
