@@ -425,6 +425,11 @@ struct ProfileView: View {
       .padding(.bottom, 16)
     }
     .redacted(reason: .placeholder)
+    // Skeleton placeholder bars otherwise read as a series of unlabeled
+    // shapes for VoiceOver — consolidate into a single 'Loading profile'
+    // utterance so the user knows what's happening.
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Loading profile")
   }
 
   // MARK: - Tab Empty State
