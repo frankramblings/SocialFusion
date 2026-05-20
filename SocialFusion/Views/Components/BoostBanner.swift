@@ -26,8 +26,8 @@ struct BoostBanner: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "repeat")
-                .font(.caption)
+            Image(systemName: "arrow.2.squarepath")
+                .font(.caption.weight(.semibold))
                 .foregroundColor(platformColor)
                 .scaleEffect(isPressed ? 0.95 : 1.0)
             HStack(spacing: 0) {
@@ -62,7 +62,12 @@ struct BoostBanner: View {
                 withAnimation(.easeInOut(duration: 0.1)) {
                     isPressed = pressing
                 }
-            }, perform: {})
+            }, perform: {}
+        )
+        // Read as a single phrase: "Boosted by @handle" — not three separate
+        // tokens (icon, name, "boosted") that VoiceOver users have to assemble.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Boosted by \(handle)")
     }
 }
 
@@ -157,8 +162,8 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
 
     private var bannerHeaderContent: some View {
         HStack(spacing: 8) {
-            Image(systemName: "repeat")
-                .font(.caption)
+            Image(systemName: "arrow.2.squarepath")
+                .font(.caption.weight(.semibold))
                 .foregroundColor(platformColor)
 
             OverlappingAvatarStack(users: collapsedBoosters, size: 18, overlapFraction: 0.33)
