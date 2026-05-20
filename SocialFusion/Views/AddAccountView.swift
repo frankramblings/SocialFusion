@@ -75,9 +75,9 @@ struct AddAccountView: View {
                             .foregroundColor(.secondary)
 
                         TextField("Server", text: $server)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
-                            .disableAutocorrection(true)
+                            .autocorrectionDisabled(true)
                             .textContentType(.URL)
                             .submitLabel(.done)
                     } else {
@@ -86,9 +86,9 @@ struct AddAccountView: View {
                             .foregroundColor(.secondary)
 
                         TextField("Email or Username", text: $username)
-                            .autocapitalization(.none)
+                            .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
-                            .disableAutocorrection(true)
+                            .autocorrectionDisabled(true)
                             .textContentType(.username)
                             .submitLabel(.done)
 

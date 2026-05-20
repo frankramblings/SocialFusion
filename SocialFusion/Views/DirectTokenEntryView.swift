@@ -14,15 +14,15 @@ struct DirectTokenEntryView: View {
         Form {
             Section(header: Text("Server Information")) {
                 TextField("Server URL (e.g. mastodon.social)", text: $serverURL)
-                    .autocapitalization(.none)
+                    .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
-                    .disableAutocorrection(true)
+                    .autocorrectionDisabled(true)
             }
 
             Section(header: Text("Authentication")) {
                 SecureField("Access Token", text: $accessToken)
-                    .autocapitalization(.none)
-                    .disableAutocorrection(true)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
 
                 Text(
                     "You can obtain an access token from your Mastodon's instance settings page, under Development → Your applications."
