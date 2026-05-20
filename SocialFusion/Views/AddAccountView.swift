@@ -148,8 +148,8 @@ struct AddAccountView: View {
             )
             .alert(isPresented: $showError) {
                 Alert(
-                    title: Text("Error"),
-                    message: Text(errorMessage ?? "An unknown error occurred"),
+                    title: Text("Couldn't Add Account"),
+                    message: Text(errorMessage ?? "Something went wrong while signing in."),
                     dismissButton: .default(Text("OK"))
                 )
             }
