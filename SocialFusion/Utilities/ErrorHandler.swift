@@ -104,18 +104,18 @@ class ErrorHandler {
     private func mapToAppError(_ error: Error, retryAction: (() -> Void)? = nil) -> AppError {
         // Try to map NetworkError to AppError
         if let networkError = error as? NetworkError {
-            // Comment out or stub the use of 'isRetriable' and 'userFriendlyDescription' on NetworkError
-            // TODO: Implement these properties/methods as needed
-            // Example:
-            // let isRetryable = networkError.isRetriable // TODO: Implement
-            // message: networkError.userFriendlyDescription // TODO: Implement
-
+            // NetworkError.userFriendlyDescription and .isRetriable were
+            // marked TODO when this code was written but have since
+            // been implemented (see Networking/NetworkService.swift).
+            // Wire them up so users see "Server error occurred" rather
+            // than the raw Swift error description like
+            // "httpError(500, Optional(nil))".
             return AppError(
                 type: .network,
-                message: String(describing: networkError),
+                message: networkError.userFriendlyDescription,
                 underlyingError: networkError,
-                isRetryable: false,
-                suggestedAction: retryAction
+                isRetryable: networkError.isRetriable,
+                suggestedAction: networkError.isRetriable ? retryAction : nil
             )
         }
 
