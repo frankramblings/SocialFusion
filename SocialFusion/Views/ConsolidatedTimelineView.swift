@@ -1286,6 +1286,18 @@ struct ConsolidatedTimelineView: View {
                         unreadPulseActive = true
                     }
                 }
+                // VoiceOver users won't see the pill slide in or
+                // notice the visual pulse. Announce the arrival so
+                // they get the same beat sighted users do — same
+                // pattern ToastNotification uses for toasts. Only
+                // fires when VoiceOver is actually running, so we
+                // don't pay the announcement cost for everyone.
+                if UIAccessibility.isVoiceOverRunning {
+                    let phrase = count == 1
+                        ? "1 new post above. Double-tap to view."
+                        : "\(count) new posts above. Double-tap to view."
+                    UIAccessibility.post(notification: .announcement, argument: phrase)
+                }
             }
             .onDisappear {
                 unreadPulseActive = false
