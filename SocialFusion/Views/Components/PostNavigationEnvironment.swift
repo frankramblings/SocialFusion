@@ -320,15 +320,21 @@ class PostNavigationEnvironment: ObservableObject {
                         // Fallback to first Mastodon account if no direct match
                         let account = matchingAccount ?? serviceManager.mastodonAccounts.first
 
-                        guard let account = account else { return }
+                        guard let account = account else {
+                            ToastManager.shared.show("Add a Mastodon account to open this post", severity: .warning, duration: 2.4)
+                            return
+                        }
 
                         if let post = try await serviceManager.mastodonService.fetchPostByID(statusId, account: account) {
                             navigateToPost(post)
+                        } else {
+                            ToastManager.shared.show("Post unavailable", severity: .warning, duration: 2.0)
                         }
                     } catch {
                         #if DEBUG
                         print("Failed to fetch Mastodon post from universal link: \(error)")
                         #endif
+                        ToastManager.shared.show("Couldn't open that post", severity: .error, duration: 2.0)
                     }
                 }
             }
