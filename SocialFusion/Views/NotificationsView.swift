@@ -197,7 +197,7 @@ struct NotificationsView: View {
                         Spacer()
                     }
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.95)))
             }
         }
         .background(Color(.systemBackground))

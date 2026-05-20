@@ -229,11 +229,11 @@ struct MessageBubble: View {
                   .font(.caption2)
               }
               .foregroundColor(.secondary)
-              .transition(.opacity.combined(with: .scale(scale: 0.92)))
+              .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.92)))
             }
           }
           .padding(.horizontal, 4)
-          .animation(.easeOut(duration: 0.2), value: showSeenIndicator)
+          .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: showSeenIndicator)
           .accessibilityElement(children: .combine)
           .accessibilityLabel(showSeenIndicator
             ? "Sent at \(message.sentAt.formatted(date: .omitted, time: .shortened)), read"
