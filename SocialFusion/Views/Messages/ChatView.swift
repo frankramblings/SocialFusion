@@ -73,7 +73,7 @@ struct ChatView: View {
                 Image(systemName: "chevron.up")
                   .font(.caption.weight(.semibold))
                   .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary.opacity(0.5))
-                  .frame(width: 28, height: 28)
+                  .frame(width: 44, height: 44)
                   .contentShape(Rectangle())
               }
               .disabled(currentMatchIndex == 0)
@@ -86,7 +86,7 @@ struct ChatView: View {
                 Image(systemName: "chevron.down")
                   .font(.caption.weight(.semibold))
                   .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary.opacity(0.5))
-                  .frame(width: 28, height: 28)
+                  .frame(width: 44, height: 44)
                   .contentShape(Rectangle())
               }
               .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
@@ -499,18 +499,24 @@ struct ChatView: View {
 
   @ViewBuilder
   private var navAvatar: some View {
-    if conversation.isGroup {
-      GroupAvatarStack(participants: conversation.participants, size: 28)
-    } else if let urlString = conversation.participant.avatarURL,
-       let url = URL(string: urlString) {
-      CachedAsyncImage(url: url, priority: .high) { image in
-        image.resizable().aspectRatio(contentMode: .fill)
-      } placeholder: {
-        Circle().fill(Color(.systemGray5))
+    Group {
+      if conversation.isGroup {
+        GroupAvatarStack(participants: conversation.participants, size: 28)
+      } else if let urlString = conversation.participant.avatarURL,
+         let url = URL(string: urlString) {
+        CachedAsyncImage(url: url, priority: .high) { image in
+          image.resizable().aspectRatio(contentMode: .fill)
+        } placeholder: {
+          Circle().fill(Color(.systemGray5))
+        }
+        .frame(width: 28, height: 28)
+        .clipShape(Circle())
       }
-      .frame(width: 28, height: 28)
-      .clipShape(Circle())
     }
+    // Decorative — the conversation title in the toolbar's center
+    // already names the person/group. Hiding from VoiceOver avoids
+    // an "Image" read with no context after the title is already read.
+    .accessibilityHidden(true)
   }
 
   private func isFromMe(_ message: UnifiedChatMessage) -> Bool {
