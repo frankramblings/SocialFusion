@@ -46,6 +46,13 @@ struct AccountsView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("All Accounts")
+                    .accessibilityHint(
+                        serviceManager.selectedAccountIds.contains("all")
+                            ? "Currently selected. Tap to deselect"
+                            : "Tap to select all accounts"
+                    )
                     .accessibilityAddTraits(
                         serviceManager.selectedAccountIds.contains("all") ? .isSelected : []
                     )
