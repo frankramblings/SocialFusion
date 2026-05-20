@@ -303,6 +303,7 @@ public struct ShareAsImageSheet: View {
         } catch {
             cleanupShareFiles()
             viewModel.errorMessage = error.localizedDescription
+            HapticEngine.error.trigger()
         }
     }
     
@@ -316,12 +317,14 @@ public struct ShareAsImageSheet: View {
             if newStatus != .authorized && newStatus != .limited {
                 await MainActor.run {
                     saveToPhotosError = "Photo library access is required to save images. Please enable it in Settings."
+                    HapticEngine.warning.trigger()
                 }
                 return
             }
         } else if status != .authorized && status != .limited {
             await MainActor.run {
                 saveToPhotosError = "Photo library access is required to save images. Please enable it in Settings."
+                HapticEngine.warning.trigger()
             }
             return
         }

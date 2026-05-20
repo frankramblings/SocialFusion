@@ -114,6 +114,7 @@ public class ShareAsImageViewModel: ObservableObject {
             } else {
                 if !Task.isCancelled {
                     errorMessage = "Failed to generate preview"
+                    HapticEngine.error.trigger()
                 }
             }
 
