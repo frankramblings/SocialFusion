@@ -154,8 +154,9 @@ struct FullscreenMediaView: View {
                                                     if hasMultipleImages && isPrimarilyHorizontal {
                                                         // Reset drag offset and let TabView handle the horizontal swipe
                                                         withAnimation(
-                                                            .spring(
-                                                                response: 0.3, dampingFraction: 0.8)
+                                                            reduceMotion
+                                                                ? nil
+                                                                : .spring(response: 0.3, dampingFraction: 0.8)
                                                         ) {
                                                             dragOffset = .zero
                                                         }
@@ -188,14 +189,15 @@ struct FullscreenMediaView: View {
 
                                                     if shouldDismiss {
                                                         // Swipe to dismiss
-                                                        withAnimation(.easeOut(duration: 0.3)) {
+                                                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) {
                                                             onDismiss()
                                                         }
                                                     } else {
                                                         // Reset if swipe wasn't strong enough
                                                         withAnimation(
-                                                            .spring(
-                                                                response: 0.3, dampingFraction: 0.8)
+                                                            reduceMotion
+                                                                ? nil
+                                                                : .spring(response: 0.3, dampingFraction: 0.8)
                                                         ) {
                                                             dragOffset = .zero
                                                         }
@@ -220,7 +222,7 @@ struct FullscreenMediaView: View {
                                     }
                                 }
                                 .onTapGesture(count: 1) {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                                         overlaysVisible.toggle()
                                         if !overlaysVisible { showAltText = false }
                                     }
@@ -234,7 +236,7 @@ struct FullscreenMediaView: View {
                     // Reset zoom + drag when paging between images. Quick
                     // easeOut so the next image arrives un-zoomed and
                     // centered without a visible 'springing back' moment.
-                    withAnimation(.easeOut(duration: 0.18)) {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                         currentScale = 1.0
                         currentOffset = .zero
                         previousOffset = .zero
@@ -250,7 +252,7 @@ struct FullscreenMediaView: View {
                             Spacer()
                             Button(action: {
                                 HapticEngine.tap.trigger()
-                                withAnimation(.easeOut(duration: 0.3)) {
+                                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) {
                                     onDismiss()
                                 }
                             }) {
@@ -305,7 +307,7 @@ struct FullscreenMediaView: View {
                                 if let altText = allMedia[currentIndex].altText, !altText.isEmpty {
                                     Button {
                                         HapticEngine.selection.trigger()
-                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                                        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
                                             showAltText.toggle()
                                         }
                                     } label: {
