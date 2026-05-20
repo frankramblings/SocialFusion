@@ -1669,7 +1669,7 @@ struct ComposeView: View {
                 PhotoPicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
             .sheet(isPresented: $showAltTextSheet) {
-                NavigationView {
+                NavigationStack {
                     VStack {
                         if selectedImageIndexForAltText < threadPosts[activePostIndex].images.count
                         {
@@ -1701,13 +1701,15 @@ struct ComposeView: View {
                     .navigationTitle("Image Description")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
+                        ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") {
+                                HapticEngine.tap.trigger()
                                 showAltTextSheet = false
                             }
                         }
-                        ToolbarItem(placement: .navigationBarTrailing) {
+                        ToolbarItem(placement: .confirmationAction) {
                             Button("Done") {
+                                HapticEngine.success.trigger()
                                 // Save ALT text back to the post
                                 while threadPosts[activePostIndex].imageAltTexts.count <= selectedImageIndexForAltText {
                                     threadPosts[activePostIndex].imageAltTexts.append("")
@@ -1715,6 +1717,7 @@ struct ComposeView: View {
                                 threadPosts[activePostIndex].imageAltTexts[selectedImageIndexForAltText] = currentAltText
                                 showAltTextSheet = false
                             }
+                            .fontWeight(.semibold)
                         }
                     }
                 }
