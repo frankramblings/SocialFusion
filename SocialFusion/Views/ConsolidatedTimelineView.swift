@@ -582,7 +582,7 @@ struct ConsolidatedTimelineView: View {
         .font(.caption2)
         .padding(8)
         .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .opacity(UITestHooks.isEnabled ? 0.85 : 0.01)
         #else
         EmptyView()

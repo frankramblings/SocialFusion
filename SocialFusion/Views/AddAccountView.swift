@@ -171,7 +171,7 @@ struct AddAccountView: View {
                     ProgressView()
                         .scaleEffect(1.5)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(Color.black.opacity(0.1))
                                 .frame(width: 60, height: 60)
                         )

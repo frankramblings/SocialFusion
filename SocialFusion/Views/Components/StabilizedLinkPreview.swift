@@ -521,7 +521,7 @@ private struct StabilizedLinkCompactContentView: View {
                     .cornerRadius(8)
                 } else {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.gray.opacity(0.1))
                         Image(systemName: "link").foregroundColor(.secondary)
                     }
                     .frame(width: 44, height: 44)

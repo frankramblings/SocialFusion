@@ -282,10 +282,10 @@ struct FullscreenMediaView: View {
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 16)
                                         .background(
-                                            RoundedRectangle(cornerRadius: 16)
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
                                                 .fill(Color.black.opacity(0.92))
                                                 .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
+                                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                                                         .stroke(
                                                             Color.white.opacity(0.15), lineWidth: 1)
                                                 )

@@ -400,7 +400,7 @@ struct PostDetailView: View {
                             let accentColor: Color = post.platform == .mastodon
                                 ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
                                 : Color(red: 0, green: 133 / 255, blue: 255 / 255)
-                            RoundedRectangle(cornerRadius: 1)
+                            RoundedRectangle(cornerRadius: 1, style: .continuous)
                                 .fill(accentColor.opacity(0.4))
                                 .frame(width: 2)
                                 .padding(.vertical, 8)

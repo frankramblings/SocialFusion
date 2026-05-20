@@ -240,7 +240,7 @@ struct FetchQuotePostView: View {
                     .background(
                         colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             } else {
                 // Fallback to regular link preview if we can't fetch the post

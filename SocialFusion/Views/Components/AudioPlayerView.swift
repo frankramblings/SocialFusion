@@ -107,7 +107,7 @@ struct AudioPlayerView: View {
                 // Loading waveform
                 HStack(spacing: 2) {
                     ForEach(0..<40, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 1)
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(Color.secondary.opacity(0.3))
                             .frame(width: 3, height: CGFloat.random(in: 8...waveformHeight))
                     }
@@ -480,7 +480,7 @@ private struct WaveformView: View {
                     let xPosition = CGFloat(index) * barWidth
                     let isPlayed = xPosition < progressX
 
-                    RoundedRectangle(cornerRadius: 1)
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
                         .fill(isPlayed ? Color.primary : Color.secondary.opacity(0.3))
                         .frame(width: max(barWidth - 1, 2), height: barHeight)
                 }
@@ -510,7 +510,7 @@ private struct SimpleWaveformView: View {
                 // Background bars
                 HStack(spacing: 2) {
                     ForEach(0..<50, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 1)
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(Color.secondary.opacity(0.3))
                             .frame(width: 3, height: CGFloat.random(in: height * 0.2...height))
                     }
@@ -519,7 +519,7 @@ private struct SimpleWaveformView: View {
                 // Progress overlay
                 HStack(spacing: 2) {
                     ForEach(0..<50, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 1)
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(Color.primary)
                             .frame(width: 3, height: CGFloat.random(in: height * 0.2...height))
                     }

@@ -15,28 +15,28 @@ struct SkeletonPostCard: View {
 
       VStack(alignment: .leading, spacing: 8) {
         // Display name bar
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
           .fill(shimmerFill)
           .frame(width: 120, height: 14)
 
         // Handle bar
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
           .fill(shimmerFill)
           .frame(width: 80, height: 12)
 
         // Body text lines
         VStack(alignment: .leading, spacing: 6) {
-          RoundedRectangle(cornerRadius: 4)
+          RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(shimmerFill)
             .frame(maxWidth: .infinity)
             .frame(height: 12)
 
-          RoundedRectangle(cornerRadius: 4)
+          RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(shimmerFill)
             .frame(maxWidth: .infinity)
             .frame(height: 12)
 
-          RoundedRectangle(cornerRadius: 4)
+          RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(shimmerFill)
             .frame(width: 180, height: 12)
         }

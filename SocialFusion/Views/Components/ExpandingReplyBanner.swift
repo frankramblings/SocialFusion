@@ -608,10 +608,10 @@ struct ParentPostSkeleton: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     // Username skeleton with liquid glass
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color(.systemBackground))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(.ultraThinMaterial)
                         )
                         .frame(width: 85, height: 14)
@@ -619,10 +619,10 @@ struct ParentPostSkeleton: View {
                             variant: .clear, intensity: 0.5, morphingState: .transitioning)
 
                     // Handle skeleton with liquid glass
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color(.systemBackground))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(.ultraThinMaterial)
                         )
                         .frame(width: 65, height: 11)
@@ -633,10 +633,10 @@ struct ParentPostSkeleton: View {
                 Spacer()
 
                 // Time skeleton with liquid glass
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(width: 35, height: 11)
@@ -646,30 +646,30 @@ struct ParentPostSkeleton: View {
 
             // Content skeleton with varied widths and liquid glass effects
             VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(height: 14)
                     .advancedLiquidGlass(
                         variant: .clear, intensity: 0.5, morphingState: .transitioning)
 
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(width: 220, height: 14)
                     .advancedLiquidGlass(
                         variant: .clear, intensity: 0.4, morphingState: .transitioning)
 
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(width: 160, height: 14)

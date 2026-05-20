@@ -594,7 +594,7 @@ private struct VideoPlayerView: View {
                         }
                         .padding(12)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(.ultraThinMaterial.opacity(0.8))
                         )
                     }
