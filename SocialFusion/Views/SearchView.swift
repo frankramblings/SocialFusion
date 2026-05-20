@@ -490,14 +490,16 @@ struct SearchView: View {
     // MARK: - Trending Tags Section
 
     /// Plural-aware label for a trending tag row. Says 'Hashtag <name>'
-    /// followed by the post count if available, with proper singular/
-    /// plural handling. Same shape as SearchTagRow's label (iter 113).
+    /// followed by the post count + platform name. Matches
+    /// SearchTagRow's label shape exactly (iter 166) so the two trending-
+    /// tag display surfaces read identically for VoiceOver.
     private func trendingTagLabel(for tag: SearchTag) -> String {
         var label = "Hashtag \(tag.name)"
         if let count = tag.usageCount, count > 0 {
             let displayed = tag.formattedUsageCount ?? "\(count)"
             label += ", \(displayed) post\(count == 1 ? "" : "s")"
         }
+        label += ", on \(tag.platform.rawValue.capitalized)"
         return label
     }
 
