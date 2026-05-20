@@ -311,14 +311,19 @@ struct FilterButton: View {
                 .fontWeight(isSelected ? .semibold : .regular)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.blue.opacity(0.15) : Color.clear)
-                .foregroundColor(isSelected ? .blue : .secondary)
+                // Selected-state tint = accentColor so the filter
+                // chip respects the user's app-level tint (and
+                // matches whatever the rest of the system is doing
+                // for selection). Was hard-coded .blue, which broke
+                // alignment with non-blue accents.
+                .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+                .foregroundColor(isSelected ? .accentColor : .secondary)
                 .opacity(opacity)
                 .cornerRadius(20)
                 .conditionalLiquidGlass(enabled: isSelected, prominence: .thin)
                 .overlay(
                     Capsule()
-                        .stroke(isSelected ? Color.blue.opacity(0.3) : Color(.systemGray4), lineWidth: 1)
+                        .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color(.systemGray4), lineWidth: 1)
                 )
         }
     }

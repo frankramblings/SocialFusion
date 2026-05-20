@@ -1463,10 +1463,16 @@ struct ComposeView: View {
                                 .background(
                                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .fill(
+                                            // "ALT set" badge tracks accentColor
+                                            // (was hard-coded .blue) so it stays
+                                            // visually consistent with other
+                                            // "this is set" indicators across
+                                            // the app and respects the user's
+                                            // accent setting.
                                             index < threadPosts[activePostIndex].imageAltTexts.count
                                                 && !threadPosts[activePostIndex].imageAltTexts[index]
                                                     .isEmpty
-                                                ? Color.blue : Color.black.opacity(0.6)
+                                                ? Color.accentColor : Color.black.opacity(0.6)
                                         )
                                 )
                             }
