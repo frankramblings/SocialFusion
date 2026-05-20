@@ -106,8 +106,15 @@ public class ShareAsImageViewModel: ObservableObject {
                     let pages = ThreadPaginator.paginate(document: updatedDocument)
                     pageCount = pages.count
 
-                    // Use withAnimation for smooth crossfade
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    // Use withAnimation for smooth crossfade. Skip the
+                    // crossfade under Reduce Motion — the preview just
+                    // pops to the new image, which is the calmer
+                    // experience the setting requests. View models
+                    // can't reach the SwiftUI environment, so query
+                    // UIAccessibility directly (same shape Apple's
+                    // own ViewModel-tier code uses).
+                    let reduceMotion = UIAccessibility.isReduceMotionEnabled
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         previewImage = image
                     }
                 }
@@ -136,7 +143,8 @@ public class ShareAsImageViewModel: ObservableObject {
             let (refinedImage, refinedPreset) = ShareImageRenderer.renderAutoPreview(document: updatedDocument)
             if let refinedImage = refinedImage {
                 autoSelectedPreset = refinedPreset
-                withAnimation(.easeInOut(duration: 0.2)) {
+                let reduceMotion = UIAccessibility.isReduceMotionEnabled
+                withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                     previewImage = refinedImage
                 }
             }
