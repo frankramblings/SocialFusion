@@ -22,6 +22,7 @@ struct FullscreenMediaView: View {
     @State private var isSharing: Bool = false
     @State private var videoPlayers: [URL: AVPlayer] = [:]
     @State private var currentPlayer: AVPlayer? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         media: Post.Attachment, allMedia: [Post.Attachment], showAltTextInitially: Bool = false,
@@ -87,8 +88,9 @@ struct FullscreenMediaView: View {
                                                 if currentScale < 1.0 {
                                                     // Snap back from pinched-too-small with a
                                                     // spring — feels like elasticity returning,
-                                                    // not just a reset.
-                                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+                                                    // not just a reset. ReduceMotion users get
+                                                    // a flat short easeOut instead.
+                                                    withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.32, dampingFraction: 0.78)) {
                                                         currentScale = 1.0
                                                         currentOffset = .zero
                                                         previousOffset = .zero
@@ -205,7 +207,8 @@ struct FullscreenMediaView: View {
                                 .onTapGesture(count: 2) {
                                     // Double tap zoom — spring sells the
                                     // 'snap to' feel like the Photos app.
-                                    withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
+                                    // ReduceMotion users get a flat easeOut.
+                                    withAnimation(reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.36, dampingFraction: 0.78)) {
                                         if currentScale > 1.0 {
                                             currentScale = 1.0
                                             currentOffset = .zero
