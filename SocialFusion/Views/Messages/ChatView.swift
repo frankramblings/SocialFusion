@@ -364,7 +364,9 @@ struct ChatView: View {
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
         }
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
         .accessibilityLabel("Add photos")
+        .accessibilityHint("Opens the photo picker to attach up to 4 images")
 
         TextField("Message", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
