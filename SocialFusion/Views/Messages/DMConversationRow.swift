@@ -15,6 +15,27 @@ struct DMConversationRow: View {
 
   private var hasUnread: Bool { conversation.unreadCount > 0 }
 
+  /// VoiceOver utterance for the whole row — composed from name,
+  /// platform, last message, time, mute, and unread count so the user
+  /// hears one cohesive summary per row.
+  private var rowAccessibilityLabel: String {
+    var parts: [String] = []
+    let titleText: String
+    if conversation.isGroup, let title = conversation.title {
+      titleText = title
+    } else {
+      titleText = conversation.participant.displayName ?? conversation.participant.username
+    }
+    parts.append(titleText)
+    parts.append(conversation.platform.rawValue.capitalized)
+    if conversation.isMuted { parts.append("Muted") }
+    if hasUnread {
+      parts.append("\(conversation.unreadCount) unread message\(conversation.unreadCount == 1 ? "" : "s")")
+    }
+    parts.append(conversation.lastMessage.content)
+    return parts.joined(separator: ", ")
+  }
+
   var body: some View {
     HStack(spacing: 12) {
       avatarView
@@ -89,12 +110,17 @@ struct DMConversationRow: View {
 
           if hasUnread {
             UnreadIndicator(tint: platformColor)
-              .accessibilityLabel("\(conversation.unreadCount) unread message\(conversation.unreadCount == 1 ? "" : "s")")
           }
         }
       }
     }
     .padding(.vertical, 4)
+    // Whole row reads as one summary for VoiceOver — see
+    // rowAccessibilityLabel above. The NavigationLink wrapping this
+    // row applies the button trait + 'opens chat' hint at the link
+    // level, so the row just needs the cohesive description.
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(rowAccessibilityLabel)
   }
 
   @ViewBuilder
