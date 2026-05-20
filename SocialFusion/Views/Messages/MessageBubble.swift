@@ -300,18 +300,33 @@ struct MessageBubble: View {
 
   @ViewBuilder
   private var asyncAvatar: some View {
+    let initial = senderName?.first.map { String($0) } ?? "?"
     if let urlString = avatarURL, let url = URL(string: urlString) {
       CachedAsyncImage(url: url, priority: .low) { image in
         image.resizable().aspectRatio(contentMode: .fill)
       } placeholder: {
-        Circle().fill(Color(.systemGray5))
+        initialPlaceholder(initial)
       }
       .frame(width: 28, height: 28)
       .clipShape(Circle())
     } else {
-      Circle().fill(Color(.systemGray5))
+      initialPlaceholder(initial)
         .frame(width: 28, height: 28)
     }
+  }
+
+  /// Initials-fallback avatar for chats — circle with the first letter
+  /// of the sender's name. Matches the pattern used in DMConversationRow
+  /// and NewConversationView so every message-related avatar reads with
+  /// a consistent identity affordance.
+  private func initialPlaceholder(_ letter: String) -> some View {
+    Circle()
+      .fill(Color(.systemGray5))
+      .overlay(
+        Text(letter.uppercased())
+          .font(.caption.weight(.semibold))
+          .foregroundColor(Color(.systemGray))
+      )
   }
 }
 

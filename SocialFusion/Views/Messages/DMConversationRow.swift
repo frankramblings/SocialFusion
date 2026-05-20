@@ -107,8 +107,15 @@ struct DMConversationRow: View {
         image.resizable()
           .aspectRatio(contentMode: .fill)
       } placeholder: {
+        // Initials while loading rather than a spinner — feels more
+        // present, less 'something is happening here'. Same identity
+        // shows whether or not the network resolves.
         Circle().fill(Color(.systemGray5))
-          .overlay(ProgressView().scaleEffect(0.5))
+          .overlay(
+            Text(String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased())
+              .font(.title3.bold())
+              .foregroundColor(Color(.systemGray))
+          )
       }
       .frame(width: 48, height: 48)
       .clipShape(Circle())
