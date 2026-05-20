@@ -29,6 +29,9 @@ struct PostPlatformBadge: View {
                         .stroke(platform.swiftUIColor.opacity(0.3), lineWidth: 0.5)
                 )
         )
+        // The badge is a single semantic unit; combine the icon +
+        // text so VoiceOver reads "Bluesky" once, not "image, Bluesky."
+        .accessibilityElement(children: .combine)
     }
 }
 
