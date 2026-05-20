@@ -430,9 +430,13 @@ struct ContentView: View {
                 .font(.system(size: 50))
                 .foregroundStyle(Color(.systemGray3).gradient)
                 .symbolRenderingMode(.hierarchical)
+                .accessibilityHidden(true)
 
             if serviceManager.accounts.isEmpty {
-                Text("No Accounts Added").font(.title3).fontWeight(.medium)
+                Text("No Accounts Added")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .accessibilityAddTraits(.isHeader)
                 Button("Add Account") {
                     HapticEngine.tap.trigger()
                     showAddAccountView = true
@@ -440,7 +444,10 @@ struct ContentView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
             } else {
-                Text("No Account Selected").font(.title3).fontWeight(.medium)
+                Text("No Account Selected")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .accessibilityAddTraits(.isHeader)
                 Button("Select Account") {
                     HapticEngine.tap.trigger()
                     showAccountPicker = true
