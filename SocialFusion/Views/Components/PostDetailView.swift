@@ -556,15 +556,22 @@ struct PostDetailView: View {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundColor(.orange)
-                Text("Add \(platform.rawValue) account")
+                    .foregroundStyle(Color.orange.gradient)
+                    .symbolRenderingMode(.hierarchical)
+                Text("Add \(platform.rawValue.capitalized) account")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.orange.opacity(0.12))
-            .clipShape(Capsule())
+            .background(
+                Capsule()
+                    .fill(Color.orange.opacity(0.12))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.orange.opacity(0.22), lineWidth: 0.5)
+                    )
+            )
         } else if accounts.count == 1, let account = accounts.first {
             HStack(spacing: 6) {
                 Image(platform.icon)
