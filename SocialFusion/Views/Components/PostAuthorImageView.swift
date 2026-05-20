@@ -34,7 +34,7 @@ struct PostAuthorImageView: View {
                     ZStack {
                         Circle()
                             .fill(Color(.secondarySystemFill))
-                        
+
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
@@ -73,6 +73,18 @@ struct PostAuthorImageView: View {
             )
             .offset(x: 2, y: 2)  // Small offset to position badge properly
         }
+        // Combine the avatar + platform badge into a single
+        // accessibility element with a descriptive label. Without
+        // this, VoiceOver stops on every avatar and announces
+        // ambiguous SF Symbol/image hints. Most call sites already
+        // wrap this in a parent that combines and labels its own
+        // element (e.g. PostAuthorView), but standalone uses (DM
+        // rows, account picker, etc.) reach this directly and need
+        // their own label.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(authorName.isEmpty
+                            ? "\(platform.rawValue.capitalized) avatar"
+                            : "\(authorName), \(platform.rawValue.capitalized) avatar")
     }
 
     // Computed property for initials background (like Twitter, Instagram, etc.)
