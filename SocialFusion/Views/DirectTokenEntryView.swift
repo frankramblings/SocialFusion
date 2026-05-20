@@ -32,40 +32,72 @@ struct DirectTokenEntryView: View {
             }
 
             Section {
-                Button(action: addAccount) {
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                    } else {
-                        Text("Add Account")
-                            .frame(maxWidth: .infinity)
-                            .foregroundColor(.white)
+                Button {
+                    HapticEngine.tap.trigger()
+                    addAccount()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.85)
+                                .tint(.white)
+                        }
+                        Text(isLoading ? "Adding…" : "Add Account")
+                            .font(.headline.weight(.semibold))
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .foregroundColor(.white)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(
+                                isFormValid
+                                    ? AnyShapeStyle(Color.accentColor.gradient)
+                                    : AnyShapeStyle(Color(.systemGray3))
+                            )
+                            .shadow(
+                                color: isFormValid ? Color.accentColor.opacity(0.28) : .clear,
+                                radius: 10,
+                                x: 0,
+                                y: 4
+                            )
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(isFormValid ? Color.blue : Color.gray)
-                .cornerRadius(10)
+                .buttonStyle(.plain)
                 .disabled(isLoading || !isFormValid)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+                .accessibilityHint(isFormValid ? "Adds this account to SocialFusion" : "Fill in the server and access token to continue")
             }
 
             if let error = errorMessage {
                 Section {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.footnote)
+                    Label {
+                        Text(error)
+                            .font(.footnote)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.red.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .foregroundColor(.red)
                 }
             }
 
             if let success = successMessage {
                 Section {
-                    Text(success)
-                        .foregroundColor(.green)
-                        .font(.footnote)
+                    Label {
+                        Text(success)
+                            .font(.footnote)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.green.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .foregroundColor(.green)
                 }
             }
         }
-
     }
 
     private var isFormValid: Bool {
@@ -92,6 +124,7 @@ struct DirectTokenEntryView: View {
                 await MainActor.run {
                     isLoading = false
                     successMessage = "Successfully added account: \(account.username)"
+                    HapticEngine.success.trigger()
 
                     // Clear form after success
                     serverURL = ""
@@ -106,6 +139,7 @@ struct DirectTokenEntryView: View {
                 await MainActor.run {
                     isLoading = false
                     errorMessage = "Failed to add account: \(error.localizedDescription)"
+                    HapticEngine.error.trigger()
                 }
             }
         }
