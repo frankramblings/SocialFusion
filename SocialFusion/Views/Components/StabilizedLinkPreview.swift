@@ -216,17 +216,55 @@ struct StabilizedLinkPreview: View {
 /// ZERO LAYOUT SHIFT: Both states must use the same height to prevent reflow
 private let linkPreviewImageHeight: CGFloat = 180
 
-/// Loading state with shimmer effect - MUST match loaded state geometry exactly
+/// Loading state with shimmer effect - MUST match loaded state geometry exactly.
+///
+/// Uses TimelineView so the shimmer phase is driven by the system clock rather
+/// than a `@State` + `withAnimation(.repeatForever)`. The latter pattern is
+/// known to cause AttributeGraph cycles when used inside other view updates,
+/// and matches what SkeletonPostCard does for the same reason.
 private struct StabilizedLinkLoadingView: View {
     let height: CGFloat  // Kept for backward compatibility, but we use linkPreviewImageHeight
-    @State private var phase: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        Group {
+            if reduceMotion {
+                staticContent
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let elapsed = context.date.timeIntervalSinceReferenceDate
+                    let period: Double = 1.5
+                    let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+                    layout(phase: phase)
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                .fill(Color(.systemGray6).opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                Color(.separator).opacity(0.3), lineWidth: 0.5)
+        )
+        .clipShape(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+        )
+        .accessibilityLabel("Loading link preview")
+    }
+
+    /// Static fallback used when reduce-motion is on — same layout, no shimmer.
+    private var staticContent: some View {
+        layout(phase: 0.5, animated: false)
+    }
+
+    @ViewBuilder
+    private func layout(phase: CGFloat, animated: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // ZERO LAYOUT SHIFT: Image area uses same height as loaded state (180pt)
             Rectangle()
-                .fill(shimmerGradient)
+                .fill(animated ? AnyShapeStyle(shimmerGradient(phase: phase)) : AnyShapeStyle(Color.gray.opacity(0.12)))
                 .frame(maxWidth: .infinity)
                 .frame(height: linkPreviewImageHeight)
                 .clipShape(
@@ -243,56 +281,37 @@ private struct StabilizedLinkLoadingView: View {
             // Text placeholder area - matches loaded state structure
             VStack(alignment: .leading, spacing: 4) {
                 // Title placeholder
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.gray.opacity(0.18))
                     .frame(height: 15)
                     .frame(maxWidth: .infinity)
-                    .cornerRadius(4)
 
                 // Description placeholder
-                Rectangle()
-                    .fill(Color.gray.opacity(0.15))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.gray.opacity(0.14))
                     .frame(height: 13)
                     .frame(maxWidth: 200)
-                    .cornerRadius(4)
 
                 // URL/domain placeholder
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(Color.gray.opacity(0.15))
+                        .fill(Color.gray.opacity(0.14))
                         .frame(width: 10, height: 10)
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.15))
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.gray.opacity(0.14))
                         .frame(width: 80, height: 12)
-                        .cornerRadius(4)
                 }
                 .padding(.top, 2)
             }
             .padding(12)
         }
-        .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .fill(Color(.systemGray6).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
-                Color(.separator).opacity(0.3), lineWidth: 0.5)
-        )
-        .clipShape(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-        )
-        .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                phase = 1.3
-            }
-        }
     }
 
-    private var shimmerGradient: LinearGradient {
+    private func shimmerGradient(phase: CGFloat) -> LinearGradient {
         LinearGradient(
             stops: [
                 .init(color: Color.gray.opacity(0.05), location: phase - 0.3),
-                .init(color: Color.gray.opacity(0.15), location: phase),
+                .init(color: Color.gray.opacity(0.18), location: phase),
                 .init(color: Color.gray.opacity(0.05), location: phase + 0.3),
             ],
             startPoint: .leading,
