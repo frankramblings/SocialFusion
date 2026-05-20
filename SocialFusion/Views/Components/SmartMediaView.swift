@@ -392,6 +392,7 @@ struct SmartMediaView: View {
         .applyHeroTransition(heroID: heroID, namespace: mediaNamespace, isSource: true)
         .onTapGesture {
             if attachment.type != .audio {  // Don't override audio player tap handling
+                HapticEngine.tap.trigger()
                 onTap?()
             }
         }

@@ -36,6 +36,7 @@ public struct QuotedPostView: View {
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
         .contentShape(Rectangle())
         .onTapGesture {
+            HapticEngine.tap.trigger()
             onTap?()
         }
     }

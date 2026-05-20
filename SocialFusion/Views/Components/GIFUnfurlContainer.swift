@@ -187,7 +187,10 @@ public struct GIFUnfurlContainer: View {
                         .frame(maxHeight: maxHeight > 0 ? maxHeight : nil)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .contentShape(Rectangle())
-                        .onTapGesture { onTap?() }
+                        .onTapGesture {
+                            HapticEngine.tap.trigger()
+                            onTap?()
+                        }
                 } else {
                     // Loading or no aspect ratio yet - use GeometryReader for dynamic sizing
                     GeometryReader { geometry in
@@ -203,7 +206,10 @@ public struct GIFUnfurlContainer: View {
                         .frame(height: calculatedHeight(for: geometry.size.width))
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .contentShape(Rectangle())
-                        .onTapGesture { onTap?() }
+                        .onTapGesture {
+                            HapticEngine.tap.trigger()
+                            onTap?()
+                        }
                     }
                     .frame(maxHeight: maxHeight > 0 ? maxHeight : nil)
                     .onAppear(perform: loadIfNeeded)
