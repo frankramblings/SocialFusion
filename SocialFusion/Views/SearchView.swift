@@ -742,14 +742,26 @@ struct DirectOpenRow: View {
 struct PlatformIndicator: View {
     let platform: SocialPlatform
 
+    private var brandColor: Color {
+        switch platform {
+        case .mastodon: return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
+        case .bluesky: return Color(red: 0, green: 133 / 255, blue: 255 / 255)
+        }
+    }
+
     var body: some View {
         Image(platform.icon)
             .resizable()
+            .renderingMode(.template)
             .scaledToFit()
             .frame(width: 16, height: 16)
+            .foregroundColor(brandColor)
             .padding(4)
-            .background(Color.gray.opacity(0.1))
-            .cornerRadius(4)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(brandColor.opacity(0.12))
+            )
+            .accessibilityLabel(platform.rawValue.capitalized)
     }
 }
 

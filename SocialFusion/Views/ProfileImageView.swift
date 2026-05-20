@@ -26,7 +26,7 @@ public struct ProfileImageView: View {
                         .clipShape(Circle())
                 } placeholder: {
                     Circle()
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(Color(.systemGray5))
                         .frame(width: 30, height: 30)
                         .overlay(
                             ProgressView()
