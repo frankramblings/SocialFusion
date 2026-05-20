@@ -10,6 +10,10 @@ struct DirectTokenEntryView: View {
     @State private var errorMessage: String? = nil
     @State private var successMessage: String? = nil
 
+    /// Focus targets so the keyboard's return-key can navigate field-to-field.
+    private enum Field { case server, token }
+    @FocusState private var focusedField: Field?
+
     var body: some View {
         Form {
             Section(header: Text("Server Information")) {
@@ -17,12 +21,24 @@ struct DirectTokenEntryView: View {
                     .textInputAutocapitalization(.never)
                     .keyboardType(.URL)
                     .autocorrectionDisabled(true)
+                    .textContentType(.URL)
+                    .submitLabel(.next)
+                    .focused($focusedField, equals: .server)
+                    .onSubmit { focusedField = .token }
             }
 
             Section(header: Text("Authentication")) {
                 SecureField("Access Token", text: $accessToken)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
+                    .submitLabel(.done)
+                    .focused($focusedField, equals: .token)
+                    .onSubmit {
+                        if isFormValid {
+                            focusedField = nil
+                            addAccount()
+                        }
+                    }
 
                 Text(
                     "You can obtain an access token from your Mastodon's instance settings page, under Development → Your applications."
