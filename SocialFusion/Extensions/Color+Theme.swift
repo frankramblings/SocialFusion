@@ -19,8 +19,11 @@ extension Color {
     // to work since the synthesised symbols have identical shape.
 
     static var subtleBorder: Color {
-        // Use a more subtle border that adapts to color scheme
-        Color.gray.opacity(0.2)
+        // Canonical iOS separator color — adapts to light/dark mode.
+        // Was Color.gray.opacity(0.2), which shifts brown against
+        // dark backgrounds. Color(.separator) is the same hairline
+        // color UIKit uses for table separators.
+        Color(.separator)
     }
 
     static func adaptiveElementBackground(for colorScheme: ColorScheme) -> Color {

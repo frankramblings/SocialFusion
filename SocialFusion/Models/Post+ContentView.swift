@@ -554,13 +554,13 @@ struct YouTubeVideoPreview: View {
                 }
             }
         }
-        .background(Color.gray.opacity(0.2))
+        .background(Color(.systemGray5))
     }
 
     private var loadingThumbnail: some View {
         ZStack {
             Rectangle()
-                .fill(Color.gray.opacity(0.2))
+                .fill(Color(.systemGray5))
 
             VStack(spacing: 8) {
                 ProgressView()

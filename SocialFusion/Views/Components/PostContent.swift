@@ -88,7 +88,9 @@ private struct ContentWarningView: View {
             }
         }
         .padding()
-        .background(Color.gray.opacity(0.1))
+        // systemGray6 adapts to light/dark; Color.gray.opacity
+        // shifts brown against dark backgrounds.
+        .background(Color(.systemGray6))
         .cornerRadius(8)
     }
 }
