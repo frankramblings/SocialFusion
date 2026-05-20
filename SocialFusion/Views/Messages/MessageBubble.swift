@@ -262,13 +262,13 @@ struct MessageBubble: View {
           .resizable()
           .aspectRatio(contentMode: .fill)
       } placeholder: {
-        RoundedRectangle(cornerRadius: 8)
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
           .fill(Color(.systemGray4))
           .overlay(ProgressView().scaleEffect(0.6))
       }
       .frame(maxWidth: 200)
       .frame(height: 150)
-      .clipShape(RoundedRectangle(cornerRadius: 8))
+      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
   }
 
