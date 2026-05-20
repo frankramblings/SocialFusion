@@ -376,8 +376,9 @@ struct AccountsView: View {
                 Spacer()
 
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 20))
+                    .foregroundStyle(Color.orange.gradient)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 22))
             }
 
             // Guidance text
@@ -387,56 +388,83 @@ struct AccountsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             // Action buttons
-            HStack(spacing: 12) {
-                Button(action: {
-                    // Remove the account
+            HStack(spacing: 10) {
+                Button {
+                    HapticEngine.warning.trigger()
                     Task {
                         await serviceManager.removeAccount(account)
                         tokenRefreshService.clearReauthNotification(for: account)
                     }
-                }) {
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "trash")
-                            .font(.system(size: 12))
+                            .font(.caption.weight(.semibold))
                         Text("Remove")
-                            .font(.system(size: 12))
+                            .font(.caption.weight(.semibold))
                     }
                     .foregroundColor(.red)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 7)
                     .padding(.horizontal, 12)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(6)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.red.opacity(0.12))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(Color.red.opacity(0.22), lineWidth: 0.5)
+                            )
+                    )
                 }
+                .buttonStyle(ReauthButtonPressStyle())
+                .accessibilityLabel("Remove account")
+                .accessibilityHint("Deletes \(account.username) from this device")
 
-                Button(action: {
-                    // Show add account flow for this platform
+                Button {
+                    HapticEngine.tap.trigger()
                     selectedPlatform = account.platform
                     showingAddAccount = true
-                }) {
+                } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 12))
-                        Text("Re-add Account")
-                            .font(.system(size: 12))
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                        Text("Re-authenticate")
+                            .font(.caption.weight(.semibold))
                     }
-                    .foregroundColor(.blue)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
+                    .foregroundColor(.white)
+                    .padding(.vertical, 7)
+                    .padding(.horizontal, 14)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.accentColor.gradient)
+                            .shadow(color: Color.accentColor.opacity(0.28), radius: 6, x: 0, y: 2)
+                    )
                 }
+                .buttonStyle(ReauthButtonPressStyle())
+                .accessibilityLabel("Re-authenticate")
+                .accessibilityHint("Adds \(account.username) again with fresh credentials")
 
                 Spacer()
             }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 12)
-        .background(Color.orange.opacity(0.05))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.06))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.28), lineWidth: 0.5)
+        )
+    }
+}
+
+/// Subtle press feedback for the re-auth row buttons — small scale + dim.
+private struct ReauthButtonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
