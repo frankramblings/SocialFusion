@@ -196,7 +196,7 @@ struct PostDetailView: View {
                 .menuStyle(.borderlessButton)
             }
         }
-        .alert("Reply failed", isPresented: $showQuickReplyError) {
+        .alert("Reply Couldn't Send", isPresented: $showQuickReplyError) {
             Button("OK", role: .cancel) {
                 showQuickReplyError = false
             }
