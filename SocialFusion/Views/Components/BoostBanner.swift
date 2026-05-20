@@ -176,10 +176,11 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 .animation(chevronAnimation, value: isExpanded)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

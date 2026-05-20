@@ -35,7 +35,8 @@ struct PlatformConflictBanner: View {
           if conflicts.count > 1 {
             Image(systemName: "chevron.right")
               .font(.caption2.weight(.semibold))
-              .foregroundColor(.secondary.opacity(0.7))
+              .foregroundStyle(.tertiary)
+              .accessibilityHidden(true)
           }
         }
         .padding(.horizontal, 12)
