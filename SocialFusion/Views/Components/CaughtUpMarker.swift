@@ -142,11 +142,11 @@ private struct CheckmarkShape: Shape {
 
 #Preview("Caught Up") {
   CaughtUpMarker()
-    .background(Color(UIColor.systemBackground))
+    .background(Color(.systemBackground))
 }
 
 #Preview("Caught Up — Dark") {
   CaughtUpMarker()
-    .background(Color(UIColor.systemBackground))
+    .background(Color(.systemBackground))
     .preferredColorScheme(.dark)
 }

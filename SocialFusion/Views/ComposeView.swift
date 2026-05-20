@@ -141,14 +141,14 @@ struct ReplyContextHeader: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         colorScheme == .dark
-                            ? Color(UIColor.tertiarySystemBackground)
-                            : Color(UIColor.secondarySystemBackground)
+                            ? Color(.tertiarySystemBackground)
+                            : Color(.secondarySystemBackground)
                     )
             )
             .padding(.horizontal, 16)
         }
         .padding(.bottom, 8)
-        .background(Color(UIColor.systemBackground))
+        .background(Color(.systemBackground))
         .overlay(
             Divider(),
             alignment: .bottom
@@ -1009,13 +1009,13 @@ struct ComposeView: View {
                     Image(systemName: "eye")
                         .foregroundColor(.secondary)
                         .padding(8)
-                        .background(Color(UIColor.secondarySystemBackground))
+                        .background(Color(.secondarySystemBackground))
                         .clipShape(Circle())
                 }
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
-            .background(Color(UIColor.systemBackground))
+            .background(Color(.systemBackground))
             .overlay(
                 Divider(),
                 alignment: .bottom
@@ -1145,7 +1145,7 @@ struct ComposeView: View {
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(UIColor.systemBackground))
+                                        .fill(Color(.systemBackground))
                                         .shadow(
                                             color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
                                 )
@@ -1166,7 +1166,7 @@ struct ComposeView: View {
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                        .fill(Color(UIColor.secondarySystemBackground))
+                                        .fill(Color(.secondarySystemBackground))
                                 )
                                 .frame(maxWidth: 200)
                             } else {
@@ -1325,7 +1325,7 @@ struct ComposeView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(UIColor.secondarySystemBackground))
+                    .fill(Color(.secondarySystemBackground))
             )
             .padding(.horizontal)
             .padding(.bottom, 8)
@@ -1420,7 +1420,7 @@ struct ComposeView: View {
             }
             .frame(height: 120)
             .padding(.vertical, 10)
-            .background(Color(UIColor.systemBackground))
+            .background(Color(.systemBackground))
             .overlay(
                 Divider(),
                 alignment: .bottom
@@ -1559,7 +1559,7 @@ struct ComposeView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(UIColor.systemBackground))
+        .background(Color(.systemBackground))
         .overlay(
             Divider(),
             alignment: .top
@@ -1586,7 +1586,7 @@ struct ComposeView: View {
                         .fill(
                             isActive
                                 ? activeTint.opacity(0.16)
-                                : Color(UIColor.secondarySystemBackground).opacity(0.7)
+                                : Color(.secondarySystemBackground).opacity(0.7)
                         )
                 )
                 .overlay(
@@ -1775,7 +1775,7 @@ struct ComposeView: View {
                         .padding()
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .fill(Color(UIColor.secondarySystemBackground))
+                                .fill(Color(.secondarySystemBackground))
                         )
                         .padding(.horizontal)
 
@@ -1971,7 +1971,7 @@ struct ComposeView: View {
                                 .fill(
                                     status.isOverLimit
                                         ? Color.red.opacity(0.12)
-                                        : Color(UIColor.secondarySystemBackground)
+                                        : Color(.secondarySystemBackground)
                                 )
                         )
                         .overlay(
@@ -2042,7 +2042,7 @@ struct ComposeView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(UIColor.secondarySystemBackground))
+                .background(Color(.secondarySystemBackground))
                 .clipShape(Capsule())
             }
         }

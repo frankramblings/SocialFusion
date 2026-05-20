@@ -48,7 +48,7 @@ struct ContentWarningEditor: View {
           .padding(.vertical, 10)
           .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-              .fill(Color(UIColor.systemBackground))
+              .fill(Color(.systemBackground))
               .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                   .strokeBorder(Color.orange.opacity(0.25), lineWidth: 0.5)
@@ -94,7 +94,7 @@ struct ContentWarningEditor: View {
         .padding(.vertical, 6)
         .background(
           Capsule()
-            .fill(isActive ? Color.orange : Color(UIColor.secondarySystemBackground))
+            .fill(isActive ? Color.orange : Color(.secondarySystemBackground))
         )
         .overlay(
           Capsule()

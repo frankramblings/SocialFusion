@@ -47,7 +47,7 @@ struct AccountTimelineView: View {
 
     var body: some View {
         ZStack {
-            Color(UIColor.systemBackground)
+            Color(.systemBackground)
                 .ignoresSafeArea()
 
             if controller.isLoading && controller.posts.isEmpty {

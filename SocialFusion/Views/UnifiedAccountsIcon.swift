@@ -132,7 +132,7 @@ struct UnifiedAccountsIconMinimal: View {
             // Clean background circle
             Circle()
                 .fill(
-                    colorScheme == .dark ? Color(UIColor.systemGray5) : Color(UIColor.systemGray6)
+                    colorScheme == .dark ? Color(.systemGray5) : Color(.systemGray6)
                 )
                 .frame(width: 32, height: 32)
 

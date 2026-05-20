@@ -454,7 +454,7 @@ struct PostDetailView: View {
                             .padding(8)
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color(UIColor.secondarySystemBackground))
+                                    .fill(Color(.secondarySystemBackground))
                             )
                     }
                     .accessibilityLabel("Open full composer")
@@ -597,7 +597,7 @@ struct PostDetailView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(Color(.secondarySystemBackground))
             .clipShape(Capsule())
         } else {
             Menu {
@@ -647,7 +647,7 @@ struct PostDetailView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground))
+                .background(Color(.secondarySystemBackground))
                 .clipShape(Capsule())
             }
         }

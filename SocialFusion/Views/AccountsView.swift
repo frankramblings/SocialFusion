@@ -250,7 +250,7 @@ struct AccountsView: View {
             .onTapGesture {
                 toggleSelection(id: account.id)
             }
-            .background(Color(UIColor.tertiarySystemBackground))
+            .background(Color(.tertiarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             // Delete button row - more subtle design
@@ -280,7 +280,7 @@ struct AccountsView: View {
         .padding(.horizontal, 4)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(UIColor.secondarySystemBackground))
+                .fill(Color(.secondarySystemBackground))
         )
         .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
         .padding(.vertical, 4)
