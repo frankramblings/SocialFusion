@@ -180,44 +180,69 @@ struct AudioPlayerView: View {
     private var controlsView: some View {
         HStack(spacing: 24) {
             // Skip back 15s
-            Button(action: skipBackward) {
+            Button {
+                HapticEngine.tap.trigger()
+                skipBackward()
+            } label: {
                 Image(systemName: "gobackward.15")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(currentTime < 15)
+            .accessibilityLabel("Skip back 15 seconds")
 
             Spacer()
 
             // Play/Pause button
-            Button(action: togglePlayback) {
+            Button {
+                HapticEngine.tap.trigger()
+                togglePlayback()
+            } label: {
                 ZStack {
                     Circle()
                         .fill(Color.primary)
                         .frame(width: controlSize, height: controlSize)
+                        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
 
-                    Image(
-                        systemName: isLoading
-                            ? "hourglass" : (isPlaying ? "pause.fill" : "play.fill")
-                    )
-                    .font(.title2)
-                    .foregroundColor(colorScheme == .dark ? .black : .white)
-                    .offset(x: (!isLoading && !isPlaying) ? 2 : 0)  // Center play icon visually
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.85)
+                            .tint(colorScheme == .dark ? .black : .white)
+                    } else {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                            .foregroundColor(colorScheme == .dark ? .black : .white)
+                            .offset(x: isPlaying ? 0 : 2)  // Center play icon visually
+                            .contentTransition(.symbolEffect(.replace))
+                    }
                 }
+                .scaleEffect(isLoading ? 0.94 : 1.0)
+                .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isLoading)
+                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isPlaying)
             }
+            .buttonStyle(.plain)
             .disabled(isLoading || hasError)
-            .scaleEffect(isLoading ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isLoading)
+            .accessibilityLabel(isLoading ? "Loading" : (isPlaying ? "Pause" : "Play"))
 
             Spacer()
 
             // Skip forward 15s
-            Button(action: skipForward) {
+            Button {
+                HapticEngine.tap.trigger()
+                skipForward()
+            } label: {
                 Image(systemName: "goforward.15")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(duration > 0 && currentTime > duration - 15)
+            .accessibilityLabel("Skip forward 15 seconds")
         }
     }
 
