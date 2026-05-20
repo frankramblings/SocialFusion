@@ -147,12 +147,14 @@ struct AddAccountView: View {
                     }
                 }
             }
-            .alert(isPresented: $showError) {
-                Alert(
-                    title: Text("Couldn't Add Account"),
-                    message: Text(errorMessage ?? "Something went wrong while signing in."),
-                    dismissButton: .default(Text("OK"))
-                )
+            .alert(
+                "Couldn't Add Account",
+                isPresented: $showError,
+                presenting: errorMessage
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.isEmpty ? "Something went wrong while signing in." : error)
             }
             .onAppear {
                 // Restore form data if it was preserved
