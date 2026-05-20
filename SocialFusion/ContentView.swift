@@ -801,7 +801,7 @@ struct AccountPickerSheet: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username)")
-        .accessibilityHint(isActive ? "Currently selected" : "Tap to switch to this account")
+        .accessibilityHint(isActive ? "Currently selected" : "Switches to this account")
         .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 
