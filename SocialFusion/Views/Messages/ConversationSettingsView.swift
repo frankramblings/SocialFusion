@@ -51,6 +51,15 @@ struct ConversationSettingsView: View {
           }
           .padding(.vertical, 4)
           .listRowBackground(Color.clear)
+          // Combine the conversation header into one a11y unit —
+          // avatar, name, handle, and platform badge all describe
+          // the same thing.
+          .accessibilityElement(children: .combine)
+          .accessibilityLabel(
+            "\(conversation.participant.displayName ?? conversation.participant.username), "
+            + "@\(conversation.participant.username), "
+            + "on \(conversation.platform.rawValue.capitalized)"
+          )
         }
 
         if conversation.platform == .bluesky {
