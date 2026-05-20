@@ -2877,9 +2877,87 @@ struct DraftsListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(draftStore.drafts) { draft in
+            Group {
+                if draftStore.drafts.isEmpty {
+                    emptyState
+                } else {
+                    draftsList
+                }
+            }
+            .navigationTitle("Drafts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                }
+                if !draftStore.drafts.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        EditButton()
+                    }
+                }
+            }
+            .alert("Rename Draft", isPresented: Binding(get: { draftToRename != nil }, set: { if !$0 { draftToRename = nil } })) {
+                TextField("Draft Name", text: $newName)
+                Button("Cancel", role: .cancel) {
+                    draftToRename = nil
+                }
+                Button("Rename") {
+                    if let draft = draftToRename {
+                        draftStore.renameDraft(draft, newName: newName)
+                    }
+                    draftToRename = nil
+                }
+            }
+        }
+    }
+
+    /// Empty state shown when there are no saved drafts — matches the
+    /// tinted-halo composition used throughout the app's other empty states.
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.accentColor.opacity(0.14), Color.accentColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 70
+                        )
+                    )
+                    .frame(width: 140, height: 140)
+
+                Image(systemName: "doc.text")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(Color.accentColor.gradient)
+                    .symbolRenderingMode(.hierarchical)
+            }
+
+            VStack(spacing: 6) {
+                Text("No drafts yet")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+
+                Text("Save a post-in-progress and it'll show up here.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var draftsList: some View {
+        List {
+            ForEach(draftStore.drafts) { draft in
                     Button(action: {
+                        HapticEngine.tap.trigger()
                         onSelect(draft)
                     }) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -2887,7 +2965,9 @@ struct DraftsListView: View {
                                 if draft.isPinned {
                                     Image(systemName: "pin.fill")
                                         .font(.caption2)
-                                        .foregroundColor(.orange)
+                                        .foregroundStyle(Color.orange.gradient)
+                                        .symbolRenderingMode(.hierarchical)
+                                        .accessibilityLabel("Pinned")
                                 }
                                 
                                 if let name = draft.name {
@@ -2974,47 +3054,22 @@ struct DraftsListView: View {
                         } label: {
                             Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
                         }
-                        
+
                         Button {
                             draftToRename = draft
                             newName = draft.name ?? ""
                         } label: {
                             Label("Rename", systemImage: "pencil")
                         }
-                        
+
                         Divider()
-                        
+
                         Button(role: .destructive) {
                             draftStore.deleteDraft(draft)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
                     }
-                }
-            }
-            .navigationTitle("Drafts")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-            }
-            .alert("Rename Draft", isPresented: Binding(get: { draftToRename != nil }, set: { if !$0 { draftToRename = nil } })) {
-                TextField("Draft Name", text: $newName)
-                Button("Cancel", role: .cancel) {
-                    draftToRename = nil
-                }
-                Button("Rename") {
-                    if let draft = draftToRename {
-                        draftStore.renameDraft(draft, newName: newName)
-                    }
-                    draftToRename = nil
-                }
             }
         }
     }
