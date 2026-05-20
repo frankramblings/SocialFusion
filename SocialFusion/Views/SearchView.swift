@@ -489,6 +489,18 @@ struct SearchView: View {
 
     // MARK: - Trending Tags Section
 
+    /// Plural-aware label for a trending tag row. Says 'Hashtag <name>'
+    /// followed by the post count if available, with proper singular/
+    /// plural handling. Same shape as SearchTagRow's label (iter 113).
+    private func trendingTagLabel(for tag: SearchTag) -> String {
+        var label = "Hashtag \(tag.name)"
+        if let count = tag.usageCount, count > 0 {
+            let displayed = tag.formattedUsageCount ?? "\(count)"
+            label += ", \(displayed) post\(count == 1 ? "" : "s")"
+        }
+        return label
+    }
+
     private var trendingTagsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Trending on Mastodon")
@@ -527,6 +539,9 @@ struct SearchView: View {
                     }
                     .buttonStyle(.plain)
                     .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(trendingTagLabel(for: tag))
+                    .accessibilityHint("Opens posts for this hashtag")
                     if index < trendingTags.count - 1 {
                         Divider().padding(.leading, 16)
                     }
