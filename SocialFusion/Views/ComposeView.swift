@@ -3055,6 +3055,7 @@ struct DraftsListView: View {
                     }
                     .swipeActions(edge: .leading) {
                         Button {
+                            HapticEngine.selection.trigger()
                             draftStore.togglePin(draft)
                         } label: {
                             Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
