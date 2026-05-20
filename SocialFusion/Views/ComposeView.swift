@@ -2966,6 +2966,7 @@ struct PlatformToggleButton: View {
         }
         .buttonStyle(PlatformTogglePressStyle())
         .accessibilityLabel(platform.rawValue.capitalized)
+        .accessibilityHint(isSelected ? "Tap to exclude from this post" : "Tap to include in this post")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
