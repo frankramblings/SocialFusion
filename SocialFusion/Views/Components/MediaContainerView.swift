@@ -251,27 +251,30 @@ private struct StableGridImageView: View {
   }
 }
 
-/// Helper badge for alt text indication
+/// Helper badge for alt text indication. Sits as an overlay on media; forces
+/// dark color scheme so the white-on-black reads cleanly against any photo.
 private struct AltTextBadge: View {
   var body: some View {
     HStack(spacing: 5) {
       Image(systemName: "text.bubble.fill")
         .font(.system(size: 11, weight: .semibold))
       Text("ALT")
-        .font(.system(size: 12, weight: .semibold))
+        .font(.system(size: 12, weight: .bold))
     }
     .foregroundColor(.white)
     .padding(.horizontal, 10)
     .padding(.vertical, 5)
     .background(
       Capsule()
-        .fill(Color.black.opacity(0.3))
+        .fill(Color.black.opacity(0.35))
         .overlay(
           Capsule()
-            .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+            .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
         )
     )
     .shadow(color: Color.black.opacity(0.4), radius: 3, x: 0, y: 1.5)
     .environment(\.colorScheme, .dark)
+    .accessibilityLabel("Has image description")
+    .accessibilityHint("This image includes alt text for screen readers")
   }
 }
