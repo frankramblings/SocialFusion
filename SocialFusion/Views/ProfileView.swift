@@ -300,10 +300,12 @@ struct ProfileView: View {
   @ViewBuilder
   private var postListContent: some View {
     if viewModel.isLoadingPosts && viewModel.currentPosts.isEmpty {
-      ProgressView()
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
-        .accessibilityLabel("Loading posts")
+      // Same shimmer vocabulary as the home/account timelines. The
+      // inline variant skips the outer ScrollView since ProfileView
+      // already provides one — nested scrolls would otherwise fight
+      // each other for gestures.
+      InlineSkeletonPostStack(cardCount: 4)
+        .padding(.top, 4)
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
       tabEmptyState(symbol: "doc.text", title: "No posts yet")
     } else {

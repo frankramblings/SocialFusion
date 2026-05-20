@@ -123,6 +123,49 @@ struct SkeletonTimelineView: View {
   }
 }
 
+/// Embeddable skeleton stack — same shimmer cards as
+/// `SkeletonTimelineView` but *without* the outer ScrollView.
+/// Use this when the skeleton is rendered inside another scroll
+/// container (e.g. a tab inside ProfileView's scrolling layout) so
+/// nested scrolls don't fight each other.
+struct InlineSkeletonPostStack: View {
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var cardCount: Int = 4
+
+  private var clampedCount: Int {
+    min(max(cardCount, 1), 6)
+  }
+
+  var body: some View {
+    Group {
+      if reduceMotion {
+        VStack(spacing: 0) {
+          ForEach(0..<clampedCount, id: \.self) { _ in
+            SkeletonPostCard(phase: 0.5, reduceMotion: true)
+            Divider()
+          }
+        }
+      } else {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+          let elapsed = context.date.timeIntervalSinceReferenceDate
+          let period: Double = 1.5
+          let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+
+          VStack(spacing: 0) {
+            ForEach(0..<clampedCount, id: \.self) { _ in
+              SkeletonPostCard(phase: phase, reduceMotion: false)
+              Divider()
+            }
+          }
+        }
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Loading posts")
+  }
+}
+
 // MARK: - Preview
 struct SkeletonPostCard_Previews: PreviewProvider {
   static var previews: some View {
