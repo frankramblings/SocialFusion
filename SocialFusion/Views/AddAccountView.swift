@@ -118,65 +118,21 @@ struct AddAccountView: View {
 
                 Section {
                     if selectedPlatform == .mastodon {
-                        Button(action: addAccount) {
-                            if isLoading {
-                                HStack {
-                                    Spacer()
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                    Spacer()
-                                }
-                            } else {
-                                HStack {
-                                    Spacer()
-                                    Image("MastodonLogo")
-                                        .resizable()
-                                        .renderingMode(.template)
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 20, height: 20)
-                                        .foregroundColor(.white)
-                                    Text("Sign in with Mastodon")
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                }
-                                .frame(height: 44)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(platformColor(for: selectedPlatform))
-                                )
-                                .padding(.vertical, 4)
-                            }
-                        }
-                        .disabled(isLoading || server.isEmpty)
+                        signInButton(
+                            title: "Sign in with Mastodon",
+                            logo: "MastodonLogo",
+                            disabled: isLoading || server.isEmpty
+                        )
                     } else {
-                        Button(action: addAccount) {
-                            if isLoading {
-                                HStack {
-                                    Spacer()
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                    Spacer()
-                                }
-                            } else {
-                                HStack {
-                                    Spacer()
-                                    Text("Sign in with Bluesky")
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                }
-                                .frame(height: 44)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(platformColor(for: selectedPlatform))
-                                )
-                                .padding(.vertical, 4)
-                            }
-                        }
-                        .disabled(isLoading || !isBlueskyFormValid)
+                        signInButton(
+                            title: "Sign in with Bluesky",
+                            logo: "BlueskyLogo",
+                            disabled: isLoading || !isBlueskyFormValid
+                        )
                     }
                 }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
 
             .navigationBarBackButtonHidden(true)
@@ -223,6 +179,57 @@ struct AddAccountView: View {
 
     private var isBlueskyFormValid: Bool {
         return !username.isEmpty && !password.isEmpty
+    }
+
+    /// Branded sign-in button — gradient-fill capsule with tinted shadow,
+    /// matching the signature CTA treatment used elsewhere. Shows a
+    /// progress spinner inline when isLoading.
+    @ViewBuilder
+    private func signInButton(title: String, logo: String, disabled: Bool) -> some View {
+        let brandColor = platformColor(for: selectedPlatform)
+        Button {
+            HapticEngine.tap.trigger()
+            addAccount()
+        } label: {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.85)
+                } else {
+                    Image(logo)
+                        .resizable()
+                        .renderingMode(.template)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                        .foregroundColor(.white)
+                }
+                Text(isLoading ? "Signing in…" : title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(.white)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        disabled
+                            ? AnyShapeStyle(Color(.systemGray3))
+                            : AnyShapeStyle(brandColor.gradient)
+                    )
+                    .shadow(
+                        color: disabled ? .clear : brandColor.opacity(0.28),
+                        radius: 10,
+                        x: 0,
+                        y: 4
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(SignInButtonPressStyle())
+        .disabled(disabled)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     private func addAccount() {
@@ -563,6 +570,16 @@ struct PlatformButton: View {
 }
 
 private struct PlatformButtonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
+    }
+}
+
+/// Press feedback for the primary sign-in CTA — scales down + dims briefly.
+private struct SignInButtonPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)

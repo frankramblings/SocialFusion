@@ -440,8 +440,10 @@ struct SearchView: View {
                                 }
                             }
                         }
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                        )
                         .padding(.horizontal)
                     }
                 }
@@ -505,8 +507,10 @@ struct SearchView: View {
                     }
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
             .padding(.horizontal)
         }
     }
@@ -537,8 +541,10 @@ struct SearchView: View {
                 }
             }
             .redacted(reason: .placeholder)
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
             .padding(.horizontal)
         }
     }

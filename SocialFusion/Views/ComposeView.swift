@@ -128,7 +128,7 @@ struct ReplyContextHeader: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         colorScheme == .dark
                             ? Color(UIColor.tertiarySystemBackground)
@@ -1281,9 +1281,12 @@ struct ComposeView: View {
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: 100, height: 100)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .shadow(
-                                    color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                                )
+                                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
 
                             Button(action: {
                                 threadPosts[activePostIndex].images.remove(at: index)

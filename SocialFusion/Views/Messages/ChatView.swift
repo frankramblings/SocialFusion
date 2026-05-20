@@ -269,11 +269,13 @@ struct ChatView: View {
       )
       .opacity(!searchText.isEmpty && !matchingMessageIds.contains(message.id) ? 0.3 : 1.0)
       .background(
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
           .fill(matchingMessageIds.indices.contains(currentMatchIndex) && matchingMessageIds[currentMatchIndex] == message.id
-                ? Color.yellow.opacity(0.2) : Color.clear)
+                ? Color.yellow.opacity(0.22) : Color.clear)
           .padding(.horizontal, 8)
       )
+      .animation(.easeInOut(duration: 0.18), value: currentMatchIndex)
+      .animation(.easeInOut(duration: 0.2), value: searchText)
       .padding(.horizontal, 12)
       .padding(.top, isFirst ? 8 : 2)
       .padding(.bottom, isLast ? 8 : 2)
