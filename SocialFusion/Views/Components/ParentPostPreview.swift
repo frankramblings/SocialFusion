@@ -285,14 +285,22 @@ struct SingleParentImage: View {
     let maxHeight: CGFloat
 
     var body: some View {
+        // Lock the container to exactly `maxHeight` (rather than the
+        // looser `maxHeight:` constraint we had before) so the
+        // skeleton-to-image transition can't shrink the parent post
+        // preview when the actual image is shorter than maxHeight.
+        // Combined with .fill + stableAspectRatio, the loaded image
+        // is cropped into the reserved frame instead of resizing it,
+        // matching the Ivory/Bluesky "no jumps on reply previews"
+        // feel.
         StabilizedAsyncImage(
             url: URL(string: attachment.url),
             idealHeight: maxHeight,
-            aspectRatio: nil,
+            aspectRatio: attachment.stableAspectRatio,
             contentMode: .fill,
             cornerRadius: 8
         )
-        .frame(maxHeight: maxHeight)
+        .frame(height: maxHeight)
         .clipped()
     }
 }
