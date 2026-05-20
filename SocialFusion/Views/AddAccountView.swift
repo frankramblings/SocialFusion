@@ -194,7 +194,7 @@ struct AddAccountView: View {
             HStack(spacing: 8) {
                 if isLoading {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: disabled ? .secondary : .white))
                         .scaleEffect(0.85)
                 } else {
                     Image(logo)
@@ -202,11 +202,11 @@ struct AddAccountView: View {
                         .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 18, height: 18)
-                        .foregroundColor(.white)
+                        .foregroundColor(disabled ? .secondary : .white)
                 }
                 Text(isLoading ? "Signing in…" : title)
                     .font(.headline.weight(.semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(disabled ? .secondary : .white)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 50)
@@ -214,7 +214,7 @@ struct AddAccountView: View {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(
                         disabled
-                            ? AnyShapeStyle(Color(.systemGray3))
+                            ? AnyShapeStyle(Color(.systemGray5))
                             : AnyShapeStyle(brandColor.gradient)
                     )
                     .shadow(

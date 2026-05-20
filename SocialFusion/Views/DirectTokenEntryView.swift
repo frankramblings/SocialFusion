@@ -47,13 +47,16 @@ struct DirectTokenEntryView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .foregroundColor(.white)
+                    // White text on accent gradient (enabled) reads correctly.
+                    // When disabled, the gray background isn't dark enough for
+                    // white text — use .secondary so the label retains contrast.
+                    .foregroundColor(isFormValid ? .white : .secondary)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
                             .fill(
                                 isFormValid
                                     ? AnyShapeStyle(Color.accentColor.gradient)
-                                    : AnyShapeStyle(Color(.systemGray3))
+                                    : AnyShapeStyle(Color(.systemGray5))
                             )
                             .shadow(
                                 color: isFormValid ? Color.accentColor.opacity(0.28) : .clear,
