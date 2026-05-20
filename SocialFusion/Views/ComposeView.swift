@@ -3154,7 +3154,7 @@ struct LinkInputDialog: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Link Details")) {
                     TextField("URL (https://...)", text: $url)
@@ -3162,7 +3162,7 @@ struct LinkInputDialog: View {
                         .autocapitalization(.none)
                         .disableAutocorrection(true)
                         .focused($isUrlFocused)
-                    
+
                     TextField("Display Text", text: $displayText)
                 }
             }

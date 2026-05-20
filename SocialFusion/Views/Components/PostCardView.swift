@@ -1003,12 +1003,13 @@ struct ListSelectionView: View {
     @State private var error: String? = nil
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 if isLoading {
                     HStack {
                         Spacer()
                         ProgressView()
+                            .accessibilityLabel("Loading lists")
                         Spacer()
                     }
                 } else if let error = error {

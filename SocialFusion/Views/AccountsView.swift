@@ -11,7 +11,7 @@ struct AccountsView: View {
     @State private var showDebugInfo = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 // "All" selection option
                 Section {
