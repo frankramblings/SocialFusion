@@ -6,6 +6,7 @@ struct ProfileTabBar: View {
   @Binding var selectedTab: ProfileTab
   @Namespace private var underlineNamespace
   @State private var isPinned = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     VStack(spacing: 0) {
@@ -14,7 +15,11 @@ struct ProfileTabBar: View {
           Button {
             guard selectedTab != tab else { return }
             HapticEngine.selection.trigger()
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            // The matchedGeometryEffect slide animation under the
+            // tab labels reads as movement — exactly what
+            // reduceMotion targets. Pass nil so the underline
+            // snaps to the new tab instead of sliding.
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
               selectedTab = tab
             }
           } label: {
@@ -65,7 +70,10 @@ struct ProfileTabBar: View {
     .onPreferenceChange(TabBarPinnedKey.self) { value in
       let pinned = value.minY <= value.threshold
       if pinned != isPinned {
-        withAnimation(.easeOut(duration: 0.15)) {
+        // Pinned-state shadow appears/disappears as the tab bar
+        // crosses the safe-area threshold. Fade is purely decorative;
+        // reduceMotion → snap.
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
           isPinned = pinned
         }
       }
