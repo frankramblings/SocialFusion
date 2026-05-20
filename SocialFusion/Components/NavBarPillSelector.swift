@@ -28,6 +28,7 @@ struct NavBarPillSelector<LeadingContent: View>: View {
                     .font(.caption2.weight(.semibold))
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
+                    .accessibilityHidden(true)
             }
             .foregroundColor(.primary)
             .padding(.horizontal, 16)
@@ -45,7 +46,8 @@ struct NavBarPillSelector<LeadingContent: View>: View {
         }
         .buttonStyle(NavBarPillButtonStyle())
         .accessibilityLabel(title)
-        .accessibilityHint(isExpanded ? "Currently expanded. Tap to collapse." : "Tap to choose a different feed.")
+        .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+        .accessibilityHint(isExpanded ? "Closes the feed picker" : "Opens the feed picker")
     }
 }
 
