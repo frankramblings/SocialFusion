@@ -155,7 +155,9 @@ public struct QuotePostView: View {
 
     private var errorMediaView: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.2))
+            // systemGray5 adapts to light/dark; plain Color.gray
+            // shifts to a brown tint against dark backgrounds.
+            .fill(Color(.systemGray5))
             .frame(maxWidth: .infinity, maxHeight: 220)
             .cornerRadius(14)
             .overlay(
@@ -166,7 +168,7 @@ public struct QuotePostView: View {
 
     private var loadingMediaView: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
             .frame(maxWidth: .infinity, maxHeight: 220)
             .cornerRadius(14)
             .overlay(

@@ -684,11 +684,18 @@ struct LoadingQuoteView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // System grays adapt cleanly to light/dark mode. Color.gray
+        // is a fixed device color and reads as brown-tinted against
+        // dark backgrounds — the same fix the codebase already
+        // applied to SkeletonPostCard, LinkPreview, and ProfileView.
+        let heavyFill = Color(.systemGray4)
+        let lightFill = Color(.systemGray5)
+
+        return VStack(alignment: .leading, spacing: 6) {
             // Author placeholder
             HStack(spacing: 8) {
                 Circle()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(heavyFill)
                     .frame(width: 32, height: 32)
                     .overlay(
                         Circle()
@@ -699,12 +706,12 @@ struct LoadingQuoteView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Rectangle()
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(heavyFill)
                         .frame(width: 80, height: 12)
                         .cornerRadius(4)
 
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(lightFill)
                         .frame(width: 60, height: 10)
                         .cornerRadius(4)
                 }
@@ -712,7 +719,7 @@ struct LoadingQuoteView: View {
                 Spacer()
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(width: 40, height: 10)
                     .cornerRadius(4)
             }
@@ -725,25 +732,25 @@ struct LoadingQuoteView: View {
             // from skeleton → loaded content above the viewport.
             VStack(alignment: .leading, spacing: 5) {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(maxWidth: .infinity)
                     .frame(height: 12)
                     .cornerRadius(4)
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(maxWidth: .infinity)
                     .frame(height: 12)
                     .cornerRadius(4)
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(maxWidth: .infinity)
                     .frame(height: 12)
                     .cornerRadius(4)
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(maxWidth: 200)
                     .frame(height: 12)
                     .cornerRadius(4)
