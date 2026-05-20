@@ -114,20 +114,41 @@ struct AccountTimelineView: View {
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 60))
-                .foregroundColor(Color(hex: account.platform.colorHex))
+        let platformColor = Color(hex: account.platform.colorHex)
+        return VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [platformColor.opacity(0.18), platformColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 70
+                        )
+                    )
+                    .frame(width: 140, height: 140)
+                Image(systemName: "tray")
+                    .font(.system(size: 42, weight: .light))
+                    .foregroundStyle(platformColor.gradient)
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .padding(.top, 24)
 
-            Text("No posts to display")
-                .font(.headline)
+            VStack(spacing: 6) {
+                Text("No posts to display")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
 
-            Text("Pull to refresh")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-                .foregroundColor(.secondary)
+                Text("Pull down to refresh.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 24)
+        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder
