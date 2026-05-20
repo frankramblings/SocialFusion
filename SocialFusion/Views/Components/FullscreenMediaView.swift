@@ -742,7 +742,7 @@ private struct FullscreenVideoPlayerView: View {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(2)
-                    Text("Loading video...")
+                    Text("Loading video")
                         .foregroundColor(.white)
                         .font(.subheadline)
                 }

@@ -710,7 +710,7 @@ struct ComposeView: View {
     @State private var showDraftActionSheet = false
     @State private var showDraftsList = false
     @State private var showAltTextSheet = false
-    @State private var postingStatus: String = "Posting..."
+    @State private var postingStatus: String = "Posting…"
     @State private var selectedImageIndexForAltText: Int = 0
     @State private var currentAltText: String = ""
     @State private var selectedAccounts: [SocialPlatform: String] = [:]
@@ -885,11 +885,11 @@ struct ComposeView: View {
             return "No Accounts"
         } else if isPosting {
             if quotingTo != nil {
-                return "Quoting..."
+                return "Quoting…"
             } else if replyingTo != nil {
-                return "Replying..."
+                return "Replying…"
             } else {
-                return "Posting..."
+                return "Posting…"
             }
         } else {
             if quotingTo != nil {
@@ -1138,7 +1138,7 @@ struct ComposeView: View {
                                 VStack(spacing: 8) {
                                     ProgressView()
                                         .scaleEffect(0.8)
-                                    Text("Searching...")
+                                    Text("Searching")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
@@ -2065,7 +2065,7 @@ struct ComposeView: View {
         if quotingTo != nil {
             postingStatus = "Creating quote..."
         } else {
-            postingStatus = replyingTo != nil ? "Sending reply..." : "Posting..."
+            postingStatus = replyingTo != nil ? "Sending reply…" : "Posting…"
         }
         HapticEngine.tap.trigger()
 

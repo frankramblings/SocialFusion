@@ -578,7 +578,7 @@ private struct VideoPlayerView: View {
 
                             if playerModel.bufferProgress > 0 {
                                 VStack(spacing: 4) {
-                                    Text("Buffering...")
+                                    Text("Buffering")
                                         .font(.caption)
                                         .foregroundColor(.white)
 
@@ -587,7 +587,7 @@ private struct VideoPlayerView: View {
                                         .tint(.white)
                                 }
                             } else {
-                                Text("Buffering...")
+                                Text("Buffering")
                                     .font(.caption)
                                     .foregroundColor(.white)
                             }
