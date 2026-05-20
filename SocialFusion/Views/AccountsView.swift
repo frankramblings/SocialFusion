@@ -148,7 +148,9 @@ struct AccountsView: View {
                     accountToDelete = nil
                 }
                 Button("Remove", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     if let account = accountToDelete {
+                        let removedName = account.displayName ?? "@\(account.username)"
                         Task {
                             await serviceManager.removeAccount(account)
                             // Remove account from selected IDs if it was selected
@@ -165,6 +167,10 @@ struct AccountsView: View {
 
                             // Update service manager's selection
                             serviceManager.selectedAccountIds = serviceManager.selectedAccountIds
+
+                            await MainActor.run {
+                                ToastManager.shared.show("Removed \(removedName)", severity: .success, duration: 1.6)
+                            }
                         }
                     }
                 }
@@ -402,9 +408,13 @@ struct AccountsView: View {
             HStack(spacing: 10) {
                 Button {
                     HapticEngine.warning.trigger()
+                    let removedName = account.displayName ?? "@\(account.username)"
                     Task {
                         await serviceManager.removeAccount(account)
                         tokenRefreshService.clearReauthNotification(for: account)
+                        await MainActor.run {
+                            ToastManager.shared.show("Removed \(removedName)", severity: .success, duration: 1.6)
+                        }
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -716,9 +726,14 @@ struct AccountDetailView: View {
                     // Do nothing
                 }
                 Button("Remove", role: .destructive) {
+                    HapticEngine.warning.trigger()
+                    let removedName = account.displayName ?? "@\(account.username)"
                     Task {
                         await serviceManager.removeAccount(account)
-                        dismiss()
+                        await MainActor.run {
+                            ToastManager.shared.show("Removed \(removedName)", severity: .success, duration: 1.6)
+                            dismiss()
+                        }
                     }
                 }
             } message: {
