@@ -679,6 +679,19 @@ struct ComposeAutocompleteServiceKey: Equatable {
 }
 
 struct ComposeView: View {
+    // Content-warning long-press presets — paired with SF Symbols so the
+    // context menu reads visually rather than as a flat text list.
+    private struct CWPreset {
+        let label: String
+        let symbol: String
+    }
+    private let cwPresetsMenu: [CWPreset] = [
+        CWPreset(label: "Spoilers", symbol: "eye.slash"),
+        CWPreset(label: "Politics", symbol: "building.columns"),
+        CWPreset(label: "NSFW", symbol: "exclamationmark.shield"),
+        CWPreset(label: "Violence", symbol: "exclamationmark.triangle"),
+    ]
+
     @State private var threadPosts: [ThreadPost] = [ThreadPost()]
     @State private var activePostIndex: Int = 0
     @State private var showImagePicker = false
@@ -1407,13 +1420,15 @@ struct ComposeView: View {
                 }
             }
             .contextMenu {
-                // Long-press presets
-                ForEach(["Spoilers", "Politics", "NSFW", "Violence"], id: \.self) { preset in
-                    Button(action: {
+                // Long-press presets — each preset gets a Label with an
+                // appropriate SF Symbol so users can scan visually.
+                ForEach(cwPresetsMenu, id: \.label) { preset in
+                    Button {
+                        HapticEngine.selection.trigger()
                         threadPosts[activePostIndex].cwEnabled = true
-                        threadPosts[activePostIndex].cwText = preset
-                    }) {
-                        Text(preset)
+                        threadPosts[activePostIndex].cwText = preset.label
+                    } label: {
+                        Label(preset.label, systemImage: preset.symbol)
                     }
                 }
             }
