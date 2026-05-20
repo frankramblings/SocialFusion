@@ -220,9 +220,9 @@ private struct StableGridImageView: View {
         .frame(width: gridSize, height: gridSize)
         .clipped()
       } else {
-        // Placeholder
+        // Placeholder — systemGray6 adapts cleanly to dark mode.
         RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .fill(Color.gray.opacity(0.1))
+          .fill(Color(.systemGray6))
           .frame(width: gridSize, height: gridSize)
           .overlay(ProgressView().scaleEffect(0.8))
       }
