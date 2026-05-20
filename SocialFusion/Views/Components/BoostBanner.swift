@@ -89,16 +89,29 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
     @State private var isPressed = false
     @State private var hasTriggeredLoad = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Same shape as ExpandingReplyBanner's animation envelopes.
+    // Under reduceMotion the 0.3-0.45s movement-laden curves
+    // collapse to a brief opacity-only easeOut so the expand
+    // still has *some* transition (no animation at all reads as
+    // broken).
     private var expandAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
     }
 
     private var collapseAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
     }
 
     private var chevronAnimation: Animation {
-        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+        reduceMotion
+            ? .easeOut(duration: 0.1)
+            : .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
     }
 
     private var visibleBoosters: [User] {
