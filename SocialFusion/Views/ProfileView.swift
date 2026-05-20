@@ -546,6 +546,7 @@ struct EditProfileView: View {
   @State private var selectedImageData: Data? = nil
   @State private var isLoading = false
   @State private var error: String? = nil
+  @State private var showDiscardConfirmation = false
 
   init(account: SocialAccount) {
     self.account = account
@@ -621,11 +622,31 @@ struct EditProfileView: View {
       }
       .navigationTitle("Edit Profile")
       .navigationBarTitleDisplayMode(.inline)
+      // Block swipe-dismiss while the user has unsaved profile edits —
+      // same protection Apple Contacts gives to its Edit Profile flow.
+      .interactiveDismissDisabled(hasChanges)
+      .confirmationDialog(
+        "Discard changes?",
+        isPresented: $showDiscardConfirmation,
+        titleVisibility: .visible
+      ) {
+        Button("Discard Changes", role: .destructive) {
+          HapticEngine.warning.trigger()
+          dismiss()
+        }
+        Button("Keep Editing", role: .cancel) {}
+      } message: {
+        Text("Your profile changes will be lost.")
+      }
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") {
             HapticEngine.tap.trigger()
-            dismiss()
+            if hasChanges {
+              showDiscardConfirmation = true
+            } else {
+              dismiss()
+            }
           }
         }
         ToolbarItem(placement: .confirmationAction) {
