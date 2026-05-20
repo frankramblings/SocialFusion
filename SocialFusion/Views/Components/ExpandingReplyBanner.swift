@@ -116,6 +116,7 @@ struct ExpandingReplyBanner: View {
     // MARK: - Environment
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Use the shared PostParentCache instance
     private var parentCache: PostParentCache { PostParentCache.shared }
@@ -124,17 +125,26 @@ struct ExpandingReplyBanner: View {
     @State private var isPressed = false
     @State private var contentHeight: CGFloat = 0
 
-    // Apple-style animation timing curves
+    // Apple-style animation timing curves. Under reduceMotion the
+    // 0.35-0.45s movement-laden curves collapse to a brief opacity
+    // pop so the expand/collapse still has *some* transition (none
+    // at all reads as broken) without the height-and-scale dance.
     private var expandAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
     }
 
     private var collapseAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
     }
 
     private var chevronAnimation: Animation {
-        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+        reduceMotion
+            ? .easeOut(duration: 0.1)
+            : .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
     }
 
     /// True when the upstream username is a generic fallback that would
