@@ -314,12 +314,19 @@ public struct EmojiDisplayNameText: View {
         if let emojiMap = emojiMap, !emojiMap.isEmpty {
             // Convert to RemoteEmoji for EmojiText library
             let remoteEmojis: [RemoteEmoji] = makeRemoteEmojis(from: emojiMap)
-            
+
             EmojiText(text, emojis: remoteEmojis)
                 .font(font)
                 .fontWeight(fontWeight)
                 .foregroundColor(foregroundColor)
                 .lineLimit(lineLimit)
+                // EmojiText library renders inline emoji as embedded
+                // image views that VoiceOver might announce as separate
+                // 'image' stops mid-name. Override with the plain text
+                // (which still contains the :shortcode: tokens, which
+                // VoiceOver reads as 'colon shortcode colon' — better
+                // than 'image' since at least there's a verbal hint).
+                .accessibilityLabel(text)
         } else {
             // No emoji - render plain text
             Text(text)
