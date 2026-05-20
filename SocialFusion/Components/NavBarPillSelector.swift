@@ -6,6 +6,9 @@ struct NavBarPillSelector<LeadingContent: View>: View {
     let action: () -> Void
     let leadingContent: LeadingContent?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     init(title: String, isExpanded: Bool, action: @escaping () -> Void, @ViewBuilder leadingContent: () -> LeadingContent) {
         self.title = title
         self.isExpanded = isExpanded
@@ -27,7 +30,7 @@ struct NavBarPillSelector<LeadingContent: View>: View {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.semibold))
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
-                    .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
+                    .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
                     .accessibilityHidden(true)
             }
             .foregroundColor(.primary)
@@ -35,7 +38,12 @@ struct NavBarPillSelector<LeadingContent: View>: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(.ultraThinMaterial)
+                    // Solid fallback under Reduce Transparency so the
+                    // pill remains a distinct shape against the
+                    // navigation bar's content blur.
+                    .fill(reduceTransparency
+                          ? AnyShapeStyle(Color(.secondarySystemBackground))
+                          : AnyShapeStyle(.ultraThinMaterial))
                     .overlay(
                         Capsule()
                             .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
@@ -98,6 +106,8 @@ struct NavBarPillDropdown: View {
     let sections: [NavBarPillDropdownSection]
     let width: CGFloat
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(sections.enumerated()), id: \.offset) { sectionIndex, section in
@@ -135,7 +145,13 @@ struct NavBarPillDropdown: View {
         .frame(width: width)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.ultraThinMaterial)
+                // Dropdown panel — solid fallback for Reduce Transparency
+                // matches the pill above. The two surfaces need consistent
+                // treatment or one looks like glass and the other like
+                // a card during the same interaction.
+                .fill(reduceTransparency
+                      ? AnyShapeStyle(Color(.secondarySystemBackground))
+                      : AnyShapeStyle(.ultraThinMaterial))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
@@ -152,6 +168,8 @@ struct NavBarPillDropdownContainer<Content: View>: View {
     let maxHeight: CGFloat
     let content: Content
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     init(width: CGFloat, maxHeight: CGFloat = 300, @ViewBuilder content: () -> Content) {
         self.width = width
         self.maxHeight = maxHeight
@@ -165,7 +183,9 @@ struct NavBarPillDropdownContainer<Content: View>: View {
         .frame(width: width)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(reduceTransparency
+                      ? AnyShapeStyle(Color(.secondarySystemBackground))
+                      : AnyShapeStyle(.ultraThinMaterial))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
