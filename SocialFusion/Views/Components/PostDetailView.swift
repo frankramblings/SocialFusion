@@ -245,6 +245,18 @@ struct PostDetailView: View {
                 serviceManager.postActionCoordinator.refreshIfStale(for: viewModel.post)
             }
         }
+        .onChange(of: inlineReplyRemaining) { oldValue, newValue in
+            // Mirror the compose-view haptic vocabulary on the inline
+            // quick-reply counter: tactile callout the moment a
+            // threshold is *crossed*, so the user feels it without
+            // looking at the count. Going back under stays silent —
+            // the warning channel is for "watch out", not "you're ok now."
+            if oldValue >= 0 && newValue < 0 {
+                HapticEngine.warning.trigger()
+            } else if oldValue >= 50 && newValue < 50 {
+                HapticEngine.selection.trigger()
+            }
+        }
     }
 
     // MARK: - Thread Content View
