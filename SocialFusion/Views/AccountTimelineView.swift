@@ -217,8 +217,15 @@ struct AccountTimelineView: View {
             .refreshable {
                 let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                 pendingAnchorRestoreId = anchorBefore
+                let bufferBefore = controller.bufferCount
                 await controller.manualRefresh()
-                HapticEngine.tap.trigger()
+                // Contextual haptic: success notification if new posts
+                // arrived, light tap otherwise — matches the vocabulary
+                // ConsolidatedTimelineView already uses on .refreshable.
+                let bufferAfter = controller.bufferCount
+                HapticEngine.refreshComplete(
+                    hasNewContent: bufferAfter > bufferBefore
+                ).trigger()
             }
             .simultaneousGesture(
                 DragGesture()
@@ -263,8 +270,11 @@ struct AccountTimelineView: View {
                 .padding(.vertical)
             }
             .refreshable {
+                let bufferBefore = controller.bufferCount
                 await controller.manualRefresh()
-                HapticEngine.tap.trigger()
+                HapticEngine.refreshComplete(
+                    hasNewContent: controller.bufferCount > bufferBefore
+                ).trigger()
             }
             .simultaneousGesture(
                 DragGesture()
