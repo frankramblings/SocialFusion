@@ -1020,22 +1020,28 @@ struct ListSelectionView: View {
                 } else if lists.isEmpty {
                     Text("No lists found")
                         .foregroundColor(.secondary)
+                        .accessibilityLabel("No lists found. Create one in your Mastodon settings.")
                 } else {
                     ForEach(lists) { list in
-                        Button(action: { addToList(list) }) {
+                        Button {
+                            HapticEngine.tap.trigger()
+                            addToList(list)
+                        } label: {
                             HStack {
                                 Text(list.title)
                                 Spacer()
                             }
                         }
+                        .accessibilityHint("Adds this user to \(list.title)")
                     }
                 }
             }
             .navigationTitle("Add to List")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         dismiss()
                     }
                 }
