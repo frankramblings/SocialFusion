@@ -182,6 +182,17 @@ struct FetchQuotePostView: View {
 
     private let maxRetries = 2
 
+    /// Once a URL is resolved to a Post, keep it. The dominant cause of
+    /// "feed shifts while I scroll" is a quote cell above the viewport
+    /// transitioning from skeleton → loaded after its fetch completes.
+    /// Caching means the second (and Nth) time you scroll past a known
+    /// quote, the cell lands at its final size on the first frame and
+    /// nothing below it shifts. Ivory et al. avoid the same jump by
+    /// shipping embed data inline; we don't always have that for
+    /// Mastodon, so cache-on-resolve is the moral equivalent.
+    @MainActor private static var resolvedPostCache: [URL: Post] = [:]
+    @MainActor private static var negativeCache: Set<URL> = []  // URLs that resolved to nothing — don't keep retrying
+
     private var platform: SocialPlatform {
         let urlString = url.absoluteString.lowercased()
         // Check for Bluesky URLs (various formats)
@@ -251,12 +262,37 @@ struct FetchQuotePostView: View {
             }
         }
         .onAppear {
+            // Cache hit: the URL was resolved earlier in this session.
+            // Render the loaded view on the very first frame so the cell
+            // lands at its final size and nothing below it shifts when
+            // the (otherwise-needed) fetch would have completed.
+            if let cached = Self.resolvedPostCache[url] {
+                if quotedPost == nil { quotedPost = cached }
+                if isLoading { isLoading = false }
+                return
+            }
+            // Negative cache: we tried this URL before and it didn't
+            // resolve to a quote. Skip the fetch; the body's `else`
+            // branch will render LinkPreview at its stable size.
+            if Self.negativeCache.contains(url) {
+                if isLoading { isLoading = false }
+                return
+            }
             // Only start a fetch if we don't already have data and there
             // isn't one in flight. This prevents duplicate requests when
             // the cell is briefly recycled by LazyVStack.
             guard quotedPost == nil, fetchTask == nil else { return }
-            DebugLog.verbose("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
+            DebugLog.verbose("🔗 [FetchQuotePostView] Scheduling fetch for URL: \(url)")
             fetchTask = Task {
+                // Visibility-confirmation delay. LazyVStack instantiates
+                // cells in a buffer outside the visible viewport — a fast
+                // scroll past a quote cell will fire onAppear briefly,
+                // then onDisappear. Wait ~350ms so we only pay the network
+                // cost (and risk the size-jump on result) for cells the
+                // user actually dwells on. Cancelled by onDisappear if
+                // the cell scrolls off before the timer fires.
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
                 await fetchPost()
                 await MainActor.run { fetchTask = nil }
             }
@@ -356,6 +392,7 @@ struct FetchQuotePostView: View {
                 if hasMeaningfulContent(post) {
                     await MainActor.run {
                         guard !Task.isCancelled else { return }
+                        Self.resolvedPostCache[url] = post
                         self.quotedPost = post
                         self.isLoading = false
                         self.error = nil
@@ -366,6 +403,7 @@ struct FetchQuotePostView: View {
                     DebugLog.verbose("🔗 [FetchQuotePostView] Post fetched but has no meaningful content, falling back to LinkPreview: \(url)")
                     await MainActor.run {
                         guard !Task.isCancelled else { return }
+                        Self.negativeCache.insert(url)
                         self.isLoading = false
                         self.error = nil
                         // Leave quotedPost as nil so it falls through to LinkPreview
@@ -377,6 +415,7 @@ struct FetchQuotePostView: View {
                 DebugLog.verbose("🔗 [FetchQuotePostView] Post fetch returned nil, falling back to LinkPreview: \(url)")
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
+                    Self.negativeCache.insert(url)
                     self.isLoading = false
                     self.error = nil
                     // Leave quotedPost as nil so it falls through to LinkPreview
@@ -414,6 +453,7 @@ struct FetchQuotePostView: View {
                 DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded, falling back to LinkPreview")
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
+                    Self.negativeCache.insert(url)
                     self.isLoading = false
                     self.error = nil  // Clear error so it falls through to LinkPreview
                 }
