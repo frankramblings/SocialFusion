@@ -73,9 +73,10 @@ struct ReplyContextHeader: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Author info
                 HStack(spacing: 8) {
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         navigationEnvironment.navigateToUser(from: post)
-                    }) {
+                    } label: {
                         let stableImageURL = URL(string: post.authorProfilePictureURL)
                         let replyInitial = String((post.authorName.isEmpty ? post.authorUsername : post.authorName).prefix(1)).uppercased()
                         CachedAsyncImage(url: stableImageURL) { image in
@@ -95,11 +96,13 @@ struct ReplyContextHeader: View {
                         .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .accessibilityLabel("\(post.authorName.isEmpty ? post.authorUsername : post.authorName) profile")
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Button(action: {
+                        Button {
+                            HapticEngine.tap.trigger()
                             navigationEnvironment.navigateToUser(from: post)
-                        }) {
+                        } label: {
                             EmojiDisplayNameText(
                                 post.authorName,
                                 emojiMap: post.authorEmojiMap,
@@ -111,9 +114,10 @@ struct ReplyContextHeader: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        Button(action: {
+                        Button {
+                            HapticEngine.tap.trigger()
                             navigationEnvironment.navigateToUser(from: post)
-                        }) {
+                        } label: {
                             Text("@\(post.authorUsername)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
