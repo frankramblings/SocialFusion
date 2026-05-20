@@ -203,6 +203,8 @@ struct ChatView: View {
         LazyVStack(spacing: 0) {
           if isLoading && messages.isEmpty {
             ProgressView().padding(.top, 40)
+          } else if messages.isEmpty {
+            emptyConversationView
           } else {
             ForEach(Array(groupedMessages.enumerated()), id: \.offset) { _, section in
               dateHeader(for: section.date)
@@ -384,6 +386,44 @@ struct ChatView: View {
       .padding(.vertical, 8)
       .background(Color(.systemBackground))
     }
+  }
+
+  /// Empty-conversation placeholder — matches the tinted-halo
+  /// composition Apple uses in Messages, and the rest of this app's
+  /// empty states.
+  private var emptyConversationView: some View {
+    VStack(spacing: 14) {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [platformColor.opacity(0.18), platformColor.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 60
+            )
+          )
+          .frame(width: 120, height: 120)
+        Image(systemName: "bubble.left.and.bubble.right")
+          .font(.system(size: 36, weight: .light))
+          .foregroundStyle(platformColor.gradient)
+          .symbolRenderingMode(.hierarchical)
+      }
+      VStack(spacing: 6) {
+        Text("No messages yet")
+          .font(.title3.weight(.semibold))
+          .foregroundColor(.primary.opacity(0.85))
+        Text("Say hello to start the conversation.")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal, 32)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .padding(.top, 80)
+    .frame(maxWidth: .infinity)
+    .accessibilityElement(children: .combine)
   }
 
   private var sendButton: some View {
