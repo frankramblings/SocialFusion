@@ -81,7 +81,10 @@ struct PostAuthorView: View {
         // three separate buttons that all did the same thing.
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(stableAuthorName), @\(stableAuthorUsername)")
-        .accessibilityValue(formatRelativeTime(from: stableCreatedAt))
+        // Use the .full unit style for VoiceOver so 'six min ago' reads as
+        // 'six minutes ago' — the abbreviated form is for visual scanning,
+        // not screen-reader audio.
+        .accessibilityValue(formatRelativeTimeFull(from: stableCreatedAt))
         .accessibilityHint("Opens this user's profile")
         .accessibilityAddTraits(.isButton)
     }
@@ -95,6 +98,14 @@ struct PostAuthorView: View {
     private func formatRelativeTime(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// Full-word relative time for VoiceOver — '6 minutes ago' rather
+    /// than '6m'. Visual UI keeps the abbreviated form.
+    private func formatRelativeTimeFull(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
