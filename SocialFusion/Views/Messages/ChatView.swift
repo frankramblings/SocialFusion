@@ -563,6 +563,11 @@ struct ChatView: View {
   }
 
   private func toggleReaction(messageId: String, emoji: String, alreadyReacted: Bool) {
+    // Capture pre-toggle reaction state so we can roll back on network
+    // failure — otherwise an optimistic add/remove would stay even when
+    // the server rejected it, leaving the UI out of sync.
+    let previousReactions = reactions[messageId]?[emoji]
+
     if alreadyReacted {
       for myId in myAccountIds {
         reactions[messageId, default: [:]][emoji]?.remove(myId)
@@ -585,6 +590,16 @@ struct ChatView: View {
         #if DEBUG
         print("[Reactions] Failed to toggle reaction: \(error.localizedDescription)")
         #endif
+        // Roll back the optimistic update + tell the user.
+        await MainActor.run {
+          if let previousReactions {
+            reactions[messageId, default: [:]][emoji] = previousReactions
+          } else {
+            reactions[messageId]?[emoji] = nil
+          }
+          HapticEngine.error.trigger()
+          ToastManager.shared.show("Couldn't update reaction", severity: .error, duration: 2.0)
+        }
       }
     }
   }
