@@ -11,41 +11,98 @@ struct TagDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Header
-                VStack(spacing: 8) {
-                    Image(systemName: "number")
-                        .font(.system(size: 40))
-                        .foregroundColor(.blue)
-                        .padding(.top, 20)
-                    
+                // Header — tinted halo + large hashtag + post count
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [Color.accentColor.opacity(0.22), Color.accentColor.opacity(0.0)],
+                                    center: .center,
+                                    startRadius: 4,
+                                    endRadius: 70
+                                )
+                            )
+                            .frame(width: 140, height: 140)
+
+                        Image(systemName: "number")
+                            .font(.system(size: 44, weight: .semibold))
+                            .foregroundStyle(Color.accentColor.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+
                     Text("#\(tag.name)")
-                        .font(.title)
-                        .fontWeight(.bold)
+                        .font(.title.weight(.bold))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+
+                    if let count = tag.formattedUsageCount {
+                        Text("\(count) post\(count == "1" ? "" : "s")")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 20)
-                .background(Color(.secondarySystemBackground))
+                .padding(.top, 24)
+                .padding(.bottom, 24)
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Color(.secondarySystemBackground),
+                            Color(.secondarySystemBackground).opacity(0.0),
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
 
                 // Posts Feed
                 if isLoading && posts.isEmpty {
                     ProgressView()
                         .padding(.top, 40)
                 } else if error != nil {
-                    VStack(spacing: 12) {
-                        Text("Failed to load posts")
-                            .foregroundColor(.secondary)
-                        Button("Retry") {
-                            Task {
-                                await fetchPosts()
-                            }
+                    VStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.orange.opacity(0.14))
+                                .frame(width: 64, height: 64)
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 26))
+                                .foregroundStyle(Color.orange.gradient)
+                                .symbolRenderingMode(.hierarchical)
                         }
-                        .buttonStyle(.bordered)
+                        Text("Couldn't load posts")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.primary.opacity(0.8))
+                        Button {
+                            HapticEngine.tap.trigger()
+                            Task { await fetchPosts() }
+                        } label: {
+                            Text("Try Again")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 18)
+                                .padding(.vertical, 10)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.accentColor.gradient)
+                                        .shadow(color: Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 3)
+                                )
+                        }
+                        .buttonStyle(.plain)
                     }
                     .padding(.top, 40)
                 } else if posts.isEmpty {
-                    Text("No posts found for this tag")
-                        .foregroundColor(.secondary)
-                        .padding(.top, 40)
+                    VStack(spacing: 10) {
+                        Image(systemName: "tray")
+                            .font(.system(size: 36, weight: .light))
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                        Text("No posts yet")
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.top, 40)
                 } else {
                     LazyVStack(spacing: 0) {
                         ForEach(posts) { post in
