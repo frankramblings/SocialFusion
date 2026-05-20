@@ -107,6 +107,7 @@ struct ToastNotification: View {
     let toast: ToastManager.Toast
     let onDismiss: () -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 8) {
@@ -150,10 +151,12 @@ struct ToastNotification: View {
             onDismiss()
         }
         .transition(
-            .asymmetric(
-                insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.92, anchor: .top)),
-                removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
-            )
+            reduceMotion
+                ? .opacity
+                : .asymmetric(
+                    insertion: .move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.92, anchor: .top)),
+                    removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .top))
+                )
         )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("Dismisses this notification")

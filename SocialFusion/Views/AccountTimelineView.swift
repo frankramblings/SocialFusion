@@ -216,17 +216,69 @@ struct AccountTimelineView: View {
                 controller.recordVisibleInteraction()
             }
             .refreshable {
+                // Capture "was at top" BEFORE the spinner overscrolls and
+                // briefly muddies isNearTop. Pull-to-refresh always fires
+                // from the top by gesture mechanic.
+                let wasAtTop = controller.isNearTop
                 let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                 pendingAnchorRestoreId = anchorBefore
                 let bufferBefore = controller.bufferCount
                 await controller.manualRefresh()
+                let bufferAfter = controller.bufferCount
+                let arrivedCount = bufferAfter - bufferBefore
                 // Contextual haptic: success notification if new posts
                 // arrived, light tap otherwise — matches the vocabulary
                 // ConsolidatedTimelineView already uses on .refreshable.
-                let bufferAfter = controller.bufferCount
                 HapticEngine.refreshComplete(
-                    hasNewContent: bufferAfter > bufferBefore
+                    hasNewContent: arrivedCount > 0
                 ).trigger()
+
+                // Scenario 2: refresh returned nothing new. A quiet info
+                // toast confirms the gesture ran without moving anything.
+                // ToastManager handles VoiceOver via UIAccessibility.post
+                // so the message is spoken too.
+                if arrivedCount <= 0 {
+                    ToastManager.shared.show(
+                        "You're up to date",
+                        severity: .info,
+                        duration: 1.4
+                    )
+                    return
+                }
+
+                // Scenario 1: user was at the top when they pulled, and
+                // new posts arrived in the buffer. The pill *would* sit
+                // there waiting for a second tap, but the whole point of
+                // pulling at the top is to see what's new — auto-merge
+                // so the freshly-arrived posts slide into view, then
+                // advance scrollAnchorId to the new top so SwiftUI's
+                // scrollPosition(id:) binding lands the user there rather
+                // than re-pinning them to the old anchor (the same
+                // restoration-anchor fight the ConsolidatedTimelineView
+                // fix addresses). Deliberately skip prepareMergeAnchorRestore
+                // for this branch — that helper exists for mid-feed pill
+                // taps where we *want* to preserve viewport position.
+                //
+                // If the user was mid-feed (impossible via gesture but the
+                // controller state may say so during a programmatic
+                // refresh), the pill stays put and they merge on demand.
+                if wasAtTop {
+                    Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 160_000_000)
+                        controller.mergeBufferedPosts()
+                        try? await Task.sleep(nanoseconds: 60_000_000)
+                        if let newTopId = controller.posts.first?.id,
+                           scrollAnchorId != newTopId {
+                            if reduceMotion {
+                                scrollAnchorId = newTopId
+                            } else {
+                                withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
+                                    scrollAnchorId = newTopId
+                                }
+                            }
+                        }
+                    }
+                }
             }
             .simultaneousGesture(
                 DragGesture()
@@ -273,9 +325,17 @@ struct AccountTimelineView: View {
             .refreshable {
                 let bufferBefore = controller.bufferCount
                 await controller.manualRefresh()
+                let arrivedCount = controller.bufferCount - bufferBefore
                 HapticEngine.refreshComplete(
-                    hasNewContent: controller.bufferCount > bufferBefore
+                    hasNewContent: arrivedCount > 0
                 ).trigger()
+                if arrivedCount <= 0 {
+                    ToastManager.shared.show(
+                        "You're up to date",
+                        severity: .info,
+                        duration: 1.4
+                    )
+                }
             }
             .simultaneousGesture(
                 DragGesture()

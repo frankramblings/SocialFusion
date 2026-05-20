@@ -899,9 +899,15 @@ struct ConsolidatedTimelineView: View {
                     // posts are inserted. As long as scrollAnchorId stays constant,
                     // the user stays at the same post visually.
 
+                    // Capture "was at top" BEFORE the gesture's spinner offset
+                    // muddies isNearTop. Pull-to-refresh always fires from the
+                    // top by gesture mechanic, but isNearTop can briefly flicker
+                    // false as the spinner overscrolls.
+                    let wasAtTop = controller.isNearTop
+
                     isRefreshing = true
-                    controller.prepareForRefresh(wasScrolledDown: !controller.isNearTop)
-                    logAnchorState("refresh start (buffer) anchor=\(scrollAnchorId ?? "nil")")
+                    controller.prepareForRefresh(wasScrolledDown: !wasAtTop)
+                    logAnchorState("refresh start (buffer) wasAtTop=\(wasAtTop) anchor=\(scrollAnchorId ?? "nil")")
 
                     // Fetch posts to buffer - timeline stays unchanged during fetch
                     let bufferedCount = await controller.fetchToBuffer()
@@ -911,7 +917,20 @@ struct ConsolidatedTimelineView: View {
                     // .refreshable ends here - spinner dismisses
                     isRefreshing = false
                     HapticEngine.refreshComplete(hasNewContent: bufferedCount > 0).trigger()
-                    guard bufferedCount > 0 else { return }
+
+                    // Scenario 2: zero new posts. Pull-to-refresh always fires
+                    // from the top by gesture, so a quiet info toast is the
+                    // right affordance — confirms the refresh ran without
+                    // moving anything. ToastManager auto-posts a VoiceOver
+                    // announcement, so this is the spoken cue under VO too.
+                    guard bufferedCount > 0 else {
+                        ToastManager.shared.show(
+                            "You're up to date",
+                            severity: .info,
+                            duration: 1.4
+                        )
+                        return
+                    }
 
                     logAnchorState("post-refresh merge starting, buffer=\(bufferedCount)")
 
@@ -919,11 +938,47 @@ struct ConsolidatedTimelineView: View {
                     Task {
                         try? await Task.sleep(nanoseconds: 100_000_000)
 
+                        // Scenario 1: user pulled while at the top. By default
+                        // scrollPolicy is .preserveViewport, which makes
+                        // updatePosts() stash the OLD top as restorationAnchor;
+                        // the view then re-pins to that old anchor (with an
+                        // 800ms anchor lock) and the freshly-merged new posts
+                        // sit invisibly above the viewport. The whole point of
+                        // pulling at the top is to *see* what's new, so switch
+                        // to .jumpToNow before merging — same trick the pill
+                        // tap (handleNewPostsTap) already uses to land at the
+                        // new top instead of preserving position.
+                        if wasAtTop {
+                            controller.scrollPolicy = .jumpToNow
+                        }
+
                         // Merge buffered posts - scrollPosition(id:) preserves position automatically
-                        // No offset compensation needed - just trust the binding
+                        // when scrollPolicy is .preserveViewport (mid-feed merge path).
                         controller.mergeBufferedPosts()
 
                         logAnchorState("post-refresh merge complete")
+
+                        // With .jumpToNow above, the restore machinery left
+                        // the anchor alone. Snap (or animate) it to the new
+                        // top so the user actually sees the freshly-arrived
+                        // posts. The 60ms wait lets controller.posts propagate
+                        // through the SwiftUI tree so the new id resolves to
+                        // a real view.
+                        if wasAtTop {
+                            try? await Task.sleep(nanoseconds: 60_000_000)
+                            guard let newTopPost = controller.posts.first else { return }
+                            let newTopId = scrollIdentifier(for: newTopPost)
+                            if scrollAnchorId != newTopId {
+                                if reduceMotion {
+                                    scrollAnchorId = newTopId
+                                } else {
+                                    withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
+                                        scrollAnchorId = newTopId
+                                    }
+                                }
+                                logAnchorState("at-top refresh: advanced anchor to new top \(newTopId)")
+                            }
+                        }
                     }
                 }
                 .simultaneousGesture(
@@ -1067,7 +1122,14 @@ struct ConsolidatedTimelineView: View {
                     // .refreshable ends here - spinner dismisses
                     isRefreshing = false
                     HapticEngine.refreshComplete(hasNewContent: bufferedCount > 0).trigger()
-                    guard bufferedCount > 0 else { return }
+                    guard bufferedCount > 0 else {
+                        ToastManager.shared.show(
+                            "You're up to date",
+                            severity: .info,
+                            duration: 1.4
+                        )
+                        return
+                    }
 
                     logAnchorState("post-refresh merge starting (iOS 16), buffer=\(bufferedCount)")
 
