@@ -276,6 +276,18 @@ struct AccountsView: View {
             }
             .background(Color(.tertiarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            // The whole row toggles selection — combine into one a11y
+            // unit so VoiceOver reads it as a single named toggle rather
+            // than stepping through icon, name, handle, checkmark
+            // separately.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username)")
+            .accessibilityHint(
+                serviceManager.selectedAccountIds.contains(account.id)
+                    ? "Currently included. Tap to exclude from the timeline"
+                    : "Tap to include in the timeline"
+            )
+            .accessibilityAddTraits(serviceManager.selectedAccountIds.contains(account.id) ? .isSelected : [])
 
             // Delete button row - more subtle design
             HStack {

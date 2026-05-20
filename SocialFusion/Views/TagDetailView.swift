@@ -74,6 +74,7 @@ struct TagDetailView: View {
                         Text("Couldn't load posts")
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.primary.opacity(0.8))
+                            .accessibilityAddTraits(.isHeader)
                         Button {
                             HapticEngine.tap.trigger()
                             Task { await fetchPosts() }
