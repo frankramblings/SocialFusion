@@ -472,6 +472,25 @@ struct NotificationRow: View {
 
     private var accessibilityLabel: String {
         let name = notification.fromAccount.displayName ?? notification.fromAccount.username
-        return "\(name) \(notificationText)"
+        var label = "\(name) \(notificationText)"
+
+        // Append the post snippet so VoiceOver can hear which post got
+        // the interaction — visually present in the row, but invisible
+        // to VoiceOver without this.
+        if let post = notification.post {
+            let snippet = PostNormalizerImpl.shared.normalizeContent(post.content)
+            if !snippet.isEmpty {
+                label += ". \(snippet)"
+            }
+        }
+
+        // Append a natural-language timestamp ('5 minutes ago') rather
+        // than relying on the visible '5m' shorthand — same readability
+        // treatment we apply elsewhere.
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        label += ". \(formatter.localizedString(for: notification.createdAt, relativeTo: Date()))"
+
+        return label
     }
 }
