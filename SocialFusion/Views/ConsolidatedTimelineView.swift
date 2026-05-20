@@ -1259,46 +1259,41 @@ struct ConsolidatedTimelineView: View {
     }
     
     private func updateJumpToLastReadVisibility() {
-        guard let lastReadId = lastReadPostId else {
-            showJumpToLastRead = false
-            return
-        }
-        
-        // Check if last read post exists in current posts
-        guard controller.posts.contains(where: { $0.id == lastReadId }) else {
-            showJumpToLastRead = false
-            return
-        }
-        
-        // Don't show if merge pill is showing (to avoid clutter)
-        if controller.bufferCount > 0 {
-            showJumpToLastRead = false
-            return
-        }
-        
-        // Check if we're at the top (don't show if at top)
-        if #available(iOS 17.0, *) {
-            let topId = controller.posts.first.map(scrollIdentifier(for:))
-            if let topId = topId, scrollAnchorId == topId {
-                showJumpToLastRead = false
-                return
+        // Compute the next visibility state in one pass, then commit it
+        // through a single withAnimation transaction. Previously each
+        // branch assigned showJumpToLastRead directly without animation,
+        // so the pill would pop in/out abruptly when scroll position or
+        // buffer count changed underneath it.
+        let next = computeJumpToLastReadVisibility()
+        guard next != showJumpToLastRead else { return }
+        if reduceMotion {
+            showJumpToLastRead = next
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                showJumpToLastRead = next
             }
         }
-        
-        // Check if current position is below last read
+    }
+
+    private func computeJumpToLastReadVisibility() -> Bool {
+        guard let lastReadId = lastReadPostId else { return false }
+        guard controller.posts.contains(where: { $0.id == lastReadId }) else { return false }
+        // Don't show if merge pill is showing (to avoid clutter)
+        if controller.bufferCount > 0 { return false }
+        // Don't show if we're already at the top
+        if #available(iOS 17.0, *) {
+            let topId = controller.posts.first.map(scrollIdentifier(for:))
+            if let topId = topId, scrollAnchorId == topId { return false }
+        }
+        // Show when current position is below the last read post
         if let currentAnchorId = scrollAnchorId,
            let currentIndex = controller.posts.firstIndex(where: { scrollIdentifier(for: $0) == currentAnchorId }),
            let lastReadIndex = controller.posts.firstIndex(where: { $0.id == lastReadId }),
            currentIndex > lastReadIndex {
-            showJumpToLastRead = true
-        } else {
-            // Also show if we don't have a current anchor but have posts and last read
-            if scrollAnchorId == nil && !controller.posts.isEmpty {
-                showJumpToLastRead = true
-            } else {
-                showJumpToLastRead = false
-            }
+            return true
         }
+        // Also show if we have no anchor but have posts + last read
+        return scrollAnchorId == nil && !controller.posts.isEmpty
     }
 
     /// Scroll the timeline back to the top. Callers are responsible for
