@@ -72,6 +72,8 @@ struct ActionBar: View {
                 }
             )
             .accessibilityLabel("Reply")
+            .accessibilityValue(replyValue(count: post.replyCount, isReplied: post.isReplied))
+            .accessibilityHint("Opens the reply composer")
             .frame(maxWidth: .infinity)
 
             // Repost button
@@ -88,7 +90,10 @@ struct ActionBar: View {
                     }
                 }
             )
-            .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
+            .accessibilityLabel("Repost")
+            .accessibilityValue(repostValue(count: post.repostCount, isReposted: post.isReposted))
+            .accessibilityHint(post.isReposted ? "Removes your repost" : "Reposts to your timeline")
+            .accessibilityAddTraits(post.isReposted ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             // Quote button
@@ -100,7 +105,9 @@ struct ActionBar: View {
                     onAction(.quote)
                 }
             )
-            .accessibilityLabel(post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+            .accessibilityLabel("Quote")
+            .accessibilityHint("Opens the composer with this post quoted")
+            .accessibilityAddTraits(post.isQuoted ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             // Like button
@@ -118,7 +125,10 @@ struct ActionBar: View {
                     }
                 }
             )
-            .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
+            .accessibilityLabel("Like")
+            .accessibilityValue(likeValue(count: post.likeCount, isLiked: post.isLiked))
+            .accessibilityHint(post.isLiked ? "Removes your like" : "Likes this post")
+            .accessibilityAddTraits(post.isLiked ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             // Share button
@@ -127,7 +137,7 @@ struct ActionBar: View {
                 onTap: { onAction(.share) }
             )
             .frame(maxWidth: .infinity, minHeight: 44)
-            .accessibilityLabel("Share post")
+            .accessibilityLabel("Share")
             .accessibilityHint("Opens share options")
 
             // Menu button (three dots)
@@ -170,6 +180,32 @@ struct ActionBar: View {
     /// Derives current action state from the post for menu label computation
     private var currentState: PostActionState {
         post.makeActionState()
+    }
+
+    // MARK: - Accessibility values
+
+    fileprivate func replyValue(count: Int, isReplied: Bool) -> String {
+        let parts = [
+            isReplied ? "You replied" : nil,
+            count > 0 ? "\(count) repl\(count == 1 ? "y" : "ies")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func repostValue(count: Int, isReposted: Bool) -> String {
+        let parts = [
+            isReposted ? "Reposted" : nil,
+            count > 0 ? "\(count) repost\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func likeValue(count: Int, isLiked: Bool) -> String {
+        let parts = [
+            isLiked ? "Liked" : nil,
+            count > 0 ? "\(count) like\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
     }
 
     private func menuButton(for action: PostAction) -> some View {
@@ -226,7 +262,9 @@ struct ActionBarV2: View {
                 onAction(.quote)
             }
         )
-        .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+        .accessibilityLabel("Quote")
+        .accessibilityHint("Opens the composer with this post quoted")
+        .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
     }
 
     var body: some View {
@@ -240,7 +278,9 @@ struct ActionBarV2: View {
                     onAction(.reply)
                 }
             )
-            .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+            .accessibilityLabel("Reply")
+            .accessibilityValue(actionBarReplyValue(count: state.replyCount, isReplied: state.isReplied))
+            .accessibilityHint("Opens the reply composer")
             .frame(maxWidth: .infinity)
 
             UnifiedRepostButton(
@@ -249,7 +289,10 @@ struct ActionBarV2: View {
                 isProcessing: isProcessing,
                 onTap: { coordinator.toggleRepost(for: post) }
             )
-            .accessibilityLabel(state.isReposted ? "Reposted. Double tap to undo repost" : "Repost. Double tap to repost")
+            .accessibilityLabel("Repost")
+            .accessibilityValue(actionBarRepostValue(count: state.repostCount, isReposted: state.isReposted))
+            .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
+            .accessibilityAddTraits(state.isReposted ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             UnifiedLikeButton(
@@ -259,7 +302,10 @@ struct ActionBarV2: View {
                 isProcessing: isProcessing,
                 onTap: { coordinator.toggleLike(for: post) }
             )
-            .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
+            .accessibilityLabel("Like")
+            .accessibilityValue(actionBarLikeValue(count: state.likeCount, isLiked: state.isLiked))
+            .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
+            .accessibilityAddTraits(state.isLiked ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             quoteButton
@@ -270,7 +316,7 @@ struct ActionBarV2: View {
                 onTap: { onAction(.share) }
             )
             .frame(maxWidth: .infinity, minHeight: 44)
-            .accessibilityLabel("Share post")
+            .accessibilityLabel("Share")
             .accessibilityHint("Opens share options")
 
             Menu {
@@ -319,6 +365,32 @@ struct ActionBarV2: View {
         } label: {
             Label(label, systemImage: icon)
         }
+    }
+
+    // MARK: - Accessibility values
+
+    private func actionBarReplyValue(count: Int, isReplied: Bool) -> String {
+        let parts = [
+            isReplied ? "You replied" : nil,
+            count > 0 ? "\(count) repl\(count == 1 ? "y" : "ies")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    private func actionBarRepostValue(count: Int, isReposted: Bool) -> String {
+        let parts = [
+            isReposted ? "Reposted" : nil,
+            count > 0 ? "\(count) repost\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    private func actionBarLikeValue(count: Int, isLiked: Bool) -> String {
+        let parts = [
+            isLiked ? "Liked" : nil,
+            count > 0 ? "\(count) like\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
     }
 }
 
