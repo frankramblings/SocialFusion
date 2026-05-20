@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MutedKeywordsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var keywords: [String] = []
     @State private var newKeyword: String = ""
     @FocusState private var isInputFocused: Bool
@@ -25,7 +26,7 @@ struct MutedKeywordsView: View {
                             .font(.title3)
                             .foregroundStyle(canAdd ? Color.accentColor : Color.secondary.opacity(0.4))
                             .symbolRenderingMode(.hierarchical)
-                            .animation(.spring(response: 0.3, dampingFraction: 0.82), value: canAdd)
+                            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82), value: canAdd)
                     }
                     .buttonStyle(.plain)
                     .disabled(!canAdd)
