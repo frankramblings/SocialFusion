@@ -19,6 +19,7 @@ struct AccountTimelineView: View {
     @State private var pendingMergeAnchorOffset: CGFloat?
     @State private var mergeOffsetCompensation: CGFloat = 0
     @State private var mergePillVisible = false
+    @State private var scrollToTopOpacity: Double = 1.0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -197,6 +198,11 @@ struct AccountTimelineView: View {
                 .padding(.top, mergeOffsetCompensation)
                 .padding(.vertical)
                 .scrollTargetLayout()
+                // Same fade-and-snap mechanism as ConsolidatedTimelineView —
+                // a brief opacity dip masks the index jump when the user
+                // taps the merge pill or double-taps the tab while deep in
+                // the timeline. See scrollToTop(using:).
+                .opacity(scrollToTopOpacity)
             }
             .coordinateSpace(name: "accountTimelineScroll")
             .onPreferenceChange(AccountTimelineVisibleItemPreferenceKey.self) { positions in
@@ -229,6 +235,7 @@ struct AccountTimelineView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
             { _ in
+                HapticEngine.tap.trigger()
                 scrollToTop(using: proxy)
                 syncAnchorToTopIfNeeded(
                     topId: controller.posts.first?.id,
@@ -506,14 +513,41 @@ struct AccountTimelineView: View {
         }
     }
 
+    /// Scroll the timeline back to the top. Callers fire the tap haptic
+    /// at the moment of intent — this method intentionally fires none of
+    /// its own so the gesture feels like one crisp action, not two
+    /// (matches ConsolidatedTimelineView.scrollToTop, iter 202).
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first?.id else { return }
-        if #available(iOS 17.0, *) {
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) { scrollAnchorId = topId }
+        let isFarFromTop = !controller.isNearTop
+
+        if isFarFromTop && !reduceMotion {
+            // Brief crossfade masks the scroll-position teleport so the
+            // jump reads as 'whoosh to the top' rather than a snap.
+            withAnimation(.easeOut(duration: 0.12)) {
+                scrollToTopOpacity = 0.65
+            }
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                if #available(iOS 17.0, *) {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { scrollAnchorId = topId }
+                } else {
+                    withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+                }
+                withAnimation(.easeOut(duration: 0.18)) {
+                    scrollToTopOpacity = 1.0
+                }
+            }
         } else {
-            withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+            if #available(iOS 17.0, *) {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { scrollAnchorId = topId }
+            } else {
+                withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+            }
         }
     }
 
