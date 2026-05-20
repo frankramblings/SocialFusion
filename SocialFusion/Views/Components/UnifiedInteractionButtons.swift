@@ -163,6 +163,7 @@ struct UnifiedLikeButton: View {
           Image(systemName: isLiked ? "heart.fill" : "heart")
             .font(.system(size: 18))
             .foregroundColor(isLiked ? likeColor : .secondary)
+            .contentTransition(.symbolEffect(.replace))
             .scaleEffect(animateLike ? 1.35 : (isLiked ? 1.05 : 1.0))
             .animation(
               reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.6, blendDuration: 0.05),
