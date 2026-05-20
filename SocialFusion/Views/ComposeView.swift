@@ -1809,6 +1809,23 @@ struct ComposeView: View {
                 // Update platform conflicts when platforms change
                 updatePlatformConflicts()
             }
+            .onChange(of: remainingChars) { oldValue, newValue in
+                // Tactile callouts for two thresholds, fired the moment
+                // you *cross* them so you feel the change before you
+                // look down at the ring. Tapbots/Tweetbot bake the same
+                // beat into Ivory's compose toolbar.
+                //
+                // Going over → warning haptic (firm, distinct). Going
+                // back under doesn't re-fire — that'd feel like a nag.
+                // Crossing into the last 50 → soft selection click.
+                // The reverse direction (good news) stays silent to
+                // keep the channel reserved for "watch out" beats.
+                if oldValue >= 0 && newValue < 0 {
+                    HapticEngine.warning.trigger()
+                } else if oldValue >= 50 && newValue < 50 {
+                    HapticEngine.selection.trigger()
+                }
+            }
             .modifier(lifecycleModifier)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
