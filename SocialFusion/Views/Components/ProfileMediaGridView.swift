@@ -156,8 +156,10 @@ private struct MediaGridCell: View {
         case .failure:
           placeholderView(systemName: iconName(for: attachment.type))
         default:
+          // systemGray6 adapts to light/dark; Color.gray.opacity
+          // shifts brown against dark backgrounds.
           Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
         }
       }
     } else {
@@ -167,7 +169,7 @@ private struct MediaGridCell: View {
 
   private func placeholderView(systemName: String) -> some View {
     Rectangle()
-      .fill(Color.gray.opacity(0.2))
+      .fill(Color(.systemGray5))
       .overlay(
         Image(systemName: systemName)
           .foregroundStyle(.secondary)

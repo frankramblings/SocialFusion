@@ -318,9 +318,11 @@ private struct SingleImageView: View {
         ZStack(alignment: .bottomTrailing) {
             // Show placeholder when this thumbnail is selected (to avoid duplicate during transition)
             if isSelected {
-                // Placeholder maintains layout space
+                // Placeholder maintains layout space. systemGray6 adapts
+                // to light/dark mode; Color.gray.opacity shifts to a
+                // brown tint against dark backgrounds.
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: maxHeight)
                     .shadow(
@@ -471,9 +473,11 @@ private struct GridImageView: View {
         ZStack(alignment: .bottomTrailing) {
             // Show placeholder when this thumbnail is selected (to avoid duplicate during transition)
             if isSelected {
-                // Placeholder maintains layout space
+                // Placeholder maintains layout space. systemGray6 adapts
+                // to light/dark mode; Color.gray.opacity shifts to a
+                // brown tint against dark backgrounds.
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(width: gridSize, height: gridSize)
                     .shadow(
                         color: MediaConstants.Visual.shadowColor,
