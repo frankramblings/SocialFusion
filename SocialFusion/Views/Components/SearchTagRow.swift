@@ -23,6 +23,7 @@ struct SearchTagRow: View {
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.accentColor)
         }
+        .accessibilityHidden(true)
 
         VStack(alignment: .leading, spacing: 2) {
           Text("#\(tag.name)")
@@ -48,17 +49,20 @@ struct SearchTagRow: View {
     }
     .buttonStyle(.plain)
     .accessibilityLabel(searchTagAccessibilityLabel)
+    .accessibilityHint("Opens posts for this hashtag")
   }
 
   /// VoiceOver label: 'Hashtag <name>' plus an optional post-count
-  /// suffix that uses the singular form for exactly one post.
-  /// Without this, '1 post' would read as '1 posts' for solo-post tags.
+  /// suffix (singular/plural-aware) and the platform name. Without
+  /// this, the row's inner platform indicator would announce
+  /// separately, mid-row, breaking the natural reading order.
   private var searchTagAccessibilityLabel: String {
     var label = "Hashtag \(tag.name)"
     if let count = tag.usageCount, count > 0 {
       let displayed = tag.formattedUsageCount ?? "\(count)"
       label += ", \(displayed) post\(count == 1 ? "" : "s")"
     }
+    label += ", on \(tag.platform.rawValue.capitalized)"
     return label
   }
 }
