@@ -30,9 +30,11 @@ struct PostShareButton: View {
 
             onTap()
         }) {
-            Image(systemName: showConfirmation ? "checkmark" : "square.and.arrow.up")
+            Image(systemName: showConfirmation ? "checkmark.circle.fill" : "square.and.arrow.up")
+                .font(.system(size: 18))
                 .foregroundColor(showConfirmation ? .green : .secondary)
-                .scaleEffect(showConfirmation ? 1.1 : 1.0)
+                .scaleEffect(showConfirmation ? 1.08 : 1.0)
+                .contentTransition(.symbolEffect(.replace.offUp))
                 .frame(minWidth: 44, minHeight: 44)
         }
         .scaleEffect(isPressed ? 0.88 : 1.0)
