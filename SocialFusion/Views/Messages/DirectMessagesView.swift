@@ -15,6 +15,7 @@ struct DirectMessagesView: View {
           HStack {
             Spacer()
             ProgressView()
+              .accessibilityLabel("Loading conversations")
             Spacer()
           }
           .padding(.top, 40)

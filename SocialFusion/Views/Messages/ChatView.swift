@@ -206,7 +206,9 @@ struct ChatView: View {
       ScrollView {
         LazyVStack(spacing: 0) {
           if isLoading && messages.isEmpty {
-            ProgressView().padding(.top, 40)
+            ProgressView()
+              .padding(.top, 40)
+              .accessibilityLabel("Loading messages")
           } else if messages.isEmpty {
             emptyConversationView
           } else {

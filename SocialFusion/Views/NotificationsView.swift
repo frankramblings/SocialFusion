@@ -60,6 +60,7 @@ struct NotificationsView: View {
                             HStack {
                                 Spacer()
                                 ProgressView()
+                                    .accessibilityLabel("Loading notifications")
                                 Spacer()
                             }
                             .padding(.top, 40)
