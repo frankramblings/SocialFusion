@@ -19,7 +19,7 @@ struct SearchUserRow: View {
               .aspectRatio(contentMode: .fill)
           } placeholder: {
             Circle()
-              .fill(Color.gray.opacity(0.3))
+              .fill(Color(.systemGray5))
               .overlay(
                 ProgressView()
                   .scaleEffect(0.5)
@@ -29,11 +29,11 @@ struct SearchUserRow: View {
           .clipShape(Circle())
         } else {
           Circle()
-            .fill(Color.gray.opacity(0.3))
+            .fill(Color(.systemGray5))
             .frame(width: 40, height: 40)
             .overlay(
               Text(user.username.prefix(1).uppercased())
-                .font(.headline)
+                .font(.headline.weight(.semibold))
                 .foregroundColor(.secondary)
             )
         }
