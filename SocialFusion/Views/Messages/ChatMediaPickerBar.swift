@@ -76,14 +76,18 @@ private struct ThumbnailCell: View {
       )
       .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 1)
 
-      // Remove button — sits in the corner, larger hit target than the visual
-      Button(action: onRemove) {
+      // Remove button — icon stays at top-trailing corner, hit area
+      // extends inward to meet the 44pt AHIG minimum.
+      Button {
+        HapticEngine.tap.trigger()
+        onRemove()
+      } label: {
         Image(systemName: "xmark.circle.fill")
           .font(.system(size: 20))
           .foregroundStyle(.white, .black.opacity(0.55))
           .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 0.5)
-          .frame(width: 32, height: 32)  // expanded hit area
-          .contentShape(Circle())
+          .frame(width: 44, height: 44, alignment: .topTrailing)
+          .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .offset(x: 6, y: -6)

@@ -467,8 +467,8 @@ struct PostDetailView: View {
                         Image(systemName: "xmark.circle.fill")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                            .frame(width: 28, height: 28)
-                            .contentShape(Circle())
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Dismiss quick reply")
                 }

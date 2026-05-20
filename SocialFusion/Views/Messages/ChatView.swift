@@ -319,8 +319,8 @@ struct ChatView: View {
             Image(systemName: "xmark.circle.fill")
               .font(.system(size: 18))
               .foregroundColor(.secondary)
-              .frame(width: 28, height: 28)
-              .contentShape(Circle())
+              .frame(width: 44, height: 44)
+              .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .accessibilityLabel("Cancel editing")

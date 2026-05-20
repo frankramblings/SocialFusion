@@ -33,7 +33,7 @@ struct ContentWarningEditor: View {
             Image(systemName: "xmark.circle.fill")
               .font(.subheadline)
               .foregroundColor(.secondary)
-              .frame(width: 28, height: 28)
+              .frame(width: 44, height: 44)
               .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
