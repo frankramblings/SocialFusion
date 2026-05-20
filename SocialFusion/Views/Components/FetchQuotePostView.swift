@@ -701,6 +701,10 @@ struct RelativeTimeView: View {
         Text(formatRelativeTime(from: date))
             .font(.caption)
             .foregroundColor(.secondary)
+            // Visual: abbreviated ('6m'). Spoken: full natural language
+            // ('6 minutes ago'). Matches PostAuthorView's split-style
+            // pattern from iter 114.
+            .accessibilityLabel(formatAccessibleTime(from: date))
     }
 
     private func formatRelativeTime(from date: Date) -> String {
@@ -724,6 +728,12 @@ struct RelativeTimeView: View {
         } else {
             return "now"
         }
+    }
+
+    private func formatAccessibleTime(from date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 
