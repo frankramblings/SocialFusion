@@ -846,9 +846,11 @@ struct ConsolidatedTimelineView: View {
                         }
 
                         if controller.isLoadingNextPage {
+                            // infiniteScrollLoadingView declares its own
+                            // .accessibilityElement(.ignore) + label from
+                            // iter 109. Don't re-label here.
                             infiniteScrollLoadingView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("Loading more posts")
                         }
 
                         if !controller.hasNextPage && !controller.posts.isEmpty {
@@ -1032,9 +1034,11 @@ struct ConsolidatedTimelineView: View {
                         }
 
                         if controller.isLoadingNextPage {
+                            // infiniteScrollLoadingView declares its own
+                            // .accessibilityElement(.ignore) + label from
+                            // iter 109. Don't re-label here.
                             infiniteScrollLoadingView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("Loading more posts")
                         }
 
                         if !controller.hasNextPage && !controller.posts.isEmpty {
