@@ -14,6 +14,8 @@ struct ChatMediaPickerBar: View {
             let key = item.itemIdentifier ?? "\(index)"
             ThumbnailCell(
               thumbnail: thumbnails[key],
+              position: index + 1,
+              total: selectedItems.count,
               onRemove: {
                 HapticEngine.tap.trigger()
                 withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
@@ -53,6 +55,8 @@ struct ChatMediaPickerBar: View {
 /// A single thumbnail cell with a refined remove affordance.
 private struct ThumbnailCell: View {
   let thumbnail: Image?
+  let position: Int
+  let total: Int
   let onRemove: () -> Void
 
   var body: some View {
@@ -75,6 +79,7 @@ private struct ThumbnailCell: View {
           .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
       )
       .shadow(color: .black.opacity(0.08), radius: 4, x: 0, y: 1)
+      .accessibilityLabel("Attachment \(position) of \(total)")
 
       // Remove button — icon stays at top-trailing corner, hit area
       // extends inward to meet the 44pt AHIG minimum.
@@ -91,7 +96,7 @@ private struct ThumbnailCell: View {
       }
       .buttonStyle(.plain)
       .offset(x: 6, y: -6)
-      .accessibilityLabel("Remove attachment")
+      .accessibilityLabel("Remove attachment \(position)")
     }
   }
 }
