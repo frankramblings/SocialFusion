@@ -306,7 +306,11 @@ struct ConsolidatedTimelineView: View {
                         title: currentFeedTitle,
                         isExpanded: showFeedPicker,
                         action: {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            // Spring on tap → smooth pop-in/out for
+                            // sighted users. reduceMotion: no
+                            // animation envelope at all, so the
+                            // picker just appears/disappears.
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFeedPicker.toggle()
                             }
                         }
@@ -325,7 +329,10 @@ struct ConsolidatedTimelineView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            // Tap-outside dismissal mirrors the
+                            // open animation (with reduceMotion
+                            // gating) so close/open feel symmetric.
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFeedPicker = false
                             }
                         }
@@ -563,7 +570,12 @@ struct ConsolidatedTimelineView: View {
             blueskyAccounts: serviceManager.blueskyAccounts,
             onSelect: handleFeedSelection(_:)
         )
-        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
+        // Reduce motion: drop the subtle scale-in pop, keep just
+        // a fade so the picker still has *some* transition (no
+        // animation at all looks broken).
+        .transition(reduceMotion
+                    ? .opacity
+                    : .opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
     }
 
     private var debugOverlay: some View {
