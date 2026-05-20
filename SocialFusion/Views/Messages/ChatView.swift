@@ -167,6 +167,7 @@ struct ChatView: View {
       set: { if !$0 { deleteConfirmMessage = nil } }
     )) {
       Button("Delete", role: .destructive) {
+        HapticEngine.warning.trigger()
         if let msg = deleteConfirmMessage {
           performDelete(msg)
         }
