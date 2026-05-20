@@ -35,6 +35,10 @@ struct CreateDraftIntent: AppIntent {
         let deepLink = URL(string: "socialfusion://draft\(query)")!
 
         await UIApplication.shared.open(deepLink)
-        return .result(dialog: "Created draft")
+        return .result(
+            dialog: openEditor
+                ? "Draft ready. Pick up where you left off in the composer."
+                : "Saved to your drafts."
+        )
     }
 }
