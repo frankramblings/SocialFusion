@@ -378,6 +378,9 @@ struct SettingsView: View {
 
         ImageCache.shared.clearCache()
         await calculateTotalCacheSize()
+        await MainActor.run {
+            ToastManager.shared.show("Image cache cleared", severity: .success, duration: 1.6)
+        }
     }
 
     private func clearPostDatabase() async {
@@ -387,6 +390,9 @@ struct SettingsView: View {
         await TimelineSwiftDataStore.shared.clearAll()
         try? await serviceManager.fetchTimeline(force: true)
         await calculateTotalCacheSize()
+        await MainActor.run {
+            ToastManager.shared.show("Post database reset", severity: .success, duration: 1.6)
+        }
     }
 
     private func clearOtherCaches() async {
@@ -398,6 +404,9 @@ struct SettingsView: View {
         MediaDimensionCache.shared.clearAll()
         SearchCache.shared.clear()
         await calculateTotalCacheSize()
+        await MainActor.run {
+            ToastManager.shared.show("Other caches cleared", severity: .success, duration: 1.6)
+        }
     }
 
     /// Standard settings row with a leading tinted icon tile + title.
