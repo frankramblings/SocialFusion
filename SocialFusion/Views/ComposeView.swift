@@ -893,6 +893,16 @@ struct ComposeView: View {
     }
 
     // Helper for button text
+    /// True when any thread post has text or attached media — used to
+    /// gate interactive dismiss + the Cancel-button save-as-draft prompt.
+    /// Same definition in both places so behavior is consistent.
+    private var hasComposeContent: Bool {
+        threadPosts.contains { post in
+            !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !post.images.isEmpty
+        }
+    }
+
     /// VoiceOver hint for the primary post button when it's enabled.
     /// Tells the user what the tap will actually do.
     private var postButtonHint: String {
@@ -1698,6 +1708,12 @@ struct ComposeView: View {
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
+            // Block swipe-to-dismiss while the user has typed content or
+            // attached an image — otherwise a half-thumb gesture would
+            // silently lose their post. The Cancel button still works
+            // (and triggers the save-as-draft flow). Apple Mail uses the
+            // same rule on its compose sheet.
+            .interactiveDismissDisabled(hasComposeContent)
             .navigationDestination(
                 isPresented: Binding(
                     get: { navigationEnvironment.selectedUser != nil },
@@ -1712,11 +1728,7 @@ struct ComposeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        let hasContent = threadPosts.contains { post in
-                            !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                || !post.images.isEmpty
-                        }
-                        if hasContent {
+                        if hasComposeContent {
                             showDraftActionSheet = true
                         } else {
                             dismiss()
