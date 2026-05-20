@@ -175,6 +175,7 @@ struct FetchQuotePostView: View {
     @State private var isLoading = true
     @State private var error: Error? = nil
     @State private var retryCount = 0
+    @State private var fetchTask: Task<Void, Never>?
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @Environment(\.colorScheme) private var colorScheme
@@ -250,10 +251,25 @@ struct FetchQuotePostView: View {
             }
         }
         .onAppear {
+            // Only start a fetch if we don't already have data and there
+            // isn't one in flight. This prevents duplicate requests when
+            // the cell is briefly recycled by LazyVStack.
+            guard quotedPost == nil, fetchTask == nil else { return }
             DebugLog.verbose("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
-            Task {
+            fetchTask = Task {
                 await fetchPost()
+                await MainActor.run { fetchTask = nil }
             }
+        }
+        .onDisappear {
+            // CRITICAL: cancel any in-flight fetch when the cell scrolls
+            // off-screen. Otherwise the response can arrive *after* the
+            // user has scrolled past, setting quotedPost on an out-of-view
+            // cell — which then expands by ~220pt when its UnifiedMediaGridView
+            // appears, pushing the user's current viewport content downward.
+            // This is the dominant cause of the 'feed jumps as I scroll' bug.
+            fetchTask?.cancel()
+            fetchTask = nil
         }
     }
 
@@ -326,10 +342,20 @@ struct FetchQuotePostView: View {
                 )
             }
 
+            // Bail if the cell has scrolled off-screen and the task was
+            // cancelled during the network round-trip. Setting state here
+            // would grow a now-invisible cell and shove the user's viewport
+            // content down.
+            guard !Task.isCancelled else {
+                DebugLog.verbose("🔗 [FetchQuotePostView] Task cancelled after fetch; dropping result for \(url)")
+                return
+            }
+
             if let post = post {
                 // Validate that the post has meaningful content before setting it
                 if hasMeaningfulContent(post) {
                     await MainActor.run {
+                        guard !Task.isCancelled else { return }
                         self.quotedPost = post
                         self.isLoading = false
                         self.error = nil
@@ -339,6 +365,7 @@ struct FetchQuotePostView: View {
                     // Don't throw error, just don't set the quotedPost
                     DebugLog.verbose("🔗 [FetchQuotePostView] Post fetched but has no meaningful content, falling back to LinkPreview: \(url)")
                     await MainActor.run {
+                        guard !Task.isCancelled else { return }
                         self.isLoading = false
                         self.error = nil
                         // Leave quotedPost as nil so it falls through to LinkPreview
@@ -349,6 +376,7 @@ struct FetchQuotePostView: View {
                 // This ensures the post still displays even if quote fetch fails
                 DebugLog.verbose("🔗 [FetchQuotePostView] Post fetch returned nil, falling back to LinkPreview: \(url)")
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
                     self.isLoading = false
                     self.error = nil
                     // Leave quotedPost as nil so it falls through to LinkPreview
@@ -356,8 +384,17 @@ struct FetchQuotePostView: View {
             }
 
         } catch {
+            // Distinguish cancellation from real errors. Cancellation means
+            // the cell scrolled off-screen — silently bail without retrying
+            // or surfacing an error UI.
+            if Task.isCancelled || error is CancellationError {
+                DebugLog.verbose("🔗 [FetchQuotePostView] Fetch cancelled (cell off-screen) for \(url)")
+                return
+            }
+
             DebugLog.verbose("🔗 [FetchQuotePostView] Error fetching post: \(error)")
             await MainActor.run {
+                guard !Task.isCancelled else { return }
                 self.retryCount += 1
                 self.isLoading = false
                 self.error = error
@@ -369,12 +406,14 @@ struct FetchQuotePostView: View {
                 DebugLog.verbose("🔗 [FetchQuotePostView] Retrying in \(delay) seconds...")
 
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard !Task.isCancelled else { return }
                 await fetchPost()
             } else {
                 // After max retries, fallback to LinkPreview instead of showing error
                 // This ensures the post still displays
                 DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded, falling back to LinkPreview")
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
                     self.isLoading = false
                     self.error = nil  // Clear error so it falls through to LinkPreview
                 }
