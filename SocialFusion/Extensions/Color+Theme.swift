@@ -53,13 +53,24 @@ extension Color {
         return Color.white.opacity(0.05)
     }
 
-    // Platform-specific colors
+    // Platform-specific brand colors.
+    //
+    // Mirrors SocialPlatform.colorHex so the brand purple/blue is
+    // identical across every surface — whether the call site
+    // reaches for `Color.mastodonColor` directly or computes
+    // `Color(hex: account.platform.colorHex)`. Previously these
+    // resolved to system .purple / .blue, which are visually
+    // different from the brand hex values (system purple is more
+    // red-violet; brand purple is blue-violet). The result was a
+    // subtle inconsistency: dot indicators using the hex value
+    // and badges/tints using system .purple read as two slightly
+    // different colors side by side.
     static var mastodonColor: Color {
-        Color.purple
+        Color(hex: "6364FF")
     }
 
     static var blueskyColor: Color {
-        Color.blue
+        Color(hex: "0085FF")
     }
 
     // Hex color initializer
