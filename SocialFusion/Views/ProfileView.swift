@@ -6,6 +6,7 @@ import SwiftUI
 /// with a single component backed by ProfileViewModel.
 struct ProfileView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @StateObject private var viewModel: ProfileViewModel
   @StateObject private var navigationEnvironment = PostNavigationEnvironment()
   @State private var relationshipViewModel: RelationshipViewModel?
@@ -100,7 +101,10 @@ struct ProfileView: View {
           if let profile = viewModel.profile {
             navBarAvatar(profile: profile)
               .opacity(isAvatarDocked ? 1 : 0)
-              .scaleEffect(isAvatarDocked ? 1 : 0.6, anchor: .leading)
+              // Reduce Motion drops the 0.6→1 scale-up; the avatar
+              // just appears via opacity. The dock transition still
+              // happens — just without the springy growth motion.
+              .scaleEffect(reduceMotion ? 1 : (isAvatarDocked ? 1 : 0.6), anchor: .leading)
           }
           Text(navigationTitle)
             .font(.subheadline)
@@ -108,7 +112,7 @@ struct ProfileView: View {
             .lineLimit(1)
             .opacity(isAvatarDocked ? 1 : 0)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isAvatarDocked)
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.75), value: isAvatarDocked)
       }
     }
     .task {
