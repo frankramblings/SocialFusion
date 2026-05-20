@@ -721,6 +721,7 @@ struct ComposeView: View {
     @State private var partialSuccessInfo: PartialSuccessInfo? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Reply and quote context
     let replyingTo: Post?
@@ -1302,7 +1303,7 @@ struct ComposeView: View {
 
                 Button {
                     HapticEngine.warning.trigger()
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                         _ = threadPosts.remove(at: activePostIndex)
                         activePostIndex = max(0, activePostIndex - 1)
                     }
@@ -1355,7 +1356,7 @@ struct ComposeView: View {
                         if threadPosts[activePostIndex].pollOptions.count > 2 {
                             Button {
                                 HapticEngine.tap.trigger()
-                                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                                     _ = threadPosts[activePostIndex].pollOptions.remove(at: index)
                                 }
                             } label: {
@@ -1373,7 +1374,7 @@ struct ComposeView: View {
                 if threadPosts[activePostIndex].pollOptions.count < 4 {
                     Button {
                         HapticEngine.tap.trigger()
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                             threadPosts[activePostIndex].pollOptions.append("")
                         }
                     } label: {
@@ -1527,7 +1528,7 @@ struct ComposeView: View {
                 accessibilityLabel: threadPosts[activePostIndex].cwEnabled ? "Remove content warning" : "Add content warning"
             ) {
                 HapticEngine.selection.trigger()
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
                     threadPosts[activePostIndex].cwEnabled.toggle()
                     if !threadPosts[activePostIndex].cwEnabled {
                         threadPosts[activePostIndex].cwText = ""
@@ -1555,7 +1556,7 @@ struct ComposeView: View {
                 accessibilityLabel: "Add post to thread"
             ) {
                 HapticEngine.tap.trigger()
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82)) {
                     let newPost = ThreadPost()
                     threadPosts.append(newPost)
                     activePostIndex = threadPosts.count - 1
@@ -1572,7 +1573,7 @@ struct ComposeView: View {
             ) {
                 HapticEngine.tap.trigger()
                 if !threadPosts[activePostIndex].showPoll {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                         threadPosts[activePostIndex].showPoll = true
                         threadPosts[activePostIndex].pollOptions = ["", ""]
                     }
