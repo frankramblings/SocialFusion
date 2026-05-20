@@ -256,9 +256,13 @@ struct FetchQuotePostView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             } else {
-                // Fallback to regular link preview if we can't fetch the post
-                // This ensures something always displays, preventing posts from disappearing
-                LinkPreview(url: url)
+                // Fallback to the stabilized link preview when the
+                // social-media post can't be fetched as a quote.
+                // StabilizedLinkPreview reserves identical heights
+                // across loading / loaded / fallback states, so the
+                // quote-post → link-card transition no longer pushes
+                // posts below it down the feed.
+                StabilizedLinkPreview(url: url)
             }
         }
         .onAppear {
