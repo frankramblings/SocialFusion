@@ -661,6 +661,7 @@ struct EditProfileView: View {
           isLoading = false
           HapticEngine.success.trigger()
           dismiss()
+          ToastManager.shared.show("Profile updated", severity: .success, duration: 1.6)
         }
       } catch {
         await MainActor.run {
