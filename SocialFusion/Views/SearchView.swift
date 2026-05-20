@@ -90,31 +90,21 @@ struct SearchView: View {
                     Spacer()
                 } else if case .error(let message) = observedStore.phase {
                     Spacer()
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-                        Text("Search Error")
-                            .font(.headline)
-                        Text(message)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
+                    SearchStatusView(
+                        symbol: "exclamationmark.triangle",
+                        tint: .orange,
+                        title: "Search Error",
+                        message: message
+                    )
                     Spacer()
                 } else if observedStore.phase == .empty {
                     Spacer()
-                    VStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("No Results")
-                            .font(.headline)
-                        Text("Try a different search term")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
+                    SearchStatusView(
+                        symbol: "magnifyingglass",
+                        tint: .secondary,
+                        title: "No Results",
+                        message: "Try a different search term or check your spelling."
+                    )
                     Spacer()
                 } else if observedStore.phase.hasResults {
                     resultsList(store: observedStore)
@@ -663,7 +653,7 @@ struct DirectOpenRow: View {
 
 struct PlatformIndicator: View {
     let platform: SocialPlatform
-    
+
     var body: some View {
         Image(platform.icon)
             .resizable()
@@ -672,5 +662,52 @@ struct PlatformIndicator: View {
             .padding(4)
             .background(Color.gray.opacity(0.1))
             .cornerRadius(4)
+    }
+}
+
+/// A refined empty/error state for the search surface — tinted halo behind a
+/// hierarchical SF Symbol, with title + message. Consistent with the rest of
+/// the app's empty-state visual language.
+private struct SearchStatusView: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [tint.opacity(0.16), tint.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 64
+                        )
+                    )
+                    .frame(width: 128, height: 128)
+
+                Image(systemName: symbol)
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(tint.gradient)
+                    .symbolRenderingMode(.hierarchical)
+            }
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title). \(message)")
     }
 }

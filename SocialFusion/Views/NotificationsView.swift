@@ -64,16 +64,47 @@ struct NotificationsView: View {
                             }
                             .padding(.top, 40)
                         } else if filteredNotifications.isEmpty {
-                            VStack(spacing: 20) {
-                                Image(systemName: "bell.slash")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.gray.opacity(0.3))
-                                Text(selectedFilter == nil ? "No notifications yet" : "No \(selectedFilter!.displayName.lowercased()) notifications")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
+                            VStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(
+                                            RadialGradient(
+                                                colors: [
+                                                    Color.accentColor.opacity(0.14),
+                                                    Color.accentColor.opacity(0.0),
+                                                ],
+                                                center: .center,
+                                                startRadius: 4,
+                                                endRadius: 70
+                                            )
+                                        )
+                                        .frame(width: 140, height: 140)
+
+                                    Image(systemName: selectedFilter == nil ? "bell.slash" : "tray")
+                                        .font(.system(size: 44, weight: .light))
+                                        .foregroundStyle(Color.secondary.gradient)
+                                        .symbolRenderingMode(.hierarchical)
+                                }
+
+                                VStack(spacing: 6) {
+                                    Text(selectedFilter == nil ? "All quiet" : "No \(selectedFilter!.displayName.lowercased())")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundColor(.primary.opacity(0.8))
+
+                                    Text(selectedFilter == nil
+                                         ? "When someone interacts with your posts, you'll see it here."
+                                         : "Try switching filters to see other notifications.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.top, 100)
+                            .padding(.top, 80)
+                            .padding(.bottom, 40)
+                            .accessibilityElement(children: .combine)
                         } else {
                             ForEach(filteredNotifications) { notification in
                                 if let post = notification.post {
