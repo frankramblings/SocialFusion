@@ -3053,12 +3053,14 @@ struct DraftsListView: View {
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
+                            HapticEngine.warning.trigger()
                             draftStore.deleteDraft(draft)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
-                        
+
                         Button {
+                            HapticEngine.tap.trigger()
                             draftToRename = draft
                             newName = draft.name ?? ""
                         } label: {
@@ -3068,12 +3070,14 @@ struct DraftsListView: View {
                     }
                     .contextMenu {
                         Button {
+                            HapticEngine.selection.trigger()
                             draftStore.togglePin(draft)
                         } label: {
                             Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
                         }
 
                         Button {
+                            HapticEngine.tap.trigger()
                             draftToRename = draft
                             newName = draft.name ?? ""
                         } label: {
@@ -3083,6 +3087,7 @@ struct DraftsListView: View {
                         Divider()
 
                         Button(role: .destructive) {
+                            HapticEngine.warning.trigger()
                             draftStore.deleteDraft(draft)
                         } label: {
                             Label("Delete", systemImage: "trash")
