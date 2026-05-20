@@ -240,6 +240,7 @@ struct FullscreenMediaView: View {
                         HStack {
                             Spacer()
                             Button(action: {
+                                HapticEngine.tap.trigger()
                                 withAnimation(.easeOut(duration: 0.3)) {
                                     onDismiss()
                                 }
@@ -251,6 +252,7 @@ struct FullscreenMediaView: View {
                             }
                             .buttonStyle(GlassyButtonStyle())
                             .accessibilityLabel("Close fullscreen viewer")
+                            .accessibilityHint("Returns to the previous screen")
                             .padding(.trailing, 8)
                         }
                         .padding(.top, 12)
@@ -319,16 +321,19 @@ struct FullscreenMediaView: View {
 
                                 // Share button (lower right)
                                 Button(action: {
+                                    HapticEngine.tap.trigger()
                                     shareMedia(at: currentIndex)
                                 }) {
-                                    Image(systemName: isSharing ? "checkmark" : "square.and.arrow.up")
+                                    Image(systemName: isSharing ? "checkmark.circle.fill" : "square.and.arrow.up")
                                         .font(.title2)
                                         .foregroundColor(isSharing ? .green : .white)
+                                        .contentTransition(.symbolEffect(.replace.offUp))
                                         .padding(12)
                                 }
                                 .buttonStyle(GlassyButtonStyle())
                                 .disabled(isSharing)
-                                .accessibilityLabel(isSharing ? "Sharing..." : "Share image")
+                                .accessibilityLabel(isSharing ? "Sharing" : "Share image")
+                                .accessibilityHint(isSharing ? "" : "Opens share options for this image")
                             }
 
                             // Page indicator dots (only if multiple images)

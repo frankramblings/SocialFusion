@@ -31,8 +31,16 @@ struct PostMenu: View {
             menuButton(for: .report)
         } label: {
             Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.secondary)
+                .frame(width: 32, height: 32)
+                .contentShape(Rectangle())
         }
+        // Pre-warm a tap haptic so the menu open feels acknowledged on devices
+        // that briefly delay the system menu animation.
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+        .accessibilityLabel("More actions")
+        .accessibilityHint("Opens a menu of post actions")
     }
 
     private func menuButton(for action: PostAction) -> some View {
