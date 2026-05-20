@@ -279,7 +279,12 @@ private struct StabilizedLinkLoadingView: View {
         VStack(alignment: .leading, spacing: 0) {
             // ZERO LAYOUT SHIFT: Image area uses same height as loaded state (180pt)
             Rectangle()
-                .fill(animated ? AnyShapeStyle(shimmerGradient(phase: phase)) : AnyShapeStyle(Color.gray.opacity(0.12)))
+                // Reduce-motion fallback uses systemGray5 to stay
+                // in the same gray family as light/dark backgrounds.
+                // Color.gray.opacity reads as brown-tinted in dark
+                // mode — the same fix the rest of the codebase
+                // applies (see SkeletonPostCard, FetchQuotePostView).
+                .fill(animated ? AnyShapeStyle(shimmerGradient(phase: phase)) : AnyShapeStyle(Color(.systemGray5)))
                 .frame(maxWidth: .infinity)
                 .frame(height: linkPreviewImageHeight)
                 .clipShape(
@@ -296,6 +301,13 @@ private struct StabilizedLinkLoadingView: View {
             // Text placeholder area — reserves the exact same heights as
             // the loaded rich content so the card never resizes during
             // metadata fetch. See linkPreviewTitleReservedHeight etc.
+            //
+            // All skeleton fills route through system grays. Color.gray
+            // is a fixed device color that shifts brown in dark mode;
+            // systemGray4/5 adapt cleanly. Same family as the rest of
+            // the codebase's skeletons.
+            let titleFill = Color(.systemGray4)
+            let bodyFill = Color(.systemGray5)
             VStack(alignment: .leading, spacing: 4) {
                 // Title placeholder — 2-line subheadline reservation.
                 // Renders as one stacked pair of pills so the skeleton
@@ -303,11 +315,11 @@ private struct StabilizedLinkLoadingView: View {
                 // monolithic block.
                 VStack(alignment: .leading, spacing: 4) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.gray.opacity(0.18))
+                        .fill(titleFill)
                         .frame(height: 14)
                         .frame(maxWidth: .infinity)
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.gray.opacity(0.18))
+                        .fill(titleFill)
                         .frame(height: 14)
                         .frame(maxWidth: 220)
                 }
@@ -316,11 +328,11 @@ private struct StabilizedLinkLoadingView: View {
                 // Description placeholder — 2-line footnote reservation.
                 VStack(alignment: .leading, spacing: 4) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.gray.opacity(0.14))
+                        .fill(bodyFill)
                         .frame(height: 12)
                         .frame(maxWidth: .infinity)
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.gray.opacity(0.14))
+                        .fill(bodyFill)
                         .frame(height: 12)
                         .frame(maxWidth: 180)
                 }
@@ -329,10 +341,10 @@ private struct StabilizedLinkLoadingView: View {
                 // URL/domain placeholder — 1-line caption reservation.
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(Color.gray.opacity(0.14))
+                        .fill(bodyFill)
                         .frame(width: 10, height: 10)
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.gray.opacity(0.14))
+                        .fill(bodyFill)
                         .frame(width: 80, height: 12)
                 }
                 .frame(height: linkPreviewDomainReservedHeight, alignment: .leading)
@@ -342,11 +354,14 @@ private struct StabilizedLinkLoadingView: View {
     }
 
     private func shimmerGradient(phase: CGFloat) -> LinearGradient {
+        // System grays adapt to light/dark mode. Same shimmer
+        // pattern SkeletonPostCard uses for visual consistency
+        // across all loading surfaces in the app.
         LinearGradient(
             stops: [
-                .init(color: Color.gray.opacity(0.05), location: phase - 0.3),
-                .init(color: Color.gray.opacity(0.18), location: phase),
-                .init(color: Color.gray.opacity(0.05), location: phase + 0.3),
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+                .init(color: Color(.systemGray4), location: phase),
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
             ],
             startPoint: .leading,
             endPoint: .trailing
@@ -393,7 +408,7 @@ private struct StabilizedLinkRichContentView: View {
                     } else if let iconURL = iconURL {
                         // Use icon in large slot if no featured image (Bluesky/Ivory style)
                         ZStack {
-                            Color.gray.opacity(0.05)
+                            Color(.systemGray6)
 
                             AsyncImage(url: iconURL) { phase in
                                 if let image = phase.image {
@@ -498,7 +513,7 @@ private struct StabilizedLinkRichContentView: View {
     private var imagePlaceholder: some View {
         // ZERO LAYOUT SHIFT: Placeholder uses same height as loaded images
         Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
             .frame(height: linkPreviewImageHeight)
             .overlay(
                 Image(systemName: "link")
@@ -569,11 +584,11 @@ private struct StabilizedLinkCompactContentView: View {
                         }
                     }
                     .frame(width: 44, height: 44)
-                    .background(Color.gray.opacity(0.1))
+                    .background(Color(.systemGray6))
                     .cornerRadius(8)
                 } else {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.gray.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray6))
                         Image(systemName: "link").foregroundColor(.secondary)
                     }
                     .frame(width: 44, height: 44)
