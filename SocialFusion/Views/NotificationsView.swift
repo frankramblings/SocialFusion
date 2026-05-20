@@ -395,7 +395,7 @@ struct NotificationRow: View {
                                 .frame(width: 2.5)
 
                             Text(PostNormalizerImpl.shared.normalizeContent(post.content))
-                                .font(.system(size: 14))
+                                .font(.footnote)
                                 .lineLimit(2)
                                 .foregroundColor(.primary.opacity(0.78))
                         }

@@ -1461,7 +1461,7 @@ struct ComposeView: View {
                 postContent()
             }) {
                 Text(buttonText)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                     // Disabled background is light gray — keep the label
