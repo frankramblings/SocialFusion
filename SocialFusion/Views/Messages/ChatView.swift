@@ -408,6 +408,10 @@ struct ChatView: View {
       .scaleEffect(canSend ? 1.0 : 0.92)
       .animation(.spring(response: 0.3, dampingFraction: 0.78), value: canSend)
       .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isSending)
+      // The visible button is 36pt; extend hit area to 44pt minimum
+      // so the user's thumb has comfortable room to land.
+      .frame(width: 44, height: 44)
+      .contentShape(Circle())
     }
     .buttonStyle(.plain)
     .disabled(!canSend)
