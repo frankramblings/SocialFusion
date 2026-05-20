@@ -169,8 +169,9 @@ struct AccountsView: View {
                     }
                 }
             } message: {
+                let name = accountToDelete?.displayName ?? accountToDelete?.username ?? "this account"
                 Text(
-                    "Are you sure you want to remove \(accountToDelete?.displayName ?? accountToDelete?.username ?? "this account")? This action cannot be undone."
+                    "Remove \(name) from this device? You can add it again later."
                 )
             }
             .onAppear {
@@ -729,7 +730,7 @@ struct AccountDetailView: View {
                     }
                 }
             } message: {
-                Text("Are you sure you want to remove this account? This action cannot be undone.")
+                Text("Remove this account from your device? You can add it again later.")
             }
         }
     }
