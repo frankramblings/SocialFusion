@@ -626,11 +626,12 @@ struct AccountPickerSheet: View {
                 // Account section - show all accounts
                 Section(header: Text("Accounts")) {
                     // All accounts option
-                    Button(action: {
+                    Button {
+                        HapticEngine.selection.trigger()
                         onSelectAccount(nil)
                         isPresented = false
-                    }) {
-                        HStack {
+                    } label: {
+                        HStack(spacing: 12) {
                             UnifiedAccountsIcon(
                                 mastodonAccounts: serviceManager.mastodonAccounts,
                                 blueskyAccounts: serviceManager.blueskyAccounts
@@ -639,82 +640,27 @@ struct AccountPickerSheet: View {
 
                             Text("All Accounts")
                                 .font(.headline)
+                                .fontWeight(selectedAccountId == nil ? .semibold : .regular)
+                                .foregroundColor(.primary)
 
                             Spacer()
 
                             if selectedAccountId == nil {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
+                                accountCheckmark(tint: .accentColor)
                             }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedAccountId == nil ? .isSelected : [])
 
                     // Mastodon accounts
                     ForEach(serviceManager.mastodonAccounts) { account in
-                        Button(action: {
-                            onSelectAccount(account.id)
-                            isPresented = false
-                        }) {
-                            HStack {
-                                ProfileImageView(account: account)
-                                    .frame(width: 40, height: 40)
-
-                                VStack(alignment: .leading) {
-                                    EmojiDisplayNameText(
-                                        account.displayName ?? account.username,
-                                        emojiMap: account.displayNameEmojiMap,
-                                        font: .headline,
-                                        fontWeight: .regular,
-                                        foregroundColor: .primary,
-                                        lineLimit: 1
-                                    )
-                                    Text("@\(account.username)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                }
-
-                                Spacer()
-
-                                if selectedAccountId == account.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
+                        accountRow(account: account, brandTint: Color(hex: "6364FF"))
                     }
 
                     // Bluesky accounts
                     ForEach(serviceManager.blueskyAccounts) { account in
-                        Button(action: {
-                            onSelectAccount(account.id)
-                            isPresented = false
-                        }) {
-                            HStack {
-                                ProfileImageView(account: account)
-                                    .frame(width: 40, height: 40)
-
-                                VStack(alignment: .leading) {
-                                    EmojiDisplayNameText(
-                                        account.displayName ?? account.username,
-                                        emojiMap: account.displayNameEmojiMap,
-                                        font: .headline,
-                                        fontWeight: .regular,
-                                        foregroundColor: .primary,
-                                        lineLimit: 1
-                                    )
-                                    Text("@\(account.username)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                }
-
-                                Spacer()
-
-                                if selectedAccountId == account.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
+                        accountRow(account: account, brandTint: Color(hex: "0085FF"))
                     }
                 }
 
@@ -737,10 +683,8 @@ struct AccountPickerSheet: View {
                 // Manage Accounts Button
                 Section {
                     NavigationLink(destination: AccountsView()) {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.minus")
-                                .font(.system(size: 22))
-                                .foregroundColor(.red)
+                        HStack(spacing: 12) {
+                            tintedTile(symbol: "person.crop.circle.badge.minus", tint: .red)
 
                             Text("Manage Accounts")
                                 .font(.headline)
@@ -750,18 +694,19 @@ struct AccountPickerSheet: View {
 
                 // Settings option
                 Section {
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showSettingsView = true
-                    }) {
-                        HStack {
-                            Image(systemName: "gear")
-                                .font(.system(size: 22))
-                                .foregroundColor(.gray)
+                    } label: {
+                        HStack(spacing: 12) {
+                            tintedTile(symbol: "gear", tint: .gray)
 
                             Text("Settings")
                                 .font(.headline)
+                                .foregroundColor(.primary)
                         }
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .listStyle(InsetGroupedListStyle())
@@ -790,6 +735,70 @@ struct AccountPickerSheet: View {
         }
     }
 
+    /// A single account row inside the picker. Tinted brand-color checkmark
+    /// when active, semibold display name, selection haptic on tap.
+    @ViewBuilder
+    private func accountRow(account: SocialAccount, brandTint: Color) -> some View {
+        let isActive = selectedAccountId == account.id
+        Button {
+            HapticEngine.selection.trigger()
+            onSelectAccount(account.id)
+            isPresented = false
+        } label: {
+            HStack(spacing: 12) {
+                ProfileImageView(account: account)
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    EmojiDisplayNameText(
+                        account.displayName ?? account.username,
+                        emojiMap: account.displayNameEmojiMap,
+                        font: .headline,
+                        fontWeight: isActive ? .semibold : .regular,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if isActive {
+                    accountCheckmark(tint: brandTint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+
+    /// Brand-tinted palette-mode checkmark used to mark the active account.
+    @ViewBuilder
+    private func accountCheckmark(tint: Color) -> some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(.white, tint)
+            .symbolRenderingMode(.palette)
+            .transition(.scale.combined(with: .opacity))
+            .accessibilityHidden(true)
+    }
+
+    /// 32pt tinted rounded-square tile with a white SF Symbol — same
+    /// language SettingsView uses for its row leading icons.
+    @ViewBuilder
+    private func tintedTile(symbol: String, tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 32, height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.gradient)
+            )
+            .accessibilityHidden(true)
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {
