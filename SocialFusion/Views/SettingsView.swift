@@ -297,10 +297,12 @@ struct SettingsView: View {
                 NavigationStack {
                     ProfileImageDebugView()
                         .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
+                            ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {
+                                    HapticEngine.tap.trigger()
                                     showingDebugOptions = false
                                 }
+                                .fontWeight(.semibold)
                             }
                         }
                 }
@@ -537,11 +539,15 @@ struct AboutView: View {
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    HapticEngine.tap.trigger()
-                    dismiss()
-                })
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
         }
     }
 }
@@ -574,6 +580,7 @@ struct WebContentView: View {
                         HapticEngine.tap.trigger()
                         dismiss()
                     }
+                    .fontWeight(.semibold)
                 }
             }
         }
