@@ -85,7 +85,10 @@ struct FullscreenMediaView: View {
                                             .onEnded { _ in
                                                 previousScale = 1.0
                                                 if currentScale < 1.0 {
-                                                    withAnimation {
+                                                    // Snap back from pinched-too-small with a
+                                                    // spring — feels like elasticity returning,
+                                                    // not just a reset.
+                                                    withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
                                                         currentScale = 1.0
                                                         currentOffset = .zero
                                                         previousOffset = .zero
@@ -200,8 +203,9 @@ struct FullscreenMediaView: View {
                                     )
                                 )
                                 .onTapGesture(count: 2) {
-                                    // Double tap to zoom in/out
-                                    withAnimation {
+                                    // Double tap zoom — spring sells the
+                                    // 'snap to' feel like the Photos app.
+                                    withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
                                         if currentScale > 1.0 {
                                             currentScale = 1.0
                                             currentOffset = .zero
@@ -224,8 +228,10 @@ struct FullscreenMediaView: View {
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 .onChange(of: currentIndex) {
-                    // Reset zoom and drag when switching images
-                    withAnimation {
+                    // Reset zoom + drag when paging between images. Quick
+                    // easeOut so the next image arrives un-zoomed and
+                    // centered without a visible 'springing back' moment.
+                    withAnimation(.easeOut(duration: 0.18)) {
                         currentScale = 1.0
                         currentOffset = .zero
                         previousOffset = .zero
