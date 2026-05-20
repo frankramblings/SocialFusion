@@ -2927,7 +2927,14 @@ struct DraftsListView: View {
                 }
                 Button("Rename") {
                     if let draft = draftToRename {
+                        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
                         draftStore.renameDraft(draft, newName: newName)
+                        HapticEngine.success.trigger()
+                        if !trimmed.isEmpty {
+                            ToastManager.shared.show("Renamed to '\(trimmed)'", severity: .success, duration: 1.6)
+                        } else {
+                            ToastManager.shared.show("Draft renamed", severity: .success, duration: 1.4)
+                        }
                     }
                     draftToRename = nil
                 }
