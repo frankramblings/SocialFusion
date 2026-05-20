@@ -184,7 +184,7 @@ struct LinkPreviewContent: View {
                             EmptyView()
                         case .empty:
                             RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-                                .fill(Color.gray.opacity(0.15))
+                                .fill(Color(.systemGray5))
                                 .frame(maxWidth: .infinity, maxHeight: 200)
                                 .overlay(ProgressView())
                         @unknown default:
@@ -273,44 +273,40 @@ struct LinkPreviewContent: View {
 
 // Improved placeholder with better styling
 struct LinkPreviewPlaceholder: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Image placeholder
-            Rectangle()
-                .fill(Color.gray.opacity(0.2))
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .fill(Color(.systemGray5))
                 .frame(height: 120)
-                .cornerRadius(MediaConstants.CornerRadius.feed)
                 .overlay(
                     ProgressView()
                         .scaleEffect(0.8)
                 )
 
-            // Text placeholders
+            // Text placeholders — system-named grays adapt to dark mode
+            // (Color.gray.opacity reads as brown-tinted in dark mode).
             VStack(alignment: .leading, spacing: 6) {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color(.systemGray5))
                     .frame(height: 16)
                     .frame(maxWidth: .infinity)
-                    .cornerRadius(4)
 
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color(.systemGray5).opacity(0.7))
                     .frame(height: 12)
                     .frame(maxWidth: 120)
-                    .cornerRadius(4)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
         .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .fill(Color(.systemGray6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .redacted(reason: .placeholder)

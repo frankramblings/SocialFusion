@@ -49,7 +49,7 @@ struct StabilizedAsyncImage: View {
 
             case .failure(_):
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(Color(.systemGray5))
                     .frame(maxWidth: .infinity, idealHeight: idealHeight)
                     .cornerRadius(cornerRadius)
                     .overlay(
@@ -66,7 +66,7 @@ struct StabilizedAsyncImage: View {
                     )
                 } else {
                     Rectangle()
-                        .fill(Color.gray.opacity(0.1))
+                        .fill(Color(.systemGray6))
                         .frame(maxWidth: .infinity, idealHeight: idealHeight)
                         .cornerRadius(cornerRadius)
                 }
@@ -87,13 +87,15 @@ private struct StabilizedImageLoadingView: View {
     @State private var phase: CGFloat = 0
 
     var body: some View {
+        // System-named grays adapt to dark mode; the literal Color.gray.opacity()
+        // pattern previously used here rendered as brown-tinted in dark mode.
         Rectangle()
             .fill(
                 LinearGradient(
                     stops: [
-                        .init(color: Color.gray.opacity(0.1), location: phase - 0.3),
-                        .init(color: Color.gray.opacity(0.3), location: phase),
-                        .init(color: Color.gray.opacity(0.1), location: phase + 0.3),
+                        .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+                        .init(color: Color(.systemGray4), location: phase),
+                        .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
                     ],
                     startPoint: .leading,
                     endPoint: .trailing
