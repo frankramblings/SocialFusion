@@ -167,6 +167,12 @@ struct OnboardingPageView: View {
 
             Spacer()
         }
+        // The page is a single editorial unit — combine the icon,
+        // title, and description so VoiceOver reads it as one
+        // utterance ('<title>, <description>') rather than three
+        // separate stops.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(page.title). \(page.description)")
         .onAppear {
             runEntrance()
         }
