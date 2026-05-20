@@ -295,6 +295,10 @@ struct AccountsView: View {
                 Spacer()
 
                 Button(action: {
+                    // Warning haptic on the destructive entry-point —
+                    // tells the user a confirmation is coming before
+                    // they even read the alert title.
+                    HapticEngine.warning.trigger()
                     confirmDelete(account: account)
                 }) {
                     HStack(spacing: 4) {
@@ -307,6 +311,7 @@ struct AccountsView: View {
                     .padding(.vertical, 6)
                     .padding(.horizontal, 12)
                 }
+                .accessibilityHint("Opens a confirmation to remove this account")
                 .buttonStyle(BorderlessButtonStyle())
             }
             .padding(.top, 2)
