@@ -333,14 +333,15 @@ extension AppNotification.NotificationType {
 
 struct NotificationRow: View {
     let notification: AppNotification
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 notificationIcon
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
                     .frame(width: 24)
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         if let avatarURL = notification.fromAccount.avatarURL, let url = URL(string: avatarURL) {
@@ -360,7 +361,7 @@ struct NotificationRow: View {
                             Circle().fill(Color.gray.opacity(0.3))
                                 .frame(width: 32, height: 32)
                         }
-                        
+
                         VStack(alignment: .leading) {
                             EmojiDisplayNameText(
                                 notification.fromAccount.displayName ?? notification.fromAccount.username,
@@ -374,52 +375,70 @@ struct NotificationRow: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        
+
                         Spacer()
-                        
+
                         Text(notification.createdAt, style: .relative)
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .monospacedDigit()
                     }
-                    
+
                     if let post = notification.post {
-                        Text(PostNormalizerImpl.shared.normalizeContent(post.content))
-                            .font(.system(size: 14))
-                            .lineLimit(2)
-                            .foregroundColor(.primary.opacity(0.8))
-                            .padding(.leading, 4)
-                            .overlay(
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 2)
-                                    .padding(.leading, -4),
-                                alignment: .leading
-                            )
+                        // Quoted-post snippet — the side bar tints to the
+                        // notification type's color so the row tells a tiny
+                        // visual story (which post got which kind of love).
+                        HStack(alignment: .top, spacing: 8) {
+                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                .fill(notificationAccentColor.opacity(0.4))
+                                .frame(width: 2.5)
+
+                            Text(PostNormalizerImpl.shared.normalizeContent(post.content))
+                                .font(.system(size: 14))
+                                .lineLimit(2)
+                                .foregroundColor(.primary.opacity(0.78))
+                        }
+                        .padding(.leading, 2)
                     }
                 }
             }
         }
         .padding(.vertical, 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
     }
-    
+
     @ViewBuilder
     private var notificationIcon: some View {
         switch notification.type {
         case .like:
-            Image(systemName: "heart.fill").foregroundColor(.red)
+            Image(systemName: "heart.fill").foregroundStyle(Color.red.gradient)
         case .repost:
-            Image(systemName: "arrow.2.squarepath").foregroundColor(.green)
+            Image(systemName: "arrow.2.squarepath").foregroundStyle(Color.green.gradient)
         case .mention:
-            Image(systemName: "at").foregroundColor(.blue)
+            Image(systemName: "at").foregroundStyle(Color.blue.gradient)
         case .follow:
-            Image(systemName: "person.badge.plus.fill").foregroundColor(.purple)
+            Image(systemName: "person.badge.plus.fill").foregroundStyle(Color.purple.gradient)
         case .poll:
-            Image(systemName: "chart.bar.fill").foregroundColor(.orange)
+            Image(systemName: "chart.bar.fill").foregroundStyle(Color.orange.gradient)
         case .update:
-            Image(systemName: "pencil").foregroundColor(.gray)
+            Image(systemName: "pencil").foregroundStyle(Color.gray.gradient)
         }
     }
-    
+
+    /// The accent color used for the quoted-post side bar — picks up the
+    /// type's identity so the row tells a coherent story end-to-end.
+    private var notificationAccentColor: Color {
+        switch notification.type {
+        case .like: return .red
+        case .repost: return .green
+        case .mention: return .blue
+        case .follow: return .purple
+        case .poll: return .orange
+        case .update: return .gray
+        }
+    }
+
     private var notificationText: String {
         switch notification.type {
         case .like: return "liked your post"
@@ -429,5 +448,10 @@ struct NotificationRow: View {
         case .poll: return "a poll you voted in has ended"
         case .update: return "edited a post"
         }
+    }
+
+    private var accessibilityLabel: String {
+        let name = notification.fromAccount.displayName ?? notification.fromAccount.username
+        return "\(name) \(notificationText)"
     }
 }
