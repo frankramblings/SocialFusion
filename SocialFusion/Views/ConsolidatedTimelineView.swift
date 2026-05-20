@@ -16,38 +16,85 @@ struct ConsolidatedTimelineEmptyStateView: View {
     let onAddAccount: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 16) {
-            image
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
+        VStack(spacing: 18) {
+            // Tinted halo + hierarchical glyph — matches the empty-state
+            // visual language used everywhere else in the app.
+            ZStack {
+                if state != .loading {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [tint.opacity(0.16), tint.opacity(0.0)],
+                                center: .center,
+                                startRadius: 4,
+                                endRadius: 70
+                            )
+                        )
+                        .frame(width: 140, height: 140)
+                }
 
-            Text(title)
-                .font(.title2)
-                .fontWeight(.medium)
-                .multilineTextAlignment(.center)
+                image
+            }
+            .accessibilityHidden(true)
 
-            Text(message)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.88))
+                    .multilineTextAlignment(.center)
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if state == .noAccounts, let onAddAccount = onAddAccount {
-                Button(action: onAddAccount) {
-                    Text("Add Account")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
-                        .cornerRadius(25)
+                Button {
+                    HapticEngine.tap.trigger()
+                    onAddAccount()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Add Account")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.accentColor.gradient)
+                            .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+                    )
                 }
-                .padding(.top, 8)
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             } else if let onRetry = onRetry, state != .loading {
-                Button("Retry") {
+                Button {
+                    HapticEngine.tap.trigger()
                     onRetry()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Try Again")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.accentColor.gradient)
+                            .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 8)
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
         }
         .padding()
@@ -62,12 +109,35 @@ struct ConsolidatedTimelineEmptyStateView: View {
                 .scaleEffect(1.5)
         case .noAccounts:
             Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
         case .noInternet:
             Image(systemName: "wifi.slash")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
         case .noPostsYet:
-            Image(systemName: "timeline.selection")
+            Image(systemName: "tray")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
         case .lowMemory:
             Image(systemName: "memorychip")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
+        }
+    }
+
+    /// Accent tint for the halo + glyph, varied by semantic state.
+    private var tint: Color {
+        switch state {
+        case .loading: return .secondary
+        case .noAccounts: return .accentColor
+        case .noInternet: return .orange
+        case .noPostsYet: return .secondary
+        case .lowMemory: return .yellow
         }
     }
 
