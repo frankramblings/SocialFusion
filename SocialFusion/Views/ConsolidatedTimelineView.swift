@@ -852,10 +852,11 @@ struct ConsolidatedTimelineView: View {
                         }
 
                         if !controller.hasNextPage && !controller.posts.isEmpty {
+                            // endOfTimelineView has its own combine+label
+                            // ('You're all caught up, no more posts to load')
+                            // from iter 108 — don't override it here.
                             endOfTimelineView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("End of timeline")
-                                .accessibilityHint("No more posts to load")
                         }
                     }
                     .scrollTargetLayout()
@@ -1037,10 +1038,11 @@ struct ConsolidatedTimelineView: View {
                         }
 
                         if !controller.hasNextPage && !controller.posts.isEmpty {
+                            // endOfTimelineView has its own combine+label
+                            // ('You're all caught up, no more posts to load')
+                            // from iter 108 — don't override it here.
                             endOfTimelineView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("End of timeline")
-                                .accessibilityHint("No more posts to load")
                         }
                     }
                 }
