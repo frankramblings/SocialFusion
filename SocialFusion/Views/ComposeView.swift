@@ -1637,6 +1637,7 @@ struct ComposeView: View {
             }
             .confirmationDialog("Drafts", isPresented: $showDraftActionSheet) {
                 Button("Save Draft") {
+                    HapticEngine.tap.trigger()
                     draftStore.saveDraft(
                         posts: threadPosts,
                         platforms: selectedPlatforms,
@@ -1644,8 +1645,10 @@ struct ComposeView: View {
                         selectedAccounts: selectedAccounts
                     )
                     dismiss()
+                    ToastManager.shared.show("Draft saved", severity: .success, duration: 1.4)
                 }
                 Button("Delete Post", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}

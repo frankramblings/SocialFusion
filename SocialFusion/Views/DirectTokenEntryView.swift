@@ -133,9 +133,16 @@ struct DirectTokenEntryView: View {
                     serverURL = ""
                     accessToken = ""
 
-                    // Dismiss after a short delay
+                    let welcomeName = "@\(account.username)"
+
+                    // Dismiss after a short delay so the inline success
+                    // message reads, then post the global welcome toast
+                    // so the user gets a matching confirmation in the
+                    // parent view (consistent with the OAuth/Bluesky
+                    // add flows).
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         dismiss()
+                        ToastManager.shared.show("Welcome, \(welcomeName)", severity: .success, duration: 1.8)
                     }
                 }
             } catch {
