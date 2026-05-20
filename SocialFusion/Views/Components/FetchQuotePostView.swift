@@ -203,21 +203,30 @@ struct FetchQuotePostView: View {
             } else if error != nil && retryCount <= maxRetries {
                 // Show error state with retry option (only if we haven't exceeded max retries)
                 VStack(spacing: 8) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.orange)
-                        Text("Failed to load quote")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.orange.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                        Text("Couldn't load quoted post")
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(.primary.opacity(0.78))
                         Spacer()
-                        Button("Retry") {
+                        Button {
+                            HapticEngine.tap.trigger()
                             retryCount = 0  // Reset retry count for manual retry
                             Task {
                                 await fetchPost()
                             }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Retry")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.accentColor)
                         }
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)

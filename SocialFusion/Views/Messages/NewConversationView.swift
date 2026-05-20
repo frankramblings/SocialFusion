@@ -279,7 +279,7 @@ struct NewConversationView: View {
         selectedConversation = conversation
         navigateToChat = true
       } catch {
-        errorMessage = "Failed to start conversation: \(error.localizedDescription)"
+        errorMessage = "Couldn't start the conversation: \(error.localizedDescription)"
       }
     }
   }

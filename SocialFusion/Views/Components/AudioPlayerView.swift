@@ -280,7 +280,7 @@ struct AudioPlayerView: View {
                     duration = item.duration.seconds
                 } else if item.status == .failed {
                     hasError = true
-                    errorMessage = "Failed to load audio"
+                    errorMessage = "Couldn't load audio"
                 }
             }
         }

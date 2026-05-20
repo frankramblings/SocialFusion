@@ -1585,7 +1585,7 @@ enum MediaError: Error, LocalizedError {
         case .invalidURL:
             return "Invalid media URL"
         case .loadingFailed:
-            return "Failed to load media"
+            return "Couldn't load media"
         }
     }
 }

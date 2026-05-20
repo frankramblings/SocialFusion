@@ -601,7 +601,7 @@ struct ChatView: View {
         self.messages = fetched.reversed()
         self.isLoading = false
       } catch {
-        self.errorMessage = "Failed to load messages: \(error.localizedDescription)"
+        self.errorMessage = "Couldn't load messages: \(error.localizedDescription)"
         self.isLoading = false
       }
     }
@@ -624,7 +624,7 @@ struct ChatView: View {
           self.isSending = false
           loadMessages()
         } catch {
-          self.errorMessage = "Failed to edit message: \(error.localizedDescription)"
+          self.errorMessage = "Couldn't edit message: \(error.localizedDescription)"
           self.newMessageText = text
           self.editingMessage = editing
           self.isSending = false
@@ -642,7 +642,7 @@ struct ChatView: View {
         self.messages.append(sent)
         self.isSending = false
       } catch {
-        self.errorMessage = "Failed to send message: \(error.localizedDescription)"
+        self.errorMessage = "Couldn't send message: \(error.localizedDescription)"
         self.newMessageText = text
         self.isSending = false
       }
@@ -658,7 +658,7 @@ struct ChatView: View {
         try await serviceManager.deleteChatMessage(conversation: conversation, messageId: message.id)
       } catch {
         loadMessages()
-        errorMessage = "Failed to delete message"
+        errorMessage = "Couldn't delete that message"
       }
     }
   }
