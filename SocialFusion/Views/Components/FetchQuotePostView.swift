@@ -634,8 +634,25 @@ struct LoadingQuoteView: View {
                     .cornerRadius(4)
             }
 
-            // Content placeholder
-            VStack(alignment: .leading, spacing: 4) {
+            // Content placeholder — 4 lines of skeleton so the reserved
+            // space approximates a typical quoted post body (~3-4 lines).
+            // Loaded posts can still be taller (e.g. with attachments) or
+            // shorter (single-line replies), but landing closer to the
+            // median minimizes the average jump when the cell transitions
+            // from skeleton → loaded content above the viewport.
+            VStack(alignment: .leading, spacing: 5) {
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                    .cornerRadius(4)
+
+                Rectangle()
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                    .cornerRadius(4)
+
                 Rectangle()
                     .fill(Color.gray.opacity(0.2))
                     .frame(maxWidth: .infinity)
