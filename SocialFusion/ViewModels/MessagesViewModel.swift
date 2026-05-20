@@ -15,6 +15,10 @@ class MessagesViewModel: ObservableObject {
       conversations = try await serviceManager.fetchDirectMessages()
     } catch {
       errorMessage = "Failed to load conversations: \(error.localizedDescription)"
+      // Match the haptic vocabulary used elsewhere for surfaced errors —
+      // e.g. AddAccountView, toggleReaction. The alert is about to appear,
+      // so the haptic doubles as a non-visual heads-up for VoiceOver users.
+      HapticEngine.error.trigger()
     }
     isLoading = false
   }

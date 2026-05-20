@@ -701,6 +701,7 @@ struct ChatView: View {
       } catch {
         self.errorMessage = "Couldn't load messages: \(error.localizedDescription)"
         self.isLoading = false
+        HapticEngine.error.trigger()
       }
     }
   }
@@ -726,6 +727,7 @@ struct ChatView: View {
           self.newMessageText = text
           self.editingMessage = editing
           self.isSending = false
+          HapticEngine.error.trigger()
         }
       }
       return
@@ -743,6 +745,7 @@ struct ChatView: View {
         self.errorMessage = "Couldn't send message: \(error.localizedDescription)"
         self.newMessageText = text
         self.isSending = false
+        HapticEngine.error.trigger()
       }
     }
   }
@@ -759,6 +762,7 @@ struct ChatView: View {
       } catch {
         loadMessages()
         errorMessage = "Couldn't delete that message"
+        HapticEngine.error.trigger()
       }
     }
   }
