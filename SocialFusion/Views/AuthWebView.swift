@@ -22,16 +22,19 @@ struct AuthWebView: View {
                 )
             } else {
                 // For older iOS versions, we'll use SFSafariViewController
-                Button(action: {
+                Button {
+                    HapticEngine.tap.trigger()
                     presentSafariView = true
-                }) {
+                } label: {
                     Text("Continue to Authorization")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
-                        .cornerRadius(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.accentColor.gradient)
+                        )
                 }
                 .padding()
                 .sheet(isPresented: $presentSafariView) {

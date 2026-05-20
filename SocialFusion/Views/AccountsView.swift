@@ -73,46 +73,24 @@ struct AccountsView: View {
                 // Mastodon accounts section
                 Section(header: Text("Mastodon")) {
                     if serviceManager.mastodonAccounts.isEmpty {
-                        Button(action: {
-                            selectedPlatform = .mastodon
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Mastodon Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .mastodon, label: "Add Mastodon Account")
                     } else {
                         ForEach(serviceManager.mastodonAccounts) { account in
                             accountSelectionRow(account)
                         }
-
-                        Button(action: {
-                            selectedPlatform = .mastodon
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Another Mastodon Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .mastodon, label: "Add Another Mastodon Account")
                     }
                 }
 
                 // Bluesky accounts section
                 Section(header: Text("Bluesky")) {
                     if serviceManager.blueskyAccounts.isEmpty {
-                        Button(action: {
-                            selectedPlatform = .bluesky
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Bluesky Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .bluesky, label: "Add Bluesky Account")
                     } else {
                         ForEach(serviceManager.blueskyAccounts) { account in
                             accountSelectionRow(account)
                         }
-
-                        Button(action: {
-                            selectedPlatform = .bluesky
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Another Bluesky Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .bluesky, label: "Add Another Bluesky Account")
                     }
                 }
 
@@ -196,6 +174,21 @@ struct AccountsView: View {
     }
 
     // Account row with selection toggle
+    /// 'Add Account' row button with haptic + a11y. Used by both Mastodon
+    /// and Bluesky sections, in both empty and non-empty states, so the
+    /// behavior is consistent across all four call sites.
+    private func addAccountButton(platform: SocialPlatform, label: String) -> some View {
+        Button {
+            HapticEngine.tap.trigger()
+            selectedPlatform = platform
+            showingAddAccount = true
+        } label: {
+            Label(label, systemImage: "plus.circle")
+        }
+        .accessibilityLabel(label)
+        .accessibilityHint("Opens the account sign-in flow")
+    }
+
     private func accountSelectionRow(_ account: SocialAccount) -> some View {
         VStack(spacing: 8) {
             HStack {
