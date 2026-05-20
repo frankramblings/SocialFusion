@@ -44,17 +44,14 @@ struct PostAuthorImageView: View {
                     }
                     .frame(width: size, height: size)
                 } placeholder: {
-                    // Show initials + spinner while loading or on failure
-                    ZStack {
-                        initialsBackground
-                            .frame(width: size, height: size)
-                            .clipShape(Circle())
-                        
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .progressViewStyle(
-                                CircularProgressViewStyle(tint: .white.opacity(0.8)))
-                    }
+                    // Initials only while loading or on failure — the
+                    // initials background IS the placeholder. Adding a
+                    // spinner on top is visual noise: the user sees the
+                    // initials, registers identity, the image crossfades
+                    // in when ready. No spinner needed.
+                    initialsBackground
+                        .frame(width: size, height: size)
+                        .clipShape(Circle())
                 }
             } else {
                 // Fallback for missing URL
