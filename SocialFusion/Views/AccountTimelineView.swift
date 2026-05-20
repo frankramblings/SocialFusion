@@ -20,6 +20,8 @@ struct AccountTimelineView: View {
     @State private var mergeOffsetCompensation: CGFloat = 0
     @State private var mergePillVisible = false
     @State private var scrollToTopOpacity: Double = 1.0
+    @State private var pillBumpScale: CGFloat = 1.0
+    @State private var lastSeenPillCount: Int = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -479,9 +481,13 @@ struct AccountTimelineView: View {
             // newPostsPill received in iter 202 — spring scale + fade so
             // the pill lands rather than slides. Settles after one beat;
             // no perpetual pulse.
-            .scaleEffect(mergePillVisible ? 1.0 : 0.96)
+            //
+            // pillBumpScale composes multiplicatively for the count-increase
+            // bump (iter 207, mirrored here for parity across timelines).
+            .scaleEffect((mergePillVisible ? 1.0 : 0.96) * pillBumpScale)
             .opacity(mergePillVisible ? 1.0 : 0.0)
             .onAppear {
+                lastSeenPillCount = count
                 if reduceMotion {
                     mergePillVisible = true
                 } else {
@@ -490,7 +496,27 @@ struct AccountTimelineView: View {
                     }
                 }
             }
-            .onDisappear { mergePillVisible = false }
+            .onDisappear {
+                mergePillVisible = false
+                pillBumpScale = 1.0
+                lastSeenPillCount = 0
+            }
+            .onChange(of: count) { _, newValue in
+                guard !reduceMotion, newValue > lastSeenPillCount, lastSeenPillCount > 0 else {
+                    lastSeenPillCount = newValue
+                    return
+                }
+                lastSeenPillCount = newValue
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                    pillBumpScale = 1.06
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
+                        pillBumpScale = 1.0
+                    }
+                }
+            }
             .accessibilityIdentifier("AccountMergePill")
             .padding(.top, 8)
             .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
