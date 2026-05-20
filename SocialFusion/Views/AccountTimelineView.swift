@@ -115,8 +115,13 @@ struct AccountTimelineView: View {
     }
 
     private var loadingView: some View {
-        ProgressView()
-            .scaleEffect(1.5)
+        // SkeletonTimelineView gives the user a real preview of where
+        // posts will land instead of a centered spinner. ConsolidatedTimelineView
+        // already uses this for its initial load — keeping account
+        // timelines on the same loading vocabulary so switching between
+        // an aggregate feed and a single-account feed reads the same.
+        SkeletonTimelineView()
+            .transition(.opacity)
     }
 
     private var emptyStateView: some View {
