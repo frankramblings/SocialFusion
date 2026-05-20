@@ -1598,6 +1598,11 @@ struct ComposeView: View {
                 LinkInputDialog(isPresented: $showLinkInput) { url, displayText in
                     insertLinkAtCursor(url: url, displayText: displayText)
                 }
+                // Two-field form — medium detent keeps the compose view
+                // partially visible underneath so the user has context
+                // for what they're inserting the link into.
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)

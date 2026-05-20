@@ -142,6 +142,7 @@ struct SearchView: View {
             }
         }
         .onSubmit(of: .search) {
+            HapticEngine.tap.trigger()
             searchStore?.performSearch()
         }
         .navigationDestination(
