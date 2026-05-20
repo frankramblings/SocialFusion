@@ -547,27 +547,62 @@ struct SearchView: View {
 
     private var noAccountsEmptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.badge.plus")
-                .font(.system(size: 44))
-                .foregroundColor(.secondary)
-                .padding(.top, 40)
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.accentColor.opacity(0.16), Color.accentColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 70
+                        )
+                    )
+                    .frame(width: 140, height: 140)
 
-            Text("Add an account to discover\ntrending topics")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button(action: { showAddAccountView = true }) {
-                Text("Add Account")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Color.blue)
-                    .cornerRadius(20)
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(Color.accentColor.gradient)
+                    .symbolRenderingMode(.hierarchical)
             }
+            .padding(.top, 24)
+
+            VStack(spacing: 6) {
+                Text("Discover trending topics")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+
+                Text("Add an account to see what's happening across Mastodon and Bluesky.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                HapticEngine.tap.trigger()
+                showAddAccountView = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Add Account")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.accentColor.gradient)
+                        .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+                )
+            }
+            .buttonStyle(SearchChipPressStyle())
+            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 24)
     }
 
     // MARK: - Direct Open Handling
