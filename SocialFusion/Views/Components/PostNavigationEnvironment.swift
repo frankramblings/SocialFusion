@@ -228,7 +228,10 @@ class PostNavigationEnvironment: ObservableObject {
 
                     let post: Post?
                     if platform == .mastodon {
-                        guard let account = serviceManager.mastodonAccounts.first else { return }
+                        guard let account = serviceManager.mastodonAccounts.first else {
+                            ToastManager.shared.show("Add a Mastodon account to open this post", severity: .warning, duration: 2.4)
+                            return
+                        }
                         post = try await serviceManager.fetchMastodonStatus(id: id, account: account)
                     } else {
                         post = try await serviceManager.fetchBlueskyPostByID(id)
@@ -236,6 +239,8 @@ class PostNavigationEnvironment: ObservableObject {
 
                     if let post = post {
                         navigateToPost(post)
+                    } else {
+                        ToastManager.shared.show("Post unavailable", severity: .warning, duration: 2.0)
                     }
 
                 case "user":
@@ -260,6 +265,7 @@ class PostNavigationEnvironment: ObservableObject {
                 #if DEBUG
                 print("Failed to handle custom scheme link \(url): \(error)")
                 #endif
+                ToastManager.shared.show("Couldn't open that link", severity: .error, duration: 2.0)
             }
         }
     }
