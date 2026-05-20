@@ -1441,7 +1441,11 @@ struct ComposeView: View {
     private var bottomToolbar: some View {
         HStack(spacing: 4) {
             // Add image button
-            composeToolButton(symbol: "photo", isActive: false) {
+            composeToolButton(
+                symbol: "photo",
+                isActive: false,
+                accessibilityLabel: "Add photo"
+            ) {
                 HapticEngine.tap.trigger()
                 showImagePicker = true
             }
@@ -1450,7 +1454,8 @@ struct ComposeView: View {
             composeToolButton(
                 symbol: threadPosts[activePostIndex].cwEnabled ? "eye.slash.fill" : "eye.slash",
                 isActive: threadPosts[activePostIndex].cwEnabled,
-                activeTint: .orange
+                activeTint: .orange,
+                accessibilityLabel: threadPosts[activePostIndex].cwEnabled ? "Remove content warning" : "Add content warning"
             ) {
                 HapticEngine.selection.trigger()
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
@@ -1475,7 +1480,11 @@ struct ComposeView: View {
             }
 
             // Add post to thread button
-            composeToolButton(symbol: "plus.circle", isActive: false) {
+            composeToolButton(
+                symbol: "plus.circle",
+                isActive: false,
+                accessibilityLabel: "Add post to thread"
+            ) {
                 HapticEngine.tap.trigger()
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                     let newPost = ThreadPost()
@@ -1489,7 +1498,8 @@ struct ComposeView: View {
                 symbol: "chart.bar",
                 isActive: threadPosts[activePostIndex].showPoll,
                 activeTint: .accentColor,
-                isDisabled: threadPosts[activePostIndex].showPoll
+                isDisabled: threadPosts[activePostIndex].showPoll,
+                accessibilityLabel: "Add poll"
             ) {
                 HapticEngine.tap.trigger()
                 if !threadPosts[activePostIndex].showPoll {
@@ -1561,6 +1571,7 @@ struct ComposeView: View {
         isActive: Bool,
         activeTint: Color = .accentColor,
         isDisabled: Bool = false,
+        accessibilityLabel: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -1593,6 +1604,7 @@ struct ComposeView: View {
         .buttonStyle(ComposeToolPressStyle())
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.4 : 1.0)
+        .accessibilityLabel(accessibilityLabel ?? symbol)
     }
 
     private struct ComposeToolPressStyle: ButtonStyle {
