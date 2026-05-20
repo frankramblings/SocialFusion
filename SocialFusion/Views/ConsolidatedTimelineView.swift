@@ -1169,13 +1169,22 @@ struct ConsolidatedTimelineView: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
             .buttonStyle(TimelinePillPressStyle())
-            .opacity(unreadPulseActive ? 1.0 : 0.85)
-            .onAppear { if !reduceMotion { unreadPulseActive = true } }
+            // Brief two-beat attention pulse on appearance — then settle.
+            // The pill's prominent ultraThinMaterial + accent glow is enough
+            // standing presence; a perpetual breathing animation just creates
+            // visual noise as you read the feed below it.
+            .scaleEffect(unreadPulseActive ? 1.0 : 0.96)
+            .opacity(unreadPulseActive ? 1.0 : 0.0)
+            .onAppear {
+                if reduceMotion {
+                    unreadPulseActive = true
+                } else {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) {
+                        unreadPulseActive = true
+                    }
+                }
+            }
             .onDisappear { unreadPulseActive = false }
-            .animation(
-                reduceMotion ? .none : .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
-                value: unreadPulseActive
-            )
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
@@ -1292,12 +1301,19 @@ struct ConsolidatedTimelineView: View {
         }
     }
 
+    /// Scroll the timeline back to the top. Callers are responsible for
+    /// firing the tap haptic at the *moment of intent* (button tap, double-
+    /// tap-home, etc.); this method intentionally fires none of its own so
+    /// the user feels one crisp tap instead of two.
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first.map(scrollIdentifier(for:)) else { return }
         let isFarFromTop = newPostsAboveCount > 20 || !controller.isNearTop
 
         if isFarFromTop && !reduceMotion {
-            // Distance-aware: fade out, jump, fade back in
+            // Distance-aware: fade out, jump, fade back in. SwiftUI's
+            // animated scroll over hundreds of items is visibly janky;
+            // a brief crossfade masks the jump so it reads as 'whoosh
+            // back to the top' rather than 'scroll bar shoots away'.
             withAnimation(.easeOut(duration: 0.15)) {
                 scrollToTopOpacity = 0.3
             }
@@ -1310,10 +1326,9 @@ struct ConsolidatedTimelineView: View {
                 withAnimation(.easeIn(duration: 0.25)) {
                     scrollToTopOpacity = 1.0
                 }
-                HapticEngine.tap.trigger()
             }
         } else {
-            // Close to top: smooth animated scroll
+            // Close to top: smooth animated scroll.
             if #available(iOS 17.0, *) {
                 withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
                     scrollAnchorId = topId
@@ -1323,7 +1338,6 @@ struct ConsolidatedTimelineView: View {
                     proxy.scrollTo(topId, anchor: .top)
                 }
             }
-            HapticEngine.tap.trigger()
         }
     }
 
