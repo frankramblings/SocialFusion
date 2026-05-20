@@ -9,6 +9,7 @@ struct AutocompleteOverlay: View {
   
   @State private var selectedIndex: Int = 0
   @FocusState private var isFocused: Bool
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   
   // Constants for height management
   private let maxVisibleItems: CGFloat = 5.5  // Show ~5.5 items before scrolling
@@ -58,8 +59,16 @@ struct AutocompleteOverlay: View {
           }
         }
         .background(
+          // Reduce Transparency: solid panel so the suggestion list
+          // is fully opaque against whatever's beneath it. The
+          // overlay floats over the keyboard / compose surface, so
+          // a translucent panel can compete with text below it
+          // when the system has explicitly asked for higher
+          // contrast.
           RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(.regularMaterial)
+            .fill(reduceTransparency
+                  ? AnyShapeStyle(Color(.secondarySystemBackground))
+                  : AnyShapeStyle(.regularMaterial))
             .overlay(
               RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
