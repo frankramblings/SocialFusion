@@ -384,11 +384,13 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
         .accessibilityHint("Opens this user's profile")
         .contextMenu {
             Button {
+                HapticEngine.tap.trigger()
                 viewModel.openProfile(userID: user.id)
             } label: {
                 Label("View Profile", systemImage: "person.crop.circle")
             }
             Button {
+                HapticEngine.selection.trigger()
                 if user.isFollowedByMe {
                     viewModel.unfollow(userID: user.id)
                 } else {
@@ -401,11 +403,13 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
                 )
             }
             Button {
+                HapticEngine.warning.trigger()
                 viewModel.mute(userID: user.id)
             } label: {
                 Label("Mute", systemImage: "speaker.slash")
             }
             Button(role: .destructive) {
+                HapticEngine.warning.trigger()
                 viewModel.block(userID: user.id)
             } label: {
                 Label("Block", systemImage: "hand.raised")

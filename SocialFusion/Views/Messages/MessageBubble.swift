@@ -171,12 +171,14 @@ struct MessageBubble: View {
             if isFromMe {
               if platform == .mastodon {
                 Button {
+                  HapticEngine.tap.trigger()
                   onEdit?()
                 } label: {
                   Label("Edit Message", systemImage: "pencil")
                 }
               }
               Button(role: .destructive) {
+                HapticEngine.warning.trigger()
                 onDelete?()
               } label: {
                 Label("Delete Message", systemImage: "trash")
@@ -184,6 +186,7 @@ struct MessageBubble: View {
             }
 
             Button {
+              HapticEngine.tap.trigger()
               UIPasteboard.general.string = message.text
             } label: {
               Label("Copy Text", systemImage: "doc.on.doc")
