@@ -215,6 +215,7 @@ struct SettingsView: View {
                         if isCalculatingSize {
                             ProgressView()
                                 .scaleEffect(0.8)
+                                .accessibilityLabel("Calculating cache size")
                         } else {
                             Text(formattedSize(totalCacheSize))
                                 .foregroundColor(.secondary)

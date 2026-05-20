@@ -303,6 +303,7 @@ struct ProfileView: View {
       ProgressView()
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
+        .accessibilityLabel("Loading posts")
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
       tabEmptyState(symbol: "doc.text", title: "No posts yet")
     } else {
@@ -340,6 +341,7 @@ struct ProfileView: View {
         ProgressView()
           .frame(maxWidth: .infinity)
           .padding()
+          .accessibilityLabel("Loading more posts")
       }
     }
   }
@@ -352,6 +354,7 @@ struct ProfileView: View {
       ProgressView()
         .frame(maxWidth: .infinity)
         .padding(.top, 40)
+        .accessibilityLabel("Loading media")
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
       tabEmptyState(symbol: "photo.on.rectangle.angled", title: "No media yet")
     } else {
@@ -375,6 +378,7 @@ struct ProfileView: View {
         ProgressView()
           .frame(maxWidth: .infinity)
           .padding()
+          .accessibilityLabel("Loading more media")
       }
     }
   }
@@ -626,6 +630,7 @@ struct EditProfileView: View {
         ToolbarItem(placement: .confirmationAction) {
           if isLoading {
             ProgressView()
+              .accessibilityLabel("Saving profile")
           } else {
             Button("Save") {
               HapticEngine.tap.trigger()
