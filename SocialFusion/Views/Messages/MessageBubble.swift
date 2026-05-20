@@ -216,6 +216,11 @@ struct MessageBubble: View {
               HStack(spacing: 3) {
                 Image(systemName: "checkmark")
                   .font(.system(size: 8, weight: .bold))
+                  // One-shot bounce when the message first gets marked
+                  // seen — a tiny acknowledgement that the recipient
+                  // looked at it. iOS 17+ handles the gesture; on older
+                  // OS the symbol just appears with the parent transition.
+                  .modifier(SymbolBounceModifier(value: showSeenIndicator))
                 Text("Seen")
                   .font(.caption2)
               }
@@ -302,6 +307,21 @@ struct MessageBubble: View {
     } else {
       Circle().fill(Color.gray.opacity(0.3))
         .frame(width: 28, height: 28)
+    }
+  }
+}
+
+/// Applies a one-shot SF Symbol bounce when `value` changes (iOS 17+).
+/// On older OS versions, the modifier is a no-op and the existing
+/// transition handles the visual.
+private struct SymbolBounceModifier<V: Equatable>: ViewModifier {
+  let value: V
+
+  func body(content: Content) -> some View {
+    if #available(iOS 17.0, *) {
+      content.symbolEffect(.bounce, value: value)
+    } else {
+      content
     }
   }
 }
