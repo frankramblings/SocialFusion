@@ -123,6 +123,23 @@ struct ExpandingReplyBanner: View {
         .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
     }
 
+    /// True when the upstream username is a generic fallback that would
+    /// render as "someone" — i.e. PostCardView couldn't extract a handle
+    /// from the feed response, or we only have a Bluesky DID-derived stub.
+    /// These are the cases where fetching the parent post will actually
+    /// resolve the name; for any clean handle we already have, no fetch
+    /// is needed.
+    private var needsParentResolution: Bool {
+        if username.isEmpty { return true }
+        if username == "someone" { return true }
+        if username == "unknown" { return true }
+        // Bluesky DID fallback shape from BlueskyService: "user-" + last 8 of DID.
+        if username.hasPrefix("user-") && username.count == 13 { return true }
+        // Raw DIDs occasionally slip through.
+        if username.hasPrefix("did:") { return true }
+        return false
+    }
+
     private var displayUsername: String {
         // Priority 1: Use the real display name from the fetched parent post if available
         if let parent = parent {
@@ -469,12 +486,14 @@ struct ExpandingReplyBanner: View {
                         "✅ ExpandingReplyBanner: Found cached parent: \(cachedPost.authorUsername)"
                     )
                     #endif
-                } else {
-                    #if DEBUG
-                    print(
-                        "🔍 ExpandingReplyBanner: No cached parent found for key: \(cacheKey)"
-                    )
-                    #endif
+                } else if needsParentResolution {
+                    // The upstream handle is a generic fallback ("someone",
+                    // a DID stub, etc.). The proactive timeline-wide prefetch
+                    // is batched and a fast scroller can outrun it, so kick
+                    // off a silent on-appear fetch for just this banner.
+                    // PostParentCache dedupes by id, so this won't duplicate
+                    // an in-flight fetch.
+                    triggerParentFetch(parentId: parentId, silent: true)
                 }
             }
         }
@@ -505,8 +524,15 @@ struct ExpandingReplyBanner: View {
         onBannerTap?()
     }
 
-    private func triggerParentFetch(parentId: String) {
-        // Skip if already loading, attempted, or if we already have the parent
+    private func triggerParentFetch(parentId: String, silent: Bool = false) {
+        // Skip if already loading, attempted, or if we already have the parent.
+        // Also skip if the shared cache already has it — populated by either
+        // SocialServiceManager.proactivelyFetchParentPosts or a prior banner.
+        let cacheKey = "\(network.rawValue):\(parentId)"
+        if let cached = parentCache.getCachedPost(id: cacheKey) {
+            parent = cached
+            return
+        }
         guard !isLoading && !fetchAttempted && parent == nil else {
             #if DEBUG
             print(
@@ -520,7 +546,12 @@ struct ExpandingReplyBanner: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
 
-            isLoading = true
+            // For silent (on-appear) resolution, don't flash the ProgressView
+            // in the banner header — the only visible effect should be the
+            // name updating from "someone" to the real handle.
+            if !silent {
+                isLoading = true
+            }
             fetchAttempted = true
             fetchError = nil
 
@@ -543,8 +574,6 @@ struct ExpandingReplyBanner: View {
 
                 if let post = fetchedPost {
                     parent = post
-                    // Use the same cache key format as SocialServiceManager
-                    let cacheKey = "\(network.rawValue):\(parentId)"
                     parentCache.cache[cacheKey] = post
                     #if DEBUG
                     print(
