@@ -5,6 +5,7 @@ struct ChatView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @EnvironmentObject var chatStreamService: ChatStreamService
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   let conversation: DMConversation
 
   @State private var messages: [UnifiedChatMessage] = []
@@ -462,8 +463,8 @@ struct ChatView: View {
         }
       }
       .scaleEffect(canSend ? 1.0 : 0.92)
-      .animation(.spring(response: 0.3, dampingFraction: 0.78), value: canSend)
-      .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isSending)
+      .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: canSend)
+      .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: isSending)
       // The visible button is 36pt; extend hit area to 44pt minimum
       // so the user's thumb has comfortable room to land.
       .frame(width: 44, height: 44)
@@ -472,6 +473,9 @@ struct ChatView: View {
     .buttonStyle(.plain)
     .disabled(!canSend)
     .accessibilityLabel(isSending ? "Sending" : "Send message")
+    .accessibilityHint(canSend
+                       ? "Sends your message"
+                       : "Type a message to enable")
   }
 
   // MARK: - Message Grouping
