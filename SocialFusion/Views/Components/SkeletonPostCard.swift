@@ -50,15 +50,17 @@ struct SkeletonPostCard: View {
   }
 
   private var shimmerFill: some ShapeStyle {
+    // System-named grays adapt cleanly across light/dark mode, unlike
+    // Color.gray.opacity() which reads as brown-tinted in dark mode.
     if reduceMotion {
-      return AnyShapeStyle(Color.gray.opacity(0.15))
+      return AnyShapeStyle(Color(.systemGray5))
     }
     return AnyShapeStyle(
       LinearGradient(
         stops: [
-          .init(color: Color.gray.opacity(0.1), location: phase - 0.3),
-          .init(color: Color.gray.opacity(0.25), location: phase),
-          .init(color: Color.gray.opacity(0.1), location: phase + 0.3),
+          .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+          .init(color: Color(.systemGray4), location: phase),
+          .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
         ],
         startPoint: .leading,
         endPoint: .trailing

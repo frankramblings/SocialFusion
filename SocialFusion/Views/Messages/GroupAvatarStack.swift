@@ -30,10 +30,10 @@ struct GroupAvatarStack: View {
       CachedAsyncImage(url: url, priority: .low) { image in
         image.resizable().aspectRatio(contentMode: .fill)
       } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
+        Circle().fill(Color(.systemGray5))
       }
     } else {
-      Circle().fill(Color.gray.opacity(0.3))
+      Circle().fill(Color(.systemGray5))
     }
   }
 

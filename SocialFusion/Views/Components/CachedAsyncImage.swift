@@ -534,7 +534,7 @@ extension CachedAsyncImage where Content == Image, Placeholder == AnyView {
             placeholder: {
                 AnyView(
                     Circle()
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(Color(.systemGray5))
                         .overlay(
                             ProgressView()
                                 .scaleEffect(0.7)
