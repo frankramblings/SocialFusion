@@ -780,6 +780,19 @@ struct ComposeView: View {
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 
     private var postVisibilityOptions = ["Public", "Unlisted", "Followers Only", "Direct"]
+
+    /// SF Symbol for each visibility option index. Mirrors the icon
+    /// vocabulary Mastodon's web UI uses (globe for public, open
+    /// padlock for unlisted, padlock for followers, envelope for DM).
+    private func visibilityIcon(for index: Int) -> String {
+        switch index {
+        case 0: return "globe"
+        case 1: return "lock.open"
+        case 2: return "lock"
+        case 3: return "envelope"
+        default: return "globe"
+        }
+    }
     @State private var selectedVisibility: Int
 
     // Character limits
@@ -1002,16 +1015,27 @@ struct ComposeView: View {
                 Menu {
                     Picker("Visibility", selection: $selectedVisibility) {
                         ForEach(0..<postVisibilityOptions.count, id: \.self) { index in
-                            Text(postVisibilityOptions[index]).tag(index)
+                            Label(postVisibilityOptions[index], systemImage: visibilityIcon(for: index))
+                                .tag(index)
                         }
                     }
                 } label: {
-                    Image(systemName: "eye")
+                    Image(systemName: visibilityIcon(for: selectedVisibility))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .padding(8)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 36, height: 36)
                         .background(Color(.secondarySystemBackground))
                         .clipShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                 }
+                .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+                .onChange(of: selectedVisibility) { _, _ in HapticEngine.selection.trigger() }
+                .accessibilityLabel("Post visibility")
+                .accessibilityValue(postVisibilityOptions.indices.contains(selectedVisibility) ? postVisibilityOptions[selectedVisibility] : "Public")
+                .accessibilityHint("Choose who can see this post")
+                .animation(.spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
