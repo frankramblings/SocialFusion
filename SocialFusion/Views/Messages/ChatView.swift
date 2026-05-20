@@ -365,7 +365,6 @@ struct ChatView: View {
             .contentShape(Rectangle())
         }
         .accessibilityLabel("Add photos")
-        .accessibilityLabel("Add photos")
 
         TextField("Message", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
