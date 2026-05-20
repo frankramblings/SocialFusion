@@ -380,7 +380,8 @@ struct AccountTimelineView: View {
         VStack(spacing: 8) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundColor(.green)
+                .foregroundStyle(Color.green.gradient)
+                .symbolRenderingMode(.hierarchical)
             Text("You're all caught up!")
                 .font(.subheadline)
                 .fontWeight(.medium)
