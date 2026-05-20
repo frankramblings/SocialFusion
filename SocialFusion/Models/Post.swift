@@ -1622,7 +1622,11 @@ public enum UnifiedChatMessage: Identifiable, @unchecked Sendable {
         switch self {
         case .bluesky(let msg):
             switch msg {
-            case .message(let view): return ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+            // DateParser.parse uses cached formatters; ad-hoc
+            // ISO8601DateFormatter() here would allocate on every
+            // access, and ChatStreamService can call sentAt
+            // dozens of times per second on a busy conversation.
+            case .message(let view): return DateParser.parse(view.sentAt) ?? Date()
             case .deleted: return Date()
             }
         case .mastodon(let post): return post.createdAt
