@@ -125,7 +125,26 @@ public struct EmojiTextApp: View {
         mentions: [String], tags: [String]
     ) -> AttributedString {
         let processedHTML = htmlString.raw
-        
+
+        // Process-wide cache. Mastodon timelines re-render the same
+        // HTML content on every cell recycle (scroll up/down past a
+        // post and back), and NSAttributedString(data:options:) for
+        // HTML parsing is heavy enough to show up on the main thread
+        // sample at 60Hz. Cache the fully-decorated AttributedString
+        // keyed by (html + mentions + tags + font + color) — those
+        // are everything that affects the output. Same shape Ivory
+        // and Ice Cubes use to stay smooth on long Mastodon feeds.
+        let cacheKey = HTMLAttributedStringCache.makeKey(
+            html: processedHTML,
+            mentions: mentions,
+            tags: tags,
+            font: font,
+            foregroundColor: foregroundColor
+        )
+        if let cached = HTMLAttributedStringCache.shared.value(forKey: cacheKey) {
+            return cached
+        }
+
         // Parse HTML and build AttributedString
         guard let data = processedHTML.data(using: .utf8), !data.isEmpty else {
             return AttributedString(htmlString.plainText)
@@ -196,7 +215,61 @@ public struct EmojiTextApp: View {
                 attributed[run.range].foregroundColor = foregroundColor
             }
         }
+        HTMLAttributedStringCache.shared.setValue(attributed, forKey: cacheKey)
         return attributed
+    }
+}
+
+/// Process-wide cache of parsed Mastodon HTML → AttributedString.
+///
+/// Why this exists: NSAttributedString(data:options:) for HTML is one of
+/// the heavier ops on the main run loop when scrolling a timeline of
+/// Mastodon posts — it spins up a mini WebKit-style parser per call.
+/// Combined with the run-walking pass that rewrites mention/tag URLs
+/// into socialfusion:// links, each cell recycle was paying the full
+/// cost. Caching the final, fully-decorated AttributedString collapses
+/// repeat renders to a hash lookup.
+///
+/// Capped at 1024 entries (countLimit) so the cache stays bounded on
+/// long sessions. NSCache also evacuates under memory pressure for free.
+final class HTMLAttributedStringCache {
+    static let shared = HTMLAttributedStringCache()
+
+    private final class Box: NSObject {
+        let value: AttributedString
+        init(_ value: AttributedString) { self.value = value }
+    }
+
+    private let cache: NSCache<NSString, Box> = {
+        let cache = NSCache<NSString, Box>()
+        cache.countLimit = 1024
+        return cache
+    }()
+
+    private init() {}
+
+    static func makeKey(
+        html: String,
+        mentions: [String],
+        tags: [String],
+        font: Font,
+        foregroundColor: Color
+    ) -> NSString {
+        // Font and Color use their default Hashable conformance via a
+        // stringified description. That's stable enough for cache
+        // identity: identical inputs produce identical strings, and
+        // the rare collision just causes one extra parse.
+        let mentionsKey = mentions.joined(separator: "\u{1}")
+        let tagsKey = tags.joined(separator: "\u{1}")
+        return "\(html)\u{2}\(mentionsKey)\u{2}\(tagsKey)\u{2}\(font)\u{2}\(foregroundColor)" as NSString
+    }
+
+    func value(forKey key: NSString) -> AttributedString? {
+        cache.object(forKey: key)?.value
+    }
+
+    func setValue(_ value: AttributedString, forKey key: NSString) {
+        cache.setObject(Box(value), forKey: key)
     }
 }
 
