@@ -8,6 +8,7 @@ struct AddAccountView: View {
     @EnvironmentObject private var oauthManager: OAuthManager
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selectedPlatform: SocialPlatform = .mastodon
     @State private var server = ""
@@ -199,8 +200,11 @@ struct AddAccountView: View {
                         .transition(.opacity)
                 }
             }
-            .animation(.easeOut(duration: 0.25), value: errorMessage)
-            .animation(.easeInOut(duration: 0.2), value: isLoading)
+            // Error/loading transitions skip the fade under
+            // reduceMotion. The error banner just appears/disappears
+            // instantly rather than the 0.25s envelope.
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: errorMessage)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isLoading)
         }
     }
 
