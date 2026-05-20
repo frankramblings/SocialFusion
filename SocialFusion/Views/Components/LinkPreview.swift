@@ -310,6 +310,8 @@ struct LinkPreviewPlaceholder: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading link preview")
     }
 }
 

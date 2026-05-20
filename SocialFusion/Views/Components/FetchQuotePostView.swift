@@ -656,6 +656,8 @@ struct LoadingQuoteView: View {
         .overlay(borderOverlay)
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
         .redacted(reason: .placeholder)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading quoted post")
     }
 
     private var platformColor: Color {

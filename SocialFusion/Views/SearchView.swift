@@ -562,6 +562,11 @@ struct SearchView: View {
                     .fill(Color(.secondarySystemGroupedBackground))
             )
             .padding(.horizontal)
+            // Skeleton placeholder rows — collapse into a single
+            // 'Loading trending tags' utterance for VoiceOver instead
+            // of '#placeholder, 0.0K' read five times.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading trending tags")
         }
     }
 
