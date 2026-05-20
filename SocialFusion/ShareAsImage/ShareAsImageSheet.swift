@@ -10,7 +10,6 @@ public struct ShareAsImageSheet: View {
     @State private var shareFileURLs: [URL] = []
     @State private var isSavingToPhotos = false
     @State private var saveToPhotosError: String?
-    @State private var saveToPhotosSuccess = false
 
     public init(viewModel: ShareAsImageViewModel) {
         self.viewModel = viewModel
@@ -68,11 +67,6 @@ public struct ShareAsImageSheet: View {
                         .accessibilityHint("Opens share options for this image")
                     }
                 }
-            }
-            .alert("Saved to Photos", isPresented: $saveToPhotosSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("The image has been saved to your photo library.")
             }
             .alert("Error Saving to Photos", isPresented: .constant(saveToPhotosError != nil)) {
                 Button("OK", role: .cancel) {
@@ -357,13 +351,17 @@ public struct ShareAsImageSheet: View {
                 }
             }
 
-            // Success
+            // Success — use a toast instead of a modal alert. Apple's
+            // own Photos and screenshot flows use unobtrusive HUDs for
+            // non-critical save confirmations; a modal alert with an
+            // OK button interrupts the user's flow unnecessarily.
             await MainActor.run {
                 isSavingToPhotos = false
-                saveToPhotosSuccess = true
+                ToastManager.shared.show("Saved to Photos", severity: .success, duration: 1.8)
             }
 
-            // Provide haptic feedback
+            // Haptic still fires alongside the toast for tactile
+            // confirmation independent of visual attention.
             HapticEngine.success.trigger()
 
         } catch {
