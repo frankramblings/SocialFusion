@@ -786,12 +786,10 @@ struct DirectOpenRow: View {
 struct PlatformIndicator: View {
     let platform: SocialPlatform
 
-    private var brandColor: Color {
-        switch platform {
-        case .mastodon: return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky: return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
-    }
+    // Single source of truth for the brand color — was a hand-rolled
+    // RGB tuple per case (which happened to match the brand hex but
+    // would drift if either ever needed a tweak).
+    private var brandColor: Color { platform.swiftUIColor }
 
     var body: some View {
         Image(platform.icon)
