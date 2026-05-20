@@ -14,18 +14,20 @@ struct NavBarPillSelector<LeadingContent: View>: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            HapticEngine.tap.trigger()
+            action()
+        } label: {
             HStack(spacing: 6) {
                 if let leadingContent {
                     leadingContent
                 }
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.subheadline.weight(.medium))
                 Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
+                    .font(.caption2.weight(.semibold))
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
             }
             .foregroundColor(.primary)
             .padding(.horizontal, 16)
@@ -41,7 +43,19 @@ struct NavBarPillSelector<LeadingContent: View>: View {
                     .shadow(color: .black.opacity(0.02), radius: 2, x: 0, y: 0.5)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(NavBarPillButtonStyle())
+        .accessibilityLabel(title)
+        .accessibilityHint(isExpanded ? "Currently expanded. Tap to collapse." : "Tap to choose a different feed.")
+    }
+}
+
+/// Subtle press feedback for the nav-bar pill — a small scale-down on press.
+private struct NavBarPillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -169,33 +183,35 @@ struct NavBarPillDropdownRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
+        Button {
+            HapticEngine.selection.trigger()
+            action()
+        } label: {
+            HStack(spacing: 10) {
                 if let icon {
                     Image(icon)
                         .resizable()
                         .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 16, height: 16)
-                        .foregroundColor(.primary)
+                        .foregroundColor(isSelected ? .accentColor : .primary.opacity(0.75))
                 }
                 Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .accentColor : .primary)
                     .lineLimit(1)
 
                 Spacer()
 
                 if showChevron {
                     Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.secondary.opacity(0.7))
                 } else if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.accentColor)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 16)
@@ -203,6 +219,18 @@ struct NavBarPillDropdownRow: View {
             .background(Color.clear)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(NavBarPillRowPressStyle())
+    }
+}
+
+/// Subtle background flash on press for dropdown rows — feels like a real
+/// menu row, not a static button.
+private struct NavBarPillRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Color.primary.opacity(configuration.isPressed ? 0.06 : 0)
+            )
+            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
