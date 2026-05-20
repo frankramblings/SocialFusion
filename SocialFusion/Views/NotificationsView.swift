@@ -316,7 +316,7 @@ struct FilterButton: View {
                 .conditionalLiquidGlass(enabled: isSelected, prominence: .thin)
                 .overlay(
                     Capsule()
-                        .stroke(isSelected ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1)
+                        .stroke(isSelected ? Color.blue.opacity(0.3) : Color(.systemGray4), lineWidth: 1)
                 )
         }
     }

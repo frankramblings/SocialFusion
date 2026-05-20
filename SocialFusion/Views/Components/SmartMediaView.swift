@@ -365,7 +365,7 @@ struct SmartMediaView: View {
                             // Only show gray background during loading - completely removed when loaded
                             Group {
                                 if case .loading = loadingState {
-                                    Color.gray.opacity(0.05)
+                                    Color(.systemGray6)
                                 }
                                 // No background when loaded - container wraps tightly around image
                             }
@@ -381,7 +381,7 @@ struct SmartMediaView: View {
                             // Only show gray background during loading - completely removed when loaded
                             Group {
                                 if case .loading = loadingState {
-                                    Color.gray.opacity(0.05)
+                                    Color(.systemGray6)
                                 }
                                 // No background when loaded - container wraps tightly around image
                             }
@@ -408,7 +408,7 @@ struct SmartMediaView: View {
 
     private var loadingView: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
             .overlay(
                 ProgressView()
                     .scaleEffect(1.2)
@@ -418,12 +418,13 @@ struct SmartMediaView: View {
 
     private func failureView(error: Error) -> some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.15))
+            .fill(Color(.systemGray5))
             .overlay(
                 VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
+                    Image(systemName: "exclamationmark.triangle.fill")
                         .font(.title2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(Color.orange.gradient)
+                        .symbolRenderingMode(.hierarchical)
 
                     Text("Media unavailable")
                         .font(.caption)
@@ -659,10 +660,10 @@ private struct VideoPlayerView: View {
                     .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.gray.opacity(0.1))
+                .background(Color(.systemGray6))
             } else {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(
                         VStack(spacing: 8) {
@@ -826,7 +827,7 @@ private struct VideoPlayerView: View {
     private var simulatorPlaceholder: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.gray.opacity(0.15))
+                .fill(Color(.systemGray5))
             VStack(spacing: 8) {
                 Image(systemName: "video.slash")
                     .font(.title2)

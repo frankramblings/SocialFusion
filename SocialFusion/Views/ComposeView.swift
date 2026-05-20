@@ -903,7 +903,11 @@ struct ComposeView: View {
         } else if canPost {
             return replyingTo != nil ? platformColor : Color.blue
         } else {
-            return Color.gray.opacity(0.5)
+            // Disabled state — use systemGray3 so the button reads as
+            // 'present but not actionable' in both light + dark mode,
+            // rather than the flat translucent gray that goes brown
+            // in dark mode.
+            return Color(.systemGray3)
         }
     }
 

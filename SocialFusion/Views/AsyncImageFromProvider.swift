@@ -41,11 +41,12 @@ struct AsyncImageFromProvider: View {
                         }
                     )
             } else {
-                Color.gray.opacity(0.1)
+                Color(.systemGray6)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.largeTitle)
-                            .foregroundColor(.gray)
+                            .foregroundStyle(Color(.systemGray2).gradient)
+                            .symbolRenderingMode(.hierarchical)
                     )
             }
         }
