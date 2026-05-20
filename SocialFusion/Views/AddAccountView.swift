@@ -502,41 +502,72 @@ struct PlatformButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    var body: some View {
-        Button(action: action) {
-            VStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? platformColor(for: platform) : Color(.systemGray6))
-                        .frame(height: 56)
-
-                    HStack(spacing: 8) {
-                        // Use system symbols for platform icons
-                        Image(systemName: "person.crop.circle")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(isSelected ? .white : platformColor(for: platform))
-
-                        Text(platform.rawValue.capitalized)
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(isSelected ? .white : .primary)
-                            .padding(.trailing, 4)
-                    }
-                    .padding(.horizontal)
-                }
-            }
+    private var brandColor: Color {
+        switch platform {
+        case .mastodon: return Color(hex: "6364FF")
+        case .bluesky: return Color(hex: "0085FF")
         }
-        .buttonStyle(PlainButtonStyle())
     }
 
-    // Get platform color for a specific platform
-    private func platformColor(for platform: SocialPlatform) -> Color {
-        switch platform {
-        case .mastodon:
-            return Color(hex: "6364FF")
-        case .bluesky:
-            return Color(hex: "0085FF")
+    private var logoAsset: String {
+        platform == .mastodon ? "MastodonLogo" : "BlueskyLogo"
+    }
+
+    var body: some View {
+        Button {
+            HapticEngine.selection.trigger()
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                // Brand logo (template-rendered so it picks up foreground tint)
+                Image(logoAsset)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 22, height: 22)
+                    .foregroundColor(isSelected ? .white : brandColor)
+
+                Text(platform.rawValue.capitalized)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(isSelected ? .white : .primary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? AnyShapeStyle(brandColor.gradient)
+                            : AnyShapeStyle(Color(.systemGray6))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.clear : brandColor.opacity(0.18),
+                                lineWidth: 0.5
+                            )
+                    )
+                    .shadow(
+                        color: isSelected ? brandColor.opacity(0.28) : .clear,
+                        radius: 10,
+                        x: 0,
+                        y: 4
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(PlatformButtonPressStyle())
+        .accessibilityLabel(platform.rawValue.capitalized)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct PlatformButtonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
