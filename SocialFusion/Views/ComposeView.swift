@@ -2052,9 +2052,11 @@ struct ComposeView: View {
         guard canPost else {
             // Handle the case where user tries to post without proper accounts
             if !hasAccountsForSelectedPlatforms {
-                let missing = missingAccountPlatforms.map { $0.rawValue }.joined(separator: " and ")
-                alertTitle = "Missing Accounts"
-                alertMessage = "Please add \(missing) account(s) to post to the selected platforms."
+                let missing = missingAccountPlatforms.map { $0.rawValue.capitalized }
+                let platformList = missing.joined(separator: " and ")
+                let isPlural = missing.count > 1
+                alertTitle = isPlural ? "Missing Accounts" : "Missing Account"
+                alertMessage = "Add \(isPlural ? "" : "a ")\(platformList) account\(isPlural ? "s" : "") to post on \(isPlural ? "these platforms" : "this platform")."
                 showAlert = true
             }
             return
