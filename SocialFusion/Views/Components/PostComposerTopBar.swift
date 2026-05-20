@@ -117,14 +117,17 @@ struct ProfileToggleButton: View {
     private let avatarSize: CGFloat = 44
 
     var body: some View {
-        Button(action: onTap) {
+        Button {
+            HapticEngine.selection.trigger()
+            onTap()
+        } label: {
             // Create a container that provides enough space for the badge and selection ring
             ZStack {
                 // Background glow effect for active accounts
                 if isSelected {
                     Circle()
-                        .fill(Color(hex: account.platform.colorHex).opacity(0.1))
-                        .frame(width: avatarSize + 8, height: avatarSize + 8)
+                        .fill(Color(hex: account.platform.colorHex).opacity(0.12))
+                        .frame(width: avatarSize + 10, height: avatarSize + 10)
                         .blur(radius: 8)
                 }
 
@@ -134,11 +137,12 @@ struct ProfileToggleButton: View {
                         .stroke(Color(hex: account.platform.colorHex), lineWidth: 3)
                         .frame(width: avatarSize + 6, height: avatarSize + 6)
                         .shadow(
-                            color: Color(hex: account.platform.colorHex).opacity(0.3),
-                            radius: 4,
+                            color: Color(hex: account.platform.colorHex).opacity(0.32),
+                            radius: 5,
                             x: 0,
                             y: 2
                         )
+                        .transition(.scale.combined(with: .opacity))
                 }
 
                 // Profile image with existing platform badge (PostAuthorImageView already includes PlatformLogoBadge)
@@ -152,19 +156,21 @@ struct ProfileToggleButton: View {
                 .opacity(isSelected ? 1.0 : 0.5)
                 .saturation(isSelected ? 1.0 : 0.3)
             }
-            .frame(width: avatarSize + 12, height: avatarSize + 12)  // Extra space to prevent clipping of badge and selection ring
+            .frame(width: avatarSize + 12, height: avatarSize + 12)
         }
         .buttonStyle(.plain)
-        .onLongPressGesture {
+        .onLongPressGesture(minimumDuration: 0.45) {
+            // Slightly weightier than .selection so users can feel the
+            // difference between "toggle this account" and "switch accounts".
+            HapticEngine.success.trigger()
             onLongPress()
         }
-        .onAppear {
-            // REMOVED: Animation delay that was causing AttributeGraph cycles
-            // Proper SwiftUI state management doesn't need artificial delays
-        }
-        // Note: sensoryFeedback is iOS 17+, removed for iOS 16 compatibility
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .accessibilityLabel("@\(account.username)")
+        .accessibilityValue(isSelected ? "Selected for posting" : "Not selected")
+        .accessibilityHint("Activates posting from this account. Long press to switch accounts for this platform.")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -196,20 +202,23 @@ struct VisibilityButton: View {
             }
         } label: {
             Image(systemName: visibilityIcon)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.secondary)
+                .contentTransition(.symbolEffect(.replace))
                 .frame(width: 44, height: 44)
                 .background(Material.regularMaterial, in: Circle())
                 .overlay(
                     Circle()
-                        .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
+                        .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 0.5)
                 )
-                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 1)
         }
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+        .onChange(of: selectedVisibility) { _, _ in HapticEngine.selection.trigger() }
         .accessibilityLabel("Post visibility")
         .accessibilityValue(options.indices.contains(selectedVisibility) ? options[selectedVisibility] : "Public")
         .accessibilityHint("Choose who can see this post")
-        .animation(.easeInOut(duration: 0.2), value: selectedVisibility)
+        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
     }
 
     private func iconForIndex(_ index: Int) -> String {
