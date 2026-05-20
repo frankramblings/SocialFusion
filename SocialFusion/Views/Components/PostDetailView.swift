@@ -116,11 +116,13 @@ struct PostDetailView: View {
                     }
                     .background(alignment: .topLeading) {
                         if !parentPosts.isEmpty {
-                            // Subtle thread continuation line hints at history above
+                            // Subtle thread continuation line hints at history above.
+                            // Uses Color.secondary so the gradient adapts to dark
+                            // mode (was Color.gray.opacity which reads brown-tinted).
                             LinearGradient(
                                 colors: [
-                                    Color.gray.opacity(0.12),
-                                    Color.gray.opacity(0.06),
+                                    Color.secondary.opacity(0.18),
+                                    Color.secondary.opacity(0.08),
                                     Color.clear,
                                 ],
                                 startPoint: .top,
@@ -1070,9 +1072,10 @@ struct SelectedPostView: View {
         }
     }
 
-    // Thread line color
+    // Thread line color — uses Color.secondary so it adapts to dark mode.
+    // Color.gray.opacity reads as brown-tinted against dark backgrounds.
     private var threadLineColor: Color {
-        Color.gray.opacity(0.25)
+        Color.secondary.opacity(0.35)
     }
 
     var body: some View {
@@ -1208,9 +1211,10 @@ struct PostRow: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    // Thread line color
+    // Thread line color — uses Color.secondary so it adapts to dark mode.
+    // Color.gray.opacity reads as brown-tinted against dark backgrounds.
     private var threadLineColor: Color {
-        Color.gray.opacity(0.25)
+        Color.secondary.opacity(0.35)
     }
 
     // Content styling
