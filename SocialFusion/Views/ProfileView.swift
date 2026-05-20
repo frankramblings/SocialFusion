@@ -593,6 +593,8 @@ struct EditProfileView: View {
 
         Section(header: Text("Basic Info")) {
           TextField("Display Name", text: $displayName)
+            .textContentType(.name)
+            .submitLabel(.next)
           ZStack(alignment: .topLeading) {
             if bio.isEmpty {
               // Color(.placeholderText) is the iOS-standard placeholder

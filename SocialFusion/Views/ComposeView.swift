@@ -3211,9 +3211,15 @@ struct LinkInputDialog: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
+                        .textContentType(.URL)
+                        .submitLabel(.next)
                         .focused($isUrlFocused)
+                        .onSubmit {
+                            isUrlFocused = false
+                        }
 
                     TextField("Display Text", text: $displayText)
+                        .submitLabel(.done)
                 }
             }
             .navigationTitle("Insert Link")
