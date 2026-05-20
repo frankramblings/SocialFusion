@@ -671,21 +671,36 @@ struct DirectOpenRow: View {
     let onTap: () -> Void
     
     var body: some View {
-        Button(action: onTap) {
-            HStack {
+        Button {
+            HapticEngine.tap.trigger()
+            onTap()
+        } label: {
+            HStack(spacing: 10) {
                 Image(systemName: iconName)
-                    .foregroundColor(.blue)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.accentColor)
                 Text(displayText)
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.medium))
                     .foregroundColor(.primary)
                 Spacer()
                 Image(systemName: "arrow.right.circle.fill")
-                    .foregroundColor(.blue)
+                    .font(.subheadline)
+                    .foregroundStyle(.white, Color.accentColor)
+                    .symbolRenderingMode(.palette)
             }
-            .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 0.5)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
+        .buttonStyle(.plain)
     }
     
     private var iconName: String {

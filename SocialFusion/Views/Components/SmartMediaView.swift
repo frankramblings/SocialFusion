@@ -430,13 +430,20 @@ struct SmartMediaView: View {
                         .foregroundColor(.secondary)
 
                     if retryCount < maxRetries {
-                        Button("Retry") {
+                        Button {
+                            HapticEngine.tap.trigger()
                             retryCount += 1
                             // Trigger reload by changing state
                             loadingState = .loading
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Retry")
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.accentColor)
                         }
-                        .font(.caption2)
-                        .foregroundColor(.blue)
+                        .buttonStyle(.plain)
                     }
                 }
             )

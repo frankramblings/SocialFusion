@@ -291,29 +291,43 @@ struct ExpandingReplyBanner: View {
     }
 
     private func errorContent(error: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundColor(.orange)
-                .font(.title2)
-            Text("Unable to load parent post")
-                .font(.caption)
-                .foregroundColor(.secondary)
+        VStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3)
+                .foregroundStyle(Color.orange.gradient)
+                .symbolRenderingMode(.hierarchical)
+            Text("Couldn't load parent post")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
             Text(error)
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Retry") {
+            Button {
+                HapticEngine.tap.trigger()
                 fetchAttempted = false
                 fetchError = nil
                 if let parentId = parentId {
                     triggerParentFetch(parentId: parentId)
                 }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Try Again")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.14))
+                )
             }
-            .font(.caption)
-            .foregroundColor(.blue)
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
     }
