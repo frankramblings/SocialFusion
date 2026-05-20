@@ -1052,10 +1052,13 @@ struct ConsolidatedTimelineView: View {
                     for id in postIds {
                         highlightedPostIds.insert(id)
                     }
-                    // Auto-clear highlight after 2 seconds
+                    // Auto-clear highlight after 2 seconds. Fade the
+                    // border out for sighted users; reduceMotion =
+                    // instant removal (a 1-second fade is exactly the
+                    // 'unnecessary motion' the setting suppresses).
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        withAnimation(.easeOut(duration: 1.0)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 1.0)) {
                             for id in postIds {
                                 highlightedPostIds.remove(id)
                             }
