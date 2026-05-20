@@ -46,7 +46,13 @@ struct StabilizedLinkPreview: View {
     var body: some View {
         contentView
             .frame(maxWidth: .infinity)
-            .animation(.easeInOut(duration: 0.2), value: isLoading)
+            // NO layout animation between loading and loaded states. Both states
+            // now reserve identical heights (see linkPreviewTextSectionHeight),
+            // so an animated transition would only smooth a non-existent
+            // change. More importantly: animating layout DURING async load
+            // pushes posts below the viewport, which is exactly the timeline
+            // jump symptom users were seeing when scrolling through cards
+            // that hadn't finished fetching their LP metadata yet.
             // DEBUG: Track layout shifts for link previews
             .trackLayoutShifts(id: "linkpreview-\(url.absoluteString.hashValue)", componentType: "LinkPreview")
             .onAppear {
@@ -216,6 +222,15 @@ struct StabilizedLinkPreview: View {
 /// ZERO LAYOUT SHIFT: Both states must use the same height to prevent reflow
 private let linkPreviewImageHeight: CGFloat = 180
 
+/// Fixed height reservations for the text section. Both loading skeletons
+/// and loaded content reserve exactly these heights, so the card's total
+/// height stays constant from skeleton → rich content. Numbers tuned to
+/// fit 2-line subheadline + 2-line footnote + 1-line caption comfortably
+/// using SF Pro at default Dynamic Type.
+private let linkPreviewTitleReservedHeight: CGFloat = 40   // 2 lines of subheadline
+private let linkPreviewDescReservedHeight: CGFloat = 34    // 2 lines of footnote
+private let linkPreviewDomainReservedHeight: CGFloat = 18  // 1 line of caption + chrome
+
 /// Loading state with shimmer effect - MUST match loaded state geometry exactly.
 ///
 /// Uses TimelineView so the shimmer phase is driven by the system clock rather
@@ -278,21 +293,40 @@ private struct StabilizedLinkLoadingView: View {
                     )
                 )
 
-            // Text placeholder area - matches loaded state structure
+            // Text placeholder area — reserves the exact same heights as
+            // the loaded rich content so the card never resizes during
+            // metadata fetch. See linkPreviewTitleReservedHeight etc.
             VStack(alignment: .leading, spacing: 4) {
-                // Title placeholder
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.gray.opacity(0.18))
-                    .frame(height: 15)
-                    .frame(maxWidth: .infinity)
+                // Title placeholder — 2-line subheadline reservation.
+                // Renders as one stacked pair of pills so the skeleton
+                // hints at multi-line content without being a single
+                // monolithic block.
+                VStack(alignment: .leading, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.gray.opacity(0.18))
+                        .frame(height: 14)
+                        .frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.gray.opacity(0.18))
+                        .frame(height: 14)
+                        .frame(maxWidth: 220)
+                }
+                .frame(height: linkPreviewTitleReservedHeight, alignment: .topLeading)
 
-                // Description placeholder
-                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(Color.gray.opacity(0.14))
-                    .frame(height: 13)
-                    .frame(maxWidth: 200)
+                // Description placeholder — 2-line footnote reservation.
+                VStack(alignment: .leading, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.gray.opacity(0.14))
+                        .frame(height: 12)
+                        .frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.gray.opacity(0.14))
+                        .frame(height: 12)
+                        .frame(maxWidth: 180)
+                }
+                .frame(height: linkPreviewDescReservedHeight, alignment: .topLeading)
 
-                // URL/domain placeholder
+                // URL/domain placeholder — 1-line caption reservation.
                 HStack(spacing: 4) {
                     Circle()
                         .fill(Color.gray.opacity(0.14))
@@ -301,7 +335,7 @@ private struct StabilizedLinkLoadingView: View {
                         .fill(Color.gray.opacity(0.14))
                         .frame(width: 80, height: 12)
                 }
-                .padding(.top, 2)
+                .frame(height: linkPreviewDomainReservedHeight, alignment: .leading)
             }
             .padding(12)
         }
@@ -391,27 +425,45 @@ private struct StabilizedLinkRichContentView: View {
                 )
 
                 // Text Section
+                // ZERO LAYOUT SHIFT: every row reserves a fixed height
+                // matching the skeleton state. Short titles / missing
+                // descriptions render whitespace in the reserved space
+                // rather than collapsing — which means scrolling never
+                // sees the card resize as LP metadata trickles in.
                 VStack(alignment: .leading, spacing: 4) {
-                    // Prefer passed title (from server card), fall back to LP metadata title
+                    // Title row — always reserves 2-line subheadline height.
                     let title = passedTitle ?? metadata?.title
-                    if let title = title, !title.isEmpty, title != url.host {
-                        Text(title)
-                            .font(.subheadline.weight(.semibold))
-                            .lineLimit(2)
-                            .foregroundColor(.primary)
-                            .multilineTextAlignment(.leading)
+                    Group {
+                        if let title = title, !title.isEmpty, title != url.host {
+                            Text(title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(2)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                        } else {
+                            Color.clear
+                        }
                     }
+                    .frame(height: linkPreviewTitleReservedHeight, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Prefer passed description (from server card), fall back to LP metadata description
+                    // Description row — always reserves 2-line footnote height.
                     let description = passedDescription ?? metadata.flatMap { extractDescription(from: $0) }
-                    if let description = description, !description.isEmpty {
-                        Text(description)
-                            .font(.footnote)
-                            .lineLimit(2)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
+                    Group {
+                        if let description = description, !description.isEmpty {
+                            Text(description)
+                                .font(.footnote)
+                                .lineLimit(2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        } else {
+                            Color.clear
+                        }
                     }
+                    .frame(height: linkPreviewDescReservedHeight, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
+                    // Domain row — reserves caption-sized vertical space.
                     HStack(spacing: 4) {
                         Image(systemName: "link")
                             .font(.caption2)
@@ -419,7 +471,7 @@ private struct StabilizedLinkRichContentView: View {
                             .font(.caption)
                     }
                     .foregroundColor(.secondary)
-                    .padding(.top, 2)
+                    .frame(height: linkPreviewDomainReservedHeight, alignment: .leading)
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
