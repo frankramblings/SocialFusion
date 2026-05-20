@@ -266,45 +266,52 @@ struct AccountSwitcherSheet: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     ForEach(platformAccounts, id: \.id) { account in
-                        HStack(spacing: 12) {
-                            PostAuthorImageView(
-                                authorProfilePictureURL: account.profileImageURL?.absoluteString
-                                    ?? "",
-                                platform: account.platform,
-                                size: 32,
-                                authorName: account.displayName ?? account.username
-                            )
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                EmojiDisplayNameText(
-                                    account.displayName ?? account.username,
-                                    emojiMap: account.displayNameEmojiMap,
-                                    font: .headline,
-                                    fontWeight: .regular,
-                                    foregroundColor: .primary,
-                                    lineLimit: 1
+                        Button {
+                            HapticEngine.selection.trigger()
+                            onAccountSelected(account.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                PostAuthorImageView(
+                                    authorProfilePictureURL: account.profileImageURL?.absoluteString
+                                        ?? "",
+                                    platform: account.platform,
+                                    size: 32,
+                                    authorName: account.displayName ?? account.username
                                 )
 
-                                Text("@\(account.username)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
+                                VStack(alignment: .leading, spacing: 2) {
+                                    EmojiDisplayNameText(
+                                        account.displayName ?? account.username,
+                                        emojiMap: account.displayNameEmojiMap,
+                                        font: .headline,
+                                        fontWeight: account.id == currentAccountId ? .semibold : .regular,
+                                        foregroundColor: .primary,
+                                        lineLimit: 1
+                                    )
 
-                            Spacer()
+                                    Text("@\(account.username)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
 
-                            if account.id == currentAccountId {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(Color(hex: platform.colorHex))
+                                Spacer()
+
+                                if account.id == currentAccountId {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.white, Color(hex: platform.colorHex))
+                                        .symbolRenderingMode(.palette)
+                                        .transition(.scale.combined(with: .opacity))
+                                }
                             }
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onAccountSelected(account.id)
-                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(account.id == currentAccountId ? .isSelected : [])
                     }
                 } header: {
                     HStack {
@@ -321,10 +328,12 @@ struct AccountSwitcherSheet: View {
             .navigationTitle("Switch Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        HapticEngine.tap.trigger()
                         dismiss()
                     }
+                    .fontWeight(.semibold)
                 }
             }
         }
