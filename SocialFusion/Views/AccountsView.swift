@@ -104,14 +104,7 @@ struct AccountsView: View {
                 Section(header: Text("Settings")) {
                     NavigationLink(destination: SettingsView()) {
                         HStack(spacing: 12) {
-                            Image(systemName: "gear")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.gray.gradient)
-                                )
+                            tintedTile(symbol: "gear", tint: .gray)
                             Text("Settings")
                         }
                     }
@@ -122,14 +115,7 @@ struct AccountsView: View {
                         showDebugInfo.toggle()
                     } label: {
                         HStack(spacing: 12) {
-                            Image(systemName: "ladybug.fill")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                        .fill(Color.green.gradient)
-                                )
+                            tintedTile(symbol: "ladybug.fill", tint: .green)
                             Text("Debug Info")
                                 .foregroundColor(.primary)
                         }
@@ -196,6 +182,22 @@ struct AccountsView: View {
     }
 
     // Account row with selection toggle
+    /// Colored leading-icon tile matching SettingsView's SettingsIcon
+    /// pattern. Mirrors ContentView's tintedTile (same dimensions and
+    /// styling) for visual consistency across the Settings entry points.
+    @ViewBuilder
+    private func tintedTile(symbol: String, tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 32, height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.gradient)
+            )
+            .accessibilityHidden(true)
+    }
+
     /// 'Add Account' row button with haptic + a11y. Used by both Mastodon
     /// and Bluesky sections, in both empty and non-empty states, so the
     /// behavior is consistent across all four call sites.
