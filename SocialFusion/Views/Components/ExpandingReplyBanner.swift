@@ -571,6 +571,7 @@ struct ExpandingReplyBanner: View {
 struct ParentPostSkeleton: View {
     @State private var shimmerOffset: CGFloat = -200
     @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -678,6 +679,12 @@ struct ParentPostSkeleton: View {
             // Use Task to defer state updates outside view rendering cycle
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
+                // Reduce-motion: park the shimmer center-stage so the skeleton
+                // still reads as "loading" but doesn't animate.
+                if reduceMotion {
+                    shimmerOffset = 0
+                    return
+                }
                 // Start gentle shimmer animation
                 withAnimation(
                     .easeInOut(duration: 2.0)
