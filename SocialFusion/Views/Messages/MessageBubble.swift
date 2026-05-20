@@ -188,6 +188,7 @@ struct MessageBubble: View {
             Button {
               HapticEngine.tap.trigger()
               UIPasteboard.general.string = message.text
+              ToastManager.shared.show("Message copied", severity: .success, duration: 1.4)
             } label: {
               Label("Copy Text", systemImage: "doc.on.doc")
             }

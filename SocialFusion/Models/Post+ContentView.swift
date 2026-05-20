@@ -765,6 +765,10 @@ struct YouTubeVideoPreview: View {
 
     private func copyVideoLink() {
         UIPasteboard.general.string = url.absoluteString
+        HapticEngine.tap.trigger()
+        Task { @MainActor in
+            ToastManager.shared.show("Link copied", severity: .success, duration: 1.4)
+        }
         #if DEBUG
         print("📋 [YouTubeVideoPreview] Copied video link to clipboard: \(url.absoluteString)")
         #endif

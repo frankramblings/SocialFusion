@@ -17,6 +17,13 @@ enum PostSystemActions {
         guard let url = URL(string: post.originalURL) else { return }
         UIPasteboard.general.url = url
         lightHaptic()
+        // Visible/audible confirmation. Without this, the only feedback
+        // is a haptic — invisible to sighted users on AirPods + unheard
+        // by VoiceOver users. Toast handles both via the a11y announcement
+        // added to ToastManager.
+        Task { @MainActor in
+            ToastManager.shared.show("Link copied", severity: .success, duration: 1.4)
+        }
     }
 
     static func presentShareSheet(_ post: Post) {
