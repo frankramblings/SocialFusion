@@ -34,6 +34,7 @@ struct SmartMediaView: View {
 
     // Optional coordinator for fullscreen - only used if available
     @EnvironmentObject private var mediaCoordinator: FullscreenMediaCoordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let maxRetries = 3
     
@@ -139,7 +140,7 @@ struct SmartMediaView: View {
                         guard !Task.isCancelled else { return }
                         await MainActor.run {
                             DispatchQueue.main.async {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) {
                                     loadedAspectRatio = size.width / size.height
                                 }
                             }
