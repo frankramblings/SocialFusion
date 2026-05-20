@@ -152,13 +152,18 @@ struct NewConversationView: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { dismiss() }
+          Button("Cancel") {
+            HapticEngine.tap.trigger()
+            dismiss()
+          }
         }
         ToolbarItem(placement: .confirmationAction) {
           if !selectedParticipants.isEmpty {
             Button(selectedParticipants.count > 1 ? "Create Group" : "Start Chat") {
+              HapticEngine.tap.trigger()
               startConversationWithSelected()
             }
+            .fontWeight(.semibold)
           }
         }
       }
@@ -276,10 +281,16 @@ struct NewConversationView: View {
       do {
         let dids = selectedParticipants.map(\.did)
         let conversation = try await serviceManager.startOrFindBlueskyConversation(withDids: dids)
-        selectedConversation = conversation
-        navigateToChat = true
+        await MainActor.run {
+          HapticEngine.success.trigger()
+          selectedConversation = conversation
+          navigateToChat = true
+        }
       } catch {
-        errorMessage = "Couldn't start the conversation: \(error.localizedDescription)"
+        await MainActor.run {
+          HapticEngine.error.trigger()
+          errorMessage = "Couldn't start the conversation: \(error.localizedDescription)"
+        }
       }
     }
   }
