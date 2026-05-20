@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Severity of a toast message. Controls the leading glyph, its tint, and the
 /// haptic that fires when the toast appears.
@@ -69,6 +70,20 @@ final class ToastManager: ObservableObject {
         // Fire severity-appropriate haptic (success/warning/error). .info
         // toasts stay quiet — they're informational, not feedback on action.
         severity.haptic?.trigger()
+
+        // VoiceOver users won't see the toast slide in — post an
+        // announcement so they're aware of the same feedback sighted
+        // users get. Severity prefix mirrors the accessibilityLabel.
+        if UIAccessibility.isVoiceOverRunning {
+            let prefix: String
+            switch severity {
+            case .info: prefix = ""
+            case .success: prefix = "Success. "
+            case .warning: prefix = "Warning. "
+            case .error: prefix = "Error. "
+            }
+            UIAccessibility.post(notification: .announcement, argument: "\(prefix)\(message)")
+        }
 
         dismissTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
