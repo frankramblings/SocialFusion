@@ -781,6 +781,58 @@ struct ComposeView: View {
         remainingChars < 0
     }
 
+    /// Visual character counter: a small progress ring that fills as the user
+    /// approaches the limit, with the remaining count inside. Color goes
+    /// from secondary → orange → red as urgency builds.
+    @ViewBuilder
+    private var characterCounter: some View {
+        let total = max(currentCharLimit, 1)
+        let used = total - remainingChars  // can exceed total when over limit
+        let progress = min(Double(used) / Double(total), 1.0)
+        let isNearLimit = remainingChars < 50
+
+        // Tint cascades by urgency: secondary → orange → red
+        let tint: Color = isOverLimit ? .red : (isNearLimit ? .orange : .secondary)
+        // Once the user is near the limit, the ring becomes visible. Before that
+        // the counter is just a number — keeps the toolbar quiet during normal
+        // composition.
+        let ringVisible = isNearLimit || isOverLimit
+
+        ZStack {
+            if ringVisible {
+                Circle()
+                    .stroke(tint.opacity(0.2), lineWidth: 2)
+                    .frame(width: 24, height: 24)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 24, height: 24)
+                    .animation(.easeOut(duration: 0.18), value: progress)
+            }
+
+            if isOverLimit {
+                // When over, swap the digit for an alert glyph
+                Image(systemName: "exclamationmark")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.red)
+                    .transition(.scale.combined(with: .opacity))
+            } else {
+                Text("\(remainingChars)")
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundColor(tint)
+                    .contentTransition(.numericText(value: Double(remainingChars)))
+                    .animation(.easeOut(duration: 0.15), value: remainingChars)
+            }
+        }
+        .frame(width: 28, height: 28)
+        .accessibilityLabel(
+            isOverLimit
+                ? "\(-remainingChars) characters over limit"
+                : "\(remainingChars) characters remaining"
+        )
+    }
+
     private var overLimitPlatformsString: String {
         var overLimit: [String] = []
         let count = threadPosts[activePostIndex].text.count
@@ -1374,30 +1426,19 @@ struct ComposeView: View {
 
             Spacer()
 
-            // Character counter with feedback
-            HStack(spacing: 4) {
-                if isOverLimit {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.red)
+            // Character counter with feedback — Twitter-style progress ring
+            // surrounds the count once you cross the warning threshold, so the
+            // urgency builds visually without distracting earlier in composition.
+            characterCounter
+                .padding(.horizontal, 8)
+                .onTapGesture {
+                    if isOverLimit {
+                        alertTitle = "Character Limit Exceeded"
+                        alertMessage =
+                            "You are over the character limit for \(overLimitPlatformsString)."
+                        showAlert = true
+                    }
                 }
-
-                Text("\(remainingChars)")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(
-                        isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
-                    )
-            }
-            .padding(.horizontal, 8)
-            .onTapGesture {
-                if isOverLimit {
-                    alertTitle = "Character Limit Exceeded"
-                    alertMessage =
-                        "You are over the character limit for \(overLimitPlatformsString)."
-                    showAlert = true
-                }
-            }
 
             // Post button - Enhanced with platform color
             Button(action: {

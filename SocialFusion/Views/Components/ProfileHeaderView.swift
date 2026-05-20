@@ -437,17 +437,27 @@ struct ProfileHeaderView: View {
   @ViewBuilder
   private var bioSection: some View {
     if let bio = profile.bio, !bio.isEmpty {
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: 6) {
         bioContent(bio)
           .lineLimit(bioExpanded ? nil : Layout.bioLineLimit)
 
         if !bioExpanded {
-          Button(action: { withAnimation(.easeInOut(duration: 0.2)) { bioExpanded = true } }) {
-            Text("Show more")
-              .font(.subheadline)
-              .foregroundColor(.accentColor)
+          Button {
+            HapticEngine.tap.trigger()
+            withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.82)) {
+              bioExpanded = true
+            }
+          } label: {
+            HStack(spacing: 4) {
+              Text("Show more")
+                .font(.subheadline.weight(.medium))
+              Image(systemName: "chevron.down")
+                .font(.caption2.weight(.semibold))
+            }
+            .foregroundColor(.accentColor)
           }
           .buttonStyle(.plain)
+          .accessibilityHint("Expands the rest of the bio")
         }
       }
       .padding(.horizontal, Layout.horizontalPadding)
