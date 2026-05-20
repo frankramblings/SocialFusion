@@ -427,20 +427,23 @@ struct PostDetailView: View {
             !isReplying
         {
             VStack(spacing: 10) {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     quickReplyAccountMenu(for: replyTarget.platform)
 
                     Spacer()
 
                     Text("\(inlineReplyRemaining)")
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundColor(
                             inlineReplyRemaining < 0
                                 ? .red
                                 : (inlineReplyRemaining < 50 ? .orange : .secondary)
                         )
+                        .contentTransition(.numericText(value: Double(inlineReplyRemaining)))
+                        .animation(.easeOut(duration: 0.15), value: inlineReplyRemaining)
 
                     Button {
+                        HapticEngine.tap.trigger()
                         openFullComposer(for: replyTarget)
                     } label: {
                         Image(systemName: "square.and.pencil")
@@ -453,53 +456,85 @@ struct PostDetailView: View {
                             )
                     }
                     .accessibilityLabel("Open full composer")
+                    .accessibilityHint("Switches to the full composer with this reply")
 
-                    Button(action: resetQuickReplyState) {
+                    Button {
+                        HapticEngine.tap.trigger()
+                        resetQuickReplyState()
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .frame(width: 28, height: 28)
+                            .contentShape(Circle())
                     }
                     .accessibilityLabel("Dismiss quick reply")
                 }
 
-                HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 10) {
                     TextField(
-                        "Reply to @\(replyTarget.authorUsername)...",
+                        "Reply to @\(replyTarget.authorUsername)…",
                         text: $inlineReplyText,
                         axis: .vertical
                     )
-                    .textFieldStyle(.roundedBorder)
                     .focused($isInlineReplyFocused)
                     .lineLimit(1...4)
                     .submitLabel(.send)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(.systemGray6))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                            )
+                    )
                     .onSubmit {
                         if canSendInlineReply {
                             sendInlineReply()
                         }
                     }
 
-                    if isSendingQuickReply {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Button(action: sendInlineReply) {
-                            Image(systemName: "paperplane.fill")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .padding(10)
-                                .background(
-                                    Circle()
-                                        .fill(
-                                            canSendInlineReply
-                                                ? platformTint(for: replyTarget.platform)
-                                                : Color.gray.opacity(0.4)
-                                        )
+                    Button {
+                        HapticEngine.tap.trigger()
+                        sendInlineReply()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    canSendInlineReply
+                                        ? AnyShapeStyle(platformTint(for: replyTarget.platform).gradient)
+                                        : AnyShapeStyle(Color(.systemGray4))
                                 )
+                                .frame(width: 36, height: 36)
+                                .shadow(
+                                    color: canSendInlineReply
+                                        ? platformTint(for: replyTarget.platform).opacity(0.3)
+                                        : .clear,
+                                    radius: 6,
+                                    x: 0,
+                                    y: 2
+                                )
+
+                            if isSendingQuickReply {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .contentTransition(.symbolEffect(.replace))
+                            }
                         }
-                        .disabled(!canSendInlineReply)
-                        .accessibilityLabel("Send reply")
+                        .scaleEffect(canSendInlineReply ? 1.0 : 0.92)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.78), value: canSendInlineReply)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isSendingQuickReply)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(!canSendInlineReply || isSendingQuickReply)
+                    .accessibilityLabel(isSendingQuickReply ? "Sending reply" : "Send reply")
                 }
             }
             .padding(12)
