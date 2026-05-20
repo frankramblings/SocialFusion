@@ -2927,8 +2927,12 @@ struct DraftsListView: View {
                                 HStack(spacing: 4) {
                                     ForEach(Array(draft.selectedPlatforms), id: \.self) {
                                         platform in
+                                        // .renderingMode(.template) lets the
+                                        // parent's .foregroundColor(.secondary)
+                                        // actually tint the icon.
                                         Image(platform.icon)
                                             .resizable()
+                                            .renderingMode(.template)
                                             .scaledToFit()
                                             .frame(width: 12, height: 12)
                                     }
