@@ -1585,6 +1585,10 @@ struct ComposeView: View {
                 )
                 .contentTransition(.symbolEffect(.replace))
                 .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isActive)
+                // 36pt visible circle, 44pt hit target so the tool bar
+                // is forgiving to thumb taps.
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
         }
         .buttonStyle(ComposeToolPressStyle())
         .disabled(isDisabled)
