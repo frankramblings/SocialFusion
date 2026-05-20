@@ -18,7 +18,9 @@ struct AccountTimelineView: View {
     @State private var lastTopVisibleOffset: CGFloat = 0
     @State private var pendingMergeAnchorOffset: CGFloat?
     @State private var mergeOffsetCompensation: CGFloat = 0
+    @State private var mergePillVisible = false
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
     private func persistedAnchor() -> String? { UserDefaults.standard.string(forKey: anchorDefaultsKey) }
@@ -466,11 +468,27 @@ struct AccountTimelineView: View {
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
             .buttonStyle(MergePillPressStyle())
+            // Matching the entrance choreography ConsolidatedTimelineView's
+            // newPostsPill received in iter 202 — spring scale + fade so
+            // the pill lands rather than slides. Settles after one beat;
+            // no perpetual pulse.
+            .scaleEffect(mergePillVisible ? 1.0 : 0.96)
+            .opacity(mergePillVisible ? 1.0 : 0.0)
+            .onAppear {
+                if reduceMotion {
+                    mergePillVisible = true
+                } else {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) {
+                        mergePillVisible = true
+                    }
+                }
+            }
+            .onDisappear { mergePillVisible = false }
             .accessibilityIdentifier("AccountMergePill")
             .padding(.top, 8)
             .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
             .accessibilityHint("Merges new posts into the timeline")
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         }
     }
 
