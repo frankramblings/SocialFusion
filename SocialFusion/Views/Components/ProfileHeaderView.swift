@@ -258,17 +258,26 @@ struct ProfileHeaderView: View {
   @ViewBuilder
   private var actionButton: some View {
     if isOwnProfile {
-      Button(action: { onEditProfile?() }) {
+      Button {
+        HapticEngine.tap.trigger()
+        onEditProfile?()
+      } label: {
         Text("Edit Profile")
           .font(.subheadline)
           .fontWeight(.semibold)
-          .foregroundColor(.primary)
-          .padding(.horizontal, 20)
+          .foregroundColor(.primary.opacity(0.85))
+          .padding(.horizontal, 18)
           .padding(.vertical, 10)
-          .background(Color(.secondarySystemBackground))
-          .clipShape(Capsule())
+          .background(
+            Capsule()
+              .fill(Color(.secondarySystemBackground))
+              .overlay(
+                Capsule()
+                  .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+              )
+          )
       }
-      .buttonStyle(.plain)
+      .buttonStyle(ProfileActionPressStyle())
     } else if let state = relationshipState {
       VStack(alignment: .trailing, spacing: 6) {
         if state.isBlocking {
@@ -320,15 +329,28 @@ struct ProfileHeaderView: View {
         Label("Block", systemImage: "hand.raised")
       }
     } label: {
-      Text("Following")
-        .font(.subheadline)
-        .fontWeight(.semibold)
-        .foregroundColor(.primary)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(Capsule())
+      HStack(spacing: 4) {
+        Image(systemName: "checkmark")
+          .font(.system(size: 11, weight: .bold))
+        Text("Following")
+          .font(.subheadline)
+          .fontWeight(.semibold)
+      }
+      .foregroundColor(.primary.opacity(0.85))
+      .padding(.horizontal, 18)
+      .padding(.vertical, 10)
+      .background(
+        Capsule()
+          .fill(Color(.secondarySystemBackground))
+          .overlay(
+            Capsule()
+              .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+          )
+      )
+      .contentShape(Capsule())
     }
+    .menuStyle(.button)
+    .buttonStyle(ProfileActionPressStyle())
     .confirmationDialog(
       "Block this user?",
       isPresented: $showBlockConfirmation,
@@ -344,17 +366,23 @@ struct ProfileHeaderView: View {
   }
 
   private var followButton: some View {
-    Button(action: { onFollow?() }) {
+    Button {
+      HapticEngine.tap.trigger()
+      onFollow?()
+    } label: {
       Text("Follow")
         .font(.subheadline)
         .fontWeight(.semibold)
         .foregroundColor(.white)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 22)
         .padding(.vertical, 10)
-        .background(Color.accentColor)
-        .clipShape(Capsule())
+        .background(
+          Capsule()
+            .fill(Color.accentColor.gradient)
+            .shadow(color: Color.accentColor.opacity(0.32), radius: 8, x: 0, y: 3)
+        )
     }
-    .buttonStyle(.plain)
+    .buttonStyle(ProfileActionPressStyle())
   }
 
   @ViewBuilder
@@ -541,6 +569,17 @@ struct ProfileHeaderView: View {
         : String(format: "%.1fK", value)
     }
     return "\(count)"
+  }
+}
+
+/// Subtle press feedback for capsule-style profile action buttons.
+/// Scales down slightly and dims — tactile without being theatrical.
+private struct ProfileActionPressStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+      .opacity(configuration.isPressed ? 0.88 : 1.0)
+      .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.8), value: configuration.isPressed)
   }
 }
 
