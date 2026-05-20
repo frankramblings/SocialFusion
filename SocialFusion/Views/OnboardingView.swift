@@ -36,7 +36,12 @@ struct OnboardingView: View {
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
-            
+            // Subtle tap on page swipe — same feedback iOS gives for
+            // pageable carousels in apps like Photos.
+            .onChange(of: currentPage) { _, _ in
+                HapticEngine.selection.trigger()
+            }
+
             VStack(spacing: 20) {
                 if currentPage == pages.count - 1 {
                     Button {
@@ -57,6 +62,7 @@ struct OnboardingView: View {
                     .buttonStyle(PressableButtonStyle())
                     .padding(.horizontal, 40)
                     .transition(.scale(scale: 0.95).combined(with: .opacity))
+                    .accessibilityHint("Opens the add-account sheet to sign in to Mastodon or Bluesky")
                 } else {
                     Button {
                         HapticEngine.tap.trigger()
@@ -76,6 +82,9 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(PressableButtonStyle())
                     .padding(.horizontal, 40)
+                    .accessibilityLabel("Next")
+                    .accessibilityValue("Page \(currentPage + 1) of \(pages.count)")
+                    .accessibilityHint("Advances to the next onboarding page")
                 }
 
                 Button {
@@ -88,6 +97,10 @@ struct OnboardingView: View {
                 }
                 .opacity(currentPage == pages.count - 1 ? 0 : 1)
                 .animation(.easeInOut(duration: 0.25), value: currentPage)
+                // When visually invisible, hide from VoiceOver too — otherwise
+                // a swipe over an opacity-zero button still focuses it.
+                .accessibilityHidden(currentPage == pages.count - 1)
+                .accessibilityHint("Skips the rest of onboarding")
             }
             .padding(.bottom, 50)
         }
