@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
     
@@ -34,7 +35,7 @@ struct NotificationsView: View {
         
         // Dismiss dropdown if scrolling
         if showFilterDropdown && abs(offset - previousOffset) > 5 {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                 showFilterDropdown = false
             }
         }
@@ -154,7 +155,7 @@ struct NotificationsView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFilterDropdown = false
                             }
                         }
@@ -177,7 +178,7 @@ struct NotificationsView: View {
                                                 isSelected: selectedFilter == filter,
                                                 action: {
                                                     // NavBarPillDropdownRow fires .selection internally.
-                                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                                         selectedFilter = filter
                                                         showFilterDropdown = false
                                                     }
@@ -210,7 +211,7 @@ struct NotificationsView: View {
                     action: {
                         // NavBarPillSelector fires .tap internally; no need
                         // to duplicate it here.
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                             showFilterDropdown.toggle()
                         }
                     }
