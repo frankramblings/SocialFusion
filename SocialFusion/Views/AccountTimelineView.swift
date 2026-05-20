@@ -418,14 +418,22 @@ struct AccountTimelineView: View {
 
     @ViewBuilder
     private func mergePill(proxy: ScrollViewProxy) -> some View {
-        if controller.bufferCount > 0 {
-            Button(action: { handleMergeTap(proxy: proxy) }) {
+        let count = controller.bufferCount
+        if count > 0 {
+            Button {
+                HapticEngine.tap.trigger()
+                handleMergeTap(proxy: proxy)
+            } label: {
                 HStack(spacing: 8) {
-                    Text("\(controller.bufferCount) new posts")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    Text("\(count) new post\(count == 1 ? "" : "s")")
+                        .font(.subheadline.weight(.semibold))
+                        .contentTransition(.numericText())
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.8),
+                            value: count
+                        )
                     Image(systemName: "arrow.up.to.line")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -436,10 +444,12 @@ struct AccountTimelineView: View {
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
+            .buttonStyle(MergePillPressStyle())
             .accessibilityIdentifier("AccountMergePill")
             .padding(.top, 8)
-            .accessibilityLabel("\(controller.bufferCount) new posts")
-            .accessibilityHint("Tap to merge new posts into the timeline")
+            .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
+            .accessibilityHint("Merges new posts into the timeline")
+            .transition(.move(edge: .top).combined(with: .opacity))
         }
     }
 
@@ -513,5 +523,16 @@ struct AccountTimelineView_Previews: PreviewProvider {
         )
 
         AccountTimelineView(account: mastodonAccount, serviceManager: SocialServiceManager())
+    }
+}
+
+/// Subtle press feedback for the floating "new posts" pill — scales down and
+/// dims to acknowledge the tap, without overpowering the gentle reveal.
+private struct MergePillPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

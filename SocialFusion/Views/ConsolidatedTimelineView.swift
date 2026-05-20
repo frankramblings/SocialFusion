@@ -1080,15 +1080,14 @@ struct ConsolidatedTimelineView: View {
             Button(action: { handleNewPostsTap(proxy: proxy) }) {
                 HStack(spacing: 8) {
                     Text("\(count) new post\(count == 1 ? "" : "s")")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold))
                         .contentTransition(.numericText())
                         .animation(
                             .spring(response: 0.3, dampingFraction: 0.8),
                             value: count
                         )
                     Image(systemName: "arrow.up.to.line")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -1099,6 +1098,7 @@ struct ConsolidatedTimelineView: View {
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
+            .buttonStyle(TimelinePillPressStyle())
             .opacity(unreadPulseActive ? 1.0 : 0.85)
             .onAppear { if !reduceMotion { unreadPulseActive = true } }
             .onDisappear { unreadPulseActive = false }
@@ -1110,7 +1110,7 @@ struct ConsolidatedTimelineView: View {
             .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
             .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
-            .accessibilityHint("Tap to scroll to newest posts")
+            .accessibilityHint("Scrolls to the newest posts")
         }
     }
     
@@ -1136,10 +1136,9 @@ struct ConsolidatedTimelineView: View {
             Button(action: { handleJumpToLastRead(proxy: proxy, postId: lastReadId) }) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle.fill")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                     Text("Jump to Last Read")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -1150,9 +1149,11 @@ struct ConsolidatedTimelineView: View {
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
             }
+            .buttonStyle(TimelinePillPressStyle())
+            .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityIdentifier("JumpToLastReadButton")
             .accessibilityLabel("Jump to Last Read")
-            .accessibilityHint("Tap to scroll to the last post you read")
+            .accessibilityHint("Scrolls to the last post you read")
         }
     }
     
@@ -1699,4 +1700,16 @@ private struct TimelineVisibleItemPreferenceKey: PreferenceKey {
 
 #Preview {
     ConsolidatedTimelineView(serviceManager: SocialServiceManager())
+}
+
+/// Subtle press feedback for floating timeline pills (new posts, jump to last
+/// read). Scales down and dims briefly to acknowledge the tap. Used by the
+/// pills inside ConsolidatedTimelineView.
+private struct TimelinePillPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.8), value: configuration.isPressed)
+    }
 }
