@@ -127,7 +127,9 @@ final class BlueskyPollStreamProvider: ChatStreamProvider, @unchecked Sendable {
   private func mapLogEvent(_ logEvent: BlueskyConvoLogEvent) -> UnifiedChatEvent? {
     switch logEvent {
     case .createMessage(let e):
-      let sentAt = ISO8601DateFormatter().date(from: e.message.sentAt) ?? Date()
+      // DateParser uses cached formatters; ad-hoc allocation here
+      // hits on every poll cycle in busy DMs.
+      let sentAt = DateParser.parse(e.message.sentAt) ?? Date()
       return .newMessage(ChatEventMessage(
         id: e.message.id,
         conversationId: e.convoId,

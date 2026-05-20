@@ -2439,7 +2439,11 @@ public final class BlueskyService: Sendable {
         let authorName = post.author.displayName ?? post.author.handle
         let authorUsername = post.author.handle
         let authorProfilePictureURL = post.author.avatar ?? ""
-        let createdAt = ISO8601DateFormatter().date(from: post.record.createdAt) ?? Date()
+        // DateParser uses cached formatters — this runs once per
+        // Bluesky post normalized off the wire, so a fresh
+        // ISO8601DateFormatter per call added up fast on timeline
+        // fetches.
+        let createdAt = DateParser.parse(post.record.createdAt) ?? Date()
 
         // Extract author relationship state from viewer data
         let isFollowingAuthor = post.author.viewer?.following != nil
