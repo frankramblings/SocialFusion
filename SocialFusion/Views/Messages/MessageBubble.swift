@@ -78,11 +78,44 @@ struct MessageBubble: View {
 
   private static let quickReactions = ["\u{2764}\u{FE0F}", "\u{1F44D}", "\u{1F602}", "\u{1F62E}", "\u{1F622}", "\u{1F525}"]
 
-  private var bubbleColor: Color {
-    if isFromMe {
-      return platform == .bluesky ? .blue : .purple
+  @State private var hasAppeared = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  /// Brand-tinted color for "from me" bubbles. Uses the same hex values as the
+  /// rest of the app for visual consistency.
+  private var brandColor: Color {
+    switch platform {
+    case .bluesky:
+      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+    case .mastodon:
+      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
     }
-    return Color(.systemGray5)
+  }
+
+  /// "From me" bubbles use a subtle gradient — slightly brighter at top, the
+  /// brand color at bottom — for that iMessage-style sense of depth without
+  /// stealing focus from the text.
+  @ViewBuilder
+  private var bubbleFill: some View {
+    if isFromMe {
+      LinearGradient(
+        colors: [
+          brandColor.opacity(0.96),
+          brandColor,
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+      )
+    } else {
+      LinearGradient(
+        colors: [
+          Color(.systemGray5),
+          Color(.systemGray5).opacity(0.92),
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+      )
+    }
   }
 
   var body: some View {
@@ -107,14 +140,26 @@ struct MessageBubble: View {
         messageContent
           .padding(.horizontal, 12)
           .padding(.vertical, 8)
-          .background(bubbleColor)
+          .background(bubbleFill)
           .foregroundColor(isFromMe ? .white : .primary)
           .clipShape(BubbleShape(isFromMe: isFromMe, hasTail: isLastInGroup))
+          .scaleEffect(hasAppeared ? 1.0 : 0.92, anchor: isFromMe ? .bottomTrailing : .bottomLeading)
+          .opacity(hasAppeared ? 1.0 : 0.0)
+          .onAppear {
+            if reduceMotion {
+              hasAppeared = true
+            } else {
+              withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
+                hasAppeared = true
+              }
+            }
+          }
           .contextMenu {
             if platform == .bluesky {
               Section("React") {
                 ForEach(Self.quickReactions, id: \.self) { emoji in
                   Button {
+                    HapticEngine.success.trigger()
                     onReactionAdd?(emoji)
                   } label: {
                     Text(emoji)

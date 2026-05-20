@@ -17,40 +17,86 @@ struct MessageReactionView: View {
   let myAccountIds: Set<String>
   let onTap: (String, Bool) -> Void
 
+  /// Brand-tinted color, matching the rest of the app.
   private var platformColor: Color {
-    platform == .bluesky ? .blue : .purple
+    switch platform {
+    case .bluesky:
+      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+    case .mastodon:
+      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+    }
   }
 
   var body: some View {
     FlowLayout(spacing: 4) {
       ForEach(reactions) { reaction in
         let isFromMe = reaction.isFromMe(myIds: myAccountIds)
-        Button {
-          onTap(reaction.emoji, isFromMe)
-        } label: {
-          HStack(spacing: 2) {
-            Text(reaction.emoji)
-              .font(.caption)
-            if reaction.count > 1 {
-              Text("\(reaction.count)")
-                .font(.caption2)
-                .foregroundColor(isFromMe ? .white : .primary)
-            }
-          }
-          .padding(.horizontal, 6)
-          .padding(.vertical, 3)
-          .background(
-            Capsule()
-              .fill(isFromMe ? platformColor.opacity(0.8) : Color(.systemGray5))
-          )
-          .overlay(
-            Capsule()
-              .stroke(isFromMe ? platformColor : Color.clear, lineWidth: 1)
-          )
-        }
-        .buttonStyle(.plain)
+        ReactionPill(
+          reaction: reaction,
+          isFromMe: isFromMe,
+          tint: platformColor,
+          onTap: { onTap(reaction.emoji, isFromMe) }
+        )
       }
     }
+  }
+}
+
+/// A single reaction pill that scales on press and updates its count smoothly.
+private struct ReactionPill: View {
+  let reaction: MessageReaction
+  let isFromMe: Bool
+  let tint: Color
+  let onTap: () -> Void
+
+  @State private var isPressed = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    Button {
+      HapticEngine.selection.trigger()
+      if !reduceMotion {
+        // Brief bounce on tap to acknowledge the toggle
+        withAnimation(.spring(response: 0.18, dampingFraction: 0.55)) {
+          isPressed = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+          withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
+            isPressed = false
+          }
+        }
+      }
+      onTap()
+    } label: {
+      HStack(spacing: 3) {
+        Text(reaction.emoji)
+          .font(.caption)
+        if reaction.count > 1 {
+          Text("\(reaction.count)")
+            .font(.caption2.weight(.semibold))
+            .foregroundColor(isFromMe ? .white : .primary.opacity(0.75))
+            .contentTransition(.numericText(value: Double(reaction.count)))
+            .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.82), value: reaction.count)
+        }
+      }
+      .padding(.horizontal, 7)
+      .padding(.vertical, 4)
+      .background(
+        Capsule()
+          .fill(isFromMe ? tint.opacity(0.85) : Color(.systemGray5))
+      )
+      .overlay(
+        Capsule()
+          .strokeBorder(
+            isFromMe ? tint : Color.primary.opacity(0.05),
+            lineWidth: isFromMe ? 1 : 0.5
+          )
+      )
+      .scaleEffect(isPressed ? 1.12 : 1.0)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("\(reaction.emoji), \(reaction.count) reaction\(reaction.count == 1 ? "" : "s")\(isFromMe ? ", yours" : "")")
+    .accessibilityAddTraits(isFromMe ? .isSelected : [])
   }
 }
 

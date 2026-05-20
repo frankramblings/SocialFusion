@@ -3,6 +3,18 @@ import SwiftUI
 struct DMConversationRow: View {
   let conversation: DMConversation
 
+  /// Brand-tinted color used for the unread indicator.
+  private var platformColor: Color {
+    switch conversation.platform {
+    case .bluesky:
+      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+    case .mastodon:
+      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+    }
+  }
+
+  private var hasUnread: Bool { conversation.unreadCount > 0 }
+
   var body: some View {
     HStack(spacing: 12) {
       avatarView
@@ -12,7 +24,7 @@ struct DMConversationRow: View {
           if conversation.isGroup, let title = conversation.title {
             Text(title)
               .font(.headline)
-              .fontWeight(.semibold)
+              .fontWeight(hasUnread ? .bold : .semibold)
               .foregroundColor(.primary)
               .lineLimit(1)
           } else {
@@ -20,7 +32,7 @@ struct DMConversationRow: View {
               conversation.participant.displayName ?? conversation.participant.username,
               emojiMap: conversation.participant.displayNameEmojiMap,
               font: .headline,
-              fontWeight: .semibold,
+              fontWeight: hasUnread ? .bold : .semibold,
               foregroundColor: .primary,
               lineLimit: 1
             )
@@ -60,25 +72,24 @@ struct DMConversationRow: View {
           }
         }
 
-        HStack {
-          if conversation.isGroup {
-            Text("\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)")
-              .font(.subheadline)
-              .foregroundColor(.secondary)
-              .lineLimit(2)
-          } else {
-            Text(conversation.lastMessage.content)
-              .font(.subheadline)
-              .foregroundColor(.secondary)
-              .lineLimit(2)
+        HStack(alignment: .top, spacing: 8) {
+          Group {
+            if conversation.isGroup {
+              Text("\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)")
+            } else {
+              Text(conversation.lastMessage.content)
+            }
           }
+          .font(.subheadline)
+          // Unread messages get a slightly stronger preview to match the bold title
+          .foregroundColor(hasUnread ? .primary.opacity(0.78) : .secondary)
+          .lineLimit(2)
 
-          Spacer()
+          Spacer(minLength: 0)
 
-          if conversation.unreadCount > 0 {
-            Circle()
-              .fill(Color.blue)
-              .frame(width: 10, height: 10)
+          if hasUnread {
+            UnreadIndicator(tint: platformColor)
+              .accessibilityLabel("\(conversation.unreadCount) unread message\(conversation.unreadCount == 1 ? "" : "s")")
           }
         }
       }
@@ -110,5 +121,26 @@ struct DMConversationRow: View {
             .foregroundColor(.gray)
         )
     }
+  }
+}
+
+/// Platform-tinted unread indicator dot with a soft outer halo — feels alive
+/// without animating constantly (animation would be noise in a long list).
+private struct UnreadIndicator: View {
+  let tint: Color
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(tint.opacity(0.18))
+        .frame(width: 18, height: 18)
+
+      Circle()
+        .fill(tint)
+        .frame(width: 9, height: 9)
+        .shadow(color: tint.opacity(0.4), radius: 3, x: 0, y: 1)
+    }
+    .frame(width: 18, height: 18)
+    .padding(.top, 2)  // align with text baseline
   }
 }
