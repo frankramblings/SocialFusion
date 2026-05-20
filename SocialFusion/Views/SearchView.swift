@@ -695,7 +695,7 @@ struct SearchView: View {
 struct DirectOpenRow: View {
     let target: DirectOpenTarget
     let onTap: () -> Void
-    
+
     var body: some View {
         Button {
             HapticEngine.tap.trigger()
@@ -705,6 +705,7 @@ struct DirectOpenRow: View {
                 Image(systemName: iconName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.accentColor)
+                    .accessibilityHidden(true)
                 Text(displayText)
                     .font(.subheadline.weight(.medium))
                     .foregroundColor(.primary)
@@ -713,6 +714,7 @@ struct DirectOpenRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.white, Color.accentColor)
                     .symbolRenderingMode(.palette)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -727,8 +729,17 @@ struct DirectOpenRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityHint(accessibilityHintForTarget)
     }
-    
+
+    private var accessibilityHintForTarget: String {
+        switch target {
+        case .profile: return "Opens this user's profile"
+        case .post: return "Opens this post"
+        case .tag: return "Searches posts with this hashtag"
+        }
+    }
+
     private var iconName: String {
         switch target {
         case .profile: return "person.circle"
