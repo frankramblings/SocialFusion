@@ -41,7 +41,7 @@ struct ReplyContextHeader: View {
             // "Replying to" indicator
             HStack(spacing: 6) {
                 Image(systemName: "arrow.turn.up.left")
-                    .font(.caption)
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(platformColor)
 
                 Text("Replying to")
@@ -49,19 +49,23 @@ struct ReplyContextHeader: View {
                     .foregroundColor(.secondary)
 
                 Text("@\(post.authorUsername)")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.medium))
                     .foregroundColor(platformColor)
 
                 Spacer()
 
-                // Platform indicator
+                // Platform indicator — needs .renderingMode(.template) for
+                // the .foregroundColor tint to actually apply.
                 Image(post.platform.icon)
                     .resizable()
+                    .renderingMode(.template)
                     .scaledToFit()
                     .frame(width: 14, height: 14)
                     .foregroundColor(platformColor)
+                    .accessibilityHidden(true)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Replying to @\(post.authorUsername)")
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
