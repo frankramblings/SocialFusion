@@ -364,6 +364,8 @@ struct PostActionBarWithViewModel: View {
                     }
                 )
                 .accessibilityLabel("Reply")
+                .accessibilityValue(smallReplyValue(count: state.replyCount, isReplied: state.isReplied))
+                .accessibilityHint("Opens the reply composer")
                 .frame(maxWidth: .infinity)
 
                 UnifiedRepostButton(
@@ -372,7 +374,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: isProcessing,
                     onTap: { coordinator.toggleRepost(for: viewModel.post) }
                 )
-                .accessibilityLabel(state.isReposted ? "Undo Repost" : "Repost")
+                .accessibilityLabel("Repost")
+                .accessibilityValue(smallRepostValue(count: state.repostCount, isReposted: state.isReposted))
+                .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
+                .accessibilityAddTraits(state.isReposted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedLikeButton(
@@ -382,7 +387,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: isProcessing,
                     onTap: { coordinator.toggleLike(for: viewModel.post) }
                 )
-                .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
+                .accessibilityLabel("Like")
+                .accessibilityValue(smallLikeValue(count: state.likeCount, isLiked: state.isLiked))
+                .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
+                .accessibilityAddTraits(state.isLiked ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedQuoteButton(
@@ -393,13 +401,17 @@ struct PostActionBarWithViewModel: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote")
+                .accessibilityHint("Opens the composer with this post quoted")
+                .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
                     post: viewModel.post,
                     onTap: onShare
                 )
+                .accessibilityLabel("Share")
+                .accessibilityHint("Opens share options")
                 .frame(maxWidth: .infinity)
             } else {
                 UnifiedReplyButton(
@@ -412,6 +424,8 @@ struct PostActionBarWithViewModel: View {
                     }
                 )
                 .accessibilityLabel("Reply")
+                .accessibilityValue(smallReplyValue(count: viewModel.replyCount, isReplied: viewModel.post.isReplied))
+                .accessibilityHint("Opens the reply composer")
                 .frame(maxWidth: .infinity)
 
                 UnifiedRepostButton(
@@ -420,7 +434,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: viewModel.isLoading,
                     onTap: onRepost
                 )
-                .accessibilityLabel(viewModel.isReposted ? "Undo Repost" : "Repost")
+                .accessibilityLabel("Repost")
+                .accessibilityValue(smallRepostValue(count: viewModel.repostCount, isReposted: viewModel.isReposted))
+                .accessibilityHint(viewModel.isReposted ? "Removes your repost" : "Reposts to your timeline")
+                .accessibilityAddTraits(viewModel.isReposted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedLikeButton(
@@ -430,7 +447,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: viewModel.isLoading,
                     onTap: onLike
                 )
-                .accessibilityLabel(viewModel.isLiked ? "Unlike" : "Like")
+                .accessibilityLabel("Like")
+                .accessibilityValue(smallLikeValue(count: viewModel.likeCount, isLiked: viewModel.isLiked))
+                .accessibilityHint(viewModel.isLiked ? "Removes your like" : "Likes this post")
+                .accessibilityAddTraits(viewModel.isLiked ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedQuoteButton(
@@ -441,7 +461,9 @@ struct PostActionBarWithViewModel: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel(viewModel.post.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+                .accessibilityLabel("Quote")
+                .accessibilityHint("Opens the composer with this post quoted")
+                .accessibilityAddTraits(viewModel.post.isQuoted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -452,6 +474,35 @@ struct PostActionBarWithViewModel: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    // MARK: - Accessibility values
+    //
+    // Mirror the action-bar a11y convention: noun-only label, state+count
+    // value, action hint. See UnifiedInteractionButtons / ActionBar.
+
+    fileprivate func smallReplyValue(count: Int, isReplied: Bool) -> String {
+        let parts = [
+            isReplied ? "You replied" : nil,
+            count > 0 ? "\(count) repl\(count == 1 ? "y" : "ies")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func smallRepostValue(count: Int, isReposted: Bool) -> String {
+        let parts = [
+            isReposted ? "Reposted" : nil,
+            count > 0 ? "\(count) repost\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func smallLikeValue(count: Int, isLiked: Bool) -> String {
+        let parts = [
+            isLiked ? "Liked" : nil,
+            count > 0 ? "\(count) like\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
     }
 }
 
