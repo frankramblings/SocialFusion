@@ -103,23 +103,38 @@ struct AccountsView: View {
 
                 Section(header: Text("Settings")) {
                     NavigationLink(destination: SettingsView()) {
-                        HStack {
+                        HStack(spacing: 12) {
                             Image(systemName: "gear")
-                                .frame(width: 32, height: 32)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.gray.gradient)
+                                )
                             Text("Settings")
                         }
                     }
 
                     // Hidden debug toggle
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showDebugInfo.toggle()
-                    }) {
-                        HStack {
-                            Image(systemName: "ladybug")
-                                .frame(width: 32, height: 32)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "ladybug.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                        .fill(Color.green.gradient)
+                                )
                             Text("Debug Info")
+                                .foregroundColor(.primary)
                         }
                     }
+                    .accessibilityHint(showDebugInfo ? "Hides debug information" : "Shows debug information")
                 }
             }
 
