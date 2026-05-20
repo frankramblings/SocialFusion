@@ -377,19 +377,23 @@ struct AccountTimelineView: View {
     }
 
     private var endOfTimelineView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
+            // Two-layer palette: white checkmark on green circle —
+            // matches ConsolidatedTimelineView's end-of-timeline marker.
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundStyle(Color.green.gradient)
-                .symbolRenderingMode(.hierarchical)
-            Text("You're all caught up!")
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .foregroundStyle(.white, Color.green)
+                .symbolRenderingMode(.palette)
+            Text("You're all caught up")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
             Text("No more posts to load")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("You're all caught up, no more posts to load")
         .padding(.horizontal)
     }
 
