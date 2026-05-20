@@ -369,13 +369,14 @@ struct SearchView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(store.recentSearches, id: \.self) { query in
-                                    Button(action: {
+                                    Button {
+                                        HapticEngine.tap.trigger()
                                         store.text = query
                                         store.performSearch()
-                                    }) {
+                                    } label: {
                                         HStack(spacing: 6) {
                                             Image(systemName: "magnifyingglass")
-                                                .font(.caption2)
+                                                .font(.caption2.weight(.semibold))
                                                 .foregroundColor(.secondary)
                                             Text(query)
                                                 .font(.subheadline)
@@ -383,9 +384,16 @@ struct SearchView: View {
                                         }
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 9)
-                                        .background(.ultraThinMaterial)
-                                        .cornerRadius(20)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                .fill(.ultraThinMaterial)
+                                                .overlay(
+                                                    Capsule(style: .continuous)
+                                                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                                                )
+                                        )
                                     }
+                                    .buttonStyle(SearchChipPressStyle())
                                 }
                             }
                             .padding(.horizontal)
@@ -402,29 +410,33 @@ struct SearchView: View {
 
                         VStack(spacing: 0) {
                             ForEach(Array(store.pinnedSearches.enumerated()), id: \.element.id) { index, savedSearch in
-                                Button(action: {
+                                Button {
+                                    HapticEngine.tap.trigger()
                                     store.text = savedSearch.query
                                     store.scope = savedSearch.scope
                                     store.networkSelection = savedSearch.networkSelection
                                     store.performSearch()
-                                }) {
-                                    HStack {
+                                } label: {
+                                    HStack(spacing: 10) {
                                         Image(systemName: "pin.fill")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.orange.gradient)
+                                            .symbolRenderingMode(.hierarchical)
                                         Text(savedSearch.displayName)
                                             .font(.subheadline)
                                             .foregroundColor(.primary)
                                         Spacer()
                                         Image(systemName: "chevron.right")
-                                            .font(.caption2)
+                                            .font(.caption2.weight(.semibold))
                                             .foregroundStyle(.quaternary)
                                     }
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
                                 if index < store.pinnedSearches.count - 1 {
-                                    Divider().padding(.leading, 40)
+                                    Divider().padding(.leading, 42)
                                 }
                             }
                         }
@@ -461,24 +473,33 @@ struct SearchView: View {
             VStack(spacing: 0) {
                 ForEach(Array(trendingTags.enumerated()), id: \.element.id) { index, tag in
                     NavigationLink(destination: TagDetailView(tag: tag).environmentObject(serviceManager)) {
-                        HStack {
-                            Text("#\(tag.name)")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.primary)
+                        HStack(spacing: 6) {
+                            // Two-tone hashtag: the # in accent, the name in primary
+                            HStack(spacing: 0) {
+                                Text("#")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(.accentColor)
+                                Text(tag.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(.primary)
+                            }
                             Spacer()
                             if let count = tag.formattedUsageCount {
                                 Text(count)
-                                    .font(.caption)
+                                    .font(.caption.weight(.medium))
                                     .foregroundColor(.secondary)
+                                    .monospacedDigit()
                             }
                             Image(systemName: "chevron.right")
-                                .font(.caption2)
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.quaternary)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
+                        .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
                     if index < trendingTags.count - 1 {
                         Divider().padding(.leading, 16)
                     }
@@ -709,5 +730,16 @@ private struct SearchStatusView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title). \(message)")
+    }
+}
+
+/// Subtle press feedback for recent-search chips — small scale + dim, matching
+/// the press treatment used on link previews and other tappable cards.
+private struct SearchChipPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
