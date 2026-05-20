@@ -893,6 +893,31 @@ struct ComposeView: View {
     }
 
     // Helper for button text
+    /// VoiceOver hint for the primary post button when it's enabled.
+    /// Tells the user what the tap will actually do.
+    private var postButtonHint: String {
+        if quotingTo != nil {
+            return "Sends your quote post"
+        } else if replyingTo != nil {
+            return "Sends your reply"
+        } else {
+            return "Sends to selected platforms"
+        }
+    }
+
+    /// VoiceOver hint when the post button is disabled — explains what
+    /// the user needs to do to re-enable it. Without this, VoiceOver
+    /// users only hear 'No Accounts, dimmed, button' with no fix.
+    private var postButtonDisabledHint: String {
+        if !hasAccountsForSelectedPlatforms {
+            return "Add an account for the selected platforms"
+        } else if isPosting {
+            return "Sending in progress"
+        } else {
+            return "Type a message to enable"
+        }
+    }
+
     private var buttonText: String {
         if !hasAccountsForSelectedPlatforms {
             return "No Accounts"
@@ -1581,6 +1606,7 @@ struct ComposeView: View {
             )
             .disabled(!canPost)
             .animation(.easeInOut(duration: 0.2), value: canPost)
+            .accessibilityHint(canPost ? postButtonHint : postButtonDisabledHint)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
