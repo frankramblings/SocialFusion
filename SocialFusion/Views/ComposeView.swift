@@ -1458,13 +1458,21 @@ struct ComposeView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .foregroundColor(.white)
+                    // Disabled background is light gray — keep the label
+                    // .secondary so contrast survives in both modes.
+                    .foregroundColor(canPost ? .white : .secondary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
             }
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(canPost ? platformColor : Color.gray.opacity(0.3))
+                Capsule(style: .continuous)
+                    .fill(canPost ? AnyShapeStyle(platformColor.gradient) : AnyShapeStyle(Color(.systemGray5)))
+                    .shadow(
+                        color: canPost ? platformColor.opacity(0.28) : .clear,
+                        radius: 8,
+                        x: 0,
+                        y: 3
+                    )
             )
             .disabled(!canPost)
             .animation(.easeInOut(duration: 0.2), value: canPost)
