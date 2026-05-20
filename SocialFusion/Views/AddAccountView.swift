@@ -18,6 +18,10 @@ struct AddAccountView: View {
     @State private var platformSelected = true
     @State private var isOAuthFlow = true
     @State private var isAuthCodeEntered = false
+
+    /// Focus targets for keyboard field-to-field navigation.
+    private enum Field { case server, username, password }
+    @FocusState private var focusedField: Field?
     @State private var showWebAuthFailure = false
     @State private var serverName = ""
     @State private var showError = false
@@ -80,6 +84,8 @@ struct AddAccountView: View {
                             .autocorrectionDisabled(true)
                             .textContentType(.URL)
                             .submitLabel(.done)
+                            .focused($focusedField, equals: .server)
+                            .onSubmit { focusedField = nil }
                     } else {
                         Text("Enter your Bluesky credentials")
                             .font(.caption)
@@ -90,11 +96,15 @@ struct AddAccountView: View {
                             .keyboardType(.emailAddress)
                             .autocorrectionDisabled(true)
                             .textContentType(.username)
-                            .submitLabel(.done)
+                            .submitLabel(.next)
+                            .focused($focusedField, equals: .username)
+                            .onSubmit { focusedField = .password }
 
                         SecureField("App Password", text: $password)
                             .textContentType(.password)
                             .submitLabel(.done)
+                            .focused($focusedField, equals: .password)
+                            .onSubmit { focusedField = nil }
 
                         Text(
                             "Use an app password from Bluesky settings. Go to Settings → App Passwords in your Bluesky account to create one."
