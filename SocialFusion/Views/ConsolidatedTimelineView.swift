@@ -966,6 +966,39 @@ struct ConsolidatedTimelineView: View {
                         logAnchorState("post-refresh merge complete")
                     }
                 }
+                .onChange(of: controller.posts) { _, newPosts in
+                    // Stay-in-place after buffer merge.
+                    //
+                    // scrollPosition(id:) alone doesn't re-pin the anchor
+                    // when posts are *prepended*: the binding's value
+                    // (scrollAnchorId = old top post) doesn't change, so
+                    // SwiftUI doesn't rescroll. The scroll offset stays
+                    // at 0 while the data shifted N items down, so the
+                    // new top post ends up at the viewport top — the
+                    // exact jump we're trying to prevent.
+                    //
+                    // Fix: call proxy.scrollTo(restorationId, anchor: .top)
+                    // imperatively right after the data change. This
+                    // pins the old anchor back to the viewport top, so
+                    // new posts merge in above the viewport (invisibly)
+                    // and isNearTop becomes false so the pill appears.
+                    guard let restorationId = controller.restorationAnchor else { return }
+                    guard newPosts.contains(where: { scrollIdentifier(for: $0) == restorationId }) else {
+                        controller.clearRestorationAnchor()
+                        return
+                    }
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) {
+                        proxy.scrollTo(restorationId, anchor: .top)
+                        scrollAnchorId = restorationId
+                    }
+                    persistedAnchorId = restorationId
+                    pendingAnchorRestoreId = nil
+                    anchorLockUntil = Date().addingTimeInterval(0.8)
+                    controller.clearRestorationAnchor()
+                    logAnchorState("proxy re-anchor id=\(restorationId)")
+                }
                 .simultaneousGesture(
                     DragGesture()
                         .onChanged { _ in
