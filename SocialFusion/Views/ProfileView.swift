@@ -615,23 +615,33 @@ struct EditProfileView: View {
       .navigationTitle("Edit Profile")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .navigationBarLeading) {
+        ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") {
+            HapticEngine.tap.trigger()
             dismiss()
           }
         }
-        ToolbarItem(placement: .navigationBarTrailing) {
+        ToolbarItem(placement: .confirmationAction) {
           if isLoading {
             ProgressView()
           } else {
             Button("Save") {
+              HapticEngine.tap.trigger()
               saveProfile()
             }
-            .fontWeight(.bold)
+            .fontWeight(.semibold)
+            .disabled(!hasChanges)
           }
         }
       }
     }
+  }
+
+  /// True if anything's been edited — disables Save when there's nothing to save.
+  private var hasChanges: Bool {
+    displayName != (account.displayName ?? "")
+      || bio != (account.bio ?? "")
+      || selectedImageData != nil
   }
 
   private func saveProfile() {
@@ -648,12 +658,14 @@ struct EditProfileView: View {
         )
         await MainActor.run {
           isLoading = false
+          HapticEngine.success.trigger()
           dismiss()
         }
       } catch {
         await MainActor.run {
           self.error = error.localizedDescription
           isLoading = false
+          HapticEngine.error.trigger()
         }
       }
     }

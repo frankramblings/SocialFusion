@@ -3045,13 +3045,15 @@ struct LinkInputDialog: View {
             .navigationTitle("Insert Link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         isPresented = false
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Insert") {
+                        HapticEngine.success.trigger()
                         if !url.isEmpty {
                             // Ensure URL has scheme
                             var finalURL = url
@@ -3063,7 +3065,7 @@ struct LinkInputDialog: View {
                         isPresented = false
                     }
                     .disabled(url.isEmpty)
-                    .fontWeight(.bold)
+                    .fontWeight(.semibold)
                 }
             }
             .onAppear {
