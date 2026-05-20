@@ -7,13 +7,24 @@ import UIKit
 /// Modifier that conditionally applies clipShape
 private struct ConditionalClipShapeModifier: ViewModifier {
     let shouldClip: Bool
-    
+
     func body(content: Content) -> some View {
         if shouldClip {
             content.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         } else {
             content
         }
+    }
+}
+
+/// Tracks the height of the 'selected post + below' block so the thread
+/// view can add only as much trailing padding as it needs for the selected
+/// post to reach the top of the viewport on initial scroll. Replaces the
+/// old magic 400pt spacer with a measured, dynamic value.
+private struct SelectedAndBelowHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -63,6 +74,7 @@ struct PostDetailView: View {
     @State private var isInitialPositioned: Bool = false
     @State private var scrollTargetID: String? = nil
     @State private var scrollTrigger: Int = 0
+    @State private var selectedAndBelowHeight: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -110,7 +122,10 @@ struct PostDetailView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            threadContentView(topInset: geometry.safeAreaInsets.top)
+                            threadContentView(
+                                topInset: geometry.safeAreaInsets.top,
+                                viewportHeight: geometry.size.height
+                            )
                         }
                         .opacity(isInitialPositioned ? 1 : 0)
                     }
@@ -235,7 +250,7 @@ struct PostDetailView: View {
     // MARK: - Thread Content View
 
     @ViewBuilder
-    private func threadContentView(topInset: CGFloat) -> some View {
+    private func threadContentView(topInset: CGFloat, viewportHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // 1. Initial Top Spacer (ensures clearance for transparent header)
             Color.clear
@@ -276,8 +291,14 @@ struct PostDetailView: View {
                 }
             }
 
-            // 3. Selected post section
+            // 3-5. Selected post + replies header + reply posts —
+            // wrapped in a measured container so the end-of-thread spacer
+            // (item 6) can size dynamically rather than padding a fixed
+            // 400pt that's either too much (short threads) or pointless
+            // (long threads).
             VStack(alignment: .leading, spacing: 0) {
+                // 3. Selected post section
+                VStack(alignment: .leading, spacing: 0) {
                 // Selected post content
                 SelectedPostView(
                     post: viewModel.post,
@@ -414,9 +435,29 @@ struct PostDetailView: View {
                     }
                 }
             }
+            }
+            // Measure the height of the selected post + replies block so
+            // the trailing spacer below can be sized just-enough.
+            .background(
+                GeometryReader { measureGeo in
+                    Color.clear.preference(
+                        key: SelectedAndBelowHeightKey.self,
+                        value: measureGeo.size.height
+                    )
+                }
+            )
+            .onPreferenceChange(SelectedAndBelowHeightKey.self) { newHeight in
+                selectedAndBelowHeight = newHeight
+            }
 
-            // End of thread spacer
-            Color.clear.frame(height: 400)
+            // 6. End-of-thread spacer — dynamic.
+            // Sized so that the selected post can scroll to the top of the
+            // viewport on initial render even when there are few or no
+            // replies, without the magic 400pt overshoot that produced the
+            // weird empty gap below short threads. When the thread is long
+            // enough that replies already fill the viewport, this collapses
+            // to zero and the user just scrolls naturally.
+            Color.clear.frame(height: max(0, viewportHeight - selectedAndBelowHeight))
         }
     }
 
