@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var currentPage = 0
     @State private var showingAddAccount = false
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
@@ -61,12 +62,15 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(PressableButtonStyle())
                     .padding(.horizontal, 40)
-                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+                    // Reduce Motion drops the scale-in pop on the final
+                    // CTA. The button still has an opacity transition
+                    // so the swap from "Next" feels intentional.
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.95).combined(with: .opacity))
                     .accessibilityHint("Opens the add-account sheet to sign in to Mastodon or Bluesky")
                 } else {
                     Button {
                         HapticEngine.tap.trigger()
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.82)) {
                             currentPage += 1
                         }
                     } label: {
@@ -96,7 +100,7 @@ struct OnboardingView: View {
                         .foregroundColor(.secondary)
                 }
                 .opacity(currentPage == pages.count - 1 ? 0 : 1)
-                .animation(.easeInOut(duration: 0.25), value: currentPage)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: currentPage)
                 // When visually invisible, hide from VoiceOver too — otherwise
                 // a swipe over an opacity-zero button still focuses it.
                 .accessibilityHidden(currentPage == pages.count - 1)
