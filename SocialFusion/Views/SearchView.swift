@@ -393,6 +393,7 @@ struct SearchView: View {
                                             Image(systemName: "magnifyingglass")
                                                 .font(.caption2.weight(.semibold))
                                                 .foregroundColor(.secondary)
+                                                .accessibilityHidden(true)
                                             Text(query)
                                                 .font(.subheadline)
                                                 .foregroundColor(.primary)
@@ -409,6 +410,8 @@ struct SearchView: View {
                                         )
                                     }
                                     .buttonStyle(SearchChipPressStyle())
+                                    .accessibilityLabel("Recent search: \(query)")
+                                    .accessibilityHint("Runs this search again")
                                 }
                             }
                             .padding(.horizontal)
