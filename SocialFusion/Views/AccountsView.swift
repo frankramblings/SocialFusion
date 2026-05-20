@@ -669,56 +669,46 @@ struct LegacyAddAccountView: View {
 struct AccountDetailView: View {
     let account: SocialAccount
     @State private var showingDeleteConfirmation = false
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var serviceManager: SocialServiceManager
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Account Information")) {
-                    HStack {
-                        Text("Platform")
-                        Spacer()
-                        Text(account.platform.rawValue)
-                            .foregroundColor(.secondary)
-                    }
-
-                    HStack {
-                        Text("Username")
-                        Spacer()
-                        Text("@\(account.username)")
-                            .foregroundColor(.secondary)
-                    }
-
-                    HStack {
-                        Text("Server")
-                        Spacer()
-                        Text(account.serverURL?.absoluteString ?? "")
-                            .foregroundColor(.secondary)
+                    detailRow(label: "Platform", value: account.platform.rawValue.capitalized)
+                    detailRow(label: "Username", value: "@\(account.username)")
+                    if let server = account.serverURL?.host ?? account.serverURL?.absoluteString {
+                        detailRow(label: "Server", value: server)
                     }
                 }
 
                 Section {
-                    Button(action: {
+                    Button(role: .destructive) {
+                        HapticEngine.warning.trigger()
                         showingDeleteConfirmation = true
-                    }) {
-                        HStack {
+                    } label: {
+                        Label {
+                            Text("Remove Account")
+                        } icon: {
                             Image(systemName: "trash")
-                                .font(.system(size: 15))
-                            Text("Delete Account")
-                                .font(.system(size: 16))
-                            Spacer()
+                                .foregroundStyle(Color.red.gradient)
+                                .symbolRenderingMode(.hierarchical)
                         }
-                        .foregroundColor(.red)
                     }
                 }
             }
-
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    presentationMode.wrappedValue.dismiss()
+            .navigationTitle("Account Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
                 }
-            )
+            }
             .alert("Remove Account", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
                     // Do nothing
@@ -726,12 +716,26 @@ struct AccountDetailView: View {
                 Button("Remove", role: .destructive) {
                     Task {
                         await serviceManager.removeAccount(account)
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
                     }
                 }
             } message: {
                 Text("Remove this account from your device? You can add it again later.")
             }
+        }
+    }
+
+    /// A consistent label/value row for the account-info section.
+    /// Value uses .monospacedDigit so usernames + server addresses
+    /// stay aligned column-wise when stacked.
+    @ViewBuilder
+    private func detailRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .foregroundColor(.secondary)
+                .textSelection(.enabled)
         }
     }
 }
