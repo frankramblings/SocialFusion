@@ -383,15 +383,17 @@ struct ProfileView: View {
 
   private var profileSkeleton: some View {
     VStack(alignment: .leading, spacing: 0) {
-      // Banner placeholder
+      // Banner placeholder — uses systemGray5 so it reads correctly
+      // against the system background in both light and dark modes
+      // (Color.gray.opacity reads as brown-tinted in dark mode).
       Rectangle()
-        .fill(Color.gray.opacity(0.15))
+        .fill(Color(.systemGray5))
         .frame(height: 200)
 
       // Avatar + text placeholders
       HStack(alignment: .bottom, spacing: 12) {
         Circle()
-          .fill(Color.gray.opacity(0.2))
+          .fill(Color(.systemGray4))
           .frame(width: 72, height: 72)
           .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
           .offset(y: -24)
@@ -400,18 +402,18 @@ struct ProfileView: View {
       .padding(.horizontal, 16)
 
       VStack(alignment: .leading, spacing: 8) {
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.15))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5))
           .frame(width: 160, height: 20)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.12))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5).opacity(0.7))
           .frame(width: 120, height: 14)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.10))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5).opacity(0.55))
           .frame(height: 14)
           .frame(maxWidth: .infinity)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.10))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5).opacity(0.55))
           .frame(width: 200, height: 14)
       }
       .padding(.horizontal, 16)
