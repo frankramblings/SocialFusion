@@ -331,20 +331,38 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
         user.displayName?.isEmpty == false ? (user.displayName ?? "") : user.username
     }
 
+    private var isMutual: Bool { user.isFollowedByMe && user.followsMe }
+    private var followsMe: Bool { user.followsMe && !user.isFollowedByMe }
+
     var body: some View {
-        Button(action: { viewModel.openProfile(userID: user.id) }) {
+        Button {
+            HapticEngine.tap.trigger()
+            viewModel.openProfile(userID: user.id)
+        } label: {
             HStack(spacing: 12) {
                 BoosterAvatarView(url: user.avatarURL, size: 32)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    EmojiDisplayNameText(
-                        displayedName,
-                        emojiMap: user.displayNameEmojiMap,
-                        font: .subheadline,
-                        fontWeight: .regular,
-                        foregroundColor: .primary,
-                        lineLimit: 1
-                    )
+                    HStack(spacing: 6) {
+                        EmojiDisplayNameText(
+                            displayedName,
+                            emojiMap: user.displayNameEmojiMap,
+                            font: .subheadline,
+                            fontWeight: .semibold,
+                            foregroundColor: .primary,
+                            lineLimit: 1
+                        )
+
+                        // Mutuals get a quiet accent pill; one-way "Follows you"
+                        // stays neutral. Mirrors FollowsYouBadge's treatment so
+                        // the booster list and profile header speak the same
+                        // visual language about relationships.
+                        if isMutual {
+                            relationshipPill(symbol: "person.2.fill", text: "Mutuals", tinted: true)
+                        } else if followsMe {
+                            relationshipPill(symbol: nil, text: "Follows you", tinted: false)
+                        }
+                    }
 
                     Text("@\(user.username)")
                         .font(.caption)
@@ -353,24 +371,72 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
                 }
 
                 Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Opens this user's profile")
         .contextMenu {
-            Button("View Profile") {
+            Button {
                 viewModel.openProfile(userID: user.id)
+            } label: {
+                Label("View Profile", systemImage: "person.crop.circle")
             }
-            Button(user.isFollowedByMe ? "Unfollow" : "Follow") {
+            Button {
                 if user.isFollowedByMe {
                     viewModel.unfollow(userID: user.id)
                 } else {
                     viewModel.follow(userID: user.id)
                 }
+            } label: {
+                Label(
+                    user.isFollowedByMe ? "Unfollow" : "Follow",
+                    systemImage: user.isFollowedByMe ? "person.badge.minus" : "person.badge.plus"
+                )
             }
-            Button("Mute") { viewModel.mute(userID: user.id) }
-            Button("Block", role: .destructive) { viewModel.block(userID: user.id) }
+            Button {
+                viewModel.mute(userID: user.id)
+            } label: {
+                Label("Mute", systemImage: "speaker.slash")
+            }
+            Button(role: .destructive) {
+                viewModel.block(userID: user.id)
+            } label: {
+                Label("Block", systemImage: "hand.raised")
+            }
         }
+    }
+
+    private var accessibilityLabel: String {
+        var parts: [String] = ["\(displayedName), @\(user.username)"]
+        if isMutual { parts.append("Mutuals") }
+        else if followsMe { parts.append("Follows you") }
+        return parts.joined(separator: ", ")
+    }
+
+    @ViewBuilder
+    private func relationshipPill(symbol: String?, text: String, tinted: Bool) -> some View {
+        HStack(spacing: 3) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            Text(text)
+                .font(.caption2.weight(.medium))
+        }
+        .foregroundColor(tinted ? .accentColor : .secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(tinted ? Color.accentColor.opacity(0.12) : Color(.secondarySystemBackground))
+        )
     }
 }
 

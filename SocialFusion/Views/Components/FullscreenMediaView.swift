@@ -336,22 +336,27 @@ struct FullscreenMediaView: View {
                                 .accessibilityHint(isSharing ? "" : "Opens share options for this image")
                             }
 
-                            // Page indicator dots (only if multiple images)
+                            // Page indicator dots (only if multiple images).
+                            // Active dot elongates to a pill, matching iOS's
+                            // native page-control style — gives the user a
+                            // clear sense of where they are in the carousel.
                             if allMedia.count > 1 {
-                                HStack(spacing: 8) {
+                                HStack(spacing: 6) {
                                     ForEach(0..<allMedia.count, id: \.self) { idx in
-                                        Circle()
-                                            .fill(
-                                                idx == currentIndex
-                                                    ? Color.white : Color.white.opacity(0.3)
-                                            )
-                                            .frame(width: 7, height: 7)
+                                        let isActive = idx == currentIndex
+                                        Capsule(style: .continuous)
+                                            .fill(isActive ? Color.white : Color.white.opacity(0.36))
+                                            .frame(width: isActive ? 18 : 7, height: 7)
+                                            .animation(.spring(response: 0.35, dampingFraction: 0.78), value: isActive)
                                     }
                                 }
-                                .padding(8)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
                                 .background(.ultraThinMaterial)
-                                .clipShape(Capsule())
-                                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
+                                .clipShape(Capsule(style: .continuous))
+                                .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 2)
+                                .environment(\.colorScheme, .dark)
+                                .accessibilityLabel("Image \(currentIndex + 1) of \(allMedia.count)")
                             }
                         }
                         .padding(.horizontal, 16)
