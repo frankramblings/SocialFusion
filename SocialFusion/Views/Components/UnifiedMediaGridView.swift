@@ -370,6 +370,7 @@ private struct SingleImageView: View {
                     .padding(.bottom, MediaConstants.Spacing.altBadgeVertical)
                     .padding(.trailing, MediaConstants.Spacing.altBadgeHorizontal)
                     .onTapGesture {
+                        HapticEngine.tap.trigger()
                         onAltTap?(attachment)
                     }
             }
@@ -523,6 +524,7 @@ private struct GridImageView: View {
                     .padding(.bottom, MediaConstants.Spacing.altBadgeVertical)
                     .padding(.trailing, MediaConstants.Spacing.altBadgeHorizontal)
                     .onTapGesture {
+                        HapticEngine.tap.trigger()
                         onAltTap?(attachment)
                     }
             }
