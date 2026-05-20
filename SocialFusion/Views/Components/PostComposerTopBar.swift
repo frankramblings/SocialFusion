@@ -235,6 +235,8 @@ struct VisibilityButton: View {
 
 /// Empty state when no accounts are available
 struct EmptyAccountsView: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "person.crop.circle.badge.plus")
@@ -246,11 +248,25 @@ struct EmptyAccountsView: View {
                 .foregroundColor(.secondary)
         }
         .frame(width: 44, height: 44)
-        .background(Material.ultraThinMaterial, in: Circle())
+        // Solid fallback under Reduce Transparency. Without it, the
+        // "no account" placeholder pill loses contrast against the
+        // composer's translucent backdrop.
+        .background(
+            Group {
+                if reduceTransparency {
+                    Circle().fill(Color(.secondarySystemBackground))
+                } else {
+                    Circle().fill(.ultraThinMaterial)
+                }
+            }
+        )
         .overlay(
             Circle()
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Add Account")
+        .accessibilityHint("No accounts available for posting. Add one in Settings.")
     }
 }
 
