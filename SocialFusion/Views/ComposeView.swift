@@ -1763,6 +1763,11 @@ struct ComposeView: View {
                         }
                     }
                 }
+                // Alt-text editor — image preview + 3-10 line text field.
+                // Default to large, allow medium so the user can shrink
+                // the sheet if they want to see the compose context.
+                .presentationDetents([.large, .medium])
+                .presentationDragIndicator(.visible)
             }
             .alert(isPresented: $showAlert) {
                 if let partial = partialSuccessInfo {
