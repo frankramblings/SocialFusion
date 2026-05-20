@@ -119,7 +119,9 @@ struct ChatView: View {
       ToolbarItem(placement: .topBarTrailing) {
         Button {
           HapticEngine.selection.trigger()
-          withAnimation { isSearching.toggle() }
+          withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+            isSearching.toggle()
+          }
           if !isSearching {
             searchText = ""
             currentMatchIndex = 0
@@ -212,19 +214,25 @@ struct ChatView: View {
       }
       .onChange(of: messages.count) { _, _ in
         if let last = messages.last {
-          withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+          // New-message scroll uses a springier curve so the latest
+          // message arriving feels alive, not just mechanical.
+          withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            proxy.scrollTo(last.id, anchor: .bottom)
+          }
         }
       }
       .onChange(of: currentMatchIndex) { _, newIndex in
         if matchingMessageIds.indices.contains(newIndex) {
-          withAnimation {
+          // Search nav uses a snappier easeOut so consecutive
+          // up/down taps feel responsive.
+          withAnimation(.easeOut(duration: 0.24)) {
             proxy.scrollTo(matchingMessageIds[newIndex], anchor: .center)
           }
         }
       }
       .onChange(of: searchText) { _, _ in
         if let firstMatch = matchingMessageIds.first {
-          withAnimation {
+          withAnimation(.easeOut(duration: 0.24)) {
             proxy.scrollTo(firstMatch, anchor: .center)
           }
         }
