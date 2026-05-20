@@ -459,6 +459,10 @@ struct AccountTimelineView: View {
                 HStack(spacing: 8) {
                     Text("\(count) new post\(count == 1 ? "" : "s")")
                         .font(.subheadline.weight(.semibold))
+                        // monospacedDigit so 5→6→7→… morphs don't jiggle
+                        // proportional widths (iter 212, mirroring
+                        // ConsolidatedTimelineView's pill).
+                        .monospacedDigit()
                         .contentTransition(.numericText())
                         .animation(
                             .spring(response: 0.3, dampingFraction: 0.8),

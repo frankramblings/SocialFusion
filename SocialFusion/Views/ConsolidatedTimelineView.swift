@@ -1153,6 +1153,12 @@ struct ConsolidatedTimelineView: View {
                 HStack(spacing: 8) {
                     Text("\(count) new post\(count == 1 ? "" : "s")")
                         .font(.subheadline.weight(.semibold))
+                        // monospacedDigit prevents the digit from jiggling
+                        // mid-morph during .contentTransition(.numericText()) —
+                        // without it, proportional widths shift as 5→6→7
+                        // morphs and the pill subtly wobbles. Same trick
+                        // Apple uses on its own count badges.
+                        .monospacedDigit()
                         .contentTransition(.numericText())
                         .animation(
                             .spring(response: 0.3, dampingFraction: 0.8),
