@@ -113,6 +113,7 @@ struct ProfileToggleButton: View {
 
     @State private var isPressed = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let avatarSize: CGFloat = 44
 
@@ -142,7 +143,7 @@ struct ProfileToggleButton: View {
                             x: 0,
                             y: 2
                         )
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                 }
 
                 // Profile image with existing platform badge (PostAuthorImageView already includes PlatformLogoBadge)
@@ -179,6 +180,7 @@ struct VisibilityButton: View {
     @Binding var selectedVisibility: Int
     let options: [String]
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var visibilityIcon: String {
         switch selectedVisibility {
@@ -260,6 +262,7 @@ struct AccountSwitcherSheet: View {
     let onAccountSelected: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var platformAccounts: [SocialAccount] {
         socialServiceManager.accounts.filter { $0.platform == platform }
@@ -305,7 +308,7 @@ struct AccountSwitcherSheet: View {
                                         .font(.title3)
                                         .foregroundStyle(.white, Color(hex: platform.colorHex))
                                         .symbolRenderingMode(.palette)
-                                        .transition(.scale.combined(with: .opacity))
+                                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                                 }
                             }
                             .contentShape(Rectangle())
