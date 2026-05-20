@@ -207,12 +207,29 @@ struct MessageBubble: View {
               .font(.caption2)
               .foregroundColor(.secondary)
             if showSeenIndicator {
-              Text("Seen")
+              // Separator dot + Seen — visually parses as two facts about
+              // this bubble (when it was sent, that it was read), not one
+              // mashed-together stamp.
+              Text("\u{00B7}")
                 .font(.caption2)
-                .foregroundColor(.secondary)
+                .foregroundColor(.secondary.opacity(0.5))
+              HStack(spacing: 3) {
+                Image(systemName: "checkmark")
+                  .font(.system(size: 8, weight: .bold))
+                Text("Seen")
+                  .font(.caption2)
+              }
+              .foregroundColor(.secondary)
+              .transition(.opacity.combined(with: .scale(scale: 0.92)))
             }
           }
           .padding(.horizontal, 4)
+          .animation(.easeOut(duration: 0.2), value: showSeenIndicator)
+          .accessibilityElement(children: .combine)
+          .accessibilityLabel(showSeenIndicator
+            ? "Sent at \(message.sentAt.formatted(date: .omitted, time: .shortened)), read"
+            : "Sent at \(message.sentAt.formatted(date: .omitted, time: .shortened))"
+          )
         }
       }
 
