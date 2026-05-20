@@ -86,7 +86,11 @@ struct SearchView: View {
                 // Results or Empty State
                 if observedStore.phase.isLoading && observedStore.results.isEmpty {
                     Spacer()
-                    ProgressView("Searching...")
+                    ProgressView {
+                        Text("Searching")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                     Spacer()
                 } else if case .error(let message) = observedStore.phase {
                     Spacer()
@@ -114,7 +118,11 @@ struct SearchView: View {
                 }
             } else {
                 Spacer()
-                ProgressView("Initializing...")
+                ProgressView {
+                    Text("Getting ready")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
             }
         }
