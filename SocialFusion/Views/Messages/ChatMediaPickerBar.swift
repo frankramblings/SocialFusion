@@ -5,6 +5,7 @@ struct ChatMediaPickerBar: View {
   @Binding var selectedItems: [PhotosPickerItem]
   @State private var thumbnails: [String: Image] = [:]
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var body: some View {
     if !selectedItems.isEmpty {
@@ -43,7 +44,10 @@ struct ChatMediaPickerBar: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
       }
-      .background(.ultraThinMaterial)
+      // Solid fallback for Reduce Transparency — without it the
+      // bar can lose contrast against the message list scrolling
+      // beneath it.
+      .background(reduceTransparency ? AnyShapeStyle(Color(.secondarySystemBackground)) : AnyShapeStyle(.ultraThinMaterial))
       .overlay(
         Divider(),
         alignment: .top

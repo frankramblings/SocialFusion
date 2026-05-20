@@ -4,6 +4,7 @@ import PhotosUI
 struct ChatView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @EnvironmentObject var chatStreamService: ChatStreamService
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   let conversation: DMConversation
 
   @State private var messages: [UnifiedChatMessage] = []
@@ -107,7 +108,11 @@ struct ChatView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(.ultraThinMaterial)
+        // Solid fallback for users with Reduce Transparency on —
+        // the in-conversation search bar should still read as a
+        // distinct strip above the message list when materials
+        // are dialed back.
+        .background(reduceTransparency ? AnyShapeStyle(Color(.secondarySystemBackground)) : AnyShapeStyle(.ultraThinMaterial))
         .overlay(
           Divider(),
           alignment: .bottom
