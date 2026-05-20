@@ -1262,8 +1262,10 @@ struct ComposeView: View {
                 }
             }
             .padding()
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(UIColor.secondarySystemBackground))
+            )
             .padding(.horizontal)
             .padding(.bottom, 8)
         }
@@ -1727,18 +1729,26 @@ struct ComposeView: View {
                             Color.black.opacity(0.4)
                                 .edgesIgnoringSafeArea(.all)
 
-                            VStack(spacing: 16) {
+                            VStack(spacing: 14) {
                                 ProgressView()
-                                    .scaleEffect(1.5)
+                                    .scaleEffect(1.4)
 
                                 Text(postingStatus)
-                                    .font(.headline)
-                                    .foregroundColor(.white)
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.center)
                             }
                             .padding(24)
-                            .background(Color(UIColor.systemBackground))
-                            .cornerRadius(12)
-                            .shadow(radius: 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(.regularMaterial)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                                    )
+                            )
+                            .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 6)
+                            .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
                         }
                     }
                 }
