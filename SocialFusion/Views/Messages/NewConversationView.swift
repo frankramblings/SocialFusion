@@ -21,26 +21,49 @@ struct NewConversationView: View {
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
               ForEach(selectedParticipants, id: \.did) { actor in
-                HStack(spacing: 4) {
+                HStack(spacing: 5) {
                   Text(actor.displayName ?? actor.handle)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.semibold))
                   Button {
-                    selectedParticipants.removeAll { $0.did == actor.did }
+                    HapticEngine.tap.trigger()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                      selectedParticipants.removeAll { $0.did == actor.did }
+                    }
                   } label: {
                     Image(systemName: "xmark.circle.fill")
                       .font(.caption)
-                      .foregroundColor(.secondary)
+                      .foregroundStyle(Color.accentColor.opacity(0.85), Color.accentColor.opacity(0.16))
+                      .symbolRenderingMode(.palette)
                   }
+                  .buttonStyle(.plain)
+                  .accessibilityLabel("Remove \(actor.displayName ?? actor.handle)")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color(.systemGray5)))
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                  Capsule()
+                    .fill(Color.accentColor.opacity(0.14))
+                    .overlay(
+                      Capsule()
+                        .strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 0.5)
+                    )
+                )
+                .transition(
+                  .asymmetric(
+                    insertion: .scale(scale: 0.7).combined(with: .opacity),
+                    removal: .scale(scale: 0.7).combined(with: .opacity)
+                  )
+                )
               }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
           }
+          .overlay(
+            Divider(),
+            alignment: .bottom
+          )
         }
 
         List {
@@ -57,7 +80,10 @@ struct NewConversationView: View {
             Section("Bluesky") {
               ForEach(blueskyResults, id: \.did) { actor in
                 Button {
-                  toggleBlueskySelection(actor)
+                  HapticEngine.selection.trigger()
+                  withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    toggleBlueskySelection(actor)
+                  }
                 } label: {
                   HStack {
                     userRow(
@@ -68,7 +94,10 @@ struct NewConversationView: View {
                     )
                     if selectedParticipants.contains(where: { $0.did == actor.did }) {
                       Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.blue)
+                        .font(.title3)
+                        .foregroundStyle(.white, Color(red: 0, green: 133 / 255, blue: 255 / 255))
+                        .symbolRenderingMode(.palette)
+                        .transition(.scale.combined(with: .opacity))
                     }
                   }
                 }

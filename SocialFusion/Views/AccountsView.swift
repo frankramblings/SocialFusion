@@ -222,15 +222,16 @@ struct AccountsView: View {
                 Button(action: {
                     toggleSelection(id: account.id)
                 }) {
-                    if serviceManager.selectedAccountIds.contains(account.id) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 24))
-                    } else {
-                        Image(systemName: "circle")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 24))
-                    }
+                    let isSelected = serviceManager.selectedAccountIds.contains(account.id)
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24))
+                        .foregroundStyle(
+                            isSelected ? Color.white : Color.secondary.opacity(0.5),
+                            isSelected ? platformColor(for: account.platform) : Color.clear
+                        )
+                        .symbolRenderingMode(.palette)
+                        .contentTransition(.symbolEffect(.replace))
+                        .accessibilityLabel(isSelected ? "Selected" : "Not selected")
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -241,7 +242,7 @@ struct AccountsView: View {
                 toggleSelection(id: account.id)
             }
             .background(Color(UIColor.tertiarySystemBackground))
-            .cornerRadius(8)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
             // Delete button row - more subtle design
             HStack {
