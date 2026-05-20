@@ -595,8 +595,13 @@ struct EditProfileView: View {
           TextField("Display Name", text: $displayName)
           ZStack(alignment: .topLeading) {
             if bio.isEmpty {
+              // Color(.placeholderText) is the iOS-standard placeholder
+              // color — adapts to dark mode and matches the system
+              // TextField placeholder exactly. Color.gray.opacity goes
+              // brown in dark mode and reads inconsistently from the
+              // adjacent native TextField placeholder above.
               Text("Bio")
-                .foregroundColor(.gray.opacity(0.5))
+                .foregroundColor(Color(.placeholderText))
                 .padding(.top, 8)
                 .padding(.leading, 4)
             }

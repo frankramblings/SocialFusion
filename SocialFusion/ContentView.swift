@@ -428,7 +428,8 @@ struct ContentView: View {
         VStack(spacing: 20) {
             Image(systemName: "person.crop.circle")
                 .font(.system(size: 50))
-                .foregroundColor(.gray.opacity(0.3))
+                .foregroundStyle(Color(.systemGray3).gradient)
+                .symbolRenderingMode(.hierarchical)
 
             if serviceManager.accounts.isEmpty {
                 Text("No Accounts Added").font(.title3).fontWeight(.medium)
