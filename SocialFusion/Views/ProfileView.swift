@@ -490,6 +490,7 @@ struct ProfileView: View {
         Text("Couldn't load this profile")
           .font(.title3.weight(.semibold))
           .foregroundColor(.primary.opacity(0.85))
+          .accessibilityAddTraits(.isHeader)
         if let error = viewModel.profileError {
           Text(error.localizedDescription)
             .font(.subheadline)

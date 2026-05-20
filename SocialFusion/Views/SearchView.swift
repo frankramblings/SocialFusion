@@ -601,6 +601,7 @@ struct SearchView: View {
                 Text("Discover trending topics")
                     .font(.title3.weight(.semibold))
                     .foregroundColor(.primary.opacity(0.85))
+                    .accessibilityAddTraits(.isHeader)
 
                 Text("Add an account to see what's happening across Mastodon and Bluesky.")
                     .font(.subheadline)
