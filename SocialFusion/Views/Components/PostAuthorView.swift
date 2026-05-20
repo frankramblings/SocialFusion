@@ -38,6 +38,7 @@ struct PostAuthorView: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityHidden(true)  // Combined into the row's single a11y element below
 
             // Author info
             VStack(alignment: .leading, spacing: 2) {
@@ -65,6 +66,7 @@ struct PostAuthorView: View {
                     Text("•")
                         .font(.caption)
                         .foregroundColor(.secondary)
+                        .accessibilityHidden(true)
 
                     Text(formatRelativeTime(from: stableCreatedAt))
                         .font(.caption)
@@ -74,6 +76,14 @@ struct PostAuthorView: View {
 
             Spacer()
         }
+        // Consolidate the avatar + name + username + time into a single
+        // accessibility element. VoiceOver previously had to step through
+        // three separate buttons that all did the same thing.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(stableAuthorName), @\(stableAuthorUsername)")
+        .accessibilityValue(formatRelativeTime(from: stableCreatedAt))
+        .accessibilityHint("Opens this user's profile")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var timeAgoString: String {

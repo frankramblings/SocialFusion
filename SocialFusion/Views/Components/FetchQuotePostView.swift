@@ -645,9 +645,9 @@ struct LoadingQuoteView: View {
     private var platformColor: Color {
         switch platform {
         case .bluesky:
-            return .blue
+            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
         case .mastodon:
-            return .purple
+            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
         }
     }
 
