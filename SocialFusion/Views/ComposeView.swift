@@ -1240,13 +1240,20 @@ struct ComposeView: View {
 
                 Spacer()
 
-                Button(action: {
-                    threadPosts.remove(at: activePostIndex)
-                    activePostIndex = max(0, activePostIndex - 1)
-                }) {
+                Button {
+                    HapticEngine.warning.trigger()
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                        _ = threadPosts.remove(at: activePostIndex)
+                        activePostIndex = max(0, activePostIndex - 1)
+                    }
+                } label: {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .foregroundStyle(Color.red.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Remove thread post \(activePostIndex + 1)")
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
@@ -1368,6 +1375,7 @@ struct ComposeView: View {
 
                             // Alt Text Button with completion state
                             Button(action: {
+                                HapticEngine.tap.trigger()
                                 selectedImageIndexForAltText = index
                                 // Ensure array is large enough
                                 while threadPosts[activePostIndex].imageAltTexts.count <= index {
@@ -1511,6 +1519,7 @@ struct ComposeView: View {
 
             // Post button - Enhanced with platform color
             Button(action: {
+                HapticEngine.tap.trigger()
                 postContent()
             }) {
                 Text(buttonText)
