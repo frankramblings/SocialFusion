@@ -59,31 +59,57 @@ struct PostPollView: View {
             }
 
             if poll.multiple && isInteractive {
-                Button(action: {
+                Button {
+                    HapticEngine.success.trigger()
                     let choices = Array(selectedOptions).sorted()
-                    onVote(choices)
-                    hasVoted = true
-                }) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        onVote(choices)
+                        hasVoted = true
+                    }
+                } label: {
                     Text("Vote")
                         .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color(.systemGray5))
-                        .cornerRadius(8)
+                        .padding(.vertical, 11)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(
+                                    selectedOptions.isEmpty
+                                        ? AnyShapeStyle(Color(.systemGray4))
+                                        : AnyShapeStyle(Color.accentColor.gradient)
+                                )
+                                .shadow(
+                                    color: selectedOptions.isEmpty ? .clear : Color.accentColor.opacity(0.28),
+                                    radius: 8,
+                                    x: 0,
+                                    y: 3
+                                )
+                        )
                 }
+                .buttonStyle(PollOptionPressStyle())
                 .disabled(selectedOptions.isEmpty)
                 .accessibilityLabel("Vote")
                 .accessibilityHint(selectedOptions.isEmpty ? "Select one or more options to enable voting" : "Submits your vote")
             }
 
             if !hasVoted && !poll.expired {
-                Button(action: {
-                    showsResultsOverride.toggle()
-                }) {
-                    Text(showsResultsOverride ? "Hide results" : "Show results")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.secondary)
+                Button {
+                    HapticEngine.tap.trigger()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        showsResultsOverride.toggle()
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: showsResultsOverride ? "eye.slash" : "eye")
+                            .font(.caption.weight(.semibold))
+                            .contentTransition(.symbolEffect(.replace))
+                        Text(showsResultsOverride ? "Hide results" : "Show results")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundColor(.secondary)
                 }
+                .buttonStyle(.plain)
                 .accessibilityLabel("Show results")
                 .accessibilityValue(showsResultsOverride ? "On" : "Off")
             }
@@ -105,12 +131,14 @@ struct PostPollView: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(.systemBackground))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.separator), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color(.separator), lineWidth: 0.5)
         )
         .onChange(of: poll) { _, updatedPoll in
             hasVoted = updatedPoll.voted ?? false
@@ -149,7 +177,10 @@ private struct PollOptionView: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
+        Button {
+            HapticEngine.selection.trigger()
+            onTap()
+        } label: {
             HStack(alignment: .top, spacing: 10) {
                 PollSelectionIndicator(
                     isSelected: isSelected,
@@ -167,38 +198,52 @@ private struct PollOptionView: View {
 
                         if showsResults {
                             Text("\(Int(percentage * 100))%")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+                                .font(.subheadline.weight(.semibold).monospacedDigit())
+                                .foregroundColor(isSelected ? .accentColor : .secondary)
+                                .contentTransition(.numericText(value: percentage))
+                                .animation(.easeOut(duration: 0.5), value: percentage)
+                                .transition(.opacity)
                         }
                     }
 
-                    // Progress bar
+                    // Progress bar — animates from 0 to the actual percentage
+                    // when results become visible, giving a satisfying "reveal"
+                    // moment after voting.
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
-                            // Background
-                            Rectangle()
+                            Capsule(style: .continuous)
                                 .fill(Color(.systemGray5))
                                 .frame(height: 8)
-                                .cornerRadius(4)
 
-                            // Progress
-                            Rectangle()
-                                .fill(isSelected ? Color.accentColor : Color(.systemGray3))
-                                .frame(width: geometry.size.width * CGFloat(displayedPercentage), height: 8)
-                                .cornerRadius(4)
+                            Capsule(style: .continuous)
+                                .fill(
+                                    isSelected
+                                        ? AnyShapeStyle(Color.accentColor.gradient)
+                                        : AnyShapeStyle(Color(.systemGray3))
+                                )
+                                .frame(
+                                    width: max(0, geometry.size.width * CGFloat(displayedPercentage)),
+                                    height: 8
+                                )
+                                .animation(.spring(response: 0.6, dampingFraction: 0.82), value: displayedPercentage)
                         }
                     }
                     .frame(height: 8)
                 }
             }
             .padding(10)
-            .background(selectionBackground)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(selectionBorder, lineWidth: 1)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(selectionBackground)
             )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(selectionBorder, lineWidth: isVoted && isSelected ? 1.5 : 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .animation(.spring(response: 0.3, dampingFraction: 0.85), value: isSelected)
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(PollOptionPressStyle())
         .disabled(isVoted || !isInteractive)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(option.title)
@@ -209,17 +254,18 @@ private struct PollOptionView: View {
 
     private var accessibilityValueText: String {
         if showsResults {
-            return "\(Int(percentage * 100)) percent"
+            let percent = Int(percentage * 100)
+            return isSelected ? "Selected, \(percent) percent" : "\(percent) percent"
         }
         return isSelected ? "Selected" : "Not selected"
     }
 
     private var accessibilityHintText: String {
-        guard isInteractive else { return "Voting closed" }
+        guard isInteractive else { return "Voting has closed" }
         if allowsMultiple {
-            return isSelected ? "Double tap to deselect" : "Double tap to select"
+            return isSelected ? "Removes from your selection" : "Adds to your selection"
         }
-        return "Double tap to vote"
+        return "Casts your vote"
     }
 
     private var selectionBackground: Color {
@@ -230,6 +276,18 @@ private struct PollOptionView: View {
     private var selectionBorder: Color {
         guard isVoted && isSelected else { return Color(.systemGray5) }
         return Color.accentColor.opacity(0.6)
+    }
+}
+
+/// Subtle press feedback for poll options — they're large tappable rows, so
+/// a small scale-down + dim reads as a tap acknowledgement without
+/// overpowering the result-reveal animation.
+private struct PollOptionPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 
