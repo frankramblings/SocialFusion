@@ -1073,6 +1073,7 @@ struct ListSelectionView: View {
 
     private func addToList(_ list: MastodonList) {
         isLoading = true
+        let listTitle = list.title
         Task {
             do {
                 try await serviceManager.addAccountToMastodonList(
@@ -1083,6 +1084,11 @@ struct ListSelectionView: View {
                 await MainActor.run {
                     isLoading = false
                     dismiss()
+                    // Confirm the named action on the parent surface
+                    // — sheet dismissal alone is ambiguous about
+                    // whether the network call succeeded.
+                    HapticEngine.success.trigger()
+                    ToastManager.shared.show("Added to \(listTitle)", severity: .success, duration: 1.6)
                 }
             } catch {
                 await MainActor.run {
