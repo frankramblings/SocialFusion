@@ -25,6 +25,7 @@ struct AccountTimelineView: View {
     @State private var lastSeenPillCount: Int = 0
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
     private func persistedAnchor() -> String? { UserDefaults.standard.string(forKey: anchorDefaultsKey) }
@@ -526,7 +527,19 @@ struct AccountTimelineView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .background(
+                    // Reduce Transparency: solid capsule fallback.
+                    // Same shape ConsolidatedTimelineView's pills
+                    // use — consistent feel across both timelines
+                    // for users with the setting enabled.
+                    Group {
+                        if reduceTransparency {
+                            Capsule().fill(Color(.secondarySystemBackground))
+                        } else {
+                            Capsule().fill(.ultraThinMaterial)
+                        }
+                    }
+                )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)

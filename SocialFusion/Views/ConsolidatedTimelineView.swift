@@ -1250,7 +1250,20 @@ struct ConsolidatedTimelineView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .background(
+                    // Reduce Transparency: fall back to a solid
+                    // capsule. ultraThinMaterial is the polished
+                    // default, but for users who've asked the
+                    // system to dial back transparency the pill
+                    // should read as solid against the timeline.
+                    Group {
+                        if reduceTransparency {
+                            Capsule().fill(Color(.secondarySystemBackground))
+                        } else {
+                            Capsule().fill(.ultraThinMaterial)
+                        }
+                    }
+                )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
@@ -1356,7 +1369,20 @@ struct ConsolidatedTimelineView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .background(
+                    // Reduce Transparency: fall back to a solid
+                    // capsule. ultraThinMaterial is the polished
+                    // default, but for users who've asked the
+                    // system to dial back transparency the pill
+                    // should read as solid against the timeline.
+                    Group {
+                        if reduceTransparency {
+                            Capsule().fill(Color(.secondarySystemBackground))
+                        } else {
+                            Capsule().fill(.ultraThinMaterial)
+                        }
+                    }
+                )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
