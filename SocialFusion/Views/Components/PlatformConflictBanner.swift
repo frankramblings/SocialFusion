@@ -16,6 +16,7 @@ struct PlatformConflictBanner: View {
             .foregroundStyle(Color.orange.gradient)
             .font(.caption.weight(.semibold))
             .symbolRenderingMode(.hierarchical)
+            .accessibilityHidden(true)
 
           VStack(alignment: .leading, spacing: 2) {
             Text(conflicts.first?.message ?? "Some features may not apply to all platforms")
@@ -52,8 +53,26 @@ struct PlatformConflictBanner: View {
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
       }
       .buttonStyle(.plain)
-      .accessibilityHint(conflicts.count > 1 ? "Double tap to see all conflicts" : "")
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel(bannerAccessibilityLabel)
+      .accessibilityHint(conflicts.count > 1 ? "Opens the full list of conflicts" : "")
     }
+  }
+
+  /// Constructs a single-utterance summary: lead with 'Warning,' so the
+  /// severity is announced first, then the first conflict's message,
+  /// then a count of additional conflicts if any.
+  private var bannerAccessibilityLabel: String {
+    var parts: [String] = ["Warning"]
+    if let first = conflicts.first {
+      parts.append(first.message)
+    } else {
+      parts.append("Some features may not apply to all platforms")
+    }
+    if conflicts.count > 1 {
+      parts.append("\(conflicts.count - 1) more")
+    }
+    return parts.joined(separator: ". ")
   }
 }
 
