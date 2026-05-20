@@ -174,6 +174,7 @@ struct NotificationsView: View {
                                                 title: filter?.displayName ?? "All",
                                                 isSelected: selectedFilter == filter,
                                                 action: {
+                                                    // NavBarPillDropdownRow fires .selection internally.
                                                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                                         selectedFilter = filter
                                                         showFilterDropdown = false
@@ -205,6 +206,8 @@ struct NotificationsView: View {
                     title: filterTitle,
                     isExpanded: showFilterDropdown,
                     action: {
+                        // NavBarPillSelector fires .tap internally; no need
+                        // to duplicate it here.
                         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                             showFilterDropdown.toggle()
                         }

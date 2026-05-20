@@ -307,12 +307,18 @@ struct TimelineFeedPickerPopover: View {
 
     private func drillInHeader(title: String, backTo: Step) -> some View {
         HStack(spacing: 8) {
-            Button(action: { step = backTo }) {
+            Button {
+                HapticEngine.selection.trigger()
+                step = backTo
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Back")
 
             Text(title)
                 .font(.subheadline)
