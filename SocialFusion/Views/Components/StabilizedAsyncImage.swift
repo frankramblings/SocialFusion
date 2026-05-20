@@ -38,8 +38,7 @@ struct StabilizedAsyncImage: View {
                     .resizable()
                     .aspectRatio(aspectRatio, contentMode: contentMode)
                     .frame(maxWidth: .infinity, maxHeight: idealHeight)
-                    .cornerRadius(cornerRadius)
-                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .transition(.opacity.combined(with: .scale(scale: 0.95)))
                     .onAppear {
                         withAnimation(.easeInOut(duration: 0.2)) {
@@ -48,14 +47,14 @@ struct StabilizedAsyncImage: View {
                     }
 
             case .failure(_):
-                Rectangle()
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(Color(.systemGray5))
                     .frame(maxWidth: .infinity, idealHeight: idealHeight)
-                    .cornerRadius(cornerRadius)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.title2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(Color(.systemGray2).gradient)
+                            .symbolRenderingMode(.hierarchical)
                     )
 
             case .empty:
@@ -65,10 +64,9 @@ struct StabilizedAsyncImage: View {
                         cornerRadius: cornerRadius
                     )
                 } else {
-                    Rectangle()
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(Color(.systemGray6))
                         .frame(maxWidth: .infinity, idealHeight: idealHeight)
-                        .cornerRadius(cornerRadius)
                 }
 
             @unknown default:
