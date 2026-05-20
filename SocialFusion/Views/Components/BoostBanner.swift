@@ -146,7 +146,14 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
     }
 
     private var collapsedAccessibilityLabel: String {
-        "\(collapsedText). Double-tap to view all boosters."
+        collapsedText
+    }
+
+    /// Hint for the collapsed banner — describes the consequence
+    /// without using 'Double-tap' (VoiceOver announces that itself
+    /// for any focused button).
+    private var collapsedAccessibilityHint: String {
+        "Opens the full list of boosters"
     }
 
     private var platformColor: Color {
@@ -246,6 +253,7 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(collapsedAccessibilityLabel)
+            .accessibilityHint(collapsedAccessibilityHint)
 
             expandedContent
                 .opacity(showContent ? 1 : 0)
