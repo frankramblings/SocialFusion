@@ -55,7 +55,7 @@ public struct QuotedPostView: View {
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     } placeholder: {
-                        Circle().fill(Color.gray.opacity(0.3))
+                        Circle().fill(Color(.systemGray5))
                     }
                     .frame(width: 32, height: 32)
                     .clipShape(Circle())
@@ -733,16 +733,17 @@ private struct PostAttachmentView: View {
                     .clipped()
             } else if phase.error != nil {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(Color(.systemGray5))
                     .frame(maxWidth: .infinity, maxHeight: 220)
                     .cornerRadius(MediaConstants.CornerRadius.feed)
                     .overlay(
                         Image(systemName: "photo")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(Color(.systemGray2).gradient)
+                            .symbolRenderingMode(.hierarchical)
                     )
             } else {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(maxWidth: .infinity, maxHeight: 220)
                     .cornerRadius(MediaConstants.CornerRadius.feed)
                     .overlay(
