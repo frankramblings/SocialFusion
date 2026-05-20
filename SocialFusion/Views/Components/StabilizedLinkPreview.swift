@@ -315,6 +315,7 @@ private struct StabilizedLinkRichContentView: View {
 
     var body: some View {
         Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -415,7 +416,7 @@ private struct StabilizedLinkRichContentView: View {
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(LinkPreviewPressStyle())
         .onAppear {
             if imageURL == nil && iconURL == nil {
                 loadMedia()
@@ -483,6 +484,7 @@ private struct StabilizedLinkCompactContentView: View {
 
     var body: some View {
         Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 12) {
@@ -537,7 +539,7 @@ private struct StabilizedLinkCompactContentView: View {
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(LinkPreviewPressStyle())
         .onAppear {
             if iconURL == nil { loadIcon() }
         }
@@ -566,12 +568,13 @@ private struct StabilizedLinkFallbackView: View {
 
     var body: some View {
         Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "link.circle.fill")
                     .font(.title2)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.accentColor)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
@@ -584,6 +587,10 @@ private struct StabilizedLinkFallbackView: View {
                 }
 
                 Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary.opacity(0.6))
             }
             .padding(10)
             .background(
@@ -597,7 +604,18 @@ private struct StabilizedLinkFallbackView: View {
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(LinkPreviewPressStyle())
+    }
+}
+
+/// Subtle press feedback for link previews — they're large tappable cards, so
+/// a small scale + dim makes the tap feel intentional without being theatrical.
+private struct LinkPreviewPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .opacity(configuration.isPressed ? 0.86 : 1.0)
+            .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 

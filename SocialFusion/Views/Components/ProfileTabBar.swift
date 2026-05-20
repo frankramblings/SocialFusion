@@ -12,7 +12,9 @@ struct ProfileTabBar: View {
       HStack(spacing: 0) {
         ForEach(ProfileTab.allCases, id: \.self) { tab in
           Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            guard selectedTab != tab else { return }
+            HapticEngine.selection.trigger()
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
               selectedTab = tab
             }
           } label: {
@@ -20,6 +22,7 @@ struct ProfileTabBar: View {
               Text(tab.rawValue)
                 .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
                 .foregroundStyle(selectedTab == tab ? .primary : .secondary)
+                .contentTransition(.interpolate)
 
               ZStack {
                 // Invisible spacer to maintain layout
@@ -28,14 +31,16 @@ struct ProfileTabBar: View {
                   .frame(height: 2)
 
                 if selectedTab == tab {
-                  Rectangle()
+                  Capsule(style: .continuous)
                     .fill(Color.accentColor)
-                    .frame(height: 2)
+                    .frame(height: 2.5)
                     .matchedGeometryEffect(id: "underline", in: underlineNamespace)
                 }
               }
             }
+            .contentShape(Rectangle())
           }
+          .buttonStyle(.plain)
           .frame(maxWidth: .infinity)
           .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
         }
