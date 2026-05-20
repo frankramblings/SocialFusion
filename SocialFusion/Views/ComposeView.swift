@@ -3117,6 +3117,24 @@ struct DraftsListView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// Composes a single-utterance VoiceOver label for a draft row.
+    /// Without this, VoiceOver stepped through pin-icon, name, body
+    /// preview, date, post count, and platform icons separately.
+    private func draftAccessibilityLabel(for draft: DraftPost) -> String {
+        var parts: [String] = []
+        if draft.isPinned { parts.append("Pinned") }
+        let displayName = draft.name ?? draft.posts.first?.text ?? "(No content)"
+        parts.append(displayName.isEmpty ? "Empty draft" : displayName)
+        if draft.posts.count > 1 {
+            parts.append("\(draft.posts.count) posts")
+        }
+        let platforms = draft.selectedPlatforms.map { $0.rawValue.capitalized }.joined(separator: ", ")
+        if !platforms.isEmpty {
+            parts.append("for \(platforms)")
+        }
+        return parts.joined(separator: ", ")
+    }
+
     private var draftsList: some View {
         List {
             ForEach(draftStore.drafts) { draft in
@@ -3189,6 +3207,9 @@ struct DraftsListView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(draftAccessibilityLabel(for: draft))
+                    .accessibilityHint("Tap to open this draft. Swipe left to delete or rename, right to pin.")
                     .swipeActions(edge: .leading) {
                         Button {
                             HapticEngine.selection.trigger()
