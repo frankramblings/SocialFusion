@@ -436,6 +436,40 @@ struct UnifiedInteractionButtons: View {
     store.errorKeys.contains(actionKey)
   }
 
+  // MARK: - Accessibility values
+  //
+  // VoiceOver reads label → value → traits → hint. Label is the action ("Like"),
+  // value is the current state and count ("Liked, 42 likes"), traits convey
+  // selection, and hint describes what tapping does — without the redundant
+  // "Double tap to..." phrasing that VoiceOver synthesizes automatically.
+
+  private var replyAccessibilityValue: String {
+    let countPart = state.replyCount > 0
+      ? "\(state.replyCount) repl\(state.replyCount == 1 ? "y" : "ies")"
+      : ""
+    return [state.isReplied ? "You replied" : nil, countPart.isEmpty ? nil : countPart]
+      .compactMap { $0 }
+      .joined(separator: ", ")
+  }
+
+  private var repostAccessibilityValue: String {
+    let countPart = state.repostCount > 0
+      ? "\(state.repostCount) repost\(state.repostCount == 1 ? "" : "s")"
+      : ""
+    return [state.isReposted ? "Reposted" : nil, countPart.isEmpty ? nil : countPart]
+      .compactMap { $0 }
+      .joined(separator: ", ")
+  }
+
+  private var likeAccessibilityValue: String {
+    let countPart = state.likeCount > 0
+      ? "\(state.likeCount) like\(state.likeCount == 1 ? "" : "s")"
+      : ""
+    return [state.isLiked ? "Liked" : nil, countPart.isEmpty ? nil : countPart]
+      .compactMap { $0 }
+      .joined(separator: ", ")
+  }
+
   var body: some View {
     HStack {
       UnifiedReplyButton(
@@ -447,7 +481,9 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isReplied ? "Reply sent. Double tap to reply again" : "Reply. Double tap to reply")
+      .accessibilityLabel("Reply")
+      .accessibilityValue(replyAccessibilityValue)
+      .accessibilityHint("Opens the reply composer")
 
       Spacer()
 
@@ -459,7 +495,10 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isReposted ? "Reposted. Double tap to undo repost" : "Repost. Double tap to repost")
+      .accessibilityLabel("Repost")
+      .accessibilityValue(repostAccessibilityValue)
+      .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
+      .accessibilityAddTraits(state.isReposted ? .isSelected : [])
 
       Spacer()
 
@@ -472,7 +511,10 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isLiked ? "Liked. Double tap to unlike" : "Like. Double tap to like")
+      .accessibilityLabel("Like")
+      .accessibilityValue(likeAccessibilityValue)
+      .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
+      .accessibilityAddTraits(state.isLiked ? .isSelected : [])
 
       Spacer()
 
@@ -486,7 +528,9 @@ struct UnifiedInteractionButtons: View {
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
       .animation(.default, value: hasError)
-      .accessibilityLabel(state.isQuoted ? "Quoted. Double tap to quote again" : "Quote Post")
+      .accessibilityLabel("Quote")
+      .accessibilityHint("Opens the composer with this post quoted")
+      .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
 
       if includeShare {
         Spacer()
@@ -496,7 +540,7 @@ struct UnifiedInteractionButtons: View {
           onTap: onShare
         )
         .frame(width: 44, height: 44)
-        .accessibilityLabel("Share post")
+        .accessibilityLabel("Share")
         .accessibilityHint("Opens share options")
       }
     }
