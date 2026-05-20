@@ -96,7 +96,7 @@ private struct ReactionPill: View {
     }
     .buttonStyle(.plain)
     .accessibilityLabel("\(reaction.emoji), \(reaction.count) reaction\(reaction.count == 1 ? "" : "s")\(isFromMe ? ", yours" : "")")
-    .accessibilityHint(isFromMe ? "Tap to remove your reaction" : "Tap to add your reaction")
+    .accessibilityHint(isFromMe ? "Removes your reaction" : "Adds your reaction")
     .accessibilityAddTraits(isFromMe ? .isSelected : [])
   }
 }

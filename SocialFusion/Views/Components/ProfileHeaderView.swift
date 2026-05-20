@@ -311,7 +311,7 @@ struct ProfileHeaderView: View {
       .clipShape(Capsule())
     }
     .buttonStyle(.plain)
-    .accessibilityHint("Tap to unblock this user")
+    .accessibilityHint("Unblocks this user")
   }
 
   private func followingButton(isMuting: Bool) -> some View {

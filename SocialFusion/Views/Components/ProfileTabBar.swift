@@ -43,7 +43,7 @@ struct ProfileTabBar: View {
           .buttonStyle(.plain)
           .frame(maxWidth: .infinity)
           .accessibilityLabel(tab.rawValue)
-          .accessibilityHint(selectedTab == tab ? "Currently selected" : "Tap to view")
+          .accessibilityHint(selectedTab == tab ? "Currently selected" : "Switches to this tab")
           .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
         }
       }

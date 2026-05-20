@@ -1293,7 +1293,7 @@ struct ComposeView: View {
                             activePostIndex = index
                         }
                         .accessibilityLabel("Thread post \(index + 1) of \(threadPosts.count)")
-                        .accessibilityHint(isActive ? "Currently editing" : "Tap to edit")
+                        .accessibilityHint(isActive ? "Currently editing" : "Switches to this thread post")
                         .accessibilityAddTraits(isActive ? .isSelected : [])
                         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isActive)
                 }
@@ -3005,7 +3005,7 @@ struct PlatformToggleButton: View {
         }
         .buttonStyle(PlatformTogglePressStyle())
         .accessibilityLabel(platform.rawValue.capitalized)
-        .accessibilityHint(isSelected ? "Tap to exclude from this post" : "Tap to include in this post")
+        .accessibilityHint(isSelected ? "Excludes from this post" : "Includes in this post")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -3209,7 +3209,7 @@ struct DraftsListView: View {
                     }
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel(draftAccessibilityLabel(for: draft))
-                    .accessibilityHint("Tap to open this draft. Swipe left to delete or rename, right to pin.")
+                    .accessibilityHint("Opens this draft. Swipe left to delete or rename, right to pin.")
                     .swipeActions(edge: .leading) {
                         Button {
                             HapticEngine.selection.trigger()

@@ -594,7 +594,7 @@ struct PlatformButton: View {
         }
         .buttonStyle(PlatformButtonPressStyle())
         .accessibilityLabel(platform.rawValue.capitalized)
-        .accessibilityHint(isSelected ? "Currently selected" : "Tap to add a \(platform.rawValue.capitalized) account")
+        .accessibilityHint(isSelected ? "Currently selected" : "Selects \(platform.rawValue.capitalized) to add an account")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
