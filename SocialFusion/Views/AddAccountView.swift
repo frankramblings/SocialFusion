@@ -118,11 +118,21 @@ struct AddAccountView: View {
 
                 if let errorMessage = errorMessage, !errorMessage.isEmpty {
                     Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Label {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(Color.red.gradient)
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.leading)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Error: \(errorMessage)")
                     }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
                 Section {
@@ -185,8 +195,12 @@ struct AddAccountView: View {
                                 .fill(Color.black.opacity(0.1))
                                 .frame(width: 60, height: 60)
                         )
+                        .accessibilityLabel("Signing in")
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.25), value: errorMessage)
+            .animation(.easeInOut(duration: 0.2), value: isLoading)
         }
     }
 
