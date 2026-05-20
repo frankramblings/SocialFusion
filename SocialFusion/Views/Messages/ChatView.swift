@@ -67,6 +67,7 @@ struct ChatView: View {
               .foregroundColor(.secondary)
               .fixedSize()
               .contentTransition(.numericText(value: Double(currentMatchIndex)))
+              .accessibilityLabel("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
 
             HStack(spacing: 2) {
               Button {
@@ -81,6 +82,7 @@ struct ChatView: View {
               }
               .disabled(currentMatchIndex == 0)
               .accessibilityLabel("Previous match")
+              .accessibilityValue("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
 
               Button {
                 HapticEngine.selection.trigger()
@@ -94,11 +96,13 @@ struct ChatView: View {
               }
               .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
               .accessibilityLabel("Next match")
+              .accessibilityValue("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
             }
           } else if !searchText.isEmpty {
             Text("No results")
               .font(.caption.weight(.medium))
               .foregroundColor(.secondary)
+              .accessibilityLabel("No matching messages found")
           }
         }
         .padding(.horizontal, 14)
