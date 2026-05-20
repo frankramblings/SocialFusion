@@ -251,12 +251,18 @@ struct SmallPostActionBar: View {
                 )
                 .frame(maxWidth: .infinity)
 
-                Button(action: onShare) {
+                Button(action: {
+                    HapticEngine.tap.trigger()
+                    onShare()
+                }) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
+                        .frame(minHeight: 44) // HIG min tap target
                 }
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("Share")
+                .accessibilityHint("Opens the share sheet for this post")
             } else {
                 // Legacy / fallback small buttons
                 SmallUnifiedReplyButton(
@@ -301,12 +307,18 @@ struct SmallPostActionBar: View {
                 )
                 .frame(maxWidth: .infinity)
 
-                Button(action: onShare) {
+                Button(action: {
+                    HapticEngine.tap.trigger()
+                    onShare()
+                }) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
+                        .frame(minHeight: 44) // HIG min tap target
                 }
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("Share")
+                .accessibilityHint("Opens the share sheet for this post")
             }
         }
         .padding(.top, 4)

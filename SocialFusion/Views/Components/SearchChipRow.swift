@@ -68,7 +68,11 @@ struct SearchChipRow: View {
                 Image(systemName: "info.circle")
                   .font(.caption)
                   .foregroundColor(.secondary)
+                  // 32pt visual, 44pt hit area — matches the
+                  // PostMenu kebab fix in a86637c. Below 44pt the
+                  // HIG minimum, taps on a busy search row slid off.
                   .frame(width: 32, height: 32)
+                  .frame(width: 44, height: 44)
                   .contentShape(Rectangle())
               }
               .accessibilityLabel("Instance information")
