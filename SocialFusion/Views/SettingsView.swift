@@ -320,6 +320,7 @@ struct SettingsView: View {
             }
             .alert("Clear Image Cache", isPresented: $showClearImageAlert) {
                 Button("Clear", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     Task { await clearImageCache() }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -328,6 +329,7 @@ struct SettingsView: View {
             }
             .alert("Reset Post Database", isPresented: $showClearDatabaseAlert) {
                 Button("Reset", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     Task { await clearPostDatabase() }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -336,6 +338,7 @@ struct SettingsView: View {
             }
             .alert("Clear Other Caches", isPresented: $showClearOtherAlert) {
                 Button("Clear", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     Task { await clearOtherCaches() }
                 }
                 Button("Cancel", role: .cancel) {}
