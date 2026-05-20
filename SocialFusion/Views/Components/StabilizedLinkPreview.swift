@@ -241,11 +241,11 @@ private struct StabilizedLinkLoadingView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                 .fill(Color(.systemGray6).opacity(0.5))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                 Color(.separator).opacity(0.3), lineWidth: 0.5)
         )
         .clipShape(
@@ -425,11 +425,11 @@ private struct StabilizedLinkRichContentView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                     .fill(Color(.systemGray6).opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 1))
             .clipShape(
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
@@ -549,11 +549,11 @@ private struct StabilizedLinkCompactContentView: View {
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                     .fill(Color(.systemGray6).opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 0.5))
             .clipShape(
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
@@ -615,11 +615,11 @@ private struct StabilizedLinkFallbackView: View {
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                     .fill(Color(.systemGray6).opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 0.5))
             .clipShape(
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
