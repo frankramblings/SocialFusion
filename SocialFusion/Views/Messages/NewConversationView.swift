@@ -3,6 +3,7 @@ import SwiftUI
 struct NewConversationView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var searchText = ""
   @State private var blueskyResults: [BlueskyActor] = []
@@ -26,7 +27,7 @@ struct NewConversationView: View {
                     .font(.caption.weight(.semibold))
                   Button {
                     HapticEngine.tap.trigger()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
                       selectedParticipants.removeAll { $0.did == actor.did }
                     }
                   } label: {
@@ -50,10 +51,12 @@ struct NewConversationView: View {
                     )
                 )
                 .transition(
-                  .asymmetric(
-                    insertion: .scale(scale: 0.7).combined(with: .opacity),
-                    removal: .scale(scale: 0.7).combined(with: .opacity)
-                  )
+                  reduceMotion
+                    ? .opacity
+                    : .asymmetric(
+                        insertion: .scale(scale: 0.7).combined(with: .opacity),
+                        removal: .scale(scale: 0.7).combined(with: .opacity)
+                      )
                 )
               }
             }
@@ -97,7 +100,7 @@ struct NewConversationView: View {
                         .font(.title3)
                         .foregroundStyle(.white, Color(red: 0, green: 133 / 255, blue: 255 / 255))
                         .symbolRenderingMode(.palette)
-                        .transition(.scale.combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                     }
                   }
                 }
