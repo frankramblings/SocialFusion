@@ -84,6 +84,7 @@ struct NotificationsView: View {
                                         .font(.system(size: 44, weight: .light))
                                         .foregroundStyle(Color.secondary.gradient)
                                         .symbolRenderingMode(.hierarchical)
+                                        .contentTransition(.symbolEffect(.replace))
                                 }
 
                                 VStack(spacing: 6) {

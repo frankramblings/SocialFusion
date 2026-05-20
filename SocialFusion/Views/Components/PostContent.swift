@@ -62,10 +62,17 @@ private struct ContentWarningView: View {
 
                 Spacer()
 
-                Button(action: { isExpanded.toggle() }) {
+                Button {
+                    HapticEngine.selection.trigger()
+                    isExpanded.toggle()
+                } label: {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .foregroundColor(.secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(isExpanded ? "Hide content" : "Show content")
             }
 
             // Warning text

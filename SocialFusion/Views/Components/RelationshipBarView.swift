@@ -26,6 +26,7 @@ struct RelationshipBarView: View {
             Image(systemName: viewModel.state.isMuting ? "speaker.slash.fill" : "speaker.slash")
               .font(.system(size: 18))
               .foregroundColor(viewModel.state.isMuting ? .red : .primary)
+              .contentTransition(.symbolEffect(.replace))
               .frame(width: 44, height: 44)
               .background(Color(.secondarySystemBackground))
               .clipShape(Circle())
