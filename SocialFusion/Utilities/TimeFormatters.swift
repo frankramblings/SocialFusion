@@ -84,6 +84,14 @@ enum SharedFormatters {
         f.timeStyle = .short
         return f
     }()
+
+    /// "Mar 4" — compact month + day, no year, no time. For
+    /// post timestamps where the year is implied by recency.
+    static let compactMonthDay: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMd")
+        return f
+    }()
 }
 
 // Extension on Date to easily access formatted strings

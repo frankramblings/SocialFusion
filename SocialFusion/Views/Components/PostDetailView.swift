@@ -82,13 +82,11 @@ struct PostDetailView: View {
     private let selectedPostScrollID = "selected-post"
     private let topScrollID = "top-anchor"
 
-    // Date formatter for detailed timestamp
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    // Date formatter for detailed timestamp. Routes through
+    // SharedFormatters so the formatter is allocated once for the
+    // app, not per-view-instance (SwiftUI re-creates view structs
+    // constantly).
+    private var dateFormatter: DateFormatter { SharedFormatters.detailedDateTime }
 
     // Platform color for visual consistency
     private var platformColor: Color {
@@ -1457,12 +1455,7 @@ struct LegacyPostDetailView: View {
     @State private var isReplying: Bool = false
     @Environment(\.dismiss) private var dismiss
 
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    private var dateFormatter: DateFormatter { SharedFormatters.detailedDateTime }
 
     var body: some View {
         ScrollView {

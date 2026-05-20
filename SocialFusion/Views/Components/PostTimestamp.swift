@@ -57,16 +57,14 @@ struct PostTimestamp: View {
     }
     
     private func formatAbsoluteDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        SharedFormatters.detailedDateTime.string(from: date)
     }
-    
+
     private func formatCompactDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
+        // Locale-aware "MMM d" — picks the right glyph order for
+        // the user's locale (e.g. '4 Mar' for en-GB instead of
+        // 'Mar 4'). The previous hard-coded "MMM d" was English-only.
+        SharedFormatters.compactMonthDay.string(from: date)
     }
 }
 
