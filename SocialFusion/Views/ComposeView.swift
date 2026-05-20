@@ -1258,6 +1258,7 @@ struct ComposeView: View {
                             activePostIndex = index
                         }
                         .accessibilityLabel("Thread post \(index + 1) of \(threadPosts.count)")
+                        .accessibilityHint(isActive ? "Currently editing" : "Tap to edit")
                         .accessibilityAddTraits(isActive ? .isSelected : [])
                         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isActive)
                 }
