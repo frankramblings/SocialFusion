@@ -347,9 +347,10 @@ struct ChatView: View {
             .font(.system(size: 26))
             .foregroundStyle(.secondary, Color(.systemGray5))
             .symbolRenderingMode(.hierarchical)
-            .frame(width: 36, height: 36)
-            .contentShape(Circle())
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
         }
+        .accessibilityLabel("Add photos")
         .accessibilityLabel("Add photos")
 
         TextField("Message...", text: $newMessageText, axis: .vertical)

@@ -45,12 +45,15 @@ struct DirectMessagesView: View {
     .toolbar {
       ToolbarItem(placement: .navigationBarTrailing) {
         Button {
+          HapticEngine.tap.trigger()
           viewModel.showNewConversation = true
         } label: {
           Image(systemName: "square.and.pencil")
             .font(.system(size: 18))
             .foregroundColor(.primary)
         }
+        .accessibilityLabel("New message")
+        .accessibilityHint("Starts a new conversation")
         #if DEBUG
         .simultaneousGesture(
           LongPressGesture(minimumDuration: 1.0)
