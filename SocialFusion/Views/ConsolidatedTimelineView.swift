@@ -42,6 +42,7 @@ struct ConsolidatedTimelineEmptyStateView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundColor(.primary.opacity(0.88))
                     .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
 
                 Text(message)
                     .font(.subheadline)
