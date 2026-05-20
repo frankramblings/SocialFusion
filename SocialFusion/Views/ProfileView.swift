@@ -627,11 +627,23 @@ struct EditProfileView: View {
 
         if let error = error {
           Section {
-            Text(error)
-              .foregroundColor(.red)
+            Label {
+              Text(error)
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.red.gradient)
+                .symbolRenderingMode(.hierarchical)
+            }
+            .foregroundColor(.red)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Error: \(error)")
           }
+          .transition(.opacity.combined(with: .move(edge: .top)))
         }
       }
+      .animation(.easeOut(duration: 0.25), value: error)
       .navigationTitle("Edit Profile")
       .navigationBarTitleDisplayMode(.inline)
       // Block swipe-dismiss while the user has unsaved profile edits —
