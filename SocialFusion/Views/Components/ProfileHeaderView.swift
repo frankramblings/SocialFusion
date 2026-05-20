@@ -293,7 +293,10 @@ struct ProfileHeaderView: View {
   }
 
   private var blockedButton: some View {
-    Button(action: { onUnblock?() }) {
+    Button {
+      HapticEngine.tap.trigger()
+      onUnblock?()
+    } label: {
       HStack(spacing: 6) {
         Image(systemName: "hand.raised.fill")
           .font(.system(size: 12))
@@ -308,24 +311,37 @@ struct ProfileHeaderView: View {
       .clipShape(Capsule())
     }
     .buttonStyle(.plain)
+    .accessibilityHint("Tap to unblock this user")
   }
 
   private func followingButton(isMuting: Bool) -> some View {
     Menu {
-      Button(role: .destructive, action: { onUnfollow?() }) {
+      Button(role: .destructive) {
+        HapticEngine.warning.trigger()
+        onUnfollow?()
+      } label: {
         Label("Unfollow", systemImage: "person.badge.minus")
       }
       Divider()
       if isMuting {
-        Button(action: { onUnmute?() }) {
+        Button {
+          HapticEngine.tap.trigger()
+          onUnmute?()
+        } label: {
           Label("Unmute", systemImage: "speaker")
         }
       } else {
-        Button(action: { onMute?() }) {
+        Button {
+          HapticEngine.warning.trigger()
+          onMute?()
+        } label: {
           Label("Mute", systemImage: "speaker.slash")
         }
       }
-      Button(role: .destructive, action: { showBlockConfirmation = true }) {
+      Button(role: .destructive) {
+        HapticEngine.warning.trigger()
+        showBlockConfirmation = true
+      } label: {
         Label("Block", systemImage: "hand.raised")
       }
     } label: {
