@@ -40,7 +40,7 @@ struct NativeYouTubePlayer: View {
                             .scaleEffect(1.5)
                             .tint(.white)
 
-                        Text("Loading native player...")
+                        Text("Loading player")
                             .font(.caption)
                             .foregroundColor(.white)
                     }

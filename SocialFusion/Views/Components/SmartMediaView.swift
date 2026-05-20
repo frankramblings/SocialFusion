@@ -668,7 +668,7 @@ private struct VideoPlayerView: View {
                         VStack(spacing: 8) {
                             ProgressView()
                                 .scaleEffect(1.2)
-                            Text("Loading video...")
+                            Text("Loading video")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
