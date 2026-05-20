@@ -3,6 +3,7 @@ import UIKit
 
 struct AccountsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
 
@@ -41,7 +42,7 @@ struct AccountsView: View {
                                     .font(.title3)
                                     .foregroundStyle(.white, Color.accentColor)
                                     .symbolRenderingMode(.palette)
-                                    .transition(.scale.combined(with: .opacity))
+                                    .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                             }
                         }
                     }

@@ -845,21 +845,23 @@ struct ComposeView: View {
                     .stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 24, height: 24)
-                    .animation(.easeOut(duration: 0.18), value: progress)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: progress)
             }
 
             if isOverLimit {
-                // When over, swap the digit for an alert glyph
+                // When over, swap the digit for an alert glyph.
+                // Reduce Motion drops the scale-in pop; the
+                // glyph just appears.
                 Image(systemName: "exclamationmark")
                     .font(.caption2.weight(.bold))
                     .foregroundColor(.red)
-                    .transition(.scale.combined(with: .opacity))
+                    .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
             } else {
                 Text("\(remainingChars)")
                     .font(.caption2.weight(.semibold).monospacedDigit())
                     .foregroundColor(tint)
                     .contentTransition(.numericText(value: Double(remainingChars)))
-                    .animation(.easeOut(duration: 0.15), value: remainingChars)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: remainingChars)
             }
         }
         .frame(width: 28, height: 28)
