@@ -633,6 +633,12 @@ struct AccountDetailView: View {
                 .foregroundColor(.secondary)
                 .textSelection(.enabled)
         }
+        // Combine the two Texts so VoiceOver reads 'Platform: Mastodon'
+        // rather than 'Platform' and 'Mastodon' as separate stops.
+        // Keep .textSelection on the value text so iPad+keyboard users
+        // can still long-press to copy.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 }
 
