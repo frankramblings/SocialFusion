@@ -266,6 +266,7 @@ struct ContentView: View {
         Menu {
             Section {
                 Button {
+                    HapticEngine.selection.trigger()
                     switchToAccount(id: nil)
                 } label: {
                     Label {
@@ -276,6 +277,7 @@ struct ContentView: View {
                 }
                 ForEach(serviceManager.accounts) { account in
                     Button {
+                        HapticEngine.selection.trigger()
                         switchToAccount(id: account.id)
                     } label: {
                         Label {
@@ -292,11 +294,13 @@ struct ContentView: View {
             }
             Section {
                 Button {
+                    HapticEngine.tap.trigger()
                     showAddAccountView = true
                 } label: {
                     Label("Add Account", systemImage: "plus")
                 }
                 Button {
+                    HapticEngine.tap.trigger()
                     showSettingsView = true
                 } label: {
                     Label("Settings", systemImage: "gearshape")
@@ -306,7 +310,9 @@ struct ContentView: View {
             contextualAvatarView
                 .frame(width: 28, height: 28)
         }
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
         .accessibilityLabel("Profile and settings")
+        .accessibilityHint("Switch accounts, add an account, or open settings")
     }
 
     private var contextualAccount: SocialAccount? {
@@ -334,6 +340,7 @@ struct ContentView: View {
 
     private var composeButton: some View {
         Button {
+            HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
@@ -344,7 +351,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Compose")
-        .accessibilityHint("Create a new post")
+        .accessibilityHint("Opens the post composer")
         .accessibilityIdentifier("ComposeToolbarButton")
         #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {
