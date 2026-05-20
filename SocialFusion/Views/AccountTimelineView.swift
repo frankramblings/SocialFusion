@@ -97,7 +97,7 @@ struct AccountTimelineView: View {
                         .fill(Color.secondary.opacity(0.7))
                         .frame(width: 8, height: 8)
                         .accessibilityIdentifier("AccountBufferedIndicator")
-                        .accessibilityLabel("\(controller.bufferCount) new posts")
+                        .accessibilityLabel("\(controller.bufferCount) new post\(controller.bufferCount == 1 ? "" : "s")")
                 }
             }
         }

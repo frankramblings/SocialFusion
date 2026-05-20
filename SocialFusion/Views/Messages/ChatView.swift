@@ -51,7 +51,7 @@ struct ChatView: View {
           Image(systemName: "magnifyingglass")
             .font(.subheadline)
             .foregroundColor(.secondary)
-          TextField("Search messages...", text: $searchText)
+          TextField("Search messages", text: $searchText)
             .textFieldStyle(.plain)
             .font(.subheadline)
             .submitLabel(.search)
@@ -365,7 +365,7 @@ struct ChatView: View {
         .accessibilityLabel("Add photos")
         .accessibilityLabel("Add photos")
 
-        TextField("Message...", text: $newMessageText, axis: .vertical)
+        TextField("Message", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
           .padding(.horizontal, 14)
           .padding(.vertical, 9)
