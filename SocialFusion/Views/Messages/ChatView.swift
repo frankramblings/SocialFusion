@@ -23,8 +23,14 @@ struct ChatView: View {
   @State private var searchText = ""
   @State private var currentMatchIndex = 0
 
+  /// Brand-tinted color matching the rest of the app's identity.
   private var platformColor: Color {
-    conversation.platform == .bluesky ? .blue : .purple
+    switch conversation.platform {
+    case .bluesky:
+      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
+    case .mastodon:
+      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
+    }
   }
 
   private var myAccountIds: Set<String> {
@@ -41,45 +47,65 @@ struct ChatView: View {
   var body: some View {
     VStack(spacing: 0) {
       if isSearching {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
           Image(systemName: "magnifyingglass")
+            .font(.subheadline)
             .foregroundColor(.secondary)
           TextField("Search messages...", text: $searchText)
             .textFieldStyle(.plain)
+            .font(.subheadline)
             .onChange(of: searchText) { _, _ in
               currentMatchIndex = 0
             }
 
           if !matchingMessageIds.isEmpty {
             Text("\(currentMatchIndex + 1) of \(matchingMessageIds.count)")
-              .font(.caption)
+              .font(.caption.weight(.medium))
               .foregroundColor(.secondary)
               .fixedSize()
+              .contentTransition(.numericText(value: Double(currentMatchIndex)))
 
-            Button {
-              if currentMatchIndex > 0 { currentMatchIndex -= 1 }
-            } label: {
-              Image(systemName: "chevron.up")
-                .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary)
-            }
-            .disabled(currentMatchIndex == 0)
+            HStack(spacing: 2) {
+              Button {
+                HapticEngine.selection.trigger()
+                if currentMatchIndex > 0 { currentMatchIndex -= 1 }
+              } label: {
+                Image(systemName: "chevron.up")
+                  .font(.caption.weight(.semibold))
+                  .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary.opacity(0.5))
+                  .frame(width: 28, height: 28)
+                  .contentShape(Rectangle())
+              }
+              .disabled(currentMatchIndex == 0)
+              .accessibilityLabel("Previous match")
 
-            Button {
-              if currentMatchIndex < matchingMessageIds.count - 1 { currentMatchIndex += 1 }
-            } label: {
-              Image(systemName: "chevron.down")
-                .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary)
+              Button {
+                HapticEngine.selection.trigger()
+                if currentMatchIndex < matchingMessageIds.count - 1 { currentMatchIndex += 1 }
+              } label: {
+                Image(systemName: "chevron.down")
+                  .font(.caption.weight(.semibold))
+                  .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary.opacity(0.5))
+                  .frame(width: 28, height: 28)
+                  .contentShape(Rectangle())
+              }
+              .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
+              .accessibilityLabel("Next match")
             }
-            .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
           } else if !searchText.isEmpty {
             Text("No results")
-              .font(.caption)
+              .font(.caption.weight(.medium))
               .foregroundColor(.secondary)
           }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Color(.systemGray6))
+        .background(.ultraThinMaterial)
+        .overlay(
+          Divider(),
+          alignment: .bottom
+        )
+        .transition(.move(edge: .top).combined(with: .opacity))
       }
       messagesList
       inputBar
@@ -259,70 +285,117 @@ struct ChatView: View {
     VStack(spacing: 0) {
       Divider()
       if let editing = editingMessage {
-        HStack {
-          VStack(alignment: .leading, spacing: 2) {
-            Text("Editing")
-              .font(.caption)
-              .fontWeight(.semibold)
+        HStack(spacing: 10) {
+          Image(systemName: "pencil")
+            .font(.caption.weight(.bold))
+            .foregroundColor(platformColor)
+            .frame(width: 22, height: 22)
+            .background(
+              Circle()
+                .fill(platformColor.opacity(0.14))
+            )
+
+          VStack(alignment: .leading, spacing: 1) {
+            Text("Editing message")
+              .font(.caption.weight(.semibold))
               .foregroundColor(platformColor)
             Text(editing.text)
               .font(.caption)
               .foregroundColor(.secondary)
               .lineLimit(1)
           }
+
           Spacer()
+
           Button {
-            editingMessage = nil
-            newMessageText = ""
+            HapticEngine.tap.trigger()
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+              editingMessage = nil
+              newMessageText = ""
+            }
           } label: {
             Image(systemName: "xmark.circle.fill")
+              .font(.system(size: 18))
               .foregroundColor(.secondary)
+              .frame(width: 28, height: 28)
+              .contentShape(Circle())
           }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Cancel editing")
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(Color(.systemGray6))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(platformColor.opacity(0.08))
+        .overlay(
+          Rectangle()
+            .fill(platformColor.opacity(0.18))
+            .frame(height: 0.5),
+          alignment: .bottom
+        )
       }
       ChatMediaPickerBar(selectedItems: $selectedMedia)
-      HStack(spacing: 12) {
+      HStack(spacing: 10) {
         PhotosPicker(selection: $selectedMedia, maxSelectionCount: 4, matching: .images) {
           Image(systemName: "plus.circle.fill")
-            .font(.system(size: 24))
-            .foregroundColor(.secondary)
+            .font(.system(size: 26))
+            .foregroundStyle(.secondary, Color(.systemGray5))
+            .symbolRenderingMode(.hierarchical)
+            .frame(width: 36, height: 36)
+            .contentShape(Circle())
         }
+        .accessibilityLabel("Add photos")
 
         TextField("Message...", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
-          .padding(10)
-          .background(Color(.systemGray6))
-          .cornerRadius(20)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 9)
+          .background(
+            Capsule(style: .continuous)
+              .fill(Color(.systemGray6))
+              .overlay(
+                Capsule(style: .continuous)
+                  .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+              )
+          )
 
         sendButton
       }
-      .padding(.horizontal)
+      .padding(.horizontal, 12)
       .padding(.vertical, 8)
       .background(Color(.systemBackground))
     }
   }
 
   private var sendButton: some View {
-    Button(action: sendMessage) {
-      if isSending {
-        ProgressView()
-          .scaleEffect(0.8)
-          .foregroundColor(.white)
-          .padding(10)
-          .background(platformColor)
-          .clipShape(Circle())
-      } else {
-        Image(systemName: "paperplane.fill")
-          .foregroundColor(.white)
-          .padding(10)
-          .background(newMessageText.isEmpty ? Color.gray : platformColor)
-          .clipShape(Circle())
+    let canSend = !newMessageText.isEmpty && !isLoading && !isSending
+    return Button {
+      HapticEngine.tap.trigger()
+      sendMessage()
+    } label: {
+      ZStack {
+        Circle()
+          .fill(canSend ? AnyShapeStyle(platformColor.gradient) : AnyShapeStyle(Color(.systemGray4)))
+          .frame(width: 36, height: 36)
+          .shadow(color: canSend ? platformColor.opacity(0.3) : .clear, radius: 6, x: 0, y: 2)
+
+        if isSending {
+          ProgressView()
+            .scaleEffect(0.7)
+            .tint(.white)
+        } else {
+          Image(systemName: "arrow.up")
+            .font(.system(size: 16, weight: .bold))
+            .foregroundColor(.white)
+            .contentTransition(.symbolEffect(.replace))
+        }
       }
+      .scaleEffect(canSend ? 1.0 : 0.92)
+      .animation(.spring(response: 0.3, dampingFraction: 0.78), value: canSend)
+      .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isSending)
     }
-    .disabled(newMessageText.isEmpty || isLoading || isSending)
+    .buttonStyle(.plain)
+    .disabled(!canSend)
+    .accessibilityLabel(isSending ? "Sending" : "Send message")
   }
 
   // MARK: - Message Grouping
