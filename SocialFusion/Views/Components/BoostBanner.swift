@@ -230,9 +230,11 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    isPressed = pressing
-                    if pressing {
-                        HapticEngine.tap.trigger()
+                    // Visual press feedback only — haptic fires on the
+                    // actual tap action (handleBannerTap), not press-down,
+                    // to avoid double-buzz from layering long-press on Button.
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = pressing
                     }
                 }, perform: {}
             )

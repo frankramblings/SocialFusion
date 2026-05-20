@@ -4,9 +4,12 @@ import SwiftUI
 struct SearchUserRow: View {
   let user: SearchUser
   let onTap: () -> Void
-  
+
   var body: some View {
-    Button(action: onTap) {
+    Button {
+      HapticEngine.tap.trigger()
+      onTap()
+    } label: {
       HStack(spacing: 12) {
         // Avatar
         if let avatarURL = user.avatarURL, let url = URL(string: avatarURL) {
@@ -59,7 +62,8 @@ struct SearchUserRow: View {
       }
       .padding(.vertical, 8)
       .padding(.horizontal, 16)
+      .contentShape(Rectangle())
     }
-    .buttonStyle(PlainButtonStyle())
+    .buttonStyle(.plain)
   }
 }

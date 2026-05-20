@@ -404,9 +404,12 @@ struct ExpandingReplyBanner: View {
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    isPressed = pressing
-                    if pressing {
-                        HapticEngine.tap.trigger()
+                    // Visual press feedback only — the haptic fires on the
+                    // actual action (handleBannerTap), not on press-down,
+                    // to avoid the double-buzz that comes from layering a
+                    // long-press tracker on top of a Button.
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = pressing
                     }
                 }, perform: {}
             )
