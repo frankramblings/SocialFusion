@@ -1282,20 +1282,30 @@ struct ComposeView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
 
                         if threadPosts[activePostIndex].pollOptions.count > 2 {
-                            Button(action: {
-                                threadPosts[activePostIndex].pollOptions.remove(at: index)
-                            }) {
+                            Button {
+                                HapticEngine.tap.trigger()
+                                withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                                    _ = threadPosts[activePostIndex].pollOptions.remove(at: index)
+                                }
+                            } label: {
                                 Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.red)
+                                    .foregroundStyle(Color.red.gradient)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
                             }
+                            .accessibilityLabel("Remove option \(index + 1)")
                         }
                     }
                 }
 
                 if threadPosts[activePostIndex].pollOptions.count < 4 {
-                    Button(action: {
-                        threadPosts[activePostIndex].pollOptions.append("")
-                    }) {
+                    Button {
+                        HapticEngine.tap.trigger()
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                            threadPosts[activePostIndex].pollOptions.append("")
+                        }
+                    } label: {
                         Label("Add Option", systemImage: "plus.circle")
                             .font(.subheadline)
                     }
