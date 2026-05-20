@@ -220,6 +220,11 @@ struct ConsolidatedTimelineView: View {
     @State private var lastProcessedTopVisibleID: String?
     @State private var lastProcessedTopVisibleIndex: Int = -1
     @State private var lastProcessedTopVisibleOffset: CGFloat = .greatestFiniteMagnitude
+    // Separate from lastProcessedTopVisibleIndex because the unread tick
+    // runs on the undebounced path while position processing runs on the
+    // debounced one — they need independent latches to avoid one path
+    // suppressing the other's reaction to the same scroll event.
+    @State private var lastTickedTopVisibleIndex: Int = -1
     @State private var lastTopVisibleId: String?
     @State private var lastTopVisibleOffset: CGFloat = 0
     @State private var timelineAlertState: TimelineAlertState?
@@ -870,6 +875,14 @@ struct ConsolidatedTimelineView: View {
                 .coordinateSpace(name: "timelineScroll")
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
                     let filteredPositions = filterTrackedPositions(positions)
+
+                    // Tick the unread pill DOWN immediately as posts cross
+                    // the top of the viewport — the rest of the processing
+                    // (anchor persistence etc.) can stay debounced, but the
+                    // pill count needs to update one-by-one to feel right.
+                    // Same shape Ivory uses: each post that scrolls in from
+                    // above subtracts 1.
+                    tickUnreadIfNeeded(from: filteredPositions)
 
                     positionProcessingTask?.cancel()
                     positionProcessingTask = Task { @MainActor in
@@ -1632,6 +1645,35 @@ struct ConsolidatedTimelineView: View {
         }
 
         return filtered
+    }
+
+    /// Cheap, undebounced unread-count tick. Called on *every* position
+    /// change so the pill drops 13 → 12 → 11 in real time as posts cross
+    /// the top of the viewport, instead of jumping 13 → 0 after the user
+    /// stops scrolling (which is what happens if you wait for the 80ms
+    /// debounced path).
+    ///
+    /// The controller side already enforces "only decrease" semantics
+    /// (updateUnreadFromTopVisibleIndex guards with `newCount < current`),
+    /// so this is safe to call freely — scroll-back-down won't tick the
+    /// count back up.
+    private func tickUnreadIfNeeded(from positions: [String: TimelineItemInfo]) {
+        guard let topVisibleInfo = positions
+            .filter({ $0.value.minY >= -50 })
+            .min(by: { $0.value.minY < $1.value.minY }) else {
+            return
+        }
+        let topVisibleIndex = topVisibleInfo.value.index
+        guard topVisibleIndex != lastTickedTopVisibleIndex else { return }
+        lastTickedTopVisibleIndex = topVisibleIndex
+        controller.updateUnreadFromTopVisibleIndex(topVisibleIndex)
+        // Also subtract any *visible* posts that were still in the unread
+        // set — covers the case where the topVisibleIndex didn't change
+        // but more posts came into view below it (resize, rotation, etc.).
+        let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
+        if !visibleIds.isEmpty {
+            controller.markVisiblePostsAsRead(visibleIds)
+        }
     }
 
     private func processVisiblePositions(_ positions: [String: TimelineItemInfo]) {
