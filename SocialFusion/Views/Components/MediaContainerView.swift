@@ -228,11 +228,14 @@ private struct StableGridImageView: View {
       }
       
       if let alt = attachment.altText, !alt.isEmpty {
+        // No tap handler: the badge sits in the ZStack and lets taps
+        // fall through to the SmartMediaView underneath, which opens
+        // fullscreen — where the alt text can be revealed via the
+        // info button. An empty onTapGesture here would consume the
+        // tap and the badge would feel broken.
         AltTextBadge()
           .padding(4)
-          .onTapGesture {
-            // Handle alt text tap
-          }
+          .allowsHitTesting(false)
       }
       
       if extraCount > 0 && isLast {
