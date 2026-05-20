@@ -49,10 +49,13 @@ struct MutedKeywordsView: View {
                                 .font(.caption)
                                 .foregroundStyle(Color.orange.gradient)
                                 .symbolRenderingMode(.hierarchical)
+                                .accessibilityHidden(true)
 
                             Text(keyword)
                                 .font(.body)
                         }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Muted keyword: \(keyword)")
                     }
                     .onDelete(perform: removeKeywords)
                 }
