@@ -1242,7 +1242,13 @@ struct PostRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Column 1: Unified Thread/Avatar Column (60pt)
-            ZStack(alignment: .center) {
+            // ZStack is .top-aligned so the avatar sits at the top of its
+            // column — matching the feed's top-left placement and how
+            // Ivory / Ice Cubes / Indigo render thread rows. Previously
+            // .center was making the avatar float to the vertical middle
+            // of the entire post (text + media), which the user never
+            // asked for and which reads as visually weird.
+            ZStack(alignment: .top) {
                 if showThreadLine {
                     Rectangle()
                         .fill(threadLineColor)
@@ -1256,8 +1262,13 @@ struct PostRow: View {
                     authorName: post.authorName
                 )
                 .frame(width: profileImageSize, height: profileImageSize)
-                .background(Color(.systemBackground))  // Punch-out
+                .background(Color(.systemBackground))  // Punch-out — hides the thread line behind the avatar circle
                 .clipShape(Circle())
+                // Push the avatar down to line up with the author name in
+                // the adjacent content column. The content VStack has
+                // .padding(.vertical, 12) below, so the name's top edge
+                // lives 12pt down from the row's top. We mirror that here.
+                .padding(.top, 12)
             }
             .frame(width: 60)
 
