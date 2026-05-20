@@ -132,7 +132,7 @@ struct ChatView: View {
       ToolbarItem(placement: .topBarTrailing) {
         Button {
           HapticEngine.selection.trigger()
-          withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+          withAnimation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82)) {
             isSearching.toggle()
           }
           if !isSearching {
@@ -234,7 +234,9 @@ struct ChatView: View {
         if let last = messages.last {
           // New-message scroll uses a springier curve so the latest
           // message arriving feels alive, not just mechanical.
-          withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+          // Reduce Motion: scroll instantly so the message arrives
+          // without the bounce.
+          withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
             proxy.scrollTo(last.id, anchor: .bottom)
           }
         }
@@ -243,14 +245,14 @@ struct ChatView: View {
         if matchingMessageIds.indices.contains(newIndex) {
           // Search nav uses a snappier easeOut so consecutive
           // up/down taps feel responsive.
-          withAnimation(.easeOut(duration: 0.24)) {
+          withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
             proxy.scrollTo(matchingMessageIds[newIndex], anchor: .center)
           }
         }
       }
       .onChange(of: searchText) { _, _ in
         if let firstMatch = matchingMessageIds.first {
-          withAnimation(.easeOut(duration: 0.24)) {
+          withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
             proxy.scrollTo(firstMatch, anchor: .center)
           }
         }
@@ -342,7 +344,7 @@ struct ChatView: View {
 
           Button {
             HapticEngine.tap.trigger()
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
               editingMessage = nil
               newMessageText = ""
             }
