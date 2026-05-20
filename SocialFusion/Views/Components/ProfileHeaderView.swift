@@ -373,6 +373,7 @@ struct ProfileHeaderView: View {
       titleVisibility: .visible
     ) {
       Button("Block", role: .destructive) {
+        HapticEngine.warning.trigger()
         onBlock?()
       }
       Button("Cancel", role: .cancel) {}
