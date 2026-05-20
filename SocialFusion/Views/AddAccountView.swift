@@ -289,6 +289,7 @@ struct AddAccountView: View {
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
                     self.isLoading = false
+                    HapticEngine.success.trigger()
 
                     // Clear the presentation flag since we're dismissing successfully
                     UserDefaults.standard.removeObject(
@@ -303,7 +304,8 @@ struct AddAccountView: View {
             } catch {
                 await MainActor.run {
                     self.isLoading = false
-                    self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                    HapticEngine.error.trigger()
+                    self.errorMessage = "Couldn't add account: \(error.localizedDescription)"
                     self.showError = true
                 }
             }
@@ -339,6 +341,7 @@ struct AddAccountView: View {
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
                     self.isLoading = false
+                    HapticEngine.success.trigger()
 
                     // Clear the presentation flag since we're dismissing successfully
                     UserDefaults.standard.removeObject(
@@ -353,7 +356,8 @@ struct AddAccountView: View {
             } catch {
                 await MainActor.run {
                     self.isLoading = false
-                    self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                    HapticEngine.error.trigger()
+                    self.errorMessage = "Couldn't add account: \(error.localizedDescription)"
                     self.showError = true
                 }
             }
