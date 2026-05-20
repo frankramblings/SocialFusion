@@ -101,7 +101,10 @@ struct ConversationSettingsView: View {
         }
       }
       .alert("Leave Conversation", isPresented: $showLeaveConfirm) {
-        Button("Leave", role: .destructive) { leaveConversation() }
+        Button("Leave", role: .destructive) {
+          HapticEngine.warning.trigger()
+          leaveConversation()
+        }
         Button("Cancel", role: .cancel) {}
       } message: {
         Text("You'll no longer see this conversation.")
