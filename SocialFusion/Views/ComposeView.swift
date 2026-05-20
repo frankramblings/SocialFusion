@@ -1828,6 +1828,7 @@ struct ComposeView: View {
                             .frame(height: 200)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                             .padding()
+                            .accessibilityLabel("Image \(selectedImageIndexForAltText + 1) of \(threadPosts[activePostIndex].images.count)")
                         }
 
                         TextField(
