@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct LaunchAnimationView: View {
     var onFinished: () -> Void = {}
@@ -8,6 +9,9 @@ struct LaunchAnimationView: View {
     @State private var bloomScale: CGFloat = 0.3
     @State private var bloomOpacity: Double = 0
     @State private var textSpacing: CGFloat = 80
+    @State private var rootScale: CGFloat = 0.96
+    @State private var rootOpacity: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // MARK: – Geometry
     private let circleSize: CGFloat = 180
@@ -21,7 +25,7 @@ struct LaunchAnimationView: View {
     private let lensOutlineWidth: CGFloat = 2
 
     // MARK: – Timing
-    private let anim = Animation.easeOut(duration: 0.6)
+    private let anim = Animation.spring(response: 0.62, dampingFraction: 0.78)
 
     var body: some View {
         ZStack {
@@ -78,41 +82,68 @@ struct LaunchAnimationView: View {
                     .scaleEffect(bloomScale)
                 }
 
-                // Animated app name
+                // Animated app name with subtle tracking-in effect
                 HStack(spacing: textSpacing) {
                     Text("Social")
                     Text("Fusion")
                 }
                 .font(.system(size: 36, weight: .bold, design: .default))
                 .opacity(fused ? 1 : 0)
+                .scaleEffect(fused ? 1.0 : 0.98)
             }
+            .scaleEffect(rootScale)
+            .opacity(rootOpacity)
         }
         .onAppear {
-            // Use Task to defer state updates outside view rendering cycle
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                withAnimation(anim) {
-                    fused = true  // circles and text converge over 0.6 s
-                    textSpacing = 0
-                }
-                // Wait until the circles are ~50 % overlapped, then trigger the reaction
-                try? await Task.sleep(nanoseconds: 300_000_000)  // 0.3 seconds
-                withAnimation(.easeOut(duration: 0.12)) {
-                    bloomScale = 1.4
-                    bloomOpacity = 1
-                }
-                // settle
-                try? await Task.sleep(nanoseconds: 120_000_000)  // 0.12 seconds
-                withAnimation(.easeIn(duration: 0.28)) {
-                    bloomScale = 1.0
-                    bloomOpacity = 0.85
-                }
-                // Allow time for the complete animation sequence including the settle phase
-                try? await Task.sleep(nanoseconds: 800_000_000)  // 0.8 seconds for smoother daily use
-                onFinished()
-            }
+            runSequence()
         }
         .accessibilityHidden(true)
+    }
+
+    @MainActor
+    private func runSequence() {
+        Task { @MainActor in
+            // Pre-warm haptic so the fusion impact lands without latency
+            HapticEngine.prepare(.tap)
+
+            try? await Task.sleep(nanoseconds: 1_000_000)
+
+            // Stage 0: gentle entrance — root fades in and settles to scale 1
+            withAnimation(.easeOut(duration: 0.28)) {
+                rootScale = 1.0
+                rootOpacity = 1.0
+            }
+
+            // Stage 1: circles converge using spring physics (feels weighted, alive)
+            withAnimation(anim) {
+                fused = true
+                textSpacing = 0
+            }
+
+            // Wait until circles overlap ~50%, then trigger the fusion bloom
+            try? await Task.sleep(nanoseconds: 280_000_000)
+
+            // The fusion moment — haptic impact synced with the bloom
+            if !reduceMotion {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred(intensity: 0.8)
+            }
+
+            withAnimation(.spring(response: 0.18, dampingFraction: 0.55)) {
+                bloomScale = 1.45
+                bloomOpacity = 1
+            }
+
+            // Settle into the resting state
+            try? await Task.sleep(nanoseconds: 160_000_000)
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
+                bloomScale = 1.0
+                bloomOpacity = 0.88
+            }
+
+            // Hold a beat so the user can take it in, then hand off
+            try? await Task.sleep(nanoseconds: 760_000_000)
+            onFinished()
+        }
     }
 }
 
