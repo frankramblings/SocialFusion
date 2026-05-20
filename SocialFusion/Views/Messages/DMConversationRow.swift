@@ -107,13 +107,13 @@ struct DMConversationRow: View {
         image.resizable()
           .aspectRatio(contentMode: .fill)
       } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
+        Circle().fill(Color(.systemGray5))
           .overlay(ProgressView().scaleEffect(0.5))
       }
       .frame(width: 48, height: 48)
       .clipShape(Circle())
     } else {
-      Circle().fill(Color.gray.opacity(0.3))
+      Circle().fill(Color(.systemGray5))
         .frame(width: 48, height: 48)
         .overlay(
           Text(String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased())

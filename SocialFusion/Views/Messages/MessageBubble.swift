@@ -300,12 +300,12 @@ struct MessageBubble: View {
       CachedAsyncImage(url: url, priority: .low) { image in
         image.resizable().aspectRatio(contentMode: .fill)
       } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
+        Circle().fill(Color(.systemGray5))
       }
       .frame(width: 28, height: 28)
       .clipShape(Circle())
     } else {
-      Circle().fill(Color.gray.opacity(0.3))
+      Circle().fill(Color(.systemGray5))
         .frame(width: 28, height: 28)
     }
   }

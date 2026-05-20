@@ -500,7 +500,7 @@ struct ChatView: View {
       CachedAsyncImage(url: url, priority: .high) { image in
         image.resizable().aspectRatio(contentMode: .fill)
       } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
+        Circle().fill(Color(.systemGray5))
       }
       .frame(width: 28, height: 28)
       .clipShape(Circle())

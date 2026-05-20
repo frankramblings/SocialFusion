@@ -191,12 +191,12 @@ struct NewConversationView: View {
         CachedAsyncImage(url: url, priority: .high) { image in
           image.resizable().aspectRatio(contentMode: .fill)
         } placeholder: {
-          Circle().fill(Color.gray.opacity(0.3))
+          Circle().fill(Color(.systemGray5))
         }
         .frame(width: 40, height: 40)
         .clipShape(Circle())
       } else {
-        Circle().fill(Color.gray.opacity(0.3))
+        Circle().fill(Color(.systemGray5))
           .frame(width: 40, height: 40)
       }
 
