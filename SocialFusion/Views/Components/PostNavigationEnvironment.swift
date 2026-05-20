@@ -279,11 +279,20 @@ class PostNavigationEnvironment: ObservableObject {
                     do {
                         if let post = try await serviceManager.fetchBlueskyPostByID(atUri) {
                             navigateToPost(post)
+                        } else {
+                            // The fetch succeeded but returned nil — post
+                            // was deleted or unavailable. Same UX as a
+                            // failed fetch from the user's perspective.
+                            ToastManager.shared.show("Post unavailable", severity: .warning, duration: 2.0)
                         }
                     } catch {
                         #if DEBUG
                         print("Failed to fetch Bluesky post from universal link: \(error)")
                         #endif
+                        // Universal links open the app expecting something
+                        // to happen — a silent failure leaves the user
+                        // staring at whatever was on screen.
+                        ToastManager.shared.show("Couldn't open that post", severity: .error, duration: 2.0)
                     }
                 }
             } else if pathComponents.count >= 2 && pathComponents[0] == "profile" {
