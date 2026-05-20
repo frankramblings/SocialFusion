@@ -1448,9 +1448,10 @@ struct ComposeView: View {
                 .padding(.horizontal, 8)
                 .onTapGesture {
                     if isOverLimit {
-                        alertTitle = "Character Limit Exceeded"
+                        HapticEngine.warning.trigger()
+                        alertTitle = "Over the Limit"
                         alertMessage =
-                            "You are over the character limit for \(overLimitPlatformsString)."
+                            "This post is too long for \(overLimitPlatformsString)."
                         showAlert = true
                     }
                 }

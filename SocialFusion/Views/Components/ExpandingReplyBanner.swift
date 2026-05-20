@@ -364,9 +364,11 @@ struct ExpandingReplyBanner: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if let parentId = parentId {
+                HapticEngine.tap.trigger()
                 triggerParentFetch(parentId: parentId)
             }
         }
+        .accessibilityHint("Loads the original post this is replying to")
     }
 
     private var cornerRadius: CGFloat {
