@@ -33,17 +33,19 @@ public struct ShareAsImageSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         dismiss()
                     }
                 }
-                
+
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 12) {
-                        Button(action: {
+                        Button {
+                            HapticEngine.tap.trigger()
                             Task {
                                 await handleSaveToPhotos()
                             }
-                        }) {
+                        } label: {
                             if isSavingToPhotos {
                                 ProgressView()
                             } else {
@@ -51,15 +53,19 @@ public struct ShareAsImageSheet: View {
                             }
                         }
                         .disabled(viewModel.isRendering || isSavingToPhotos)
-                        
-                        Button(action: {
+                        .accessibilityHint("Saves the image to your Photos library")
+
+                        Button {
+                            HapticEngine.tap.trigger()
                             Task {
                                 await handleShare()
                             }
-                        }) {
+                        } label: {
                             Label("Share", systemImage: "square.and.arrow.up")
                         }
                         .disabled(viewModel.isRendering)
+                        .fontWeight(.semibold)
+                        .accessibilityHint("Opens share options for this image")
                     }
                 }
             }
@@ -99,13 +105,21 @@ public struct ShareAsImageSheet: View {
 
                 // Page indicator for multi-page exports
                 if viewModel.pageCount > 1 {
-                    Text("\(viewModel.pageCount) pages")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        Image(systemName: "rectangle.stack")
+                            .font(.caption2.weight(.semibold))
+                        Text("\(viewModel.pageCount) pages")
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                    }
+                    .foregroundColor(.accentColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.14))
+                    )
+                    .accessibilityLabel("\(viewModel.pageCount) pages")
                 }
             }
 
@@ -125,19 +139,14 @@ public struct ShareAsImageSheet: View {
                 }
 
                 if viewModel.previewImage == nil {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 14) {
                         ProgressView()
                             .scaleEffect(1.2)
 
-                        if !viewModel.renderingProgress.isEmpty {
-                            Text(viewModel.renderingProgress)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Preparing preview...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
+                        Text(viewModel.renderingProgress.isEmpty ? "Preparing preview" : viewModel.renderingProgress)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 400)
@@ -148,13 +157,17 @@ public struct ShareAsImageSheet: View {
                         ProgressView()
                             .controlSize(.small)
 
-                        Text(viewModel.renderingProgress.isEmpty ? "Updating preview…" : viewModel.renderingProgress)
-                            .font(.caption)
+                        Text(viewModel.renderingProgress.isEmpty ? "Updating preview" : viewModel.renderingProgress)
+                            .font(.caption.weight(.medium))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
                     .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                    )
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(12)
@@ -166,16 +179,26 @@ public struct ShareAsImageSheet: View {
             .animation(.easeInOut(duration: 0.2), value: isPreviewBusy)
 
             if let error = viewModel.errorMessage {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
-                        .foregroundColor(.orange)
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.orange.opacity(0.14))
+                            .frame(width: 72, height: 72)
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundStyle(Color.orange.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
                     Text(error)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 200)
+                .padding(.vertical, 24)
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -186,14 +209,36 @@ public struct ShareAsImageSheet: View {
         VStack(alignment: .leading, spacing: 20) {
             // Show section (Earlier/Later toggles)
             showSection
-            
+
             Divider()
-            
+
             // Privacy
-            Toggle("Hide names", isOn: $viewModel.hideUsernames)
-            
+            Toggle(isOn: $viewModel.hideUsernames) {
+                Label {
+                    Text("Hide names")
+                } icon: {
+                    Image(systemName: "eye.slash")
+                        .foregroundStyle(Color.orange.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                }
+            }
+            .onChange(of: viewModel.hideUsernames) { _, _ in
+                HapticEngine.selection.trigger()
+            }
+
             // Branding
-            Toggle("Watermark", isOn: $viewModel.showWatermark)
+            Toggle(isOn: $viewModel.showWatermark) {
+                Label {
+                    Text("Watermark")
+                } icon: {
+                    Image(systemName: "signature")
+                        .foregroundStyle(Color.accentColor.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                }
+            }
+            .onChange(of: viewModel.showWatermark) { _, _ in
+                HapticEngine.selection.trigger()
+            }
         }
     }
     
