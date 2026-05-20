@@ -78,11 +78,15 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                     
                     NavigationLink(destination: MutedKeywordsView().environmentObject(serviceManager)) {
-                        HStack {
+                        HStack(spacing: 12) {
+                            SettingsIcon(symbol: "eye.slash", tint: .orange)
                             Text("Muted Keywords")
                             Spacer()
                             Text("\(serviceManager.currentBlockedKeywords.count)")
                                 .foregroundColor(.secondary)
+                                .monospacedDigit()
+                                .contentTransition(.numericText(value: Double(serviceManager.currentBlockedKeywords.count)))
+                                .animation(.easeOut(duration: 0.2), value: serviceManager.currentBlockedKeywords.count)
                         }
                     }
 
@@ -172,28 +176,40 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("About")) {
-                    Button("About SocialFusion") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showingAbout = true
+                    } label: {
+                        settingsRow(symbol: "info.circle", tint: .accentColor, title: "About SocialFusion")
                     }
 
-                    Button("Privacy Policy") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showingPrivacyPolicy = true
+                    } label: {
+                        settingsRow(symbol: "hand.raised", tint: .blue, title: "Privacy Policy")
                     }
 
-                    Button("Terms of Service") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showingTermsOfService = true
+                    } label: {
+                        settingsRow(symbol: "doc.text", tint: .gray, title: "Terms of Service")
                     }
 
-                    HStack {
+                    HStack(spacing: 12) {
+                        SettingsIcon(symbol: "tag", tint: .secondary)
                         Text("Version")
                         Spacer()
                         Text("1.0.0")
                             .foregroundColor(.secondary)
+                            .monospacedDigit()
                     }
                 }
 
                 Section(header: Text("Storage")) {
-                    HStack {
+                    HStack(spacing: 12) {
+                        SettingsIcon(symbol: "internaldrive", tint: .indigo)
                         Text("Cache Size")
                         Spacer()
                         if isCalculatingSize {
@@ -202,24 +218,34 @@ struct SettingsView: View {
                         } else {
                             Text(formattedSize(totalCacheSize))
                                 .foregroundColor(.secondary)
+                                .monospacedDigit()
                         }
                     }
                     .onAppear {
                         Task { await calculateTotalCacheSize() }
                     }
 
-                    Button("Clear Image Cache") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showClearImageAlert = true
+                    } label: {
+                        settingsRow(symbol: "photo.stack", tint: .orange, title: "Clear Image Cache")
                     }
                     .disabled(clearingInProgress)
 
-                    Button("Reset Post Database") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showClearDatabaseAlert = true
+                    } label: {
+                        settingsRow(symbol: "arrow.counterclockwise.circle", tint: .orange, title: "Reset Post Database")
                     }
                     .disabled(clearingInProgress)
 
-                    Button("Clear Other Caches") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showClearOtherAlert = true
+                    } label: {
+                        settingsRow(symbol: "trash", tint: .orange, title: "Clear Other Caches")
                     }
                     .disabled(clearingInProgress)
                 }
@@ -239,13 +265,18 @@ struct SettingsView: View {
                 #endif
 
                 Section {
-                    Button(action: {
+                    Button {
+                        HapticEngine.warning.trigger()
                         Task {
                             await serviceManager.logout()
                         }
-                    }) {
-                        Text("Log Out All Accounts")
-                            .foregroundColor(.red)
+                    } label: {
+                        settingsRow(
+                            symbol: "rectangle.portrait.and.arrow.right",
+                            tint: .red,
+                            title: "Log Out All Accounts",
+                            titleColor: .red
+                        )
                     }
                 }
             }
@@ -366,6 +397,44 @@ struct SettingsView: View {
         MediaDimensionCache.shared.clearAll()
         SearchCache.shared.clear()
         await calculateTotalCacheSize()
+    }
+
+    /// Standard settings row with a leading tinted icon tile + title.
+    /// Matches the iOS Settings app convention so each row has a colored
+    /// anchor on the leading edge, making the form quicker to scan.
+    @ViewBuilder
+    fileprivate func settingsRow(
+        symbol: String,
+        tint: Color,
+        title: String,
+        titleColor: Color = .primary
+    ) -> some View {
+        HStack(spacing: 12) {
+            SettingsIcon(symbol: symbol, tint: tint)
+            Text(title)
+                .foregroundColor(titleColor)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// A 28pt tinted rounded square containing an SF Symbol — the visual
+/// language Apple's own Settings app uses for row leading icons.
+private struct SettingsIcon: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(tint.gradient)
+            )
+            .accessibilityHidden(true)
     }
 }
 
