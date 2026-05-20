@@ -1169,6 +1169,14 @@ struct ConsolidatedTimelineView: View {
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                // Invisible padding extends the tap target to ~45pt
+                // vertical without enlarging the visual pill. The HIG
+                // minimum for interactive elements is 44pt and the
+                // visible pill at .subheadline + 8pt padding lands at
+                // ~33pt — comfortable for index finger but tight for
+                // thumb taps on big phones.
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
             .buttonStyle(TimelinePillPressStyle())
             // Brief two-beat attention pulse on appearance — then settle.
@@ -1255,6 +1263,9 @@ struct ConsolidatedTimelineView: View {
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                // Same hit-target extension as newPostsPill (iter 211).
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
             .buttonStyle(TimelinePillPressStyle())
             .transition(.move(edge: .bottom).combined(with: .opacity))

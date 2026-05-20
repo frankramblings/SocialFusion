@@ -475,6 +475,10 @@ struct AccountTimelineView: View {
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                // Invisible padding extends tap target to ~45pt without
+                // changing visual size — mirrors iter 211's ConsolidatedTimeline fix.
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
             .buttonStyle(MergePillPressStyle())
             // Matching the entrance choreography ConsolidatedTimelineView's
