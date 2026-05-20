@@ -25,18 +25,18 @@ struct OpenProfileIntent: AppIntent {
             if host == "bsky.app", components.count >= 2, components[0] == "profile" {
                 let handle = components[1]
                 await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(handle)")!)
-                return .result(dialog: "Opened profile for \(handle)")
+                return .result(dialog: "Here's @\(handle)'s profile.")
             } else if components.count >= 1, components[0].hasPrefix("@") {
                 let handle = String(components[0].dropFirst())
                 await UIApplication.shared.open(URL(string: "socialfusion://user/mastodon/\(handle)")!)
-                return .result(dialog: "Opened profile for \(handle)")
+                return .result(dialog: "Here's @\(handle)'s profile.")
             }
         }
 
         // Check for DID (Bluesky)
         if trimmed.hasPrefix("did:") {
             await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(trimmed)")!)
-            return .result(dialog: "Opened profile for \(trimmed)")
+            return .result(dialog: "Here's that profile.")
         }
 
         // Check for @user@server (Mastodon/fediverse)
@@ -54,6 +54,6 @@ struct OpenProfileIntent: AppIntent {
             await UIApplication.shared.open(URL(string: "socialfusion://user/bluesky/\(handle)")!)
         }
 
-        return .result(dialog: "Opened profile for \(handle)")
+        return .result(dialog: "Here's @\(handle)'s profile.")
     }
 }
