@@ -10,9 +10,20 @@ struct SocialAccountEntity: AppEntity {
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Account")
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(
+        // Brand logo asset names match the assets bundled with the app
+        // (MastodonLogo / BlueskyLogo). DisplayRepresentation.Image accepts
+        // a named asset and Siri/Shortcuts renders it alongside the account row.
+        let imageName: String
+        switch platform.lowercased() {
+        case "mastodon": imageName = "MastodonLogo"
+        case "bluesky": imageName = "BlueskyLogo"
+        default: imageName = ""
+        }
+
+        return DisplayRepresentation(
             title: "\(displayName)",
-            subtitle: "@\(handle) (\(platform))"
+            subtitle: "@\(handle) on \(platform)",
+            image: imageName.isEmpty ? nil : DisplayRepresentation.Image(named: imageName)
         )
     }
 
