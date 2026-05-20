@@ -438,6 +438,7 @@ struct SearchView: View {
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(Color.orange.gradient)
                                             .symbolRenderingMode(.hierarchical)
+                                            .accessibilityHidden(true)
                                         Text(savedSearch.displayName)
                                             .font(.subheadline)
                                             .foregroundColor(.primary)
@@ -452,6 +453,8 @@ struct SearchView: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
+                                .accessibilityLabel("Pinned search: \(savedSearch.displayName)")
+                                .accessibilityHint("Runs this saved search")
                                 if index < store.pinnedSearches.count - 1 {
                                     Divider().padding(.leading, 42)
                                 }
