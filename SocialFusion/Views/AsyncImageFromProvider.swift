@@ -17,18 +17,19 @@ struct AsyncImageFromProvider: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else if isLoading {
-                Color.gray.opacity(0.2)
+                Color(.systemGray6)
                     .overlay(
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle())
                     )
             } else if loadFailed {
-                Color.gray.opacity(0.1)
+                Color(.systemGray6)
                     .overlay(
                         VStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle")
+                            Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.largeTitle)
-                                .foregroundColor(.gray)
+                                .foregroundStyle(Color.orange.gradient)
+                                .symbolRenderingMode(.hierarchical)
 
                             if let errorMessage = errorMessage {
                                 Text(errorMessage)

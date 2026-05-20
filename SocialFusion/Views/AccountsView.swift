@@ -56,9 +56,10 @@ struct AccountsView: View {
                     !tokenRefreshService.accountsNeedingReauth.isEmpty
                 {
                     Section(
-                        header: HStack {
+                        header: HStack(spacing: 6) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
+                                .foregroundStyle(Color.orange.gradient)
+                                .symbolRenderingMode(.hierarchical)
                             Text("Authentication Required")
                                 .foregroundColor(.orange)
                         }
