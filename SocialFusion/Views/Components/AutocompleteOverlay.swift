@@ -148,17 +148,16 @@ struct AutocompleteSuggestionRow: View {
 
       Spacer()
 
-      // Platform badges — use template renderer with hex brand colors
-      // (already on-brand; the explicit hex calls survive here because
-      // SwiftUI doesn't have a Color.brand(.mastodon) extension yet).
+      // Platform badges — route through SocialPlatform.swiftUIColor
+      // (which resolves to Color.mastodonColor / Color.blueskyColor,
+      // unified to canonical brand hex in 86a7ca5). Single source of
+      // truth for brand color — was a hand-rolled RGB tuple per case.
       HStack(spacing: 4) {
         ForEach(Array(suggestion.platforms), id: \.self) { platform in
           Image(platform.icon)
             .resizable()
             .renderingMode(.template)
-            .foregroundStyle(platform == .mastodon
-              ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-              : Color(red: 0, green: 133 / 255, blue: 255 / 255))
+            .foregroundStyle(platform.swiftUIColor)
             .frame(width: 12, height: 12)
         }
       }
@@ -183,5 +182,14 @@ struct AutocompleteSuggestionRow: View {
     )
     .animation(.easeOut(duration: 0.12), value: isSelected)
     .contentShape(Rectangle())
+    // Combine the row's avatar + text + platform badges into a single
+    // VoiceOver utterance so keyboard navigation through suggestions
+    // doesn't stop on every sub-element. The displayText alone reads
+    // sensibly ("@username" or "#hashtag") — subtitle gets appended
+    // when present.
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(suggestion.subtitle.map { "\(suggestion.displayText), \($0)" }
+                        ?? suggestion.displayText)
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 }
