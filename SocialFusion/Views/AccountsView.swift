@@ -18,29 +18,37 @@ struct AccountsView: View {
                     Button(action: {
                         toggleSelection(id: "all")
                     }) {
-                        HStack {
+                        HStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.purple.opacity(0.2))
+                                    .fill(Color.accentColor.opacity(0.16))
                                     .frame(width: 32, height: 32)
 
                                 Text("All")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.purple)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.accentColor)
                             }
 
+                            let isActive = serviceManager.selectedAccountIds.contains("all")
                             Text("All Accounts")
                                 .font(.headline)
+                                .fontWeight(isActive ? .semibold : .regular)
 
                             Spacer()
 
-                            if serviceManager.selectedAccountIds.contains("all") {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
+                            if isActive {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.white, Color.accentColor)
+                                    .symbolRenderingMode(.palette)
+                                    .transition(.scale.combined(with: .opacity))
                             }
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(
+                        serviceManager.selectedAccountIds.contains("all") ? .isSelected : []
+                    )
                 }
 
                 // Accounts needing re-authentication section
