@@ -533,9 +533,15 @@ struct PostDetailView: View {
                         .scaleEffect(canSendInlineReply ? 1.0 : 0.92)
                         .animation(.spring(response: 0.3, dampingFraction: 0.78), value: canSendInlineReply)
                         .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isSendingQuickReply)
+                        // 36pt visible, 44pt hit area — same recipe as
+                        // the chat send button and other primary
+                        // affordances in the app.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
                     .disabled(!canSendInlineReply || isSendingQuickReply)
+                    .accessibilityLabel(isSendingQuickReply ? "Sending reply" : "Send reply")
                     .accessibilityLabel(isSendingQuickReply ? "Sending reply" : "Send reply")
                 }
             }
