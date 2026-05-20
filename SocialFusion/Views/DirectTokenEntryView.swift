@@ -138,7 +138,7 @@ struct DirectTokenEntryView: View {
             } catch {
                 await MainActor.run {
                     isLoading = false
-                    errorMessage = "Failed to add account: \(error.localizedDescription)"
+                    errorMessage = "Couldn't add account: \(error.localizedDescription)"
                     HapticEngine.error.trigger()
                 }
             }

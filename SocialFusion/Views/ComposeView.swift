@@ -2106,7 +2106,7 @@ struct ComposeView: View {
                         if updatedPrevious.isEmpty && !failedReplies.isEmpty {
                             throw ServiceError.postFailed(
                                 reason:
-                                    "Failed to reply on all platforms: \(failedReplies.values.joined(separator: ", "))"
+                                    "Reply failed on all platforms: \(failedReplies.values.joined(separator: ", "))"
                             )
                         }
 
@@ -2170,9 +2170,8 @@ struct ComposeView: View {
                 await MainActor.run {
                     isPosting = false
                     HapticEngine.error.trigger()
-                    alertTitle = "Error"
-                    alertMessage =
-                        "Failed to \(replyingTo != nil ? "reply" : "post"): \(error.localizedDescription)"
+                    alertTitle = replyingTo != nil ? "Reply Couldn't Send" : "Post Couldn't Send"
+                    alertMessage = error.localizedDescription
                     showAlert = true
                 }
 
