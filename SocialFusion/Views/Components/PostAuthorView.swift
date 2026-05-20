@@ -27,9 +27,19 @@ struct PostAuthorView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Wrap the parent-provided callback in a tap haptic — without
+        // one, tapping the avatar/name/handle to navigate to a profile
+        // feels mute, while every other tappable surface in the app
+        // (action buttons, share, kebab menu) fires a beat. Only one
+        // of the three buttons can fire per tap, so no double-haptic.
+        let onAuthorTapWithHaptic: () -> Void = {
+            HapticEngine.tap.trigger()
+            onAuthorTap()
+        }
+
+        return HStack(spacing: 12) {
             // Author avatar
-            Button(action: onAuthorTap) {
+            Button(action: onAuthorTapWithHaptic) {
                 PostAuthorImageView(
                     authorProfilePictureURL: stableAuthorImageURL,
                     platform: stablePlatform,
@@ -42,7 +52,7 @@ struct PostAuthorView: View {
 
             // Author info
             VStack(alignment: .leading, spacing: 2) {
-                Button(action: onAuthorTap) {
+                Button(action: onAuthorTapWithHaptic) {
                     EmojiDisplayNameText(
                         stableAuthorName,
                         emojiMap: stableAuthorEmojiMap,
@@ -55,7 +65,7 @@ struct PostAuthorView: View {
                 .buttonStyle(PlainButtonStyle())
 
                 HStack(spacing: 4) {
-                    Button(action: onAuthorTap) {
+                    Button(action: onAuthorTapWithHaptic) {
                         Text("@\(stableAuthorUsername)")
                             .font(.caption)
                             .foregroundColor(.secondary)
