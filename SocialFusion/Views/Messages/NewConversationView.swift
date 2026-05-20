@@ -185,6 +185,20 @@ struct NewConversationView: View {
 
   // MARK: - User Row
 
+  /// Initials-fallback avatar — circle with the first letter of the
+  /// display name (or handle) when no avatar URL is available, or as
+  /// the placeholder while the AsyncImage is loading. Gives every
+  /// account a recognizable identity even before the network resolves.
+  private func avatarPlaceholder(initial: String) -> some View {
+    Circle()
+      .fill(Color(.systemGray5))
+      .overlay(
+        Text(initial.uppercased())
+          .font(.subheadline.weight(.semibold))
+          .foregroundColor(Color(.systemGray))
+      )
+  }
+
   private func userRow(
     avatarURL: String?,
     displayName: String?,
@@ -196,12 +210,12 @@ struct NewConversationView: View {
         CachedAsyncImage(url: url, priority: .high) { image in
           image.resizable().aspectRatio(contentMode: .fill)
         } placeholder: {
-          Circle().fill(Color(.systemGray5))
+          avatarPlaceholder(initial: (displayName ?? handle).first.map { String($0) } ?? "?")
         }
         .frame(width: 40, height: 40)
         .clipShape(Circle())
       } else {
-        Circle().fill(Color(.systemGray5))
+        avatarPlaceholder(initial: (displayName ?? handle).first.map { String($0) } ?? "?")
           .frame(width: 40, height: 40)
       }
 
