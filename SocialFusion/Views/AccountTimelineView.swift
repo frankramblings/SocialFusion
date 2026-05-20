@@ -216,10 +216,13 @@ struct AccountTimelineView: View {
                 controller.recordVisibleInteraction()
             }
             .refreshable {
-                // Capture "was at top" BEFORE the spinner overscrolls and
-                // briefly muddies isNearTop. Pull-to-refresh always fires
-                // from the top by gesture mechanic.
-                let wasAtTop = controller.isNearTop
+                // Pull-to-refresh = STAY IN PLACE + PILL.
+                //
+                // We deliberately do not auto-merge; the freshly-fetched
+                // posts stay in the buffer so the mergePill appears. You
+                // tap the pill (or the home tab) to whoosh up and see them.
+                // Matches Ivory/Tweetbot's reading-first behavior: refresh
+                // never costs you your scroll place.
                 let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                 pendingAnchorRestoreId = anchorBefore
                 let bufferBefore = controller.bufferCount
@@ -233,10 +236,9 @@ struct AccountTimelineView: View {
                     hasNewContent: arrivedCount > 0
                 ).trigger()
 
-                // Scenario 2: refresh returned nothing new. A quiet info
-                // toast confirms the gesture ran without moving anything.
-                // ToastManager handles VoiceOver via UIAccessibility.post
-                // so the message is spoken too.
+                // Zero new posts: quiet info toast confirms the gesture ran
+                // without moving anything. ToastManager handles VoiceOver via
+                // UIAccessibility.post so the message is spoken too.
                 if arrivedCount <= 0 {
                     ToastManager.shared.show(
                         "You're up to date",
@@ -245,40 +247,9 @@ struct AccountTimelineView: View {
                     )
                     return
                 }
-
-                // Scenario 1: user was at the top when they pulled, and
-                // new posts arrived in the buffer. The pill *would* sit
-                // there waiting for a second tap, but the whole point of
-                // pulling at the top is to see what's new — auto-merge
-                // so the freshly-arrived posts slide into view, then
-                // advance scrollAnchorId to the new top so SwiftUI's
-                // scrollPosition(id:) binding lands the user there rather
-                // than re-pinning them to the old anchor (the same
-                // restoration-anchor fight the ConsolidatedTimelineView
-                // fix addresses). Deliberately skip prepareMergeAnchorRestore
-                // for this branch — that helper exists for mid-feed pill
-                // taps where we *want* to preserve viewport position.
-                //
-                // If the user was mid-feed (impossible via gesture but the
-                // controller state may say so during a programmatic
-                // refresh), the pill stays put and they merge on demand.
-                if wasAtTop {
-                    Task { @MainActor in
-                        try? await Task.sleep(nanoseconds: 160_000_000)
-                        controller.mergeBufferedPosts()
-                        try? await Task.sleep(nanoseconds: 60_000_000)
-                        if let newTopId = controller.posts.first?.id,
-                           scrollAnchorId != newTopId {
-                            if reduceMotion {
-                                scrollAnchorId = newTopId
-                            } else {
-                                withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
-                                    scrollAnchorId = newTopId
-                                }
-                            }
-                        }
-                    }
-                }
+                // arrivedCount > 0: buffer is non-empty, mergePill appears.
+                // Tap-pill / home-tab handlers below take care of bringing
+                // the user up to the new top when they're ready.
             }
             .simultaneousGesture(
                 DragGesture()
@@ -298,6 +269,12 @@ struct AccountTimelineView: View {
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
             { _ in
                 HapticEngine.tap.trigger()
+                // Drain any buffered posts before scrolling so the home tab
+                // doesn't leave the user staring at stale content at the top.
+                // Matches ConsolidatedTimelineView's home-tab handler.
+                if controller.bufferCount > 0 {
+                    controller.mergeBufferedPosts()
+                }
                 scrollToTop(using: proxy)
                 syncAnchorToTopIfNeeded(
                     topId: controller.posts.first?.id,
@@ -605,16 +582,27 @@ struct AccountTimelineView: View {
     }
 
     private func handleMergeTap(proxy: ScrollViewProxy) {
-        if controller.isNearTop {
-            prepareMergeAnchorRestore()
-            controller.mergeBufferedPosts()
-            return
-        }
-        scrollToTop(using: proxy)
+        // The pill exists to *show you* the new posts — tapping it should
+        // always land you at the new top, regardless of where you were
+        // when you tapped. Merge first, then advance the anchor to the
+        // freshly-arrived first post.
+        controller.mergeBufferedPosts()
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            prepareMergeAnchorRestore()
-            controller.mergeBufferedPosts()
+            // Let the merge propagate through SwiftUI before we resolve the
+            // new top id — without this the .first?.id can still be the
+            // old top for one render pass.
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            guard let newTopId = controller.posts.first?.id else { return }
+            if #available(iOS 17.0, *) {
+                if scrollAnchorId != newTopId {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { scrollAnchorId = newTopId }
+                }
+            } else {
+                withAnimation(.none) { proxy.scrollTo(newTopId, anchor: .top) }
+            }
+            syncAnchorToTopIfNeeded(topId: newTopId, isAtTop: true)
         }
     }
 
