@@ -369,6 +369,7 @@ struct SearchView: View {
                         HStack {
                             Text("Recent")
                                 .font(.headline)
+                                .accessibilityAddTraits(.isHeader)
                             Spacer()
                             Button("Clear") {
                                 HapticEngine.warning.trigger()
@@ -421,6 +422,7 @@ struct SearchView: View {
                         Text("Pinned")
                             .font(.headline)
                             .padding(.horizontal)
+                            .accessibilityAddTraits(.isHeader)
 
                         VStack(spacing: 0) {
                             ForEach(Array(store.pinnedSearches.enumerated()), id: \.element.id) { index, savedSearch in
@@ -486,6 +488,7 @@ struct SearchView: View {
             Text("Trending on Mastodon")
                 .font(.headline)
                 .padding(.horizontal)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
                 ForEach(Array(trendingTags.enumerated()), id: \.element.id) { index, tag in
@@ -538,6 +541,7 @@ struct SearchView: View {
             Text("Trending on Mastodon")
                 .font(.headline)
                 .padding(.horizontal)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
                 ForEach(0..<5, id: \.self) { index in
