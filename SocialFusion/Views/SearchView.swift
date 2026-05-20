@@ -632,6 +632,7 @@ struct SearchView: View {
     
     private var composeButton: some View {
         Button {
+            HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
@@ -642,7 +643,7 @@ struct SearchView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Compose")
-        .accessibilityHint("Create a new post")
+        .accessibilityHint("Opens the post composer")
         .accessibilityIdentifier("ComposeToolbarButton")
         #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {

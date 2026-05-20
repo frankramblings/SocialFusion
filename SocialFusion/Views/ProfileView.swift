@@ -260,21 +260,39 @@ struct ProfileView: View {
   // MARK: - Blocked Placeholder
 
   private var blockedPlaceholder: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "hand.raised.fill")
-        .font(.system(size: 48))
-        .foregroundColor(.secondary)
-      Text("You blocked this account")
-        .font(.headline)
-        .foregroundColor(.secondary)
-      Text("You won't see their posts in your timeline.")
-        .font(.subheadline)
-        .foregroundColor(.secondary)
-        .multilineTextAlignment(.center)
-        .padding(.horizontal)
+    VStack(spacing: 16) {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [Color.red.opacity(0.12), Color.red.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 70
+            )
+          )
+          .frame(width: 140, height: 140)
+        Image(systemName: "hand.raised.fill")
+          .font(.system(size: 44, weight: .semibold))
+          .foregroundStyle(Color.red.gradient)
+          .symbolRenderingMode(.hierarchical)
+      }
+
+      VStack(spacing: 6) {
+        Text("You blocked this account")
+          .font(.title3.weight(.semibold))
+          .foregroundColor(.primary.opacity(0.85))
+        Text("You won't see their posts in your timeline.")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 60)
+    .accessibilityElement(children: .combine)
   }
 
   // MARK: - Post List
@@ -413,28 +431,63 @@ struct ProfileView: View {
 
   private var profileErrorView: some View {
     VStack(spacing: 16) {
-      Image(systemName: "exclamationmark.triangle")
-        .font(.system(size: 40))
-        .foregroundColor(.secondary)
-      Text("Couldn't load this profile")
-        .font(.headline)
-        .foregroundColor(.secondary)
-      if let error = viewModel.profileError {
-        Text(error.localizedDescription)
-          .font(.caption)
-          .foregroundColor(.secondary)
-          .multilineTextAlignment(.center)
-          .padding(.horizontal, 32)
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [Color.orange.opacity(0.14), Color.orange.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 70
+            )
+          )
+          .frame(width: 140, height: 140)
+        Image(systemName: "exclamationmark.triangle.fill")
+          .font(.system(size: 36, weight: .semibold))
+          .foregroundStyle(Color.orange.gradient)
+          .symbolRenderingMode(.hierarchical)
       }
-      Button("Retry") {
+
+      VStack(spacing: 6) {
+        Text("Couldn't load this profile")
+          .font(.title3.weight(.semibold))
+          .foregroundColor(.primary.opacity(0.85))
+        if let error = viewModel.profileError {
+          Text(error.localizedDescription)
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      Button {
+        HapticEngine.tap.trigger()
         Task {
           viewModel.profileError = nil
           viewModel.profile = nil
           await viewModel.loadProfile()
           await viewModel.loadPostsForCurrentTab()
         }
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: "arrow.clockwise")
+            .font(.subheadline.weight(.semibold))
+          Text("Try Again")
+            .font(.subheadline.weight(.semibold))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+        .background(
+          Capsule(style: .continuous)
+            .fill(Color.accentColor.gradient)
+            .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+        )
       }
-      .buttonStyle(.bordered)
+      .buttonStyle(.plain)
+      .padding(.top, 4)
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 60)
