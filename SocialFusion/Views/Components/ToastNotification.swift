@@ -175,6 +175,7 @@ struct ToastNotification: View {
 
 struct ToastHostModifier: ViewModifier {
     @StateObject private var toastManager = ToastManager.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
@@ -185,11 +186,17 @@ struct ToastHostModifier: ViewModifier {
                         .padding(.horizontal, 16)
                         .id(toast.id)
                         .transaction { t in
-                            t.animation = .spring(response: 0.42, dampingFraction: 0.78)
+                            // Reduce Motion: drop the spring envelope so
+                            // the toast just appears/disappears. The
+                            // ToastNotification view's own .transition
+                            // (line ~153) already handles reduceMotion
+                            // via accessibility env, so the only thing
+                            // left to gate is the spring driving it.
+                            t.animation = reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.78)
                         }
                 }
             }
-            .animation(.spring(response: 0.42, dampingFraction: 0.78), value: toastManager.currentToast)
+            .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.78), value: toastManager.currentToast)
     }
 }
 
