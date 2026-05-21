@@ -123,6 +123,7 @@ struct AdvancedLiquidGlassMaterial: View {
 
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.accessibilityReduceTransparency) var reduceTransparency
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
     // Note: accessibilityIncreaseContrast is not available in iOS 16, using reduceTransparency as fallback
 
     var body: some View {
@@ -212,7 +213,7 @@ struct AdvancedLiquidGlassMaterial: View {
                 )
             )
             .blendMode(.softLight)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+            .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
     }
 
     private var floatingDepthShadows: some View {
@@ -540,7 +541,7 @@ struct FloatingLiquidGlassTabBar: ViewModifier {
                     .padding(.bottom, 12)
                     .offset(y: tabBarOffset)
                     .scaleEffect(isPressed ? 0.98 : 1.0)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
+                    .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.7), value: isPressed)
                     .onAppear {
                         if !reduceMotion {
                             startFloatingAnimation()
@@ -654,7 +655,10 @@ struct MorphingLiquidGlassCard: ViewModifier {
                         }
                     }
                     .onEnded { _ in
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        // Drag reset spring resets cardScale/dragOffset
+                        // to their baseline. Match the .onChanged guard
+                        // so Reduce Motion gets an instant reset.
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) {
                             isDragging = false
                             dragOffset = .zero
                             cardScale = 1.0
