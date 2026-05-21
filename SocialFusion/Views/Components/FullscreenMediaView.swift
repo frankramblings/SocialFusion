@@ -367,7 +367,7 @@ struct FullscreenMediaView: View {
                                         Capsule(style: .continuous)
                                             .fill(isActive ? Color.white : Color.white.opacity(0.36))
                                             .frame(width: isActive ? 18 : 7, height: 7)
-                                            .animation(.spring(response: 0.35, dampingFraction: 0.78), value: isActive)
+                                            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.78), value: isActive)
                                     }
                                 }
                                 .padding(.horizontal, 10)
@@ -381,9 +381,9 @@ struct FullscreenMediaView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     }
-                    .animation(.easeInOut(duration: 0.2), value: overlaysVisible)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: overlaysVisible)
                 }
 
             }
