@@ -26,15 +26,8 @@ struct ActionBar: View {
     private let iconSize: CGFloat = 18
     private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
-    // Platform color helper
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    // Platform color via SocialPlatform.swiftUIColor (canonical hex).
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     private var menuOpenTrigger: some View {
         Color.clear
@@ -75,6 +68,8 @@ struct ActionBar: View {
                 }
             )
             .accessibilityLabel("Reply")
+            .accessibilityValue(replyValue(count: post.replyCount, isReplied: post.isReplied))
+            .accessibilityHint("Opens the reply composer")
             .frame(maxWidth: .infinity)
 
             // Repost button
@@ -91,7 +86,10 @@ struct ActionBar: View {
                     }
                 }
             )
-            .accessibilityLabel(post.isReposted ? "Undo Repost" : "Repost")
+            .accessibilityLabel("Repost")
+            .accessibilityValue(repostValue(count: post.repostCount, isReposted: post.isReposted))
+            .accessibilityHint(post.isReposted ? "Removes your repost" : "Reposts to your timeline")
+            .accessibilityAddTraits(post.isReposted ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             // Quote button
@@ -103,8 +101,9 @@ struct ActionBar: View {
                     onAction(.quote)
                 }
             )
-            .accessibilityLabel("Quote Post")
-            .accessibilityHint(post.isQuoted ? "You've already quoted this post — quotes it again." : "")
+            .accessibilityLabel("Quote")
+            .accessibilityHint("Opens the composer with this post quoted")
+            .accessibilityAddTraits(post.isQuoted ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             // Like button
@@ -122,7 +121,10 @@ struct ActionBar: View {
                     }
                 }
             )
-            .accessibilityLabel(post.isLiked ? "Unlike" : "Like")
+            .accessibilityLabel("Like")
+            .accessibilityValue(likeValue(count: post.likeCount, isLiked: post.isLiked))
+            .accessibilityHint(post.isLiked ? "Removes your like" : "Likes this post")
+            .accessibilityAddTraits(post.isLiked ? .isSelected : [])
             .frame(maxWidth: .infinity)
 
             // Share button
@@ -131,7 +133,7 @@ struct ActionBar: View {
                 onTap: { onAction(.share) }
             )
             .frame(maxWidth: .infinity, minHeight: 44)
-            .accessibilityLabel("Share post")
+            .accessibilityLabel("Share")
             .accessibilityHint("Opens share options")
 
             // Menu button (three dots)
@@ -163,8 +165,14 @@ struct ActionBar: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
+            // Pre-warm a tap haptic so the menu open feels
+            // acknowledged. Mirrors PostMenu.swift's pattern
+            // (the canonical kebab menu has the same beat).
             .simultaneousGesture(
-                TapGesture().onEnded { onMenuOpen?() }
+                TapGesture().onEnded {
+                    HapticEngine.tap.trigger()
+                    onMenuOpen?()
+                }
             )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
@@ -178,6 +186,32 @@ struct ActionBar: View {
     /// Derives current action state from the post for menu label computation
     private var currentState: PostActionState {
         post.makeActionState()
+    }
+
+    // MARK: - Accessibility values
+
+    fileprivate func replyValue(count: Int, isReplied: Bool) -> String {
+        let parts = [
+            isReplied ? "You replied" : nil,
+            count > 0 ? "\(count) repl\(count == 1 ? "y" : "ies")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func repostValue(count: Int, isReposted: Bool) -> String {
+        let parts = [
+            isReposted ? "Reposted" : nil,
+            count > 0 ? "\(count) repost\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func likeValue(count: Int, isLiked: Bool) -> String {
+        let parts = [
+            isLiked ? "Liked" : nil,
+            count > 0 ? "\(count) like\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
     }
 
     private func menuButton(for action: PostAction) -> some View {
@@ -269,8 +303,9 @@ struct ActionBarV2: View {
                 onAction(.quote)
             }
         )
-        .accessibilityLabel("Quote Post")
-        .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
+        .accessibilityLabel("Quote")
+        .accessibilityHint("Opens the composer with this post quoted")
+        .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
     }
 
     var body: some View {
@@ -284,8 +319,9 @@ struct ActionBarV2: View {
                     onAction(.reply)
                 }
             )
-            .accessibilityLabel(state.isReplied ? "Reply, already sent" : "Reply")
-            .accessibilityHint("Opens the composer.")
+            .accessibilityLabel("Reply")
+            .accessibilityValue(actionBarReplyValue(count: state.replyCount, isReplied: state.isReplied))
+            .accessibilityHint("Opens the reply composer")
             .frame(maxWidth: .infinity)
 
             UnifiedRepostButton(
@@ -295,8 +331,9 @@ struct ActionBarV2: View {
                 onTap: { coordinator.toggleRepost(for: post) }
             )
             .accessibilityLabel("Repost")
+            .accessibilityValue(actionBarRepostValue(count: state.repostCount, isReposted: state.isReposted))
+            .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
             .accessibilityAddTraits(state.isReposted ? .isSelected : [])
-            .accessibilityHint(state.isReposted ? "Removes your repost." : "Reposts this to your followers.")
             .frame(maxWidth: .infinity)
 
             UnifiedLikeButton(
@@ -307,8 +344,9 @@ struct ActionBarV2: View {
                 onTap: { coordinator.toggleLike(for: post) }
             )
             .accessibilityLabel("Like")
+            .accessibilityValue(actionBarLikeValue(count: state.likeCount, isLiked: state.isLiked))
+            .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
             .accessibilityAddTraits(state.isLiked ? .isSelected : [])
-            .accessibilityHint(state.isLiked ? "Unlikes this post." : "")
             .frame(maxWidth: .infinity)
 
             quoteButton
@@ -319,7 +357,7 @@ struct ActionBarV2: View {
                 onTap: { onAction(.share) }
             )
             .frame(maxWidth: .infinity, minHeight: 44)
-            .accessibilityLabel("Share post")
+            .accessibilityLabel("Share")
             .accessibilityHint("Opens share options")
 
             Menu {
@@ -350,8 +388,14 @@ struct ActionBarV2: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
+            // Pre-warm a tap haptic so the menu open feels
+            // acknowledged. Mirrors PostMenu.swift's pattern
+            // (the canonical kebab menu has the same beat).
             .simultaneousGesture(
-                TapGesture().onEnded { onMenuOpen?() }
+                TapGesture().onEnded {
+                    HapticEngine.tap.trigger()
+                    onMenuOpen?()
+                }
             )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
@@ -374,35 +418,30 @@ struct ActionBarV2: View {
         }
     }
 
-    @ViewBuilder
-    private var watchButton: some View {
-        let isWatching = watchedConversationStore.isWatching(rootPostID: post.id)
-        Button {
-            if isWatching {
-                watchedConversationStore.unwatch(rootPostID: post.id)
-                HapticEngine.selection.trigger()
-            } else {
-                let moment = fusedMomentStore.moment(for: post.id)
-                watchedConversationStore.watch(WatchedConversation(
-                    rootPostID: post.id,
-                    platform: post.platform,
-                    fusedMomentID: moment?.id,
-                    summary: WatchedConversation.Summary(
-                        authorName: post.authorName,
-                        contentPreview: post.content
-                    )
-                ))
-                // Starting a watch is a commitment ("ping me on either
-                // network"), worth the success notification. Unwatch is
-                // just a removal — selection-changed haptic is enough.
-                HapticEngine.success.trigger()
-            }
-        } label: {
-            Label(
-                isWatching ? "Stop watching" : "Watch conversation",
-                systemImage: isWatching ? "bell.slash" : "bell"
-            )
-        }
+    // MARK: - Accessibility values
+
+    private func actionBarReplyValue(count: Int, isReplied: Bool) -> String {
+        let parts = [
+            isReplied ? "You replied" : nil,
+            count > 0 ? "\(count) repl\(count == 1 ? "y" : "ies")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    private func actionBarRepostValue(count: Int, isReposted: Bool) -> String {
+        let parts = [
+            isReposted ? "Reposted" : nil,
+            count > 0 ? "\(count) repost\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    private func actionBarLikeValue(count: Int, isLiked: Bool) -> String {
+        let parts = [
+            isLiked ? "Liked" : nil,
+            count > 0 ? "\(count) like\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
     }
 }
 

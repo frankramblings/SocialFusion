@@ -104,18 +104,18 @@ class ErrorHandler {
     private func mapToAppError(_ error: Error, retryAction: (() -> Void)? = nil) -> AppError {
         // Try to map NetworkError to AppError
         if let networkError = error as? NetworkError {
-            // Comment out or stub the use of 'isRetriable' and 'userFriendlyDescription' on NetworkError
-            // TODO: Implement these properties/methods as needed
-            // Example:
-            // let isRetryable = networkError.isRetriable // TODO: Implement
-            // message: networkError.userFriendlyDescription // TODO: Implement
-
+            // NetworkError.userFriendlyDescription and .isRetriable were
+            // marked TODO when this code was written but have since
+            // been implemented (see Networking/NetworkService.swift).
+            // Wire them up so users see "Server error occurred" rather
+            // than the raw Swift error description like
+            // "httpError(500, Optional(nil))".
             return AppError(
                 type: .network,
-                message: String(describing: networkError),
+                message: networkError.userFriendlyDescription,
                 underlyingError: networkError,
-                isRetryable: false,
-                suggestedAction: retryAction
+                isRetryable: networkError.isRetriable,
+                suggestedAction: networkError.isRetriable ? retryAction : nil
             )
         }
 
@@ -167,21 +167,24 @@ class ErrorHandler {
         )
     }
 
-    /// Get an appropriate title for error alerts based on error type
+    /// Get an appropriate title for error alerts based on error type.
+    /// Voice: warm noun phrases (Apple HIG: avoid "Error" as a generic
+    /// title — it tells the user nothing more than the alert presentation
+    /// already conveys).
     func errorTitle(for type: AppErrorType) -> String {
         switch type {
         case .network:
-            return "Connection Error"
+            return "Connection Trouble"
         case .authentication:
-            return "Authentication Error"
+            return "Sign-In Problem"
         case .data:
-            return "Data Error"
+            return "Couldn't Load That"
         case .permission:
-            return "Permission Required"
+            return "Permission Needed"
         case .account:
-            return "Account Error"
+            return "Account Issue"
         case .general:
-            return "Error"
+            return "Something Went Wrong"
         }
     }
 

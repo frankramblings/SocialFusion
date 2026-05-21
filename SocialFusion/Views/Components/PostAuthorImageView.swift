@@ -34,7 +34,7 @@ struct PostAuthorImageView: View {
                     ZStack {
                         Circle()
                             .fill(Color(.secondarySystemFill))
-                        
+
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
@@ -44,17 +44,14 @@ struct PostAuthorImageView: View {
                     }
                     .frame(width: size, height: size)
                 } placeholder: {
-                    // Show initials + spinner while loading or on failure
-                    ZStack {
-                        initialsBackground
-                            .frame(width: size, height: size)
-                            .clipShape(Circle())
-                        
-                        ProgressView()
-                            .scaleEffect(0.6)
-                            .progressViewStyle(
-                                CircularProgressViewStyle(tint: .white.opacity(0.8)))
-                    }
+                    // Initials only while loading or on failure — the
+                    // initials background IS the placeholder. Adding a
+                    // spinner on top is visual noise: the user sees the
+                    // initials, registers identity, the image crossfades
+                    // in when ready. No spinner needed.
+                    initialsBackground
+                        .frame(width: size, height: size)
+                        .clipShape(Circle())
                 }
             } else {
                 // Fallback for missing URL
@@ -76,14 +73,18 @@ struct PostAuthorImageView: View {
             )
             .offset(x: 2, y: 2)  // Small offset to position badge properly
         }
-        // VoiceOver: combine the avatar + badge + initials into a single
-        // element. Without this the user gets three sub-elements for one
-        // semantic thing ("avatar of @user on Mastodon"), with no way to
-        // tell the platform indicator is part of the same person.
+        // Combine the avatar + platform badge into a single
+        // accessibility element with a descriptive label. Without
+        // this, VoiceOver stops on every avatar and announces
+        // ambiguous SF Symbol/image hints. Most call sites already
+        // wrap this in a parent that combines and labels its own
+        // element (e.g. PostAuthorView), but standalone uses (DM
+        // rows, account picker, etc.) reach this directly and need
+        // their own label.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(authorName.isEmpty
-            ? "\(platform.accessibilityLabel) avatar"
-            : "\(platform.accessibilityLabel) avatar for \(authorName.decodingHTMLEntities)")
+                            ? "\(platform.rawValue.capitalized) avatar"
+                            : "\(authorName), \(platform.rawValue.capitalized) avatar")
     }
 
     // Computed property for initials background (like Twitter, Instagram, etc.)

@@ -3,6 +3,7 @@ import SwiftUI
 struct NewConversationView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   @State private var searchText = ""
   @State private var blueskyResults: [BlueskyActor] = []
@@ -21,27 +22,51 @@ struct NewConversationView: View {
           ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
               ForEach(selectedParticipants, id: \.did) { actor in
-                HStack(spacing: 4) {
-                  Text((actor.displayName ?? actor.handle).decodingHTMLEntities)
-                    .font(.caption)
-                    .fontWeight(.medium)
+                HStack(spacing: 5) {
+                  Text(actor.displayName ?? actor.handle)
+                    .font(.caption.weight(.semibold))
                   Button {
-                    selectedParticipants.removeAll { $0.did == actor.did }
+                    HapticEngine.tap.trigger()
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
+                      selectedParticipants.removeAll { $0.did == actor.did }
+                    }
                   } label: {
                     Image(systemName: "xmark.circle.fill")
                       .font(.caption)
-                      .foregroundColor(.secondary)
+                      .foregroundStyle(Color.accentColor.opacity(0.85), Color.accentColor.opacity(0.16))
+                      .symbolRenderingMode(.palette)
                   }
-                  .accessibilityLabel("Remove \(actor.displayName ?? actor.handle) from selection")
+                  .buttonStyle(.plain)
+                  .accessibilityLabel("Remove \(actor.displayName ?? actor.handle)")
                 }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(Color(.systemGray5)))
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                  Capsule()
+                    .fill(Color.accentColor.opacity(0.14))
+                    .overlay(
+                      Capsule()
+                        .strokeBorder(Color.accentColor.opacity(0.24), lineWidth: 0.5)
+                    )
+                )
+                .transition(
+                  reduceMotion
+                    ? .opacity
+                    : .asymmetric(
+                        insertion: .scale(scale: 0.7).combined(with: .opacity),
+                        removal: .scale(scale: 0.7).combined(with: .opacity)
+                      )
+                )
               }
             }
-            .padding(.horizontal)
+            .padding(.horizontal, 14)
             .padding(.vertical, 8)
           }
+          .overlay(
+            Divider(),
+            alignment: .bottom
+          )
         }
 
         List {
@@ -58,7 +83,10 @@ struct NewConversationView: View {
             Section("Bluesky") {
               ForEach(blueskyResults, id: \.did) { actor in
                 Button {
-                  toggleBlueskySelection(actor)
+                  HapticEngine.selection.trigger()
+                  withAnimation(.spring(response: 0.3, dampingFraction: 0.82)) {
+                    toggleBlueskySelection(actor)
+                  }
                 } label: {
                   HStack {
                     userRow(
@@ -68,8 +96,13 @@ struct NewConversationView: View {
                       platform: .bluesky
                     )
                     if selectedParticipants.contains(where: { $0.did == actor.did }) {
+                      // Brand checkmark via SocialPlatform.swiftUIColor
+                      // — was a hand-rolled RGB tuple for Bluesky blue.
                       Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.blue)
+                        .font(.title3)
+                        .foregroundStyle(.white, SocialPlatform.bluesky.swiftUIColor)
+                        .symbolRenderingMode(.palette)
+                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                     }
                   }
                 }
@@ -107,6 +140,9 @@ struct NewConversationView: View {
         }
       }
       .searchable(text: $searchText, prompt: "Search people...")
+      // Drop the keyboard the moment the list scrolls — feels right
+      // when the user is browsing results, no need to keep typing space.
+      .scrollDismissesKeyboard(.immediately)
       .onChange(of: searchText) { _, newValue in
         searchTask?.cancel()
         guard newValue.count >= 2 else {
@@ -124,15 +160,18 @@ struct NewConversationView: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
-          Button("Cancel") { dismiss() }
-            .keyboardShortcut(.escape, modifiers: [])
+          Button("Cancel") {
+            HapticEngine.tap.trigger()
+            dismiss()
+          }
         }
         ToolbarItem(placement: .confirmationAction) {
           if !selectedParticipants.isEmpty {
             Button(selectedParticipants.count > 1 ? "Create Group" : "Start Chat") {
+              HapticEngine.tap.trigger()
               startConversationWithSelected()
             }
-            .keyboardShortcut(.return, modifiers: .command)
+            .fontWeight(.semibold)
           }
         }
       }
@@ -141,7 +180,7 @@ struct NewConversationView: View {
           ChatView(conversation: conversation)
         }
       }
-      .alert("Error", isPresented: Binding(
+      .alert("Couldn't Start Conversation", isPresented: Binding(
         get: { errorMessage != nil },
         set: { if !$0 { errorMessage = nil } }
       )) {
@@ -154,6 +193,20 @@ struct NewConversationView: View {
 
   // MARK: - User Row
 
+  /// Initials-fallback avatar — circle with the first letter of the
+  /// display name (or handle) when no avatar URL is available, or as
+  /// the placeholder while the AsyncImage is loading. Gives every
+  /// account a recognizable identity even before the network resolves.
+  private func avatarPlaceholder(initial: String) -> some View {
+    Circle()
+      .fill(Color(.systemGray5))
+      .overlay(
+        Text(initial.uppercased())
+          .font(.subheadline.weight(.semibold))
+          .foregroundColor(Color(.systemGray))
+      )
+  }
+
   private func userRow(
     avatarURL: String?,
     displayName: String?,
@@ -165,12 +218,12 @@ struct NewConversationView: View {
         CachedAsyncImage(url: url, priority: .high) { image in
           image.resizable().aspectRatio(contentMode: .fill)
         } placeholder: {
-          Circle().fill(Color.gray.opacity(0.3))
+          avatarPlaceholder(initial: (displayName ?? handle).first.map { String($0) } ?? "?")
         }
         .frame(width: 40, height: 40)
         .clipShape(Circle())
       } else {
-        Circle().fill(Color.gray.opacity(0.3))
+        avatarPlaceholder(initial: (displayName ?? handle).first.map { String($0) } ?? "?")
           .frame(width: 40, height: 40)
       }
 
@@ -193,8 +246,8 @@ struct NewConversationView: View {
       PostPlatformBadge(platform: platform)
         .scaleEffect(0.85)
     }
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel("\(displayName ?? handle), @\(handle), on \(platform.accessibilityLabel)")
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(displayName ?? handle), @\(handle), on \(platform.rawValue.capitalized)")
   }
 
   // MARK: - Search
@@ -259,13 +312,16 @@ struct NewConversationView: View {
       do {
         let dids = selectedParticipants.map(\.did)
         let conversation = try await serviceManager.startOrFindBlueskyConversation(withDids: dids)
-        selectedConversation = conversation
-        navigateToChat = true
+        await MainActor.run {
+          HapticEngine.success.trigger()
+          selectedConversation = conversation
+          navigateToChat = true
+        }
       } catch {
-        // Error haptic so the failure draws attention — the alert that
-        // surfaces the errorMessage can lag the keyboard dismiss.
-        HapticEngine.error.trigger()
-        errorMessage = "Failed to start conversation: \(error.localizedDescription)"
+        await MainActor.run {
+          HapticEngine.error.trigger()
+          errorMessage = "Couldn't start the conversation: \(error.localizedDescription)"
+        }
       }
     }
   }

@@ -17,19 +17,19 @@ struct AsyncImageFromProvider: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else if isLoading {
-                Color.gray.opacity(0.2)
+                Color(.systemGray6)
                     .overlay(
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle())
                     )
             } else if loadFailed {
-                Color.gray.opacity(0.1)
+                Color(.systemGray6)
                     .overlay(
                         VStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle")
+                            Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.largeTitle)
-                                .foregroundColor(.gray)
-                                .accessibilityHidden(true)
+                                .foregroundStyle(Color.orange.gradient)
+                                .symbolRenderingMode(.hierarchical)
 
                             if let errorMessage = errorMessage {
                                 Text(errorMessage)
@@ -46,12 +46,12 @@ struct AsyncImageFromProvider: View {
                             ?? "Image failed to load"
                     )
             } else {
-                Color.gray.opacity(0.1)
+                Color(.systemGray6)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.largeTitle)
-                            .foregroundColor(.gray)
-                            .accessibilityHidden(true)
+                            .foregroundStyle(Color(.systemGray2).gradient)
+                            .symbolRenderingMode(.hierarchical)
                     )
                     .accessibilityLabel("Image placeholder")
             }

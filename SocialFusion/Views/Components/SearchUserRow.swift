@@ -4,37 +4,32 @@ import SwiftUI
 struct SearchUserRow: View {
   let user: SearchUser
   let onTap: () -> Void
-  
+
   var body: some View {
-    Button(action: onTap) {
+    Button {
+      HapticEngine.tap.trigger()
+      onTap()
+    } label: {
       HStack(spacing: 12) {
         // Avatar
+        let initial = String((user.displayName ?? user.username).prefix(1)).uppercased()
         if let avatarURL = user.avatarURL, let url = URL(string: avatarURL) {
           AsyncImage(url: url) { image in
             image
               .resizable()
               .aspectRatio(contentMode: .fill)
           } placeholder: {
-            Circle()
-              .fill(Color.gray.opacity(0.3))
-              .overlay(
-                ProgressView()
-                  .scaleEffect(0.5)
-              )
+            // Initials placeholder (matches the avatar-initials pattern
+            // from iters 69-73) — feels more present than a spinner.
+            initialsCircle(initial)
           }
           .frame(width: 40, height: 40)
           .clipShape(Circle())
         } else {
-          Circle()
-            .fill(Color.gray.opacity(0.3))
+          initialsCircle(initial)
             .frame(width: 40, height: 40)
-            .overlay(
-              Text(user.username.prefix(1).uppercased())
-                .font(.headline)
-                .foregroundColor(.secondary)
-            )
         }
-        
+
         // User info
         VStack(alignment: .leading, spacing: 2) {
           EmojiDisplayNameText(
@@ -45,30 +40,36 @@ struct SearchUserRow: View {
             foregroundColor: .primary,
             lineLimit: 1
           )
-          
+
           Text("@\(user.username)")
             .font(.subheadline)
             .foregroundColor(.secondary)
             .lineLimit(1)
         }
-        
+
         Spacer()
-        
+
         // Platform indicator
         PlatformIndicator(platform: user.platform)
       }
       .padding(.vertical, 8)
       .padding(.horizontal, 16)
+      .contentShape(Rectangle())
     }
-    .buttonStyle(PlainButtonStyle())
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(combinedLabel)
-    .accessibilityAddTraits(.isButton)
-    .accessibilityHint("Opens this profile.")
+    .buttonStyle(.plain)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(user.displayName ?? user.username), @\(user.username), on \(user.platform.rawValue.capitalized)")
+    .accessibilityHint("Opens this user's profile")
   }
 
-  private var combinedLabel: String {
-    let name = user.displayName ?? user.username
-    return "\(name), @\(user.username), on \(user.platform.accessibilityLabel)"
+  /// Initials-fallback avatar matching the pattern from iters 69-73.
+  private func initialsCircle(_ initial: String) -> some View {
+    Circle()
+      .fill(Color(.systemGray5))
+      .overlay(
+        Text(initial)
+          .font(.headline.weight(.semibold))
+          .foregroundColor(Color(.systemGray))
+      )
   }
 }

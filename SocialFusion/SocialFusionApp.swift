@@ -66,8 +66,14 @@ struct SocialFusionApp: App {
         WindowGroup {
             if appVersionManager.shouldShowLaunchAnimation {
                 LaunchAnimationView {
-                    // Animation completed, show main content
-                    withAnimation(.easeOut(duration: 0.5)) {
+                    // Animation completed, show main content. The
+                    // closure fires from inside LaunchAnimationView's
+                    // View context, but we're at App scope here so
+                    // query UIAccessibility directly to gate the
+                    // cross-fade under reduceMotion. (View-level
+                    // @Environment isn't available on the App body.)
+                    let reduceMotion = UIAccessibility.isReduceMotionEnabled
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.5)) {
                         appVersionManager.markLaunchAnimationCompleted()
                     }
                 }

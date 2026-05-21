@@ -324,6 +324,14 @@ class UnifiedTimelineController: ObservableObject {
         self.currentAnchorId = id
     }
 
+    /// Clear the restoration anchor once the view has consumed it.
+    /// Called after the view explicitly re-anchors the scroll position
+    /// via proxy.scrollTo, so we don't re-fire restoration on subsequent
+    /// posts changes (e.g. user scrolling or post-state updates).
+    func clearRestorationAnchor() {
+        self.restorationAnchor = nil
+    }
+
     /// Refresh timeline - proper async/await pattern
     /// Use this for scope changes or other non-user-initiated refreshes
     func refreshTimeline() {

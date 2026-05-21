@@ -29,44 +29,18 @@ struct PostTimestamp: View {
     }
     
     private func formatRelativeDate() -> String {
-        let now = Date()
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second],
-            from: date,
-            to: now
-        )
-        
-        if let year = components.year, year > 0 {
-            return "\(year)y"
-        } else if let month = components.month, month > 0 {
-            return "\(month)mo"
-        } else if let day = components.day, day > 0 {
-            if day < 7 {
-                return "\(day)d"
-            } else {
-                let week = day / 7
-                return "\(week)w"
-            }
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m"
-        } else {
-            return "now"
-        }
+        date.relativeTimeString
     }
     
     private func formatAbsoluteDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
+        SharedFormatters.detailedDateTime.string(from: date)
     }
-    
+
     private func formatCompactDate() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d"
-        return formatter.string(from: date)
+        // Locale-aware "MMM d" — picks the right glyph order for
+        // the user's locale (e.g. '4 Mar' for en-GB instead of
+        // 'Mar 4'). The previous hard-coded "MMM d" was English-only.
+        SharedFormatters.compactMonthDay.string(from: date)
     }
 }
 

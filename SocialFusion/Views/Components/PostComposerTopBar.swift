@@ -113,32 +113,40 @@ struct ProfileToggleButton: View {
 
     @State private var isPressed = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let avatarSize: CGFloat = 44
 
     var body: some View {
-        Button(action: onTap) {
-            // Create a container that provides enough space for the badge and selection ring
+        Button {
+            HapticEngine.selection.trigger()
+            onTap()
+        } label: {
+            // Create a container that provides enough space for the badge and selection ring.
+            // Brand color via SocialPlatform.swiftUIColor — single
+            // source of truth (86a7ca5).
+            let brandColor = account.platform.swiftUIColor
             ZStack {
                 // Background glow effect for active accounts
                 if isSelected {
                     Circle()
-                        .fill(Color(hex: account.platform.colorHex).opacity(0.1))
-                        .frame(width: avatarSize + 8, height: avatarSize + 8)
+                        .fill(brandColor.opacity(0.12))
+                        .frame(width: avatarSize + 10, height: avatarSize + 10)
                         .blur(radius: 8)
                 }
 
                 // Selection ring positioned behind the profile image
                 if isSelected {
                     Circle()
-                        .stroke(Color(hex: account.platform.colorHex), lineWidth: 3)
+                        .stroke(brandColor, lineWidth: 3)
                         .frame(width: avatarSize + 6, height: avatarSize + 6)
                         .shadow(
-                            color: Color(hex: account.platform.colorHex).opacity(0.3),
-                            radius: 4,
+                            color: brandColor.opacity(0.32),
+                            radius: 5,
                             x: 0,
                             y: 2
                         )
+                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                 }
 
                 // Profile image with existing platform badge (PostAuthorImageView already includes PlatformLogoBadge)
@@ -152,24 +160,21 @@ struct ProfileToggleButton: View {
                 .opacity(isSelected ? 1.0 : 0.5)
                 .saturation(isSelected ? 1.0 : 0.3)
             }
-            .frame(width: avatarSize + 12, height: avatarSize + 12)  // Extra space to prevent clipping of badge and selection ring
+            .frame(width: avatarSize + 12, height: avatarSize + 12)
         }
         .buttonStyle(.plain)
-        .onLongPressGesture {
+        .onLongPressGesture(minimumDuration: 0.45) {
+            // Slightly weightier than .selection so users can feel the
+            // difference between "toggle this account" and "switch accounts".
+            HapticEngine.success.trigger()
             onLongPress()
         }
-        .onAppear {
-            // REMOVED: Animation delay that was causing AttributeGraph cycles
-            // Proper SwiftUI state management doesn't need artificial delays
-        }
-        // Note: sensoryFeedback is iOS 17+, removed for iOS 16 compatibility
-        .animation(.easeInOut(duration: 0.15), value: isSelected)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(account.platform.accessibilityLabel) account: \(account.displayName ?? account.username)")
-        .accessibilityValue(isSelected ? "Active" : "Inactive")
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
-        .accessibilityHint(isSelected ? "Deactivates this account for the post. Long-press for options." : "Activates this account for the post. Long-press for options.")
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .accessibilityLabel("@\(account.username)")
+        .accessibilityValue(isSelected ? "Selected for posting" : "Not selected")
+        .accessibilityHint("Activates posting from this account. Long press to switch accounts for this platform.")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -178,6 +183,7 @@ struct VisibilityButton: View {
     @Binding var selectedVisibility: Int
     let options: [String]
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var visibilityIcon: String {
         switch selectedVisibility {
@@ -201,20 +207,23 @@ struct VisibilityButton: View {
             }
         } label: {
             Image(systemName: visibilityIcon)
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.secondary)
+                .contentTransition(.symbolEffect(.replace))
                 .frame(width: 44, height: 44)
                 .background(Material.regularMaterial, in: Circle())
                 .overlay(
                     Circle()
-                        .stroke(Color.secondary.opacity(0.3), lineWidth: 0.5)
+                        .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 0.5)
                 )
-                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.08), radius: 3, x: 0, y: 1)
         }
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+        .onChange(of: selectedVisibility) { _, _ in HapticEngine.selection.trigger() }
         .accessibilityLabel("Post visibility")
         .accessibilityValue(options.indices.contains(selectedVisibility) ? options[selectedVisibility] : "Public")
         .accessibilityHint("Choose who can see this post")
-        .animation(.easeInOut(duration: 0.2), value: selectedVisibility)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
     }
 
     private func iconForIndex(_ index: Int) -> String {
@@ -229,6 +238,8 @@ struct VisibilityButton: View {
 
 /// Empty state when no accounts are available
 struct EmptyAccountsView: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         VStack(spacing: 8) {
             Image(systemName: "person.crop.circle.badge.plus")
@@ -240,11 +251,25 @@ struct EmptyAccountsView: View {
                 .foregroundColor(.secondary)
         }
         .frame(width: 44, height: 44)
-        .background(Material.ultraThinMaterial, in: Circle())
+        // Solid fallback under Reduce Transparency. Without it, the
+        // "no account" placeholder pill loses contrast against the
+        // composer's translucent backdrop.
+        .background(
+            Group {
+                if reduceTransparency {
+                    Circle().fill(Color(.secondarySystemBackground))
+                } else {
+                    Circle().fill(.ultraThinMaterial)
+                }
+            }
+        )
         .overlay(
             Circle()
                 .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
         )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Add Account")
+        .accessibilityHint("No accounts available for posting. Add one in Settings.")
     }
 }
 
@@ -256,57 +281,59 @@ struct AccountSwitcherSheet: View {
     let onAccountSelected: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var platformAccounts: [SocialAccount] {
         socialServiceManager.accounts.filter { $0.platform == platform }
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 Section {
                     ForEach(platformAccounts, id: \.id) { account in
-                        HStack(spacing: 12) {
-                            PostAuthorImageView(
-                                authorProfilePictureURL: account.profileImageURL?.absoluteString
-                                    ?? "",
-                                platform: account.platform,
-                                size: 32,
-                                authorName: account.displayName ?? account.username
-                            )
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                EmojiDisplayNameText(
-                                    account.displayName ?? account.username,
-                                    emojiMap: account.displayNameEmojiMap,
-                                    font: .headline,
-                                    fontWeight: .regular,
-                                    foregroundColor: .primary,
-                                    lineLimit: 1
-                                )
-
-                                Text("@\(account.username)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-
-                            Spacer()
-
-                            if account.id == currentAccountId {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(Color(hex: platform.colorHex))
-                            }
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            // Selection haptic on account-pick — matches
-                            // the rest of the picker-style flows in the
-                            // app. Fires regardless of whether the picked
-                            // account is the same as current, since the
-                            // user committed a tap.
+                        Button {
                             HapticEngine.selection.trigger()
                             onAccountSelected(account.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                PostAuthorImageView(
+                                    authorProfilePictureURL: account.profileImageURL?.absoluteString
+                                        ?? "",
+                                    platform: account.platform,
+                                    size: 32,
+                                    authorName: account.displayName ?? account.username
+                                )
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    EmojiDisplayNameText(
+                                        account.displayName ?? account.username,
+                                        emojiMap: account.displayNameEmojiMap,
+                                        font: .headline,
+                                        fontWeight: account.id == currentAccountId ? .semibold : .regular,
+                                        foregroundColor: .primary,
+                                        lineLimit: 1
+                                    )
+
+                                    Text("@\(account.username)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                if account.id == currentAccountId {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.white, Color(hex: platform.colorHex))
+                                        .symbolRenderingMode(.palette)
+                                        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+                                }
+                            }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(account.id == currentAccountId ? .isSelected : [])
                     }
                 } header: {
                     HStack {
@@ -323,10 +350,12 @@ struct AccountSwitcherSheet: View {
             .navigationTitle("Switch Account")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
+                        HapticEngine.tap.trigger()
                         dismiss()
                     }
+                    .fontWeight(.semibold)
                 }
             }
         }

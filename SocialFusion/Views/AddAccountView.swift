@@ -6,9 +6,9 @@ import UIKit
 struct AddAccountView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var oauthManager: OAuthManager
-    @Environment(\.presentationMode) var presentationMode
     @Environment(\.dismiss) var dismiss
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var selectedPlatform: SocialPlatform = .mastodon
     @State private var server = ""
@@ -19,6 +19,10 @@ struct AddAccountView: View {
     @State private var platformSelected = true
     @State private var isOAuthFlow = true
     @State private var isAuthCodeEntered = false
+
+    /// Focus targets for keyboard field-to-field navigation.
+    private enum Field { case server, username, password }
+    @FocusState private var focusedField: Field?
     @State private var showWebAuthFailure = false
     @State private var serverName = ""
     @State private var showError = false
@@ -46,7 +50,7 @@ struct AddAccountView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Platform")) {
                     HStack(spacing: 10) {
@@ -95,8 +99,10 @@ struct AddAccountView: View {
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
                             .autocorrectionDisabled(true)
-                            .focused($focusedField, equals: .server)
+                            .textContentType(.URL)
                             .submitLabel(.done)
+                            .focused($focusedField, equals: .server)
+                            .onSubmit { focusedField = nil }
                     } else {
                         Text("Enter your Bluesky credentials")
                             .font(.caption)
@@ -106,15 +112,16 @@ struct AddAccountView: View {
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                             .autocorrectionDisabled(true)
-                            .focused($focusedField, equals: .username)
+                            .textContentType(.username)
                             .submitLabel(.next)
+                            .focused($focusedField, equals: .username)
                             .onSubmit { focusedField = .password }
 
                         SecureField("App Password", text: $password)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled(true)
-                            .focused($focusedField, equals: .password)
+                            .textContentType(.password)
                             .submitLabel(.done)
+                            .focused($focusedField, equals: .password)
+                            .onSubmit { focusedField = nil }
 
                         Text(
                             "Use an app password from Bluesky settings. Go to Settings → App Passwords in your Bluesky account to create one."
@@ -128,94 +135,63 @@ struct AddAccountView: View {
 
                 if let errorMessage = errorMessage, !errorMessage.isEmpty {
                     Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                        Label {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(Color.red.gradient)
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.leading)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Error: \(errorMessage)")
                     }
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                 }
 
                 Section {
                     if selectedPlatform == .mastodon {
-                        Button(action: addAccount) {
-                            if isLoading {
-                                HStack {
-                                    Spacer()
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                    Spacer()
-                                }
-                            } else {
-                                HStack {
-                                    Spacer()
-                                    Image("MastodonLogo")
-                                        .resizable()
-                                        .renderingMode(.template)
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 20, height: 20)
-                                        .foregroundColor(.white)
-                                    Text("Sign in with Mastodon")
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                }
-                                .frame(height: 44)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(platformColor(for: selectedPlatform))
-                                )
-                                .padding(.vertical, 4)
-                            }
-                        }
-                        .disabled(isLoading || server.isEmpty)
+                        signInButton(
+                            title: "Sign in with Mastodon",
+                            logo: "MastodonLogo",
+                            disabled: isLoading || server.isEmpty
+                        )
                     } else {
-                        Button(action: addAccount) {
-                            if isLoading {
-                                HStack {
-                                    Spacer()
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle())
-                                    Spacer()
-                                }
-                            } else {
-                                HStack {
-                                    Spacer()
-                                    Text("Sign in with Bluesky")
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                    Spacer()
-                                }
-                                .frame(height: 44)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .fill(platformColor(for: selectedPlatform))
-                                )
-                                .padding(.vertical, 4)
-                            }
-                        }
-                        .disabled(isLoading || !isBlueskyFormValid)
+                        signInButton(
+                            title: "Sign in with Bluesky",
+                            logo: "BlueskyLogo",
+                            disabled: isLoading || !isBlueskyFormValid
+                        )
                     }
                 }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
             }
 
             .navigationBarBackButtonHidden(true)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .navigationBarItems(
-                leading:
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         if !preserveFormState {
                             dismiss()
                         }
                     }
-                    .keyboardShortcut(.escape, modifiers: [])
-            )
-            .alert(isPresented: $showError) {
-                Alert(
-                    title: Text("Error"),
-                    message: Text(errorMessage ?? "An unknown error occurred"),
-                    dismissButton: .default(Text("OK"))
-                )
+                }
+            }
+            .alert(
+                "Couldn't Add Account",
+                isPresented: $showError,
+                presenting: errorMessage
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { error in
+                Text(error.isEmpty ? "Something went wrong while signing in." : error)
             }
             .onAppear {
                 // Restore form data if it was preserved
@@ -232,17 +208,75 @@ struct AddAccountView: View {
                     ProgressView()
                         .scaleEffect(1.5)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(Color.black.opacity(0.1))
                                 .frame(width: 60, height: 60)
                         )
+                        .accessibilityLabel("Signing in")
+                        .transition(.opacity)
                 }
             }
+            // Error/loading transitions skip the fade under
+            // reduceMotion. The error banner just appears/disappears
+            // instantly rather than the 0.25s envelope.
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: errorMessage)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isLoading)
         }
     }
 
     private var isBlueskyFormValid: Bool {
         return !username.isEmpty && !password.isEmpty
+    }
+
+    /// Branded sign-in button — gradient-fill capsule with tinted shadow,
+    /// matching the signature CTA treatment used elsewhere. Shows a
+    /// progress spinner inline when isLoading.
+    @ViewBuilder
+    private func signInButton(title: String, logo: String, disabled: Bool) -> some View {
+        let brandColor = platformColor(for: selectedPlatform)
+        Button {
+            HapticEngine.tap.trigger()
+            addAccount()
+        } label: {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: disabled ? .secondary : .white))
+                        .scaleEffect(0.85)
+                } else {
+                    Image(logo)
+                        .resizable()
+                        .renderingMode(.template)
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 18, height: 18)
+                        .foregroundColor(disabled ? .secondary : .white)
+                }
+                Text(isLoading ? "Signing in…" : title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(disabled ? .secondary : .white)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        disabled
+                            ? AnyShapeStyle(Color(.systemGray5))
+                            : AnyShapeStyle(brandColor.gradient)
+                    )
+                    .shadow(
+                        color: disabled ? .clear : brandColor.opacity(0.28),
+                        radius: 10,
+                        x: 0,
+                        y: 4
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(SignInButtonPressStyle())
+        .disabled(disabled)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
     }
 
     private func addAccount() {
@@ -299,6 +333,8 @@ struct AddAccountView: View {
                 _ = try await serviceManager.addMastodonAccountWithOAuth(
                     credentials: credentials)
 
+                let welcomeName = "@\(credentials.username)"
+
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
                     // Account-add is a multi-step commitment (server,
@@ -308,6 +344,7 @@ struct AddAccountView: View {
                     // because Cancel does the same thing.
                     HapticEngine.success.trigger()
                     self.isLoading = false
+                    HapticEngine.success.trigger()
 
                     // Clear the presentation flag since we're dismissing successfully
                     UserDefaults.standard.removeObject(
@@ -317,13 +354,18 @@ struct AddAccountView: View {
 
                     // Notify about the account change
                     NotificationCenter.default.post(name: .accountUpdated, object: nil)
+
+                    // Welcome toast — confirms the account is signed in
+                    // by name, after the sheet dismisses.
+                    ToastManager.shared.show("Welcome, \(welcomeName)", severity: .success, duration: 1.8)
                 }
 
             } catch {
                 await MainActor.run {
                     HapticEngine.error.trigger()
                     self.isLoading = false
-                    self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                    HapticEngine.error.trigger()
+                    self.errorMessage = "Couldn't add account: \(error.localizedDescription)"
                     self.showError = true
                 }
             }
@@ -351,15 +393,18 @@ struct AddAccountView: View {
 
                 // No need to create a URL here, the manager will handle it
                 // Use the SocialServiceManager to add the Bluesky account
-                _ = try await serviceManager.addBlueskyAccount(
+                let addedAccount = try await serviceManager.addBlueskyAccount(
                     username: username,
                     password: password
                 )
+
+                let welcomeName = "@\(addedAccount.username)"
 
                 // Use proper async pattern without artificial delays
                 await MainActor.run {
                     HapticEngine.success.trigger()
                     self.isLoading = false
+                    HapticEngine.success.trigger()
 
                     // Clear the presentation flag since we're dismissing successfully
                     UserDefaults.standard.removeObject(
@@ -369,13 +414,18 @@ struct AddAccountView: View {
 
                     // Notify about the account change
                     NotificationCenter.default.post(name: .accountUpdated, object: nil)
+
+                    // Welcome toast — confirms the account is signed in
+                    // by name, after the sheet dismisses.
+                    ToastManager.shared.show("Welcome, \(welcomeName)", severity: .success, duration: 1.8)
                 }
 
             } catch {
                 await MainActor.run {
                     HapticEngine.error.trigger()
                     self.isLoading = false
-                    self.errorMessage = "Error adding account: \(error.localizedDescription)"
+                    HapticEngine.error.trigger()
+                    self.errorMessage = "Couldn't add account: \(error.localizedDescription)"
                     self.showError = true
                 }
             }
@@ -531,43 +581,83 @@ struct PlatformButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    var body: some View {
-        Button(action: action) {
-            VStack {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? platformColor(for: platform) : Color(.systemGray6))
-                        .frame(height: 56)
-
-                    HStack(spacing: 8) {
-                        // Use system symbols for platform icons
-                        Image(systemName: "person.crop.circle")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(isSelected ? .white : platformColor(for: platform))
-
-                        Text(platform.accessibilityLabel)
-                            .font(.headline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(isSelected ? .white : .primary)
-                            .padding(.trailing, 4)
-                    }
-                    .padding(.horizontal)
-                }
-            }
+    private var brandColor: Color {
+        switch platform {
+        case .mastodon: return Color(hex: "6364FF")
+        case .bluesky: return Color(hex: "0085FF")
         }
-        .buttonStyle(PlainButtonStyle())
-        .accessibilityLabel("Choose \(platform.accessibilityLabel)")
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
     }
 
-    // Get platform color for a specific platform
-    private func platformColor(for platform: SocialPlatform) -> Color {
-        switch platform {
-        case .mastodon:
-            return Color(hex: "6364FF")
-        case .bluesky:
-            return Color(hex: "0085FF")
+    private var logoAsset: String {
+        platform == .mastodon ? "MastodonLogo" : "BlueskyLogo"
+    }
+
+    var body: some View {
+        Button {
+            HapticEngine.selection.trigger()
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                // Brand logo (template-rendered so it picks up foreground tint)
+                Image(logoAsset)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 22, height: 22)
+                    .foregroundColor(isSelected ? .white : brandColor)
+
+                Text(platform.rawValue.capitalized)
+                    .font(.headline.weight(.semibold))
+                    .foregroundColor(isSelected ? .white : .primary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? AnyShapeStyle(brandColor.gradient)
+                            : AnyShapeStyle(Color(.systemGray6))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.clear : brandColor.opacity(0.18),
+                                lineWidth: 0.5
+                            )
+                    )
+                    .shadow(
+                        color: isSelected ? brandColor.opacity(0.28) : .clear,
+                        radius: 10,
+                        x: 0,
+                        y: 4
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
+        .buttonStyle(PlatformButtonPressStyle())
+        .accessibilityLabel(platform.rawValue.capitalized)
+        .accessibilityHint(isSelected ? "Currently selected" : "Selects \(platform.rawValue.capitalized) to add an account")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct PlatformButtonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
+    }
+}
+
+/// Press feedback for the primary sign-in CTA — scales down + dims briefly.
+private struct SignInButtonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 

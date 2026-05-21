@@ -34,6 +34,7 @@ struct SmartMediaView: View {
 
     // Optional coordinator for fullscreen - only used if available
     @EnvironmentObject private var mediaCoordinator: FullscreenMediaCoordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let maxRetries = 3
     
@@ -139,7 +140,7 @@ struct SmartMediaView: View {
                         guard !Task.isCancelled else { return }
                         await MainActor.run {
                             DispatchQueue.main.async {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8)) {
                                     loadedAspectRatio = size.width / size.height
                                 }
                             }
@@ -175,8 +176,7 @@ struct SmartMediaView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .cornerRadius(cornerRadius)
-            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .onAppear { DebugLog.verbose("[SmartMediaView] video/gifv appear url=\(attachment.url)") }
         } else if attachment.type == .animatedGIF {
             // Flag-driven unfurling with local fallback
@@ -365,7 +365,7 @@ struct SmartMediaView: View {
                             // Only show gray background during loading - completely removed when loaded
                             Group {
                                 if case .loading = loadingState {
-                                    Color.gray.opacity(0.05)
+                                    Color(.systemGray6)
                                 }
                                 // No background when loaded - container wraps tightly around image
                             }
@@ -381,7 +381,7 @@ struct SmartMediaView: View {
                             // Only show gray background during loading - completely removed when loaded
                             Group {
                                 if case .loading = loadingState {
-                                    Color.gray.opacity(0.05)
+                                    Color(.systemGray6)
                                 }
                                 // No background when loaded - container wraps tightly around image
                             }
@@ -393,6 +393,7 @@ struct SmartMediaView: View {
         .applyHeroTransition(heroID: heroID, namespace: mediaNamespace, isSource: true)
         .onTapGesture {
             if attachment.type != .audio {  // Don't override audio player tap handling
+                HapticEngine.tap.trigger()
                 onTap?()
             }
         }
@@ -408,7 +409,7 @@ struct SmartMediaView: View {
 
     private var loadingView: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
             .overlay(
                 ProgressView()
                     .scaleEffect(1.2)
@@ -418,26 +419,33 @@ struct SmartMediaView: View {
 
     private func failureView(error: Error) -> some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.15))
+            .fill(Color(.systemGray5))
             .overlay(
                 VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
+                    Image(systemName: "exclamationmark.triangle.fill")
                         .font(.title2)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(Color.orange.gradient)
+                        .symbolRenderingMode(.hierarchical)
 
                     Text("Media unavailable")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     if retryCount < maxRetries {
-                        Button("Retry") {
+                        Button {
                             HapticEngine.tap.trigger()
                             retryCount += 1
                             // Trigger reload by changing state
                             loadingState = .loading
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Retry")
+                            }
+                            .font(.caption2.weight(.semibold))
+                            .foregroundColor(.accentColor)
                         }
-                        .font(.caption2)
-                        .foregroundColor(.blue)
+                        .buttonStyle(.plain)
                     }
                 }
             )
@@ -572,7 +580,7 @@ private struct VideoPlayerView: View {
 
                             if playerModel.bufferProgress > 0 {
                                 VStack(spacing: 4) {
-                                    Text("Buffering...")
+                                    Text("Buffering")
                                         .font(.caption)
                                         .foregroundColor(.white)
 
@@ -581,14 +589,14 @@ private struct VideoPlayerView: View {
                                         .tint(.white)
                                 }
                             } else {
-                                Text("Buffering...")
+                                Text("Buffering")
                                     .font(.caption)
                                     .foregroundColor(.white)
                             }
                         }
                         .padding(12)
                         .background(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(.ultraThinMaterial.opacity(0.8))
                         )
                     }
@@ -654,16 +662,16 @@ private struct VideoPlayerView: View {
                     .controlSize(.small)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.gray.opacity(0.1))
+                .background(Color(.systemGray6))
             } else {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .overlay(
                         VStack(spacing: 8) {
                             ProgressView()
                                 .scaleEffect(1.2)
-                            Text("Loading video...")
+                            Text("Loading video")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -693,16 +701,18 @@ private struct VideoPlayerView: View {
             return "Video unavailable in Simulator"
         }
         if hasError {
+            // System-synthesized "Double tap to activate" handles the verb;
+            // label just describes the state.
             return "Video failed to load"
         } else if isLoading {
-            return "Video loading"
+            return "Loading video"
         } else if playerModel.isBuffering {
             let progress = Int(playerModel.bufferProgress * 100)
-            return "Video buffering, \(progress)% loaded"
+            return "Video buffering, \(progress) percent loaded"
         } else if isGIF {
-            return "Animated GIF video"
+            return "Animated GIF"
         } else {
-            return "Video content"
+            return "Video"
         }
     }
 
@@ -711,11 +721,11 @@ private struct VideoPlayerView: View {
             return "Video playback is disabled in Simulator"
         }
         if hasError {
-            return "Retries loading the video."
+            return "Retries loading the video"
         } else if isLoading || playerModel.isBuffering {
             return "Please wait while the video loads."
         } else {
-            return "Plays or pauses the video."
+            return "Plays or pauses the video"
         }
     }
 
@@ -819,7 +829,7 @@ private struct VideoPlayerView: View {
     private var simulatorPlaceholder: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.gray.opacity(0.15))
+                .fill(Color(.systemGray5))
             VStack(spacing: 8) {
                 Image(systemName: "video.slash")
                     .font(.title2)
@@ -1578,7 +1588,7 @@ enum MediaError: Error, LocalizedError {
         case .invalidURL:
             return "Invalid media URL"
         case .loadingFailed:
-            return "Failed to load media"
+            return "Couldn't load media"
         }
     }
 }

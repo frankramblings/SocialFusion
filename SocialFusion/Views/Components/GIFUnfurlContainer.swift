@@ -187,11 +187,10 @@ public struct GIFUnfurlContainer: View {
                         .frame(maxHeight: maxHeight > 0 ? maxHeight : nil)
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .contentShape(Rectangle())
-                        .onTapGesture { onTap?() }
-                        .accessibilityElement()
-                        .accessibilityLabel("Animated GIF")
-                        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
-                        .accessibilityHint(onTap == nil ? "" : "Opens fullscreen.")
+                        .onTapGesture {
+                            HapticEngine.tap.trigger()
+                            onTap?()
+                        }
                 } else {
                     // Loading or no aspect ratio yet - use GeometryReader for dynamic sizing
                     GeometryReader { geometry in
@@ -207,24 +206,37 @@ public struct GIFUnfurlContainer: View {
                         .frame(height: calculatedHeight(for: geometry.size.width))
                         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                         .contentShape(Rectangle())
-                        .onTapGesture { onTap?() }
-                        .accessibilityElement()
-                        .accessibilityLabel("Animated GIF")
-                        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
-                        .accessibilityHint(onTap == nil ? "" : "Opens fullscreen.")
+                        .onTapGesture {
+                            HapticEngine.tap.trigger()
+                            onTap?()
+                        }
                     }
                     .frame(maxHeight: maxHeight > 0 ? maxHeight : nil)
                     .onAppear(perform: loadIfNeeded)
                 }
             } else {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.08))
-                    .overlay(
-                        Text("GIF unfurling disabled")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                // GIF unfurling is feature-flagged off — show a discreet
+                // placeholder rather than a bare gray block.
+                VStack(spacing: 6) {
+                    Image(systemName: "play.rectangle")
+                        .font(.system(size: 24, weight: .light))
+                        .foregroundStyle(Color.secondary.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                    Text("GIF preview disabled")
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+                .background(
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color(.systemGray6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                        )
+                )
+                .accessibilityLabel("GIF preview is disabled")
             }
         }
         .onAppear(perform: loadIfNeeded)

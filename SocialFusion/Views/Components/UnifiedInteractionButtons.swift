@@ -14,6 +14,90 @@ struct ShakeEffect: GeometryEffect {
   }
 }
 
+// MARK: - Heart Burst Particle
+
+/// A single particle in the heart-burst effect that radiates outward when liking a post.
+/// Each particle has its own angle, distance, scale, and opacity curve to feel organic.
+private struct HeartBurstParticle: View {
+  let angle: Double
+  let distance: CGFloat
+  let scale: CGFloat
+  let color: Color
+  let symbol: String
+  let progress: CGFloat  // 0 -> 1
+
+  var body: some View {
+    // Custom easing: fast out, slow in, fade at the end
+    let eased = 1 - pow(1 - progress, 2.4)
+    let x = cos(angle * .pi / 180) * distance * eased
+    let y = sin(angle * .pi / 180) * distance * eased
+    // Particles grow quickly, then settle
+    let currentScale = scale * (progress < 0.3
+      ? (progress / 0.3) * 1.2
+      : 1.0 + (1 - progress) * 0.15)
+    // Opacity ramps up fast, fades smoothly
+    let opacity: Double = progress < 0.15
+      ? Double(progress / 0.15)
+      : Double(1.0 - max(0, (progress - 0.55) / 0.45))
+
+    Image(systemName: symbol)
+      .font(.system(size: 7, weight: .bold))
+      .foregroundColor(color)
+      .scaleEffect(currentScale)
+      .opacity(opacity)
+      .offset(x: x, y: y)
+  }
+}
+
+/// A burst of hearts radiating from a center point.
+/// Uses TimelineView for buttery-smooth particle animation independent of view updates.
+private struct HeartBurstView: View {
+  let color: Color
+  let startDate: Date
+  let duration: Double = 0.7
+
+  // 8 particles at varying angles, distances, and sizes for an organic feel
+  private let particles: [(angle: Double, distance: CGFloat, scale: CGFloat, symbol: String)] = [
+    (angle:  -90, distance: 28, scale: 1.0,  symbol: "heart.fill"),
+    (angle:  -50, distance: 24, scale: 0.85, symbol: "heart.fill"),
+    (angle:  -10, distance: 30, scale: 1.0,  symbol: "heart.fill"),
+    (angle:   30, distance: 24, scale: 0.8,  symbol: "heart.fill"),
+    (angle:   90, distance: 26, scale: 0.9,  symbol: "heart.fill"),
+    (angle:  130, distance: 22, scale: 0.75, symbol: "heart.fill"),
+    (angle:  170, distance: 28, scale: 0.95, symbol: "heart.fill"),
+    (angle: -130, distance: 24, scale: 0.8,  symbol: "heart.fill"),
+  ]
+
+  var body: some View {
+    TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
+      let elapsed = context.date.timeIntervalSince(startDate)
+      let progress = CGFloat(min(max(elapsed / duration, 0), 1))
+
+      ZStack {
+        // Radial ring flash — a single white-hot pulse that fades immediately
+        Circle()
+          .stroke(color.opacity(0.6), lineWidth: 2)
+          .frame(width: 8 + progress * 36, height: 8 + progress * 36)
+          .opacity(progress < 0.5 ? Double(1.0 - progress * 2) : 0)
+          .blur(radius: progress * 1.5)
+
+        ForEach(0..<particles.count, id: \.self) { i in
+          let p = particles[i]
+          HeartBurstParticle(
+            angle: p.angle,
+            distance: p.distance,
+            scale: p.scale,
+            color: color,
+            symbol: p.symbol,
+            progress: progress
+          )
+        }
+      }
+      .allowsHitTesting(false)
+    }
+  }
+}
+
 // MARK: - Unified Like Button
 
 struct UnifiedLikeButton: View {
@@ -26,6 +110,7 @@ struct UnifiedLikeButton: View {
   @State private var isPressed = false
   @State private var errorShake = false
   @State private var animateLike = false
+  @State private var burstStart: Date? = nil
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var likeColor: Color {
@@ -44,6 +129,15 @@ struct UnifiedLikeButton: View {
         HapticEngine.tap.trigger()
 
         if !reduceMotion {
+          // Trigger particle burst
+          burstStart = Date()
+          // Auto-clear after burst completes
+          DispatchQueue.main.asyncAfter(deadline: .now() + 0.75) {
+            if let start = burstStart, Date().timeIntervalSince(start) >= 0.7 {
+              burstStart = nil
+            }
+          }
+
           withAnimation(.interactiveSpring(response: 0.3, dampingFraction: 0.5)) {
             animateLike = true
           }
@@ -58,14 +152,24 @@ struct UnifiedLikeButton: View {
       Task { await onTap() }
     } label: {
       HStack(spacing: 4) {
-        Image(systemName: isLiked ? "heart.fill" : "heart")
-          .font(.system(size: 18))
-          .foregroundColor(isLiked ? likeColor : .secondary)
-          .scaleEffect(animateLike ? 1.3 : (isLiked ? 1.05 : 1.0))
-          .animation(
-            reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.7, blendDuration: 0.05),
-            value: isLiked
-          )
+        ZStack {
+          // Particle burst overlays the heart without affecting layout
+          if let start = burstStart, !reduceMotion {
+            HeartBurstView(color: likeColor, startDate: start)
+              .frame(width: 1, height: 1)
+              .allowsHitTesting(false)
+          }
+
+          Image(systemName: isLiked ? "heart.fill" : "heart")
+            .font(.system(size: 18))
+            .foregroundColor(isLiked ? likeColor : .secondary)
+            .contentTransition(.symbolEffect(.replace))
+            .scaleEffect(animateLike ? 1.35 : (isLiked ? 1.05 : 1.0))
+            .animation(
+              reduceMotion ? .none : .spring(response: 0.12, dampingFraction: 0.6, blendDuration: 0.05),
+              value: isLiked
+            )
+        }
 
         RollingNumberView(count, font: .caption, color: isLiked ? likeColor : .secondary)
       }
@@ -223,14 +327,7 @@ struct UnifiedReplyButton: View {
     )
   }
 
-  private var platformColor: Color {
-    switch platform {
-    case .mastodon:
-      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-    case .bluesky:
-      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-    }
-  }
+  private var platformColor: Color { platform.swiftUIColor }
 }
 
 // MARK: - Unified Quote Button
@@ -244,14 +341,7 @@ struct UnifiedQuoteButton: View {
   @State private var isPressed = false
   @State private var errorShake = false
 
-  private var platformColor: Color {
-    switch platform {
-    case .mastodon:
-      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-    case .bluesky:
-      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-    }
-  }
+  private var platformColor: Color { platform.swiftUIColor }
 
   var body: some View {
     Button {
@@ -299,6 +389,8 @@ struct UnifiedInteractionButtons: View {
   let onShare: () -> Void
   let includeShare: Bool
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   init(
     post: Post,
     store: PostActionStore,
@@ -333,6 +425,40 @@ struct UnifiedInteractionButtons: View {
     store.errorKeys.contains(actionKey)
   }
 
+  // MARK: - Accessibility values
+  //
+  // VoiceOver reads label → value → traits → hint. Label is the action ("Like"),
+  // value is the current state and count ("Liked, 42 likes"), traits convey
+  // selection, and hint describes what tapping does — without the redundant
+  // "Double tap to..." phrasing that VoiceOver synthesizes automatically.
+
+  private var replyAccessibilityValue: String {
+    let countPart = state.replyCount > 0
+      ? "\(state.replyCount) repl\(state.replyCount == 1 ? "y" : "ies")"
+      : ""
+    return [state.isReplied ? "You replied" : nil, countPart.isEmpty ? nil : countPart]
+      .compactMap { $0 }
+      .joined(separator: ", ")
+  }
+
+  private var repostAccessibilityValue: String {
+    let countPart = state.repostCount > 0
+      ? "\(state.repostCount) repost\(state.repostCount == 1 ? "" : "s")"
+      : ""
+    return [state.isReposted ? "Reposted" : nil, countPart.isEmpty ? nil : countPart]
+      .compactMap { $0 }
+      .joined(separator: ", ")
+  }
+
+  private var likeAccessibilityValue: String {
+    let countPart = state.likeCount > 0
+      ? "\(state.likeCount) like\(state.likeCount == 1 ? "" : "s")"
+      : ""
+    return [state.isLiked ? "Liked" : nil, countPart.isEmpty ? nil : countPart]
+      .compactMap { $0 }
+      .joined(separator: ", ")
+  }
+
   var body: some View {
     HStack {
       UnifiedReplyButton(
@@ -343,9 +469,10 @@ struct UnifiedInteractionButtons: View {
         onTap: { await onReply() }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
-      .accessibilityLabel(state.isReplied ? "Reply, already sent" : "Reply")
-      .accessibilityHint("Opens the composer.")
+      .animation(reduceMotion ? nil : .default, value: hasError)
+      .accessibilityLabel("Reply")
+      .accessibilityValue(replyAccessibilityValue)
+      .accessibilityHint("Opens the reply composer")
 
       Spacer()
 
@@ -356,10 +483,11 @@ struct UnifiedInteractionButtons: View {
         onTap: { coordinator.toggleRepost(for: post) }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
+      .animation(reduceMotion ? nil : .default, value: hasError)
       .accessibilityLabel("Repost")
+      .accessibilityValue(repostAccessibilityValue)
+      .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
       .accessibilityAddTraits(state.isReposted ? .isSelected : [])
-      .accessibilityHint(state.isReposted ? "Removes your repost." : "Reposts this to your followers.")
 
       Spacer()
 
@@ -371,10 +499,11 @@ struct UnifiedInteractionButtons: View {
         onTap: { coordinator.toggleLike(for: post) }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
+      .animation(reduceMotion ? nil : .default, value: hasError)
       .accessibilityLabel("Like")
+      .accessibilityValue(likeAccessibilityValue)
+      .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
       .accessibilityAddTraits(state.isLiked ? .isSelected : [])
-      .accessibilityHint(state.isLiked ? "Unlikes this post." : "")
 
       Spacer()
 
@@ -387,9 +516,10 @@ struct UnifiedInteractionButtons: View {
         }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
-      .accessibilityLabel("Quote Post")
-      .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
+      .animation(reduceMotion ? nil : .default, value: hasError)
+      .accessibilityLabel("Quote")
+      .accessibilityHint("Opens the composer with this post quoted")
+      .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
 
       if includeShare {
         Spacer()
@@ -399,12 +529,12 @@ struct UnifiedInteractionButtons: View {
           onTap: onShare
         )
         .frame(width: 44, height: 44)
-        .accessibilityLabel("Share post")
+        .accessibilityLabel("Share")
         .accessibilityHint("Opens share options")
       }
     }
     .opacity(isPending ? 0.7 : 1.0)
-    .animation(.easeInOut(duration: 0.2), value: isProcessing)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isProcessing)
   }
 }
 

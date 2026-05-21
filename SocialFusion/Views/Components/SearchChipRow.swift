@@ -61,14 +61,22 @@ struct SearchChipRow: View {
             ChipLabel(text: "\(instanceDomain) index", isInteractive: false)
 
             if model.showInstanceInfo {
-              Button(action: {
+              Button {
+                HapticEngine.tap.trigger()
                 showInstanceInfo.toggle()
-              }) {
+              } label: {
                 Image(systemName: "info.circle")
                   .font(.caption)
                   .foregroundColor(.secondary)
+                  // 32pt visual, 44pt hit area — matches the
+                  // PostMenu kebab fix in a86637c. Below 44pt the
+                  // HIG minimum, taps on a busy search row slid off.
+                  .frame(width: 32, height: 32)
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
               }
-              .accessibilityLabel("About this instance")
+              .accessibilityLabel("Instance information")
+              .accessibilityHint("Shows details about the search index source")
             }
           }
         }
@@ -88,45 +96,82 @@ private struct ChipLabel: View {
   var body: some View {
     HStack(spacing: 4) {
       Text(text)
-        .font(.caption)
+        .font(.caption.weight(isInteractive ? .semibold : .regular))
       if isInteractive {
         Image(systemName: "chevron.down")
           .font(.system(size: 8, weight: .bold))
       }
     }
+    .foregroundColor(isInteractive ? .primary.opacity(0.85) : .primary.opacity(0.6))
     .padding(.horizontal, 12)
     .padding(.vertical, 6)
-    .background(Color(.systemGray5))
-    .foregroundColor(.primary)
-    .cornerRadius(16)
-    .opacity(isInteractive ? 1.0 : 0.7)
+    .background(
+      Capsule(style: .continuous)
+        .fill(isInteractive ? Color(.systemGray5) : Color(.systemGray6))
+        .overlay(
+          Capsule(style: .continuous)
+            .strokeBorder(
+              isInteractive ? Color.primary.opacity(0.08) : Color.clear,
+              lineWidth: 0.5
+            )
+        )
+    )
   }
 }
 
 private struct InstanceInfoSheet: View {
   let instanceDomain: String
   @Environment(\.dismiss) var dismiss
-  
+
   var body: some View {
-    NavigationView {
-      VStack(alignment: .leading, spacing: 16) {
-        Text("Search Limitations")
-          .font(.headline)
-        
-        Text("This Mastodon instance (\(instanceDomain)) may not support full-text post search. You can still search for accounts and hashtags.")
-          .font(.body)
-          .foregroundColor(.secondary)
-        
+    NavigationStack {
+      VStack(spacing: 24) {
+        // Tinted halo with magnifying glass — matches the rest of the
+        // app's "informational moment" visual language.
+        ZStack {
+          Circle()
+            .fill(
+              RadialGradient(
+                colors: [Color.orange.opacity(0.16), Color.orange.opacity(0.0)],
+                center: .center,
+                startRadius: 4,
+                endRadius: 70
+              )
+            )
+            .frame(width: 140, height: 140)
+          Image(systemName: "magnifyingglass.circle")
+            .font(.system(size: 44, weight: .light))
+            .foregroundStyle(Color.orange.gradient)
+            .symbolRenderingMode(.hierarchical)
+        }
+        .padding(.top, 16)
+        .accessibilityHidden(true)
+
+        VStack(spacing: 8) {
+          Text("Limited Search")
+            .font(.title2.weight(.bold))
+            .multilineTextAlignment(.center)
+
+          Text("**\(instanceDomain)** may not index post text. You can still search for accounts and hashtags across the network.")
+            .font(.body)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 24)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+
         Spacer()
       }
-      .padding()
-      .navigationTitle("Instance Search Info")
+      .frame(maxWidth: .infinity)
+      .navigationTitle("Search Info")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .navigationBarTrailing) {
+        ToolbarItem(placement: .confirmationAction) {
           Button("Done") {
+            HapticEngine.tap.trigger()
             dismiss()
           }
+          .fontWeight(.semibold)
         }
       }
     }

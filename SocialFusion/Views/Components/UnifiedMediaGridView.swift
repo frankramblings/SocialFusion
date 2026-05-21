@@ -318,9 +318,11 @@ private struct SingleImageView: View {
         ZStack(alignment: .bottomTrailing) {
             // Show placeholder when this thumbnail is selected (to avoid duplicate during transition)
             if isSelected {
-                // Placeholder maintains layout space
+                // Placeholder maintains layout space. systemGray6 adapts
+                // to light/dark mode; Color.gray.opacity shifts to a
+                // brown tint against dark backgrounds.
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: maxHeight)
                     .shadow(
@@ -370,6 +372,7 @@ private struct SingleImageView: View {
                     .padding(.bottom, MediaConstants.Spacing.altBadgeVertical)
                     .padding(.trailing, MediaConstants.Spacing.altBadgeHorizontal)
                     .onTapGesture {
+                        HapticEngine.tap.trigger()
                         onAltTap?(attachment)
                     }
                     .accessibilityElement(children: .ignore)
@@ -493,9 +496,11 @@ private struct GridImageView: View {
         ZStack(alignment: .bottomTrailing) {
             // Show placeholder when this thumbnail is selected (to avoid duplicate during transition)
             if isSelected {
-                // Placeholder maintains layout space
+                // Placeholder maintains layout space. systemGray6 adapts
+                // to light/dark mode; Color.gray.opacity shifts to a
+                // brown tint against dark backgrounds.
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(width: gridSize, height: gridSize)
                     .shadow(
                         color: MediaConstants.Visual.shadowColor,
@@ -546,6 +551,7 @@ private struct GridImageView: View {
                     .padding(.bottom, MediaConstants.Spacing.altBadgeVertical)
                     .padding(.trailing, MediaConstants.Spacing.altBadgeHorizontal)
                     .onTapGesture {
+                        HapticEngine.tap.trigger()
                         onAltTap?(attachment)
                     }
                     .accessibilityElement(children: .ignore)
@@ -606,20 +612,22 @@ private struct GlassyAltBadge: View {
             Image(systemName: "text.bubble.fill")
                 .font(.system(size: 11, weight: .semibold))
             Text("ALT")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 12, weight: .bold))
         }
         .foregroundColor(.white)
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
         .background(
             Capsule()
-                .fill(Color.black.opacity(0.3))
+                .fill(Color.black.opacity(0.35))
                 .overlay(
                     Capsule()
-                        .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+                        .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
                 )
         )
         .shadow(color: Color.black.opacity(0.4), radius: 3, x: 0, y: 1.5)
         .environment(\.colorScheme, .dark)  // Force dark appearance for glass effect
+        .accessibilityLabel("Has image description")
+        .accessibilityHint("This image includes alt text for screen readers")
     }
 }

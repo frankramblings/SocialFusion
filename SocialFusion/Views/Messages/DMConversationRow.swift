@@ -3,6 +3,40 @@ import SwiftUI
 struct DMConversationRow: View {
   let conversation: DMConversation
 
+  /// Brand-tinted color used for the unread indicator.
+  /// Routes through SocialPlatform.swiftUIColor — same canonical
+  /// hex everywhere in the app (86a7ca5). Hand-rolled RGB tuples
+  /// previously matched the hex but were stale.
+  private var platformColor: Color { conversation.platform.swiftUIColor }
+
+  private var hasUnread: Bool { conversation.unreadCount > 0 }
+
+  /// VoiceOver utterance for the whole row — composed from name,
+  /// platform, last message, time, mute, and unread count so the user
+  /// hears one cohesive summary per row.
+  private var rowAccessibilityLabel: String {
+    var parts: [String] = []
+    let titleText: String
+    if conversation.isGroup, let title = conversation.title {
+      titleText = title
+    } else {
+      titleText = conversation.participant.displayName ?? conversation.participant.username
+    }
+    parts.append(titleText)
+    parts.append(conversation.platform.rawValue.capitalized)
+    if conversation.isMuted { parts.append("Muted") }
+    if hasUnread {
+      parts.append("\(conversation.unreadCount) unread message\(conversation.unreadCount == 1 ? "" : "s")")
+    }
+    parts.append(conversation.lastMessage.content)
+    // Natural-language timestamp — the visible row shows '5m', but
+    // VoiceOver should hear the full form so the recency reads as a
+    // recognizable English phrase, not a cryptic abbreviation.
+    parts.append(SharedFormatters.relativeFull.localizedString(
+        for: conversation.lastMessage.createdAt, relativeTo: Date()))
+    return parts.joined(separator: ", ")
+  }
+
   var body: some View {
     HStack(spacing: 12) {
       avatarView
@@ -12,7 +46,7 @@ struct DMConversationRow: View {
           if conversation.isGroup, let title = conversation.title {
             Text(title)
               .font(.headline)
-              .fontWeight(.semibold)
+              .fontWeight(hasUnread ? .bold : .semibold)
               .foregroundColor(.primary)
               .lineLimit(1)
           } else {
@@ -20,7 +54,7 @@ struct DMConversationRow: View {
               conversation.participant.displayName ?? conversation.participant.username,
               emojiMap: conversation.participant.displayNameEmojiMap,
               font: .headline,
-              fontWeight: .semibold,
+              fontWeight: hasUnread ? .bold : .semibold,
               foregroundColor: .primary,
               lineLimit: 1
             )
@@ -60,78 +94,34 @@ struct DMConversationRow: View {
           }
         }
 
-        HStack {
-          if conversation.isGroup {
-            // Decode entities in the sender chunk — Mastodon DMs may
-            // pre-pend a display name with raw HTML entities. The
-            // content body already arrives plain-text from the
-            // MastodonService DM normalizer (HTMLString.plainText),
-            // so only the prefixed name needs the decode pass.
-            let senderName = (conversation.lastMessage.sender.displayName
-                              ?? conversation.lastMessage.sender.username).decodingHTMLEntities
-            Text("\(senderName): \(conversation.lastMessage.content)")
-              .font(.subheadline)
-              .foregroundColor(.secondary)
-              .lineLimit(2)
-          } else {
-            Text(conversation.lastMessage.content)
-              .font(.subheadline)
-              .foregroundColor(.secondary)
-              .lineLimit(2)
+        HStack(alignment: .top, spacing: 8) {
+          Group {
+            if conversation.isGroup {
+              Text("\(conversation.lastMessage.sender.displayName ?? conversation.lastMessage.sender.username): \(conversation.lastMessage.content)")
+            } else {
+              Text(conversation.lastMessage.content)
+            }
           }
+          .font(.subheadline)
+          // Unread messages get a slightly stronger preview to match the bold title
+          .foregroundColor(hasUnread ? .primary.opacity(0.78) : .secondary)
+          .lineLimit(2)
 
-          Spacer()
+          Spacer(minLength: 0)
 
-          if conversation.unreadCount > 0 {
-            Circle()
-              .fill(Color.blue)
-              .frame(width: 10, height: 10)
+          if hasUnread {
+            UnreadIndicator(tint: platformColor)
           }
         }
       }
     }
     .padding(.vertical, 4)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(combinedLabel)
-  }
-
-  /// Combined VoiceOver label so a conversation row reads as one chunk:
-  /// "Group: Foo, 5 members, last message Bar said 'hi', 2 minutes ago,
-  ///  3 unread, on Mastodon".
-  /// Without this, the row fragmented into 6-8 sub-elements per row in
-  /// a list with many conversations.
-  private var combinedLabel: String {
-    var parts: [String] = []
-    if conversation.isGroup, let title = conversation.title {
-      // Title is built from participant displayNames; decode at the
-      // VoiceOver boundary so it doesn't read entities verbatim.
-      parts.append("Group: \(title.decodingHTMLEntities)")
-      parts.append("\(conversation.participants.count) members")
-    } else {
-      parts.append((conversation.participant.displayName ?? conversation.participant.username).decodingHTMLEntities)
-      parts.append("@\(conversation.participant.username)")
-    }
-    let lastMessageBody: String
-    if conversation.isGroup {
-      let senderName = (conversation.lastMessage.sender.displayName
-                        ?? conversation.lastMessage.sender.username).decodingHTMLEntities
-      lastMessageBody = "\(senderName): \(conversation.lastMessage.content)"
-    } else {
-      lastMessageBody = conversation.lastMessage.content
-    }
-    if !lastMessageBody.isEmpty {
-      parts.append("Last message: \(lastMessageBody)")
-    }
-    let relative = RelativeDateTimeFormatter()
-    parts.append(relative.localizedString(for: conversation.lastMessage.createdAt, relativeTo: Date()))
-    if conversation.unreadCount > 0 {
-      parts.append("\(conversation.unreadCount) unread")
-    }
-    if conversation.isMuted {
-      parts.append("Muted")
-    }
-    parts.append("on \(conversation.platform.accessibilityLabel)")
-    return parts.joined(separator: ", ")
+    // Whole row reads as one summary for VoiceOver — see
+    // rowAccessibilityLabel above. The NavigationLink wrapping this
+    // row applies the button trait + 'opens chat' hint at the link
+    // level, so the row just needs the cohesive description.
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(rowAccessibilityLabel)
   }
 
   @ViewBuilder
@@ -144,19 +134,47 @@ struct DMConversationRow: View {
         image.resizable()
           .aspectRatio(contentMode: .fill)
       } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
-          .overlay(ProgressView().scaleEffect(0.5))
+        // Initials while loading rather than a spinner — feels more
+        // present, less 'something is happening here'. Same identity
+        // shows whether or not the network resolves.
+        Circle().fill(Color(.systemGray5))
+          .overlay(
+            Text(String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased())
+              .font(.title3.bold())
+              .foregroundColor(Color(.systemGray))
+          )
       }
       .frame(width: 48, height: 48)
       .clipShape(Circle())
     } else {
-      Circle().fill(Color.gray.opacity(0.3))
+      Circle().fill(Color(.systemGray5))
         .frame(width: 48, height: 48)
         .overlay(
           Text(String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased())
             .font(.title3.bold())
-            .foregroundColor(.gray)
+            .foregroundColor(Color(.systemGray))
         )
     }
+  }
+}
+
+/// Platform-tinted unread indicator dot with a soft outer halo — feels alive
+/// without animating constantly (animation would be noise in a long list).
+private struct UnreadIndicator: View {
+  let tint: Color
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(tint.opacity(0.18))
+        .frame(width: 18, height: 18)
+
+      Circle()
+        .fill(tint)
+        .frame(width: 9, height: 9)
+        .shadow(color: tint.opacity(0.4), radius: 3, x: 0, y: 1)
+    }
+    .frame(width: 18, height: 18)
+    .padding(.top, 2)  // align with text baseline
   }
 }

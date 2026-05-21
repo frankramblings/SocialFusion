@@ -255,26 +255,6 @@ public class PostViewModel: ObservableObject {
         }
     }
 
-    /// Report the post
-    public func reportPost(reason: String? = nil) async {
-        guard !isLoading else { return }
-        isLoading = true
-        error = nil
-        do {
-            try await serviceManager.reportPost(post, reason: reason)
-            isLoading = false
-            // Last unhaptic-ed report path: the PostDetailView's
-            // overflow-menu route funneled through this VM method
-            // instead of the view-level handlers fixed in the prior
-            // commit. Pinned here for parity.
-            HapticEngine.success.trigger()
-        } catch {
-            self.error = error
-            isLoading = false
-            HapticEngine.error.trigger()
-        }
-    }
-
     // MARK: - Private Helpers
 
     /// Process post actions using proper intent pattern

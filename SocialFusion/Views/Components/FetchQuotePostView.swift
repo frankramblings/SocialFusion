@@ -36,9 +36,6 @@ public struct QuotedPostView: View {
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
         .contentShape(Rectangle())
         .onTapGesture {
-            // Mirror PostCardView's tap-to-navigate haptic so tapping a
-            // quoted post embed feels the same as tapping a regular
-            // timeline post — both navigate to the post detail.
             HapticEngine.tap.trigger()
             onTap?()
         }
@@ -47,19 +44,33 @@ public struct QuotedPostView: View {
     // MARK: - View Components
 
     private var authorHeader: some View {
-        HStack(spacing: 8) {
+        // Wrap navigation with tap haptic so the avatar/name/handle
+        // buttons feel responsive — same shape as PostAuthorView's
+        // onAuthorTapWithHaptic (9270925). Only one of the three
+        // buttons can fire per tap so no double-haptic risk.
+        let navigateWithHaptic: () -> Void = {
+            HapticEngine.tap.trigger()
+            navigationEnvironment.navigateToUser(from: post)
+        }
+
+        return HStack(spacing: 8) {
             // Author avatar with platform indicator
-            Button(action: {
-                navigationEnvironment.navigateToUser(from: post)
-            }) {
+            Button(action: navigateWithHaptic) {
                 ZStack(alignment: .bottomTrailing) {
                     let stableImageURL = URL(string: post.authorProfilePictureURL)
+                    let quoteInitial = String((post.authorName.isEmpty ? post.authorUsername : post.authorName).prefix(1)).uppercased()
                     CachedAsyncImage(url: stableImageURL, priority: .high) { image in
                         image
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                     } placeholder: {
-                        Circle().fill(Color.gray.opacity(0.3))
+                        Circle()
+                            .fill(Color(.systemGray5))
+                            .overlay(
+                                Text(quoteInitial.isEmpty ? "?" : quoteInitial)
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundColor(Color(.systemGray))
+                            )
                     }
                     .frame(width: 32, height: 32)
                     .clipShape(Circle())
@@ -85,9 +96,7 @@ public struct QuotedPostView: View {
 
             // Author info
             VStack(alignment: .leading, spacing: 1) {
-                Button(action: {
-                    navigationEnvironment.navigateToUser(from: post)
-                }) {
+                Button(action: navigateWithHaptic) {
                     EmojiDisplayNameText(
                         post.authorName,
                         emojiMap: post.authorEmojiMap,
@@ -99,9 +108,7 @@ public struct QuotedPostView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                Button(action: {
-                    navigationEnvironment.navigateToUser(from: post)
-                }) {
+                Button(action: navigateWithHaptic) {
                     Text("@\(post.authorUsername)")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -171,17 +178,24 @@ struct FetchQuotePostView: View {
     @State private var isLoading = true
     @State private var error: Error? = nil
     @State private var retryCount = 0
-    /// Set once retries are exhausted; classifies the failure so the UI can
-    /// render `QuotePostUnavailableView` with an honest reason instead of
-    /// falling through to a generic LinkPreview that strips the "this was a
-    /// quoted post" framing. nil means we haven't given up yet.
-    @State private var terminalReason: QuotePostUnavailableView.Reason? = nil
+    @State private var fetchTask: Task<Void, Never>?
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @EnvironmentObject private var fusedMomentStore: FusedMomentStore
     @Environment(\.colorScheme) private var colorScheme
 
     private let maxRetries = 2
+
+    /// Once a URL is resolved to a Post, keep it. The dominant cause of
+    /// "feed shifts while I scroll" is a quote cell above the viewport
+    /// transitioning from skeleton → loaded after its fetch completes.
+    /// Caching means the second (and Nth) time you scroll past a known
+    /// quote, the cell lands at its final size on the first frame and
+    /// nothing below it shifts. Ivory et al. avoid the same jump by
+    /// shipping embed data inline; we don't always have that for
+    /// Mastodon, so cache-on-resolve is the moral equivalent.
+    @MainActor private static var resolvedPostCache: [URL: Post] = [:]
+    @MainActor private static var negativeCache: Set<URL> = []  // URLs that resolved to nothing — don't keep retrying
 
     private var platform: SocialPlatform {
         let urlString = url.absoluteString.lowercased()
@@ -213,42 +227,37 @@ struct FetchQuotePostView: View {
             } else if error != nil && retryCount <= maxRetries {
                 // Show error state with retry option (only if we haven't exceeded max retries)
                 VStack(spacing: 8) {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.orange)
-                            // Decorative — the headline below names the
-                            // state; the warning glyph is visual context.
-                            .accessibilityHidden(true)
-                        Text("Failed to load quote")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.orange.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                        Text("Couldn't load quoted post")
+                            .font(.caption.weight(.medium))
+                            .foregroundColor(.primary.opacity(0.78))
                         Spacer()
-                        Button("Retry") {
+                        Button {
                             HapticEngine.tap.trigger()
                             retryCount = 0  // Reset retry count for manual retry
                             Task {
                                 await fetchPost()
                             }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Retry")
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.accentColor)
                         }
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(
                         colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.04)
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    // `.contain` keeps the Retry Button independently
-                    // focusable — same `.combine`-swallows-button
-                    // pattern fixed on Fused outage banner, merged
-                    // identity rows, toasts, and quote-post fallback.
-                    .accessibilityElement(children: .contain)
-                    .accessibilityLabel("Failed to load quote")
-                    .accessibilityAction(named: "Retry") {
-                        retryCount = 0
-                        Task { await fetchPost() }
-                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
             } else if let reason = terminalReason {
                 // Retries exhausted: render the unavailable placeholder
@@ -261,16 +270,60 @@ struct FetchQuotePostView: View {
                     platform: platform
                 )
             } else {
-                // Fallback to regular link preview if we can't fetch the post
-                // This ensures something always displays, preventing posts from disappearing
-                LinkPreview(url: url)
+                // Fallback to the stabilized link preview when the
+                // social-media post can't be fetched as a quote.
+                // StabilizedLinkPreview reserves identical heights
+                // across loading / loaded / fallback states, so the
+                // quote-post → link-card transition no longer pushes
+                // posts below it down the feed.
+                StabilizedLinkPreview(url: url)
             }
         }
         .onAppear {
-            DebugLog.verbose("🔗 [FetchQuotePostView] Starting fetch for URL: \(url)")
-            Task {
-                await fetchPost()
+            // Cache hit: the URL was resolved earlier in this session.
+            // Render the loaded view on the very first frame so the cell
+            // lands at its final size and nothing below it shifts when
+            // the (otherwise-needed) fetch would have completed.
+            if let cached = Self.resolvedPostCache[url] {
+                if quotedPost == nil { quotedPost = cached }
+                if isLoading { isLoading = false }
+                return
             }
+            // Negative cache: we tried this URL before and it didn't
+            // resolve to a quote. Skip the fetch; the body's `else`
+            // branch will render LinkPreview at its stable size.
+            if Self.negativeCache.contains(url) {
+                if isLoading { isLoading = false }
+                return
+            }
+            // Only start a fetch if we don't already have data and there
+            // isn't one in flight. This prevents duplicate requests when
+            // the cell is briefly recycled by LazyVStack.
+            guard quotedPost == nil, fetchTask == nil else { return }
+            DebugLog.verbose("🔗 [FetchQuotePostView] Scheduling fetch for URL: \(url)")
+            fetchTask = Task {
+                // Visibility-confirmation delay. LazyVStack instantiates
+                // cells in a buffer outside the visible viewport — a fast
+                // scroll past a quote cell will fire onAppear briefly,
+                // then onDisappear. Wait ~350ms so we only pay the network
+                // cost (and risk the size-jump on result) for cells the
+                // user actually dwells on. Cancelled by onDisappear if
+                // the cell scrolls off before the timer fires.
+                try? await Task.sleep(nanoseconds: 350_000_000)
+                guard !Task.isCancelled else { return }
+                await fetchPost()
+                await MainActor.run { fetchTask = nil }
+            }
+        }
+        .onDisappear {
+            // CRITICAL: cancel any in-flight fetch when the cell scrolls
+            // off-screen. Otherwise the response can arrive *after* the
+            // user has scrolled past, setting quotedPost on an out-of-view
+            // cell — which then expands by ~220pt when its UnifiedMediaGridView
+            // appears, pushing the user's current viewport content downward.
+            // This is the dominant cause of the 'feed jumps as I scroll' bug.
+            fetchTask?.cancel()
+            fetchTask = nil
         }
     }
 
@@ -401,10 +454,21 @@ struct FetchQuotePostView: View {
                 )
             }
 
+            // Bail if the cell has scrolled off-screen and the task was
+            // cancelled during the network round-trip. Setting state here
+            // would grow a now-invisible cell and shove the user's viewport
+            // content down.
+            guard !Task.isCancelled else {
+                DebugLog.verbose("🔗 [FetchQuotePostView] Task cancelled after fetch; dropping result for \(url)")
+                return
+            }
+
             if let post = post {
                 // Validate that the post has meaningful content before setting it
                 if hasMeaningfulContent(post) {
                     await MainActor.run {
+                        guard !Task.isCancelled else { return }
+                        Self.resolvedPostCache[url] = post
                         self.quotedPost = post
                         self.isLoading = false
                         self.error = nil
@@ -414,6 +478,8 @@ struct FetchQuotePostView: View {
                     // Don't throw error, just don't set the quotedPost
                     DebugLog.verbose("🔗 [FetchQuotePostView] Post fetched but has no meaningful content, falling back to LinkPreview: \(url)")
                     await MainActor.run {
+                        guard !Task.isCancelled else { return }
+                        Self.negativeCache.insert(url)
                         self.isLoading = false
                         self.error = nil
                         // Leave quotedPost as nil so it falls through to LinkPreview
@@ -424,6 +490,8 @@ struct FetchQuotePostView: View {
                 // This ensures the post still displays even if quote fetch fails
                 DebugLog.verbose("🔗 [FetchQuotePostView] Post fetch returned nil, falling back to LinkPreview: \(url)")
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
+                    Self.negativeCache.insert(url)
                     self.isLoading = false
                     self.error = nil
                     // Leave quotedPost as nil so it falls through to LinkPreview
@@ -431,8 +499,17 @@ struct FetchQuotePostView: View {
             }
 
         } catch {
+            // Distinguish cancellation from real errors. Cancellation means
+            // the cell scrolled off-screen — silently bail without retrying
+            // or surfacing an error UI.
+            if Task.isCancelled || error is CancellationError {
+                DebugLog.verbose("🔗 [FetchQuotePostView] Fetch cancelled (cell off-screen) for \(url)")
+                return
+            }
+
             DebugLog.verbose("🔗 [FetchQuotePostView] Error fetching post: \(error)")
             await MainActor.run {
+                guard !Task.isCancelled else { return }
                 self.retryCount += 1
                 self.isLoading = false
                 self.error = error
@@ -444,6 +521,7 @@ struct FetchQuotePostView: View {
                 DebugLog.verbose("🔗 [FetchQuotePostView] Retrying in \(delay) seconds...")
 
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard !Task.isCancelled else { return }
                 await fetchPost()
             } else {
                 // Retries exhausted. Classify the final error so the
@@ -453,6 +531,8 @@ struct FetchQuotePostView: View {
                 let classified = Self.classify(error: error)
                 DebugLog.verbose("🔗 [FetchQuotePostView] Max retries exceeded, classified as \(classified)")
                 await MainActor.run {
+                    guard !Task.isCancelled else { return }
+                    Self.negativeCache.insert(url)
                     self.isLoading = false
                     self.error = nil
                     self.terminalReason = classified
@@ -680,11 +760,18 @@ struct LoadingQuoteView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        // System grays adapt cleanly to light/dark mode. Color.gray
+        // is a fixed device color and reads as brown-tinted against
+        // dark backgrounds — the same fix the codebase already
+        // applied to SkeletonPostCard, LinkPreview, and ProfileView.
+        let heavyFill = Color(.systemGray4)
+        let lightFill = Color(.systemGray5)
+
+        return VStack(alignment: .leading, spacing: 6) {
             // Author placeholder
             HStack(spacing: 8) {
                 Circle()
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(heavyFill)
                     .frame(width: 32, height: 32)
                     .overlay(
                         Circle()
@@ -695,12 +782,12 @@ struct LoadingQuoteView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Rectangle()
-                        .fill(Color.gray.opacity(0.3))
+                        .fill(heavyFill)
                         .frame(width: 80, height: 12)
                         .cornerRadius(4)
 
                     Rectangle()
-                        .fill(Color.gray.opacity(0.2))
+                        .fill(lightFill)
                         .frame(width: 60, height: 10)
                         .cornerRadius(4)
                 }
@@ -708,21 +795,38 @@ struct LoadingQuoteView: View {
                 Spacer()
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(width: 40, height: 10)
                     .cornerRadius(4)
             }
 
-            // Content placeholder
-            VStack(alignment: .leading, spacing: 4) {
+            // Content placeholder — 4 lines of skeleton so the reserved
+            // space approximates a typical quoted post body (~3-4 lines).
+            // Loaded posts can still be taller (e.g. with attachments) or
+            // shorter (single-line replies), but landing closer to the
+            // median minimizes the average jump when the cell transitions
+            // from skeleton → loaded content above the viewport.
+            VStack(alignment: .leading, spacing: 5) {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
                     .frame(maxWidth: .infinity)
                     .frame(height: 12)
                     .cornerRadius(4)
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(lightFill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                    .cornerRadius(4)
+
+                Rectangle()
+                    .fill(lightFill)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 12)
+                    .cornerRadius(4)
+
+                Rectangle()
+                    .fill(lightFill)
                     .frame(maxWidth: 200)
                     .frame(height: 12)
                     .cornerRadius(4)
@@ -736,21 +840,11 @@ struct LoadingQuoteView: View {
         .overlay(borderOverlay)
         .shadow(color: shadowColor, radius: 1, x: 0, y: 1)
         .redacted(reason: .placeholder)
-        // .redacted shows blurred placeholders visually, but VoiceOver
-        // would otherwise announce each shape geometry verbatim. Hide
-        // the structure and announce the loading state as one element.
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Loading quoted post from \(platform.accessibilityLabel)")
+        .accessibilityLabel("Loading quoted post")
     }
 
-    private var platformColor: Color {
-        switch platform {
-        case .bluesky:
-            return .blue
-        case .mastodon:
-            return .purple
-        }
-    }
+    private var platformColor: Color { platform.swiftUIColor }
 
     private var backgroundStyle: some View {
         colorScheme == .dark
@@ -780,32 +874,15 @@ struct RelativeTimeView: View {
     let date: Date
 
     var body: some View {
-        Text(formatRelativeTime(from: date))
+        Text(date.relativeTimeString)
             .font(.caption)
             .foregroundColor(.secondary)
-    }
-
-    private func formatRelativeTime(from date: Date) -> String {
-        let now = Date()
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second],
-            from: date,
-            to: now
-        )
-
-        if let year = components.year, year > 0 {
-            return "\(year)y"
-        } else if let month = components.month, month > 0 {
-            return "\(month)mo"
-        } else if let day = components.day, day > 0 {
-            return day >= 7 ? "\(day/7)w" : "\(day)d"
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m"
-        } else {
-            return "now"
-        }
+            // Visual: abbreviated ('6m'). Spoken: full natural language
+            // ('6 minutes ago'). Matches PostAuthorView's split-style
+            // pattern from iter 114.
+            .accessibilityLabel(
+                SharedFormatters.relativeFull.localizedString(for: date, relativeTo: Date())
+            )
     }
 }
 
@@ -825,16 +902,17 @@ private struct PostAttachmentView: View {
                     .clipped()
             } else if phase.error != nil {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(Color(.systemGray5))
                     .frame(maxWidth: .infinity, maxHeight: 220)
                     .cornerRadius(MediaConstants.CornerRadius.feed)
                     .overlay(
                         Image(systemName: "photo")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(Color(.systemGray2).gradient)
+                            .symbolRenderingMode(.hierarchical)
                     )
             } else {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.1))
+                    .fill(Color(.systemGray6))
                     .frame(maxWidth: .infinity, maxHeight: 220)
                     .cornerRadius(MediaConstants.CornerRadius.feed)
                     .overlay(

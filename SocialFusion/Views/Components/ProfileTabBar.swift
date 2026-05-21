@@ -6,19 +6,20 @@ struct ProfileTabBar: View {
   @Binding var selectedTab: ProfileTab
   @Namespace private var underlineNamespace
   @State private var isPinned = false
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 0) {
         ForEach(ProfileTab.allCases, id: \.self) { tab in
           Button {
-            // Only haptic on a real change — re-tapping the active
-            // tab shouldn't feel like a selection event since
-            // nothing visibly changes.
-            if selectedTab != tab {
-              HapticEngine.selection.trigger()
-            }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            guard selectedTab != tab else { return }
+            HapticEngine.selection.trigger()
+            // The matchedGeometryEffect slide animation under the
+            // tab labels reads as movement — exactly what
+            // reduceMotion targets. Pass nil so the underline
+            // snaps to the new tab instead of sliding.
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
               selectedTab = tab
             }
           } label: {
@@ -26,6 +27,7 @@ struct ProfileTabBar: View {
               Text(tab.rawValue)
                 .font(.subheadline.weight(selectedTab == tab ? .semibold : .regular))
                 .foregroundStyle(selectedTab == tab ? .primary : .secondary)
+                .contentTransition(.interpolate)
 
               ZStack {
                 // Invisible spacer to maintain layout
@@ -34,15 +36,19 @@ struct ProfileTabBar: View {
                   .frame(height: 2)
 
                 if selectedTab == tab {
-                  Rectangle()
+                  Capsule(style: .continuous)
                     .fill(Color.accentColor)
-                    .frame(height: 2)
+                    .frame(height: 2.5)
                     .matchedGeometryEffect(id: "underline", in: underlineNamespace)
                 }
               }
             }
+            .contentShape(Rectangle())
           }
+          .buttonStyle(.plain)
           .frame(maxWidth: .infinity)
+          .accessibilityLabel(tab.rawValue)
+          .accessibilityHint(selectedTab == tab ? "Currently selected" : "Switches to this tab")
           .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
         }
       }
@@ -64,7 +70,10 @@ struct ProfileTabBar: View {
     .onPreferenceChange(TabBarPinnedKey.self) { value in
       let pinned = value.minY <= value.threshold
       if pinned != isPinned {
-        withAnimation(.easeOut(duration: 0.15)) {
+        // Pinned-state shadow appears/disappears as the tab bar
+        // crosses the safe-area threshold. Fade is purely decorative;
+        // reduceMotion → snap.
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) {
           isPinned = pinned
         }
       }

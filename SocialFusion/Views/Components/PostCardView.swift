@@ -71,16 +71,9 @@ struct PostCardView: View {
     @State private var isUpdatingCache = false  // Prevent recursive cache updates
 
     // Platform color helper - CRITICAL FIX: Use cached platform only (never access post.platform synchronously)
+    // Routes through SocialPlatform.swiftUIColor (canonical hex per 86a7ca5).
     private var platformColor: Color {
-        // cachedPlatform is always initialized in initializer, so this should never be nil
-        // But if it is, use a safe default to prevent crashes
-        let platform = cachedPlatform ?? .bluesky
-        switch platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
+        (cachedPlatform ?? .bluesky).swiftUIColor
     }
     
     // CRITICAL FIX: Cached platform getter - never access post.platform synchronously
@@ -722,13 +715,16 @@ struct PostCardView: View {
         // MARK: - Accessibility Support
         .accessibilityElement(children: .contain)
         .accessibilityLabel(postAccessibilityLabel)
-        .accessibilityHint("Opens the full post and replies.")
-        .modifier(PostCardRotorActions(
-            onReply: onReply,
-            onRepost: onRepost,
-            onLike: onLike,
-            onQuote: onQuote
-        ))
+        .accessibilityHint("Opens the full post and replies")
+        .accessibilityAction(named: "Reply") {
+            onReply()
+        }
+        .accessibilityAction(named: "Repost") {
+            onRepost()
+        }
+        .accessibilityAction(named: "Like") {
+            onLike()
+        }
         .sheet(isPresented: $showShareAsImageSheet) {
             if let viewModel = shareAsImageViewModel {
                 ShareAsImageSheet(viewModel: viewModel)
@@ -754,21 +750,29 @@ struct PostCardView: View {
     }
     
     // MARK: - Unread Indicator
-    
+
     @ViewBuilder
     private var unreadIndicator: some View {
         if !isRead {
-            Circle()
-                .fill(Color.blue.opacity(0.8))
-                .frame(width: 8, height: 8)
-                .shadow(color: Color.black.opacity(0.15), radius: 2, x: 0, y: 1)
-                .offset(x: -4, y: 4)
-                // Visual-only blue dot meant nothing to VoiceOver users —
-                // they had no signal that the post was unread. Single-
-                // word label so the announcement is "Unread" once,
-                // adjacent to the post-card's own combined label.
-                .accessibilityLabel("Unread")
+            // Soft halo + solid core so the dot reads cleanly against bright
+            // and dark backgrounds alike. Uses the post's platform brand color
+            // for visual consistency with the rest of the action bar tinting.
+            ZStack {
+                Circle()
+                    .fill(unreadColor.opacity(0.22))
+                    .frame(width: 14, height: 14)
+                Circle()
+                    .fill(unreadColor)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: unreadColor.opacity(0.4), radius: 2, x: 0, y: 0.5)
+            }
+            .offset(x: -6, y: 6)
+            .accessibilityHidden(true)
         }
+    }
+
+    private var unreadColor: Color {
+        platformColor
     }
 
     // MARK: - Action Bar View
@@ -959,11 +963,12 @@ struct PostCardView: View {
         return components.joined(separator: ". ")
     }
 
-    /// Formats timestamp for accessibility
+    /// Formats timestamp for accessibility.
+    /// Uses the named/full shared formatter so VoiceOver hears
+    /// '5 minutes ago' (or 'Yesterday') rather than the abbreviated
+    /// '5 min. ago'.
     private func formatAccessibilityTimestamp(_ date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.dateTimeStyle = .named
-        return formatter.localizedString(for: date, relativeTo: Date())
+        SharedFormatters.relativeNamedFull.localizedString(for: date, relativeTo: Date())
     }
     
     // MARK: - Share as Image
@@ -1045,12 +1050,13 @@ struct ListSelectionView: View {
     @State private var error: String? = nil
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 if isLoading {
                     HStack {
                         Spacer()
                         ProgressView()
+                            .accessibilityLabel("Loading lists")
                         Spacer()
                     }
                 } else if let error = error {
@@ -1061,22 +1067,28 @@ struct ListSelectionView: View {
                 } else if lists.isEmpty {
                     Text("No lists found")
                         .foregroundColor(.secondary)
+                        .accessibilityLabel("No lists found. Create one in your Mastodon settings.")
                 } else {
                     ForEach(lists) { list in
-                        Button(action: { addToList(list) }) {
+                        Button {
+                            HapticEngine.tap.trigger()
+                            addToList(list)
+                        } label: {
                             HStack {
                                 Text(list.title)
                                 Spacer()
                             }
                         }
+                        .accessibilityHint("Adds this user to \(list.title)")
                     }
                 }
             }
             .navigationTitle("Add to List")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         dismiss()
                     }
                 }
@@ -1108,6 +1120,7 @@ struct ListSelectionView: View {
 
     private func addToList(_ list: MastodonList) {
         isLoading = true
+        let listTitle = list.title
         Task {
             do {
                 try await serviceManager.addAccountToMastodonList(
@@ -1123,6 +1136,11 @@ struct ListSelectionView: View {
                     HapticEngine.success.trigger()
                     isLoading = false
                     dismiss()
+                    // Confirm the named action on the parent surface
+                    // — sheet dismissal alone is ambiguous about
+                    // whether the network call succeeded.
+                    HapticEngine.success.trigger()
+                    ToastManager.shared.show("Added to \(listTitle)", severity: .success, duration: 1.6)
                 }
             } catch {
                 await MainActor.run {

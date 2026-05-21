@@ -241,30 +241,22 @@ private struct StableGridImageView: View {
         .frame(width: gridSize, height: gridSize)
         .clipped()
       } else {
-        // Placeholder
+        // Placeholder — systemGray6 adapts cleanly to dark mode.
         RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .fill(Color.gray.opacity(0.1))
+          .fill(Color(.systemGray6))
           .frame(width: gridSize, height: gridSize)
           .overlay(ProgressView().scaleEffect(0.8))
       }
       
       if let alt = attachment.altText, !alt.isEmpty {
+        // No tap handler: the badge sits in the ZStack and lets taps
+        // fall through to the SmartMediaView underneath, which opens
+        // fullscreen — where the alt text can be revealed via the
+        // info button. An empty onTapGesture here would consume the
+        // tap and the badge would feel broken.
         AltTextBadge()
           .padding(4)
-          .onTapGesture {
-            // Previously a no-op TODO. Match UnifiedMediaGridView's behavior:
-            // a tap on the ALT badge surfaces the alt-text to the user.
-            // Fallback to opening the attachment if no alt handler is wired.
-            if let onAltTap {
-              onAltTap(attachment)
-            } else {
-              onTap(attachment)
-            }
-          }
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("View alt text")
-          .accessibilityAddTraits(.isButton)
-          .accessibilityHint("Shows the image description.")
+          .allowsHitTesting(false)
       }
 
       if extraCount > 0 && isLast {
@@ -284,27 +276,30 @@ private struct StableGridImageView: View {
   }
 }
 
-/// Helper badge for alt text indication
+/// Helper badge for alt text indication. Sits as an overlay on media; forces
+/// dark color scheme so the white-on-black reads cleanly against any photo.
 private struct AltTextBadge: View {
   var body: some View {
     HStack(spacing: 5) {
       Image(systemName: "text.bubble.fill")
         .font(.system(size: 11, weight: .semibold))
       Text("ALT")
-        .font(.system(size: 12, weight: .semibold))
+        .font(.system(size: 12, weight: .bold))
     }
     .foregroundColor(.white)
     .padding(.horizontal, 10)
     .padding(.vertical, 5)
     .background(
       Capsule()
-        .fill(Color.black.opacity(0.3))
+        .fill(Color.black.opacity(0.35))
         .overlay(
           Capsule()
-            .stroke(Color.white.opacity(0.25), lineWidth: 0.5)
+            .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
         )
     )
     .shadow(color: Color.black.opacity(0.4), radius: 3, x: 0, y: 1.5)
     .environment(\.colorScheme, .dark)
+    .accessibilityLabel("Has image description")
+    .accessibilityHint("This image includes alt text for screen readers")
   }
 }

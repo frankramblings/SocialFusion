@@ -16,26 +16,28 @@ struct ConversationSettingsView: View {
     _isMuted = State(initialValue: conversation.isMuted)
   }
 
+  /// Initials derived from the participant's display name or username.
+  private var initials: String {
+    let name = conversation.participant.displayName ?? conversation.participant.username
+    return PostAuthorImageView.generateInitials(from: name)
+  }
+
+  /// Stable hue derived from the username so the placeholder isn't a
+  /// monotone gray — matches PostAuthorImageView's fallback convention.
+  private var placeholderHue: Double {
+    let key = conversation.participant.username
+    return Double(abs(key.hashValue) % 360) / 360.0
+  }
+
   var body: some View {
     NavigationStack {
       List {
         Section {
-          HStack(spacing: 12) {
-            if let urlString = conversation.participant.avatarURL,
-               let url = URL(string: urlString) {
-              CachedAsyncImage(url: url, priority: .high) { image in
-                image.resizable().aspectRatio(contentMode: .fill)
-              } placeholder: {
-                Circle().fill(Color.gray.opacity(0.3))
-              }
-              .frame(width: 56, height: 56)
-              .clipShape(Circle())
-            } else {
-              Circle().fill(Color.gray.opacity(0.3))
-                .frame(width: 56, height: 56)
-            }
+          HStack(spacing: 14) {
+            avatarView
+              .frame(width: 60, height: 60)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3) {
               if let name = conversation.participant.displayName {
                 Text(name).font(.headline)
               }
@@ -47,27 +49,51 @@ struct ConversationSettingsView: View {
             PostPlatformBadge(platform: conversation.platform)
               .scaleEffect(0.85)
           }
+          .padding(.vertical, 4)
           .listRowBackground(Color.clear)
-          .accessibilityElement(children: .ignore)
-          .accessibilityLabel("\(conversation.participant.displayName ?? conversation.participant.username), @\(conversation.participant.username), on \(conversation.platform.accessibilityLabel)")
+          // Combine the conversation header into one a11y unit —
+          // avatar, name, handle, and platform badge all describe
+          // the same thing.
+          .accessibilityElement(children: .combine)
+          .accessibilityLabel(
+            "\(conversation.participant.displayName ?? conversation.participant.username), "
+            + "@\(conversation.participant.username), "
+            + "on \(conversation.platform.rawValue.capitalized)"
+          )
         }
 
         if conversation.platform == .bluesky {
           Section {
-            Toggle("Mute Conversation", isOn: $isMuted)
-              .disabled(isUpdating)
-              .onChange(of: isMuted) { _, newValue in
-                toggleMute(muted: newValue)
+            Toggle(isOn: $isMuted) {
+              Label {
+                Text("Mute Conversation")
+              } icon: {
+                Image(systemName: "speaker.slash")
+                  .foregroundStyle(Color.orange.gradient)
+                  .symbolRenderingMode(.hierarchical)
               }
+            }
+            .disabled(isUpdating)
+            .onChange(of: isMuted) { _, newValue in
+              HapticEngine.selection.trigger()
+              toggleMute(muted: newValue)
+            }
           } footer: {
             Text("Muted conversations won't send notifications.")
           }
 
           Section {
             Button(role: .destructive) {
+              HapticEngine.warning.trigger()
               showLeaveConfirm = true
             } label: {
-              Label("Leave Conversation", systemImage: "arrow.right.square")
+              Label {
+                Text("Leave Conversation")
+              } icon: {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                  .foregroundStyle(Color.red.gradient)
+                  .symbolRenderingMode(.hierarchical)
+              }
             }
           }
         }
@@ -76,17 +102,69 @@ struct ConversationSettingsView: View {
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .confirmationAction) {
-          Button("Done") { dismiss() }
-            .keyboardShortcut(.escape, modifiers: [])
+          Button("Done") {
+            HapticEngine.tap.trigger()
+            dismiss()
+          }
+          .fontWeight(.semibold)
         }
       }
       .alert("Leave Conversation", isPresented: $showLeaveConfirm) {
-        Button("Leave", role: .destructive) { leaveConversation() }
+        Button("Leave", role: .destructive) {
+          HapticEngine.warning.trigger()
+          leaveConversation()
+        }
         Button("Cancel", role: .cancel) {}
       } message: {
         Text("You'll no longer see this conversation.")
       }
     }
+  }
+
+  /// Avatar with initials fallback and stable per-username hue — matches
+  /// the avatar treatment used everywhere else in the app.
+  @ViewBuilder
+  private var avatarView: some View {
+    Group {
+      if let urlString = conversation.participant.avatarURL,
+         let url = URL(string: urlString) {
+        CachedAsyncImage(url: url, priority: .high) { image in
+          image.resizable().aspectRatio(contentMode: .fill)
+        } placeholder: {
+          initialsPlaceholder
+        }
+      } else {
+        initialsPlaceholder
+      }
+    }
+    .clipShape(Circle())
+  }
+
+  private var initialsPlaceholder: some View {
+    Circle()
+      .fill(
+        LinearGradient(
+          colors: [
+            Color(hue: placeholderHue, saturation: 0.55, brightness: 0.78),
+            Color(hue: placeholderHue, saturation: 0.75, brightness: 0.6),
+          ],
+          startPoint: .topLeading,
+          endPoint: .bottomTrailing
+        )
+      )
+      .overlay(
+        Group {
+          if !initials.isEmpty {
+            Text(initials)
+              .font(.title3.weight(.semibold).monospacedDigit())
+              .foregroundColor(.white)
+          } else {
+            Image(systemName: "person.fill")
+              .foregroundColor(.white.opacity(0.85))
+              .font(.title3)
+          }
+        }
+      )
   }
 
   private func toggleMute(muted: Bool) {

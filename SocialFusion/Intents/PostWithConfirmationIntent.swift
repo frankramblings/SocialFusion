@@ -31,6 +31,6 @@ struct PostWithConfirmationIntent: AppIntent {
         let deepLink = URL(string: "socialfusion://compose\(query)")!
 
         await UIApplication.shared.open(deepLink)
-        return .result(dialog: "Opened composer")
+        return .result(dialog: "Composer's open. Tap Post when you're ready.")
     }
 }

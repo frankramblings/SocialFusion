@@ -3819,9 +3819,8 @@ public final class SocialServiceManager: ObservableObject {
                         switch lastMsg {
                         case .message(let view):
                             content = view.text
-                            // Parse ISO8601 date
-                            createdAt =
-                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+                            // DateParser uses cached formatters.
+                            createdAt = DateParser.parse(view.sentAt) ?? Date()
                             if view.sender.did == account.platformSpecificId {
                                 sender = currentUserAccount
                                 recipient = firstParticipant
@@ -3833,8 +3832,7 @@ public final class SocialServiceManager: ObservableObject {
                             }
                         case .deleted(let view):
                             content = "(Deleted Message)"
-                            createdAt =
-                                ISO8601DateFormatter().date(from: view.sentAt) ?? Date()
+                            createdAt = DateParser.parse(view.sentAt) ?? Date()
                             if view.sender.did == account.platformSpecificId {
                                 sender = currentUserAccount
                                 recipient = firstParticipant
@@ -4033,7 +4031,7 @@ public final class SocialServiceManager: ObservableObject {
                 sender: sender,
                 recipient: firstParticipant,
                 content: view.text,
-                createdAt: ISO8601DateFormatter().date(from: view.sentAt) ?? Date(),
+                createdAt: DateParser.parse(view.sentAt) ?? Date(),
                 platform: .bluesky
             )
         } else {

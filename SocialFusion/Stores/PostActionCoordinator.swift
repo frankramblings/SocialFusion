@@ -375,7 +375,7 @@ final class PostActionCoordinator: ObservableObject {
 
         if !shouldRequeue {
             store.markError(for: key)
-            ToastManager.shared.show(toastMessage(for: action.intent))
+            ToastManager.shared.show(toastMessage(for: action.intent), severity: .error)
         }
 
         ErrorHandler.shared.handleError(error)

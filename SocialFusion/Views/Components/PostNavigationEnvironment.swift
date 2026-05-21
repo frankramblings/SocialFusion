@@ -266,14 +266,10 @@ class PostNavigationEnvironment: ObservableObject {
 
                     let post: Post?
                     if platform == .mastodon {
-                        // Prefer the timeline-selected account so a deep
-                        // link fetched while the user is reading
-                        // @me@indieweb.social comes from that instance's
-                        // federation view (boost / like counts can differ
-                        // per instance). `.first` is the fallback for the
-                        // unified-feed case.
-                        guard let account = serviceManager.activeAccount(on: .mastodon)
-                            ?? serviceManager.mastodonAccounts.first else { return }
+                        guard let account = serviceManager.mastodonAccounts.first else {
+                            ToastManager.shared.show("Add a Mastodon account to open this post", severity: .warning, duration: 2.4)
+                            return
+                        }
                         post = try await serviceManager.fetchMastodonStatus(id: id, account: account)
                     } else {
                         post = try await serviceManager.fetchBlueskyPostByID(id)
@@ -281,6 +277,8 @@ class PostNavigationEnvironment: ObservableObject {
 
                     if let post = post {
                         navigateToPost(post)
+                    } else {
+                        ToastManager.shared.show("Post unavailable", severity: .warning, duration: 2.0)
                     }
 
                 case "user":
@@ -305,6 +303,7 @@ class PostNavigationEnvironment: ObservableObject {
                 #if DEBUG
                 print("Failed to handle custom scheme link \(url): \(error)")
                 #endif
+                ToastManager.shared.show("Couldn't open that link", severity: .error, duration: 2.0)
             }
         }
     }
@@ -324,11 +323,20 @@ class PostNavigationEnvironment: ObservableObject {
                     do {
                         if let post = try await serviceManager.fetchBlueskyPostByID(atUri) {
                             navigateToPost(post)
+                        } else {
+                            // The fetch succeeded but returned nil — post
+                            // was deleted or unavailable. Same UX as a
+                            // failed fetch from the user's perspective.
+                            ToastManager.shared.show("Post unavailable", severity: .warning, duration: 2.0)
                         }
                     } catch {
                         #if DEBUG
                         print("Failed to fetch Bluesky post from universal link: \(error)")
                         #endif
+                        // Universal links open the app expecting something
+                        // to happen — a silent failure leaves the user
+                        // staring at whatever was on screen.
+                        ToastManager.shared.show("Couldn't open that post", severity: .error, duration: 2.0)
                     }
                 }
             } else if pathComponents.count >= 2 && pathComponents[0] == "profile" {
@@ -353,15 +361,21 @@ class PostNavigationEnvironment: ObservableObject {
                             ?? serviceManager.activeAccount(on: .mastodon)
                             ?? serviceManager.mastodonAccounts.first
 
-                        guard let account = account else { return }
+                        guard let account = account else {
+                            ToastManager.shared.show("Add a Mastodon account to open this post", severity: .warning, duration: 2.4)
+                            return
+                        }
 
                         if let post = try await serviceManager.mastodonService.fetchPostByID(statusId, account: account) {
                             navigateToPost(post)
+                        } else {
+                            ToastManager.shared.show("Post unavailable", severity: .warning, duration: 2.0)
                         }
                     } catch {
                         #if DEBUG
                         print("Failed to fetch Mastodon post from universal link: \(error)")
                         #endif
+                        ToastManager.shared.show("Couldn't open that post", severity: .error, duration: 2.0)
                     }
                 }
             }

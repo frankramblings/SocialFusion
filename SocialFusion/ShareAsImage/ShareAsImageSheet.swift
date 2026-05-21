@@ -6,11 +6,11 @@ import Photos
 public struct ShareAsImageSheet: View {
     @ObservedObject var viewModel: ShareAsImageViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingShareSheet = false
     @State private var shareFileURLs: [URL] = []
     @State private var isSavingToPhotos = false
     @State private var saveToPhotosError: String?
-    @State private var saveToPhotosSuccess = false
 
     public init(viewModel: ShareAsImageViewModel) {
         self.viewModel = viewModel
@@ -33,18 +33,20 @@ public struct ShareAsImageSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         dismiss()
                     }
                     .keyboardShortcut(.escape, modifiers: [])
                 }
-                
+
                 ToolbarItem(placement: .primaryAction) {
                     HStack(spacing: 12) {
-                        Button(action: {
+                        Button {
+                            HapticEngine.tap.trigger()
                             Task {
                                 await handleSaveToPhotos()
                             }
-                        }) {
+                        } label: {
                             if isSavingToPhotos {
                                 ProgressView()
                             } else {
@@ -52,22 +54,21 @@ public struct ShareAsImageSheet: View {
                             }
                         }
                         .disabled(viewModel.isRendering || isSavingToPhotos)
-                        
-                        Button(action: {
+                        .accessibilityHint("Saves the image to your Photos library")
+
+                        Button {
+                            HapticEngine.tap.trigger()
                             Task {
                                 await handleShare()
                             }
-                        }) {
+                        } label: {
                             Label("Share", systemImage: "square.and.arrow.up")
                         }
                         .disabled(viewModel.isRendering)
+                        .fontWeight(.semibold)
+                        .accessibilityHint("Opens share options for this image")
                     }
                 }
-            }
-            .alert("Saved to Photos", isPresented: $saveToPhotosSuccess) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text("The image has been saved to your photo library.")
             }
             .alert("Error Saving to Photos", isPresented: .constant(saveToPhotosError != nil)) {
                 Button("OK", role: .cancel) {
@@ -100,13 +101,21 @@ public struct ShareAsImageSheet: View {
 
                 // Page indicator for multi-page exports
                 if viewModel.pageCount > 1 {
-                    Text("\(viewModel.pageCount) pages")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.secondary.opacity(0.1))
-                        .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        Image(systemName: "rectangle.stack")
+                            .font(.caption2.weight(.semibold))
+                        Text("\(viewModel.pageCount) pages")
+                            .font(.caption.weight(.medium))
+                            .monospacedDigit()
+                    }
+                    .foregroundColor(.accentColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(Color.accentColor.opacity(0.14))
+                    )
+                    .accessibilityLabel("\(viewModel.pageCount) pages")
                 }
             }
 
@@ -126,19 +135,14 @@ public struct ShareAsImageSheet: View {
                 }
 
                 if viewModel.previewImage == nil {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 14) {
                         ProgressView()
                             .scaleEffect(1.2)
 
-                        if !viewModel.renderingProgress.isEmpty {
-                            Text(viewModel.renderingProgress)
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else {
-                            Text("Preparing preview...")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
+                        Text(viewModel.renderingProgress.isEmpty ? "Preparing preview" : viewModel.renderingProgress)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 400)
@@ -149,34 +153,48 @@ public struct ShareAsImageSheet: View {
                         ProgressView()
                             .controlSize(.small)
 
-                        Text(viewModel.renderingProgress.isEmpty ? "Updating preview…" : viewModel.renderingProgress)
-                            .font(.caption)
+                        Text(viewModel.renderingProgress.isEmpty ? "Updating preview" : viewModel.renderingProgress)
+                            .font(.caption.weight(.medium))
                             .foregroundColor(.secondary)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
                     .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                    )
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(12)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                 }
             }
             .frame(height: 400)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.previewImage != nil)
-            .animation(.easeInOut(duration: 0.2), value: isPreviewBusy)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: viewModel.previewImage != nil)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isPreviewBusy)
 
             if let error = viewModel.errorMessage {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
-                        .foregroundColor(.orange)
+                VStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.orange.opacity(0.14))
+                            .frame(width: 72, height: 72)
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 30, weight: .semibold))
+                            .foregroundStyle(Color.orange.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
                     Text(error)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 200)
+                .padding(.vertical, 24)
+                .accessibilityElement(children: .combine)
             }
         }
     }
@@ -187,14 +205,36 @@ public struct ShareAsImageSheet: View {
         VStack(alignment: .leading, spacing: 20) {
             // Show section (Earlier/Later toggles)
             showSection
-            
+
             Divider()
-            
+
             // Privacy
-            Toggle("Hide names", isOn: $viewModel.hideUsernames)
-            
+            Toggle(isOn: $viewModel.hideUsernames) {
+                Label {
+                    Text("Hide names")
+                } icon: {
+                    Image(systemName: "eye.slash")
+                        .foregroundStyle(Color.orange.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                }
+            }
+            .onChange(of: viewModel.hideUsernames) { _, _ in
+                HapticEngine.selection.trigger()
+            }
+
             // Branding
-            Toggle("Watermark", isOn: $viewModel.showWatermark)
+            Toggle(isOn: $viewModel.showWatermark) {
+                Label {
+                    Text("Watermark")
+                } icon: {
+                    Image(systemName: "signature")
+                        .foregroundStyle(Color.accentColor.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                }
+            }
+            .onChange(of: viewModel.showWatermark) { _, _ in
+                HapticEngine.selection.trigger()
+            }
         }
     }
     
@@ -204,15 +244,49 @@ public struct ShareAsImageSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Show")
                 .font(.headline)
-            
+
             // Dynamic toggles based on whether sharing a post or reply
             if viewModel.isReply {
                 // Reply: Show both toggles
-                Toggle("Earlier replies", isOn: $viewModel.includeEarlier)
-                Toggle("Later replies", isOn: $viewModel.includeLater)
+                Toggle(isOn: $viewModel.includeEarlier) {
+                    Label {
+                        Text("Earlier replies")
+                    } icon: {
+                        Image(systemName: "arrow.up.message")
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
+                .onChange(of: viewModel.includeEarlier) { _, _ in
+                    HapticEngine.selection.trigger()
+                }
+
+                Toggle(isOn: $viewModel.includeLater) {
+                    Label {
+                        Text("Later replies")
+                    } icon: {
+                        Image(systemName: "arrow.down.message")
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
+                .onChange(of: viewModel.includeLater) { _, _ in
+                    HapticEngine.selection.trigger()
+                }
             } else {
                 // Post: Only show "Later replies" (labeled as "Replies" for both networks)
-                Toggle("Replies", isOn: $viewModel.includeLater)
+                Toggle(isOn: $viewModel.includeLater) {
+                    Label {
+                        Text("Replies")
+                    } icon: {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .foregroundStyle(Color.secondary.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                }
+                .onChange(of: viewModel.includeLater) { _, _ in
+                    HapticEngine.selection.trigger()
+                }
             }
         }
     }
@@ -235,6 +309,7 @@ public struct ShareAsImageSheet: View {
             cleanupShareFiles()
             HapticEngine.error.trigger()
             viewModel.errorMessage = error.localizedDescription
+            HapticEngine.error.trigger()
         }
     }
     
@@ -248,12 +323,14 @@ public struct ShareAsImageSheet: View {
             if newStatus != .authorized && newStatus != .limited {
                 await MainActor.run {
                     saveToPhotosError = "Photo library access is required to save images. Please enable it in Settings."
+                    HapticEngine.warning.trigger()
                 }
                 return
             }
         } else if status != .authorized && status != .limited {
             await MainActor.run {
                 saveToPhotosError = "Photo library access is required to save images. Please enable it in Settings."
+                HapticEngine.warning.trigger()
             }
             return
         }
@@ -283,13 +360,17 @@ public struct ShareAsImageSheet: View {
                 }
             }
 
-            // Success
+            // Success — use a toast instead of a modal alert. Apple's
+            // own Photos and screenshot flows use unobtrusive HUDs for
+            // non-critical save confirmations; a modal alert with an
+            // OK button interrupts the user's flow unnecessarily.
             await MainActor.run {
                 isSavingToPhotos = false
-                saveToPhotosSuccess = true
+                ToastManager.shared.show("Saved to Photos", severity: .success, duration: 1.8)
             }
 
-            // Provide haptic feedback
+            // Haptic still fires alongside the toast for tactile
+            // confirmation independent of visual attention.
             HapticEngine.success.trigger()
 
         } catch {

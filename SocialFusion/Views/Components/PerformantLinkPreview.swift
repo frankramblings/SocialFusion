@@ -60,9 +60,10 @@ private struct PerformantLinkPreviewPlaceholder: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            // Image placeholder
+            // Image placeholder — systemGray adapts to light/dark
+            // mode without the brown shift Color.gray.opacity has.
             Rectangle()
-                .fill(Color.gray.opacity(0.15))
+                .fill(Color(.systemGray5))
                 .frame(width: 80, height: height - 24)
                 .cornerRadius(8)
                 .overlay(
@@ -71,16 +72,18 @@ private struct PerformantLinkPreviewPlaceholder: View {
                         .foregroundColor(.secondary)
                 )
 
-            // Text placeholders
+            // Text placeholders — systemGrays adapt cleanly across
+            // light/dark mode (Color.gray.opacity shifts brown in
+            // dark mode).
             VStack(alignment: .leading, spacing: 6) {
                 Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(Color(.systemGray4))
                     .frame(height: 16)
                     .frame(maxWidth: .infinity)
                     .cornerRadius(4)
 
                 Rectangle()
-                    .fill(Color.gray.opacity(0.15))
+                    .fill(Color(.systemGray5))
                     .frame(height: 12)
                     .frame(maxWidth: 120)
                     .cornerRadius(4)
@@ -98,11 +101,11 @@ private struct PerformantLinkPreviewPlaceholder: View {
         .frame(maxWidth: .infinity, idealHeight: height)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
+                .fill(Color(.systemGray6))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+                .stroke(Color(.separator), lineWidth: 0.5)
         )
         .onTapGesture {
             UIApplication.shared.open(url)

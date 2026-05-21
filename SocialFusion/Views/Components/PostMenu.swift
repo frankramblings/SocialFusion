@@ -31,8 +31,21 @@ struct PostMenu: View {
             menuButton(for: .report)
         } label: {
             Image(systemName: "ellipsis")
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.secondary)
+                // Visual size stays 32pt (compact in the row); outer
+                // frame extends the hit area to the 44pt iOS HIG
+                // minimum. Without it, thumbs miss the kebab menu
+                // on a feed-density layout.
+                .frame(width: 32, height: 32)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
+        // Pre-warm a tap haptic so the menu open feels acknowledged on devices
+        // that briefly delay the system menu animation.
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+        .accessibilityLabel("More actions")
+        .accessibilityHint("Opens a menu of post actions")
     }
 
     private func menuButton(for action: PostAction) -> some View {

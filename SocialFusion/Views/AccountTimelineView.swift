@@ -18,7 +18,14 @@ struct AccountTimelineView: View {
     @State private var lastTopVisibleOffset: CGFloat = 0
     @State private var pendingMergeAnchorOffset: CGFloat?
     @State private var mergeOffsetCompensation: CGFloat = 0
+    @State private var mergePillVisible = false
+    @State private var scrollToTopOpacity: Double = 1.0
+    @State private var scrollToTopFadeTask: Task<Void, Never>?
+    @State private var pillBumpScale: CGFloat = 1.0
+    @State private var lastSeenPillCount: Int = 0
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private var anchorDefaultsKey: String { "accountTimeline.anchorId.\(account.id)" }
     private func persistedAnchor() -> String? { UserDefaults.standard.string(forKey: anchorDefaultsKey) }
@@ -47,7 +54,7 @@ struct AccountTimelineView: View {
 
     var body: some View {
         ZStack {
-            Color(UIColor.systemBackground)
+            Color(.systemBackground)
                 .ignoresSafeArea()
 
             if controller.isLoading && controller.posts.isEmpty {
@@ -98,7 +105,7 @@ struct AccountTimelineView: View {
                         .fill(Color.secondary.opacity(0.7))
                         .frame(width: 8, height: 8)
                         .accessibilityIdentifier("AccountBufferedIndicator")
-                        .accessibilityLabel("\(controller.bufferCount) new posts")
+                        .accessibilityLabel("\(controller.bufferCount) new post\(controller.bufferCount == 1 ? "" : "s")")
                 }
             }
         }
@@ -123,31 +130,55 @@ struct AccountTimelineView: View {
     }
 
     private var loadingView: some View {
-        ProgressView()
-            .scaleEffect(1.5)
-            .accessibilityLabel("Loading timeline")
+        // SkeletonTimelineView gives the user a real preview of where
+        // posts will land instead of a centered spinner. ConsolidatedTimelineView
+        // already uses this for its initial load — keeping account
+        // timelines on the same loading vocabulary so switching between
+        // an aggregate feed and a single-account feed reads the same.
+        SkeletonTimelineView()
+            .transition(.opacity)
     }
 
     private var emptyStateView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "person.crop.circle")
-                .font(.system(size: 60))
-                .foregroundColor(Color(hex: account.platform.colorHex))
-                // Decorative — the title text already says what state
-                // this is. VoiceOver would otherwise pronounce the
-                // SF Symbol name verbatim.
-                .accessibilityHidden(true)
+        // Routes through SocialPlatform.swiftUIColor for the canonical
+        // brand hex (86a7ca5). Was Color(hex: ...colorHex), which
+        // duplicates the lookup path.
+        let platformColor = account.platform.swiftUIColor
+        return VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [platformColor.opacity(0.18), platformColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 70
+                        )
+                    )
+                    .frame(width: 140, height: 140)
+                Image(systemName: "tray")
+                    .font(.system(size: 42, weight: .light))
+                    .foregroundStyle(platformColor.gradient)
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .padding(.top, 24)
 
-            Text("No posts to display")
-                .font(.headline)
+            VStack(spacing: 6) {
+                Text("No posts to display")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
 
-            Text("Pull to refresh")
-                .font(.subheadline)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-                .foregroundColor(.secondary)
+                Text("Pull down to refresh.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            }
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 24)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("No posts to display. Pull down to refresh.")
     }
 
     @ViewBuilder
@@ -194,6 +225,11 @@ struct AccountTimelineView: View {
                 .padding(.top, mergeOffsetCompensation)
                 .padding(.vertical)
                 .scrollTargetLayout()
+                // Same fade-and-snap mechanism as ConsolidatedTimelineView —
+                // a brief opacity dip masks the index jump when the user
+                // taps the merge pill or double-taps the tab while deep in
+                // the timeline. See scrollToTop(using:).
+                .opacity(scrollToTopOpacity)
             }
             .coordinateSpace(name: "accountTimelineScroll")
             .onPreferenceChange(AccountTimelineVisibleItemPreferenceKey.self) { positions in
@@ -204,10 +240,40 @@ struct AccountTimelineView: View {
                 controller.recordVisibleInteraction()
             }
             .refreshable {
+                // Pull-to-refresh = STAY IN PLACE + PILL.
+                //
+                // We deliberately do not auto-merge; the freshly-fetched
+                // posts stay in the buffer so the mergePill appears. You
+                // tap the pill (or the home tab) to whoosh up and see them.
+                // Matches Ivory/Tweetbot's reading-first behavior: refresh
+                // never costs you your scroll place.
                 let anchorBefore = visibleAnchorId ?? scrollAnchorId ?? persistedAnchor()
                 pendingAnchorRestoreId = anchorBefore
+                let bufferBefore = controller.bufferCount
                 await controller.manualRefresh()
-                HapticEngine.tap.trigger()
+                let bufferAfter = controller.bufferCount
+                let arrivedCount = bufferAfter - bufferBefore
+                // Contextual haptic: success notification if new posts
+                // arrived, light tap otherwise — matches the vocabulary
+                // ConsolidatedTimelineView already uses on .refreshable.
+                HapticEngine.refreshComplete(
+                    hasNewContent: arrivedCount > 0
+                ).trigger()
+
+                // Zero new posts: quiet info toast confirms the gesture ran
+                // without moving anything. ToastManager handles VoiceOver via
+                // UIAccessibility.post so the message is spoken too.
+                if arrivedCount <= 0 {
+                    ToastManager.shared.show(
+                        "You're up to date",
+                        severity: .info,
+                        duration: 1.4
+                    )
+                    return
+                }
+                // arrivedCount > 0: buffer is non-empty, mergePill appears.
+                // Tap-pill / home-tab handlers below take care of bringing
+                // the user up to the new top when they're ready.
             }
             .simultaneousGesture(
                 DragGesture()
@@ -226,6 +292,13 @@ struct AccountTimelineView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: Notification.Name.homeTabDoubleTapped))
             { _ in
+                HapticEngine.tap.trigger()
+                // Drain any buffered posts before scrolling so the home tab
+                // doesn't leave the user staring at stale content at the top.
+                // Matches ConsolidatedTimelineView's home-tab handler.
+                if controller.bufferCount > 0 {
+                    controller.mergeBufferedPosts()
+                }
                 scrollToTop(using: proxy)
                 syncAnchorToTopIfNeeded(
                     topId: controller.posts.first?.id,
@@ -251,8 +324,19 @@ struct AccountTimelineView: View {
                 .padding(.vertical)
             }
             .refreshable {
+                let bufferBefore = controller.bufferCount
                 await controller.manualRefresh()
-                HapticEngine.tap.trigger()
+                let arrivedCount = controller.bufferCount - bufferBefore
+                HapticEngine.refreshComplete(
+                    hasNewContent: arrivedCount > 0
+                ).trigger()
+                if arrivedCount <= 0 {
+                    ToastManager.shared.show(
+                        "You're up to date",
+                        severity: .info,
+                        duration: 1.4
+                    )
+                }
             }
             .simultaneousGesture(
                 DragGesture()
@@ -288,17 +372,7 @@ struct AccountTimelineView: View {
                     onShare: { entry.post.presentShareSheet() },
                     onOpenInBrowser: { entry.post.openInBrowser() },
                     onCopyLink: { entry.post.copyLink() },
-                    onReport: {
-                        Task {
-                            do {
-                                try await serviceManager.reportPost(entry.post)
-                                HapticEngine.success.trigger()
-                            } catch {
-                                HapticEngine.error.trigger()
-                                ErrorHandler.shared.handleError(error)
-                            }
-                        }
-                    }
+                    onReport: { entry.post.report(via: serviceManager) }
                 )
                 .id(entry.id)
                 .background(
@@ -374,30 +448,38 @@ struct AccountTimelineView: View {
     }
 
     private var infiniteScrollLoadingView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ProgressView()
-                .scaleEffect(0.8)
-            Text("Loading more posts...")
+                .scaleEffect(0.85)
+            Text("Loading more posts")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
         .padding(.horizontal)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading more posts")
     }
 
     private var endOfTimelineView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
+            // Two-layer palette: white checkmark on green circle —
+            // matches ConsolidatedTimelineView's end-of-timeline marker.
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundColor(.green)
-            Text("You're all caught up!")
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .foregroundStyle(.white, Color.green)
+                .symbolRenderingMode(.palette)
+            Text("You're all caught up")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
             Text("No more posts to load")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("You're all caught up, no more posts to load")
         .padding(.horizontal)
     }
 
@@ -440,53 +522,178 @@ struct AccountTimelineView: View {
 
     @ViewBuilder
     private func mergePill(proxy: ScrollViewProxy) -> some View {
-        if controller.bufferCount > 0 {
-            Button(action: { handleMergeTap(proxy: proxy) }) {
+        let count = controller.bufferCount
+        if count > 0 {
+            Button {
+                HapticEngine.tap.trigger()
+                handleMergeTap(proxy: proxy)
+            } label: {
                 HStack(spacing: 8) {
-                    Text("\(controller.bufferCount) new posts")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                    Text("\(count) new post\(count == 1 ? "" : "s")")
+                        .font(.subheadline.weight(.semibold))
+                        // monospacedDigit so 5→6→7→… morphs don't jiggle
+                        // proportional widths (iter 212, mirroring
+                        // ConsolidatedTimelineView's pill).
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(
+                            .spring(response: 0.3, dampingFraction: 0.8),
+                            value: count
+                        )
                     Image(systemName: "arrow.up.to.line")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .background(
+                    // Reduce Transparency: solid capsule fallback.
+                    // Same shape ConsolidatedTimelineView's pills
+                    // use — consistent feel across both timelines
+                    // for users with the setting enabled.
+                    Group {
+                        if reduceTransparency {
+                            Capsule().fill(Color(.secondarySystemBackground))
+                        } else {
+                            Capsule().fill(.ultraThinMaterial)
+                        }
+                    }
+                )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                // Invisible padding extends tap target to ~45pt without
+                // changing visual size — mirrors iter 211's ConsolidatedTimeline fix.
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(MergePillPressStyle())
+            // Matching the entrance choreography ConsolidatedTimelineView's
+            // newPostsPill received in iter 202 — spring scale + fade so
+            // the pill lands rather than slides. Settles after one beat;
+            // no perpetual pulse.
+            //
+            // pillBumpScale composes multiplicatively for the count-increase
+            // bump (iter 207, mirrored here for parity across timelines).
+            .scaleEffect((mergePillVisible ? 1.0 : 0.96) * pillBumpScale)
+            .opacity(mergePillVisible ? 1.0 : 0.0)
+            .onAppear {
+                lastSeenPillCount = count
+                if reduceMotion {
+                    mergePillVisible = true
+                } else {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) {
+                        mergePillVisible = true
+                    }
+                }
+                // Mirror the ConsolidatedTimelineView pill's VoiceOver
+                // announcement (3494ab5) so account-scoped timelines
+                // also speak the pill arrival to VoiceOver users.
+                if UIAccessibility.isVoiceOverRunning {
+                    let phrase = count == 1
+                        ? "1 new post above. Double-tap to view."
+                        : "\(count) new posts above. Double-tap to view."
+                    UIAccessibility.post(notification: .announcement, argument: phrase)
+                }
+            }
+            .onDisappear {
+                mergePillVisible = false
+                pillBumpScale = 1.0
+                lastSeenPillCount = 0
+            }
+            .onChange(of: count) { _, newValue in
+                guard !reduceMotion, newValue > lastSeenPillCount, lastSeenPillCount > 0 else {
+                    lastSeenPillCount = newValue
+                    return
+                }
+                lastSeenPillCount = newValue
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                    pillBumpScale = 1.06
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
+                        pillBumpScale = 1.0
+                    }
+                }
             }
             .accessibilityIdentifier("AccountMergePill")
             .padding(.top, 8)
-            .accessibilityLabel("\(controller.bufferCount) new posts")
-            .accessibilityHint("Tap to merge new posts into the timeline")
+            .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
+            .accessibilityHint("Merges new posts into the timeline")
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         }
     }
 
     private func handleMergeTap(proxy: ScrollViewProxy) {
-        if controller.isNearTop {
-            prepareMergeAnchorRestore()
-            controller.mergeBufferedPosts()
-            return
-        }
-        scrollToTop(using: proxy)
+        // The pill exists to *show you* the new posts — tapping it should
+        // always land you at the new top, regardless of where you were
+        // when you tapped. Merge first, then advance the anchor to the
+        // freshly-arrived first post.
+        controller.mergeBufferedPosts()
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 350_000_000)
-            prepareMergeAnchorRestore()
-            controller.mergeBufferedPosts()
+            // Let the merge propagate through SwiftUI before we resolve the
+            // new top id — without this the .first?.id can still be the
+            // old top for one render pass.
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            guard let newTopId = controller.posts.first?.id else { return }
+            if #available(iOS 17.0, *) {
+                if scrollAnchorId != newTopId {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { scrollAnchorId = newTopId }
+                }
+            } else {
+                withAnimation(.none) { proxy.scrollTo(newTopId, anchor: .top) }
+            }
+            syncAnchorToTopIfNeeded(topId: newTopId, isAtTop: true)
         }
     }
 
+    /// Scroll the timeline back to the top. Callers fire the tap haptic
+    /// at the moment of intent — this method intentionally fires none of
+    /// its own so the gesture feels like one crisp action, not two
+    /// (matches ConsolidatedTimelineView.scrollToTop, iter 202).
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first?.id else { return }
-        if #available(iOS 17.0, *) {
-            var t = Transaction()
-            t.disablesAnimations = true
-            withTransaction(t) { scrollAnchorId = topId }
+        let isFarFromTop = !controller.isNearTop
+
+        if isFarFromTop && !reduceMotion {
+            // Brief crossfade masks the scroll-position teleport so the
+            // jump reads as 'whoosh to the top' rather than a snap.
+            // Cancellation-safe: defer restores opacity even if a new
+            // tap fires before this Task finishes.
+            scrollToTopFadeTask?.cancel()
+            withAnimation(.easeOut(duration: 0.12)) {
+                scrollToTopOpacity = 0.65
+            }
+            scrollToTopFadeTask = Task { @MainActor in
+                defer {
+                    if scrollToTopOpacity != 1.0 {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            scrollToTopOpacity = 1.0
+                        }
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled else { return }
+                if #available(iOS 17.0, *) {
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { scrollAnchorId = topId }
+                } else {
+                    withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+                }
+            }
         } else {
-            withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+            if #available(iOS 17.0, *) {
+                var t = Transaction()
+                t.disablesAnimations = true
+                withTransaction(t) { scrollAnchorId = topId }
+            } else {
+                withAnimation(.none) { proxy.scrollTo(topId, anchor: .top) }
+            }
         }
     }
 
@@ -535,5 +742,16 @@ struct AccountTimelineView_Previews: PreviewProvider {
         )
 
         AccountTimelineView(account: mastodonAccount, serviceManager: SocialServiceManager())
+    }
+}
+
+/// Subtle press feedback for the floating "new posts" pill — scales down and
+/// dims to acknowledge the tap, without overpowering the gentle reveal.
+private struct MergePillPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.8), value: configuration.isPressed)
     }
 }

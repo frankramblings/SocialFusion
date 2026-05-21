@@ -358,17 +358,26 @@ struct ProfileHeaderView: View {
   @ViewBuilder
   private var actionButton: some View {
     if isOwnProfile {
-      Button(action: { onEditProfile?() }) {
+      Button {
+        HapticEngine.tap.trigger()
+        onEditProfile?()
+      } label: {
         Text("Edit Profile")
           .font(.subheadline)
           .fontWeight(.semibold)
-          .foregroundColor(.primary)
-          .padding(.horizontal, 20)
+          .foregroundColor(.primary.opacity(0.85))
+          .padding(.horizontal, 18)
           .padding(.vertical, 10)
-          .background(Color(.secondarySystemBackground))
-          .clipShape(Capsule())
+          .background(
+            Capsule()
+              .fill(Color(.secondarySystemBackground))
+              .overlay(
+                Capsule()
+                  .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+              )
+          )
       }
-      .buttonStyle(.plain)
+      .buttonStyle(ProfileActionPressStyle())
     } else if let state = relationshipState {
       VStack(alignment: .trailing, spacing: 6) {
         HStack(spacing: 8) {
@@ -412,7 +421,10 @@ struct ProfileHeaderView: View {
   }
 
   private var blockedButton: some View {
-    Button(action: { onUnblock?() }) {
+    Button {
+      HapticEngine.tap.trigger()
+      onUnblock?()
+    } label: {
       HStack(spacing: 6) {
         Image(systemName: "hand.raised.fill")
           .font(.system(size: 12))
@@ -427,11 +439,15 @@ struct ProfileHeaderView: View {
       .clipShape(Capsule())
     }
     .buttonStyle(.plain)
+    .accessibilityHint("Unblocks this user")
   }
 
   private func followingButton(isMuting: Bool) -> some View {
     Menu {
-      Button(role: .destructive, action: { onUnfollow?() }) {
+      Button(role: .destructive) {
+        HapticEngine.warning.trigger()
+        onUnfollow?()
+      } label: {
         Label("Unfollow", systemImage: "person.badge.minus")
       }
       if let onMarkAsSamePerson = onMarkAsSamePerson, mergedIdentity == nil {
@@ -446,33 +462,56 @@ struct ProfileHeaderView: View {
       }
       Divider()
       if isMuting {
-        Button(action: { onUnmute?() }) {
+        Button {
+          HapticEngine.tap.trigger()
+          onUnmute?()
+        } label: {
           Label("Unmute", systemImage: "speaker")
         }
       } else {
-        Button(action: { onMute?() }) {
+        Button {
+          HapticEngine.warning.trigger()
+          onMute?()
+        } label: {
           Label("Mute", systemImage: "speaker.slash")
         }
       }
-      Button(role: .destructive, action: { showBlockConfirmation = true }) {
+      Button(role: .destructive) {
+        HapticEngine.warning.trigger()
+        showBlockConfirmation = true
+      } label: {
         Label("Block", systemImage: "hand.raised")
       }
     } label: {
-      Text("Following")
-        .font(.subheadline)
-        .fontWeight(.semibold)
-        .foregroundColor(.primary)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(Capsule())
+      HStack(spacing: 4) {
+        Image(systemName: "checkmark")
+          .font(.system(size: 11, weight: .bold))
+        Text("Following")
+          .font(.subheadline)
+          .fontWeight(.semibold)
+      }
+      .foregroundColor(.primary.opacity(0.85))
+      .padding(.horizontal, 18)
+      .padding(.vertical, 10)
+      .background(
+        Capsule()
+          .fill(Color(.secondarySystemBackground))
+          .overlay(
+            Capsule()
+              .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+          )
+      )
+      .contentShape(Capsule())
     }
+    .menuStyle(.button)
+    .buttonStyle(ProfileActionPressStyle())
     .confirmationDialog(
       "Block this user?",
       isPresented: $showBlockConfirmation,
       titleVisibility: .visible
     ) {
       Button("Block", role: .destructive) {
+        HapticEngine.warning.trigger()
         onBlock?()
       }
       Button("Cancel", role: .cancel) {}
@@ -482,17 +521,23 @@ struct ProfileHeaderView: View {
   }
 
   private var followButton: some View {
-    Button(action: { onFollow?() }) {
+    Button {
+      HapticEngine.tap.trigger()
+      onFollow?()
+    } label: {
       Text("Follow")
         .font(.subheadline)
         .fontWeight(.semibold)
         .foregroundColor(.white)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 22)
         .padding(.vertical, 10)
-        .background(Color.accentColor)
-        .clipShape(Capsule())
+        .background(
+          Capsule()
+            .fill(Color.accentColor.gradient)
+            .shadow(color: Color.accentColor.opacity(0.32), radius: 8, x: 0, y: 3)
+        )
     }
-    .buttonStyle(.plain)
+    .buttonStyle(ProfileActionPressStyle())
   }
 
   @ViewBuilder
@@ -564,22 +609,27 @@ struct ProfileHeaderView: View {
   @ViewBuilder
   private var bioSection: some View {
     if let bio = profile.bio, !bio.isEmpty {
-      VStack(alignment: .leading, spacing: 4) {
+      VStack(alignment: .leading, spacing: 6) {
         bioContent(bio)
           .lineLimit(bioExpanded ? nil : Layout.bioLineLimit)
 
         if !bioExpanded {
-          Button(action: {
-            // The lineLimit expansion is the user-visible signal — the
-            // easeInOut just smooths the height change. Reduce-motion
-            // users get the immediate expand without the height ease.
-            withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.2)) { bioExpanded = true }
-          }) {
-            Text("Show more")
-              .font(.subheadline)
-              .foregroundColor(.accentColor)
+          Button {
+            HapticEngine.tap.trigger()
+            withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.82)) {
+              bioExpanded = true
+            }
+          } label: {
+            HStack(spacing: 4) {
+              Text("Show more")
+                .font(.subheadline.weight(.medium))
+              Image(systemName: "chevron.down")
+                .font(.caption2.weight(.semibold))
+            }
+            .foregroundColor(.accentColor)
           }
           .buttonStyle(.plain)
+          .accessibilityHint("Expands the rest of the bio")
         }
       }
       .padding(.horizontal, Layout.horizontalPadding)
@@ -614,8 +664,10 @@ struct ProfileHeaderView: View {
           fieldRow(field)
         }
       }
-      .background(Color(.secondarySystemBackground))
-      .clipShape(RoundedRectangle(cornerRadius: Layout.fieldCornerRadius))
+      .background(
+        RoundedRectangle(cornerRadius: Layout.fieldCornerRadius, style: .continuous)
+          .fill(Color(.secondarySystemBackground))
+      )
       .padding(.horizontal, Layout.horizontalPadding)
       .padding(.top, 12)
     }
@@ -684,43 +736,11 @@ struct ProfileHeaderView: View {
     .padding(.top, 12)
     .padding(.bottom, 8)
     .accessibilityElement(children: .combine)
-    .accessibilityLabel(statsAccessibilityLabel(posts: posts, following: following, followers: followers))
-  }
-
-  private func breakdownRow(twin: UserProfile) -> some View {
-    HStack(spacing: 14) {
-      HStack(spacing: 4) {
-        PlatformLogoBadge(platform: .mastodon, size: 12, shadowEnabled: false)
-        let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
-        Text("\(Self.formatCount(mastoCount)) followers")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-      HStack(spacing: 4) {
-        PlatformLogoBadge(platform: .bluesky, size: 12, shadowEnabled: false)
-        let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
-        Text("\(Self.formatCount(bskyCount)) followers")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-      Spacer()
-    }
-    .accessibilityElement(children: .combine)
-    .accessibilityLabel(breakdownAccessibilityLabel(twin: twin))
-  }
-
-  private func statsAccessibilityLabel(posts: Int, following: Int, followers: Int) -> String {
-    if mergedIdentity != nil {
-      return "Combined: \(posts) posts, \(following) following, \(followers) followers"
-    } else {
-      return "\(posts) posts, \(following) following, \(followers) followers"
-    }
-  }
-
-  private func breakdownAccessibilityLabel(twin: UserProfile) -> String {
-    let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
-    let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
-    return "Per network: \(mastoCount) Mastodon followers, \(bskyCount) Bluesky followers"
+    .accessibilityLabel(
+      "\(profile.statusesCount) post\(profile.statusesCount == 1 ? "" : "s"), "
+      + "\(profile.followingCount) following, "
+      + "\(profile.followersCount) follower\(profile.followersCount == 1 ? "" : "s")"
+    )
   }
 
   private func statItem(count: Int, label: String) -> some View {
@@ -751,6 +771,17 @@ struct ProfileHeaderView: View {
         : String(format: "%.1fK", value)
     }
     return "\(count)"
+  }
+}
+
+/// Subtle press feedback for capsule-style profile action buttons.
+/// Scales down slightly and dims — tactile without being theatrical.
+private struct ProfileActionPressStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+      .opacity(configuration.isPressed ? 0.88 : 1.0)
+      .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.8), value: configuration.isPressed)
   }
 }
 

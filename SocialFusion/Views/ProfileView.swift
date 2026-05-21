@@ -6,8 +6,7 @@ import SwiftUI
 /// with a single component backed by ProfileViewModel.
 struct ProfileView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
-  @EnvironmentObject var mergedIdentityStore: MergedIdentityStore
-  @EnvironmentObject var fusedMomentStore: FusedMomentStore
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @StateObject private var viewModel: ProfileViewModel
   @StateObject private var navigationEnvironment = PostNavigationEnvironment()
   @State private var relationshipViewModel: RelationshipViewModel?
@@ -121,7 +120,10 @@ struct ProfileView: View {
           if let profile = viewModel.profile {
             navBarAvatar(profile: profile)
               .opacity(isAvatarDocked ? 1 : 0)
-              .scaleEffect(isAvatarDocked ? 1 : 0.6, anchor: .leading)
+              // Reduce Motion drops the 0.6→1 scale-up; the avatar
+              // just appears via opacity. The dock transition still
+              // happens — just without the springy growth motion.
+              .scaleEffect(reduceMotion ? 1 : (isAvatarDocked ? 1 : 0.6), anchor: .leading)
           }
           Text(navigationTitle)
             .font(.subheadline)
@@ -129,7 +131,7 @@ struct ProfileView: View {
             .lineLimit(1)
             .opacity(isAvatarDocked ? 1 : 0)
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.75), value: isAvatarDocked)
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.75), value: isAvatarDocked)
       }
     }
     .task {
@@ -353,21 +355,39 @@ struct ProfileView: View {
   // MARK: - Blocked Placeholder
 
   private var blockedPlaceholder: some View {
-    VStack(spacing: 12) {
-      Image(systemName: "hand.raised.fill")
-        .font(.system(size: 48))
-        .foregroundColor(.secondary)
-      Text("You blocked this account")
-        .font(.headline)
-        .foregroundColor(.secondary)
-      Text("You won't see their posts in your timeline.")
-        .font(.subheadline)
-        .foregroundColor(.secondary)
-        .multilineTextAlignment(.center)
-        .padding(.horizontal)
+    VStack(spacing: 16) {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [Color.red.opacity(0.12), Color.red.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 70
+            )
+          )
+          .frame(width: 140, height: 140)
+        Image(systemName: "hand.raised.fill")
+          .font(.system(size: 44, weight: .semibold))
+          .foregroundStyle(Color.red.gradient)
+          .symbolRenderingMode(.hierarchical)
+      }
+
+      VStack(spacing: 6) {
+        Text("You blocked this account")
+          .font(.title3.weight(.semibold))
+          .foregroundColor(.primary.opacity(0.85))
+        Text("You won't see their posts in your timeline.")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal)
+          .fixedSize(horizontal: false, vertical: true)
+      }
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 60)
+    .accessibilityElement(children: .combine)
   }
 
   // MARK: - Post List
@@ -375,16 +395,14 @@ struct ProfileView: View {
   @ViewBuilder
   private var postListContent: some View {
     if viewModel.isLoadingPosts && viewModel.currentPosts.isEmpty {
-      ProgressView()
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
-        .accessibilityLabel("Loading posts")
+      // Same shimmer vocabulary as the home/account timelines. The
+      // inline variant skips the outer ScrollView since ProfileView
+      // already provides one — nested scrolls would otherwise fight
+      // each other for gestures.
+      InlineSkeletonPostStack(cardCount: 4)
+        .padding(.top, 4)
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
-      Text("No posts yet")
-        .foregroundColor(.secondary)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
-        .accessibilityAddTraits(.isHeader)
+      tabEmptyState(symbol: "doc.text", title: "No posts yet")
     } else {
       ForEach(viewModel.currentPosts) { post in
         PostCardView(
@@ -435,11 +453,7 @@ struct ProfileView: View {
         .padding(.top, 40)
         .accessibilityLabel("Loading media")
     } else if viewModel.currentPosts.isEmpty && !viewModel.isLoadingPosts {
-      Text("No media yet")
-        .foregroundColor(.secondary)
-        .frame(maxWidth: .infinity)
-        .padding(.top, 40)
-        .accessibilityAddTraits(.isHeader)
+      tabEmptyState(symbol: "photo.on.rectangle.angled", title: "No media yet")
     } else {
       ProfileMediaGridView(posts: viewModel.currentPosts) { post in
         navigationEnvironment.navigateToPostFusedAware(post, fusedMomentStore: fusedMomentStore)
@@ -461,6 +475,7 @@ struct ProfileView: View {
         ProgressView()
           .frame(maxWidth: .infinity)
           .padding()
+          .accessibilityLabel("Loading more media")
       }
     }
   }
@@ -469,15 +484,17 @@ struct ProfileView: View {
 
   private var profileSkeleton: some View {
     VStack(alignment: .leading, spacing: 0) {
-      // Banner placeholder
+      // Banner placeholder — uses systemGray5 so it reads correctly
+      // against the system background in both light and dark modes
+      // (Color.gray.opacity reads as brown-tinted in dark mode).
       Rectangle()
-        .fill(Color.gray.opacity(0.15))
+        .fill(Color(.systemGray5))
         .frame(height: 200)
 
       // Avatar + text placeholders
       HStack(alignment: .bottom, spacing: 12) {
         Circle()
-          .fill(Color.gray.opacity(0.2))
+          .fill(Color(.systemGray4))
           .frame(width: 72, height: 72)
           .overlay(Circle().stroke(Color(.systemBackground), lineWidth: 3))
           .offset(y: -24)
@@ -486,18 +503,18 @@ struct ProfileView: View {
       .padding(.horizontal, 16)
 
       VStack(alignment: .leading, spacing: 8) {
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.15))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5))
           .frame(width: 160, height: 20)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.12))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5).opacity(0.7))
           .frame(width: 120, height: 14)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.10))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5).opacity(0.55))
           .frame(height: 14)
           .frame(maxWidth: .infinity)
-        RoundedRectangle(cornerRadius: 4)
-          .fill(Color.gray.opacity(0.10))
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(Color(.systemGray5).opacity(0.55))
           .frame(width: 200, height: 14)
       }
       .padding(.horizontal, 16)
@@ -505,34 +522,83 @@ struct ProfileView: View {
       .padding(.bottom, 16)
     }
     .redacted(reason: .placeholder)
-    // Same fix as LoadingQuoteView: VoiceOver would announce each
-    // placeholder shape's geometry from the redacted skeleton. Hide
-    // the structure and announce the load state as one element.
+    // Skeleton placeholder bars otherwise read as a series of unlabeled
+    // shapes for VoiceOver — consolidate into a single 'Loading profile'
+    // utterance so the user knows what's happening.
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Loading profile")
+  }
+
+  // MARK: - Tab Empty State
+
+  /// Compact empty state shared between the Posts / Replies / Media tabs.
+  /// Matches the tinted-halo language used elsewhere but at a smaller scale
+  /// since it lives inside an already-tall profile surface.
+  @ViewBuilder
+  private func tabEmptyState(symbol: String, title: String) -> some View {
+    VStack(spacing: 10) {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [Color.secondary.opacity(0.18), Color.secondary.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 50
+            )
+          )
+          .frame(width: 100, height: 100)
+        Image(systemName: symbol)
+          .font(.system(size: 30, weight: .light))
+          .foregroundStyle(Color.secondary.gradient)
+          .symbolRenderingMode(.hierarchical)
+      }
+      Text(title)
+        .font(.subheadline.weight(.medium))
+        .foregroundColor(.secondary)
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 36)
+    .accessibilityElement(children: .combine)
   }
 
   // MARK: - Profile Error View
 
   private var profileErrorView: some View {
     VStack(spacing: 16) {
-      Image(systemName: "exclamationmark.triangle")
-        .font(.system(size: 40))
-        .foregroundColor(.secondary)
-        // Decorative — the headline reads the state.
-        .accessibilityHidden(true)
-      Text("Couldn't load this profile")
-        .font(.headline)
-        .foregroundColor(.secondary)
-        .accessibilityAddTraits(.isHeader)
-      if let error = viewModel.profileError {
-        Text(error.localizedDescription)
-          .font(.caption)
-          .foregroundColor(.secondary)
-          .multilineTextAlignment(.center)
-          .padding(.horizontal, 32)
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [Color.orange.opacity(0.14), Color.orange.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 70
+            )
+          )
+          .frame(width: 140, height: 140)
+        Image(systemName: "exclamationmark.triangle.fill")
+          .font(.system(size: 36, weight: .semibold))
+          .foregroundStyle(Color.orange.gradient)
+          .symbolRenderingMode(.hierarchical)
       }
-      Button("Retry") {
+
+      VStack(spacing: 6) {
+        Text("Couldn't load this profile")
+          .font(.title3.weight(.semibold))
+          .foregroundColor(.primary.opacity(0.85))
+          .accessibilityAddTraits(.isHeader)
+        if let error = viewModel.profileError {
+          Text(error.localizedDescription)
+            .font(.subheadline)
+            .foregroundColor(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 32)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+      }
+
+      Button {
         HapticEngine.tap.trigger()
         Task {
           viewModel.profileError = nil
@@ -540,8 +606,24 @@ struct ProfileView: View {
           await viewModel.loadProfile()
           await viewModel.loadPostsForCurrentTab()
         }
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: "arrow.clockwise")
+            .font(.subheadline.weight(.semibold))
+          Text("Try Again")
+            .font(.subheadline.weight(.semibold))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 11)
+        .background(
+          Capsule(style: .continuous)
+            .fill(Color.accentColor.gradient)
+            .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+        )
       }
-      .buttonStyle(.bordered)
+      .buttonStyle(.plain)
+      .padding(.top, 4)
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 60)
@@ -568,15 +650,7 @@ struct ProfileView: View {
   }
 
   private func reportPost(_ post: Post) {
-    Task {
-      do {
-        try await serviceManager.reportPost(post)
-        HapticEngine.success.trigger()
-      } catch {
-        HapticEngine.error.trigger()
-        ErrorHandler.shared.handleError(error)
-      }
-    }
+    post.report(via: serviceManager)
   }
 
   // MARK: - Merge Helpers
@@ -594,6 +668,7 @@ struct ProfileView: View {
 
 struct EditProfileView: View {
   @Environment(\.dismiss) var dismiss
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @EnvironmentObject var serviceManager: SocialServiceManager
   let account: SocialAccount
 
@@ -603,6 +678,7 @@ struct EditProfileView: View {
   @State private var selectedImageData: Data? = nil
   @State private var isLoading = false
   @State private var error: String? = nil
+  @State private var showDiscardConfirmation = false
 
   init(account: SocialAccount) {
     self.account = account
@@ -611,7 +687,7 @@ struct EditProfileView: View {
   }
 
   var body: some View {
-    NavigationView {
+    NavigationStack {
       Form {
         Section(header: Text("Profile Image")) {
           HStack {
@@ -624,6 +700,7 @@ struct EditProfileView: View {
                   .scaledToFill()
                   .frame(width: 100, height: 100)
                   .clipShape(Circle())
+                  .accessibilityLabel("Selected new profile image")
               } else {
                 ProfileImageView(account: account)
                   .frame(width: 100, height: 100)
@@ -633,12 +710,17 @@ struct EditProfileView: View {
                 Text("Change Photo")
                   .font(.subheadline)
               }
+              .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+              .accessibilityHint("Opens the photo picker to choose a new profile image")
               .onChange(of: selectedItem) { _, newItem in
                 Task {
                   if let data = try? await newItem?.loadTransferable(
                     type: Data.self)
                   {
-                    selectedImageData = data
+                    await MainActor.run {
+                      selectedImageData = data
+                      HapticEngine.success.trigger()
+                    }
                   }
                 }
               }
@@ -650,10 +732,17 @@ struct EditProfileView: View {
 
         Section(header: Text("Basic Info")) {
           TextField("Display Name", text: $displayName)
+            .textContentType(.name)
+            .submitLabel(.next)
           ZStack(alignment: .topLeading) {
             if bio.isEmpty {
+              // Color(.placeholderText) is the iOS-standard placeholder
+              // color — adapts to dark mode and matches the system
+              // TextField placeholder exactly. Color.gray.opacity goes
+              // brown in dark mode and reads inconsistently from the
+              // adjacent native TextField placeholder above.
               Text("Bio")
-                .foregroundColor(.gray.opacity(0.5))
+                .foregroundColor(Color(.placeholderText))
                 .padding(.top, 8)
                 .padding(.leading, 4)
             }
@@ -664,31 +753,74 @@ struct EditProfileView: View {
 
         if let error = error {
           Section {
-            Text(error)
-              .foregroundColor(.red)
+            Label {
+              Text(error)
+                .font(.footnote)
+                .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+              Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(Color.red.gradient)
+                .symbolRenderingMode(.hierarchical)
+            }
+            .foregroundColor(.red)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Error: \(error)")
           }
+          .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
         }
       }
+      .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: error)
       .navigationTitle("Edit Profile")
       .navigationBarTitleDisplayMode(.inline)
+      // Block swipe-dismiss while the user has unsaved profile edits —
+      // same protection Apple Contacts gives to its Edit Profile flow.
+      .interactiveDismissDisabled(hasChanges)
+      .confirmationDialog(
+        "Discard changes?",
+        isPresented: $showDiscardConfirmation,
+        titleVisibility: .visible
+      ) {
+        Button("Discard Changes", role: .destructive) {
+          HapticEngine.warning.trigger()
+          dismiss()
+        }
+        Button("Keep Editing", role: .cancel) {}
+      } message: {
+        Text("Your profile changes will be lost.")
+      }
       .toolbar {
-        ToolbarItem(placement: .navigationBarLeading) {
+        ToolbarItem(placement: .cancellationAction) {
           Button("Cancel") {
-            dismiss()
+            HapticEngine.tap.trigger()
+            if hasChanges {
+              showDiscardConfirmation = true
+            } else {
+              dismiss()
+            }
           }
         }
-        ToolbarItem(placement: .navigationBarTrailing) {
+        ToolbarItem(placement: .confirmationAction) {
           if isLoading {
             ProgressView()
+              .accessibilityLabel("Saving profile")
           } else {
             Button("Save") {
+              HapticEngine.tap.trigger()
               saveProfile()
             }
-            .fontWeight(.bold)
+            .fontWeight(.semibold)
+            .disabled(!hasChanges)
           }
         }
       }
     }
+  }
+
+  /// True if anything's been edited — disables Save when there's nothing to save.
+  private var hasChanges: Bool {
+    displayName != (account.displayName ?? "")
+      || bio != (account.bio ?? "")
+      || selectedImageData != nil
   }
 
   private func saveProfile() {
@@ -709,7 +841,9 @@ struct EditProfileView: View {
           // landed before the dismiss transition takes over.
           HapticEngine.success.trigger()
           isLoading = false
+          HapticEngine.success.trigger()
           dismiss()
+          ToastManager.shared.show("Profile updated", severity: .success, duration: 1.6)
         }
       } catch {
         await MainActor.run {
@@ -719,6 +853,7 @@ struct EditProfileView: View {
           HapticEngine.error.trigger()
           self.error = error.localizedDescription
           isLoading = false
+          HapticEngine.error.trigger()
         }
       }
     }

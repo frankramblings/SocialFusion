@@ -15,6 +15,7 @@ struct RelationshipBarView: View {
         if !viewModel.state.isBlocking {
           // Mute toggle
           Button(action: {
+            HapticEngine.selection.trigger()
             Task {
               if viewModel.state.isMuting {
                 await viewModel.unmute()
@@ -26,6 +27,7 @@ struct RelationshipBarView: View {
             Image(systemName: viewModel.state.isMuting ? "speaker.slash.fill" : "speaker.slash")
               .font(.system(size: 18))
               .foregroundColor(viewModel.state.isMuting ? .red : .primary)
+              .contentTransition(.symbolEffect(.replace))
               .frame(width: 44, height: 44)
               .background(Color(.secondarySystemBackground))
               .clipShape(Circle())
@@ -33,11 +35,12 @@ struct RelationshipBarView: View {
           .buttonStyle(.plain)
           .accessibilityLabel(viewModel.state.isMuting ? "Unmute" : "Mute")
           .accessibilityHint(viewModel.state.isMuting
-            ? "Stops hiding this user's posts."
-            : "Hides this user's posts from your timeline.")
+                             ? "Resumes notifications and timeline posts from this person"
+                             : "Hides this person's posts from your timeline and stops notifications from them")
 
           // Block button
           Button(action: {
+            HapticEngine.warning.trigger()
             showBlockConfirmation = true
           }) {
             Image(systemName: "hand.raised")
@@ -49,7 +52,7 @@ struct RelationshipBarView: View {
           }
           .buttonStyle(.plain)
           .accessibilityLabel("Block")
-          .accessibilityHint("Opens block confirmation.")
+          .accessibilityHint("Opens a confirmation to block this person from interacting with you")
         } else {
           // Blocked state: show "Blocked" pill
           HStack(spacing: 8) {
@@ -72,6 +75,7 @@ struct RelationshipBarView: View {
         if viewModel.state.isBlocking {
           // Unblock button
           Button(action: {
+            HapticEngine.tap.trigger()
             Task {
               await viewModel.unblock()
             }
@@ -86,9 +90,11 @@ struct RelationshipBarView: View {
               .clipShape(Capsule())
           }
           .buttonStyle(.plain)
+          .accessibilityHint("Removes the block so this person can interact with you again")
         } else if viewModel.state.followRequested {
           // Requested state
           Button(action: {
+            HapticEngine.tap.trigger()
             showRequestedActionSheet = true
           }) {
             Text("Requested")
@@ -101,9 +107,11 @@ struct RelationshipBarView: View {
               .clipShape(Capsule())
           }
           .buttonStyle(.plain)
+          .accessibilityHint("Follow request is pending. Tap to cancel.")
         } else if viewModel.state.isFollowing {
           // Following state
           Button(action: {
+            HapticEngine.tap.trigger()
             showFollowingActionSheet = true
           }) {
             Text("Following")
@@ -116,9 +124,11 @@ struct RelationshipBarView: View {
               .clipShape(Capsule())
           }
           .buttonStyle(.plain)
+          .accessibilityHint("Currently following. Tap for unfollow options.")
         } else {
           // Not following - Follow button
           Button(action: {
+            HapticEngine.success.trigger()
             Task {
               await viewModel.follow()
             }
@@ -133,6 +143,7 @@ struct RelationshipBarView: View {
               .clipShape(Capsule())
           }
           .buttonStyle(.plain)
+          .accessibilityHint("Follows this person to see their posts in your timeline")
         }
       }
       .padding(.horizontal, 16)

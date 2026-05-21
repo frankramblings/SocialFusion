@@ -307,29 +307,43 @@ struct ContentView: View {
 
     private var profileMenuButton: some View {
         Menu {
-            if isMultiAccountMode {
-                Section {
-                    ForEach(serviceManager.accounts) { account in
+            Section {
+                Button {
+                    HapticEngine.selection.trigger()
+                    switchToAccount(id: nil)
+                } label: {
+                    Label {
+                        Text("All accounts")
+                    } icon: {
+                        Image(systemName: selectedAccountId == nil ? "checkmark" : "person.2")
+                    }
+                }
+                ForEach(serviceManager.accounts) { account in
+                    Button {
+                        HapticEngine.selection.trigger()
+                        switchToAccount(id: account.id)
+                    } label: {
                         Label {
                             Text("@\(account.username)")
                         } icon: {
-                            Image(account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
+                            if selectedAccountId == account.id {
+                                Image(systemName: "checkmark")
+                            } else {
+                                Image(account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo")
+                            }
                         }
                     }
-                }
-            } else if let account = contextualAccount {
-                Section {
-                    Text("@\(account.username)")
-                        .font(.subheadline)
                 }
             }
             Section {
                 Button {
+                    HapticEngine.tap.trigger()
                     showAddAccountView = true
                 } label: {
                     Label("Add Account", systemImage: "plus")
                 }
                 Button {
+                    HapticEngine.tap.trigger()
                     showSettingsView = true
                 } label: {
                     Label("Settings", systemImage: "gearshape")
@@ -339,14 +353,9 @@ struct ContentView: View {
             contextualAvatarView
                 .frame(width: 28, height: 28)
         }
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
         .accessibilityLabel("Profile and settings")
-    }
-
-    private var isMultiAccountMode: Bool {
-        switch serviceManager.currentTimelineFeedSelection {
-        case .unified, .allMastodon, .allBluesky: return true
-        case .mastodon, .bluesky: return false
-        }
+        .accessibilityHint("Switch accounts, add an account, or open settings")
     }
 
     private var contextualAccount: SocialAccount? {
@@ -374,6 +383,7 @@ struct ContentView: View {
 
     private var composeButton: some View {
         Button {
+            HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
@@ -384,7 +394,7 @@ struct ContentView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Compose")
-        .accessibilityHint("Create a new post")
+        .accessibilityHint("Opens the post composer")
         .accessibilityIdentifier("ComposeToolbarButton")
         #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {
@@ -461,24 +471,40 @@ struct ContentView: View {
         VStack(spacing: 20) {
             Image(systemName: "person.crop.circle")
                 .font(.system(size: 50))
-                .foregroundColor(.gray.opacity(0.3))
+                .foregroundStyle(Color(.systemGray3).gradient)
+                .symbolRenderingMode(.hierarchical)
+                .accessibilityHidden(true)
 
             if serviceManager.accounts.isEmpty {
-                Text("No Accounts Added").font(.title3).fontWeight(.medium)
-                Button("Add Account") { showAddAccountView = true }
-                    .buttonStyle(.borderedProminent)
+                Text("No Accounts Added")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .accessibilityAddTraits(.isHeader)
+                Button("Add Account") {
+                    HapticEngine.tap.trigger()
+                    showAddAccountView = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
             } else {
-                Text("No Account Selected").font(.title3).fontWeight(.medium)
-                Button("Select Account") { showAccountPicker = true }
-                    .buttonStyle(.borderedProminent)
-                    .sheet(isPresented: $showAccountPicker) {
-                        AccountPickerSheet(
-                            selectedAccountId: $selectedAccountId,
-                            previousAccountId: $previousAccountId,
-                            isPresented: $showAccountPicker,
-                            onSelectAccount: { switchToAccount(id: $0) }
-                        )
-                    }
+                Text("No Account Selected")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .accessibilityAddTraits(.isHeader)
+                Button("Select Account") {
+                    HapticEngine.tap.trigger()
+                    showAccountPicker = true
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .sheet(isPresented: $showAccountPicker) {
+                    AccountPickerSheet(
+                        selectedAccountId: $selectedAccountId,
+                        previousAccountId: $previousAccountId,
+                        isPresented: $showAccountPicker,
+                        onSelectAccount: { switchToAccount(id: $0) }
+                    )
+                }
             }
         }
     }
@@ -672,12 +698,12 @@ struct AccountPickerSheet: View {
                 // Account section - show all accounts
                 Section(header: Text("Accounts")) {
                     // All accounts option
-                    Button(action: {
+                    Button {
                         HapticEngine.selection.trigger()
                         onSelectAccount(nil)
                         isPresented = false
-                    }) {
-                        HStack {
+                    } label: {
+                        HStack(spacing: 12) {
                             UnifiedAccountsIcon(
                                 mastodonAccounts: serviceManager.mastodonAccounts,
                                 blueskyAccounts: serviceManager.blueskyAccounts
@@ -686,127 +712,56 @@ struct AccountPickerSheet: View {
 
                             Text("All Accounts")
                                 .font(.headline)
+                                .fontWeight(selectedAccountId == nil ? .semibold : .regular)
+                                .foregroundColor(.primary)
 
                             Spacer()
 
                             if selectedAccountId == nil {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
+                                accountCheckmark(tint: .accentColor)
                             }
                         }
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("All Accounts")
-                    .accessibilityAddTraits(selectedAccountId == nil ? [.isSelected, .isButton] : .isButton)
-                    .accessibilityHint(selectedAccountId == nil
-                        ? "Currently active."
-                        : "Double-tap to view all accounts in the unified timeline.")
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(selectedAccountId == nil ? .isSelected : [])
 
                     // Mastodon accounts
                     ForEach(serviceManager.mastodonAccounts) { account in
-                        Button(action: {
-                            HapticEngine.selection.trigger()
-                            onSelectAccount(account.id)
-                            isPresented = false
-                        }) {
-                            HStack {
-                                ProfileImageView(account: account)
-                                    .frame(width: 40, height: 40)
-
-                                VStack(alignment: .leading) {
-                                    EmojiDisplayNameText(
-                                        account.displayName ?? account.username,
-                                        emojiMap: account.displayNameEmojiMap,
-                                        font: .headline,
-                                        fontWeight: .regular,
-                                        foregroundColor: .primary,
-                                        lineLimit: 1
-                                    )
-                                    Text("@\(account.username)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                }
-
-                                Spacer()
-
-                                if selectedAccountId == account.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username), on \(account.platform.accessibilityLabel)")
-                        .accessibilityAddTraits(selectedAccountId == account.id ? [.isSelected, .isButton] : .isButton)
-                        .accessibilityHint(selectedAccountId == account.id ? "Currently active." : "Double-tap to view this account's timeline.")
+                        accountRow(account: account, brandTint: Color(hex: "6364FF"))
                     }
 
                     // Bluesky accounts
                     ForEach(serviceManager.blueskyAccounts) { account in
-                        Button(action: {
-                            HapticEngine.selection.trigger()
-                            onSelectAccount(account.id)
-                            isPresented = false
-                        }) {
-                            HStack {
-                                ProfileImageView(account: account)
-                                    .frame(width: 40, height: 40)
-
-                                VStack(alignment: .leading) {
-                                    EmojiDisplayNameText(
-                                        account.displayName ?? account.username,
-                                        emojiMap: account.displayNameEmojiMap,
-                                        font: .headline,
-                                        fontWeight: .regular,
-                                        foregroundColor: .primary,
-                                        lineLimit: 1
-                                    )
-                                    Text("@\(account.username)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
-                                }
-
-                                Spacer()
-
-                                if selectedAccountId == account.id {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.blue)
-                                }
-                            }
-                        }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username), on \(account.platform.accessibilityLabel)")
-                        .accessibilityAddTraits(selectedAccountId == account.id ? [.isSelected, .isButton] : .isButton)
-                        .accessibilityHint(selectedAccountId == account.id ? "Currently active." : "Double-tap to view this account's timeline.")
+                        accountRow(account: account, brandTint: Color(hex: "0085FF"))
                     }
                 }
 
                 // Add Account Button
                 Section {
-                    Button(action: {
+                    Button {
                         HapticEngine.tap.trigger()
                         showAddAccountView = true
-                    }) {
-                        HStack {
+                    } label: {
+                        HStack(spacing: 12) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 22))
-                                .foregroundColor(Color("AppPrimaryColor"))
-                                .accessibilityHidden(true)
+                                .foregroundStyle(Color.accentColor.gradient)
+                                .symbolRenderingMode(.hierarchical)
 
                             Text("Add Account")
                                 .font(.headline)
+                                .foregroundColor(.primary)
                         }
                     }
-                    .accessibilityHint("Opens the add-account flow.")
+                    .accessibilityLabel("Add Account")
+                    .accessibilityHint("Opens the account sign-in flow")
                 }
 
                 // Manage Accounts Button
                 Section {
                     NavigationLink(destination: AccountsView()) {
-                        HStack {
-                            Image(systemName: "person.crop.circle.badge.minus")
-                                .font(.system(size: 22))
-                                .foregroundColor(.red)
+                        HStack(spacing: 12) {
+                            tintedTile(symbol: "person.crop.circle.badge.minus", tint: .red)
 
                             Text("Manage Accounts")
                                 .font(.headline)
@@ -816,21 +771,19 @@ struct AccountPickerSheet: View {
 
                 // Settings option
                 Section {
-                    Button(action: {
+                    Button {
                         HapticEngine.tap.trigger()
                         showSettingsView = true
-                    }) {
-                        HStack {
-                            Image(systemName: "gear")
-                                .font(.system(size: 22))
-                                .foregroundColor(.gray)
-                                .accessibilityHidden(true)
+                    } label: {
+                        HStack(spacing: 12) {
+                            tintedTile(symbol: "gear", tint: .gray)
 
                             Text("Settings")
                                 .font(.headline)
+                                .foregroundColor(.primary)
                         }
                     }
-                    .accessibilityHint("Opens app settings.")
+                    .buttonStyle(.plain)
                 }
             }
             .listStyle(InsetGroupedListStyle())
@@ -859,6 +812,73 @@ struct AccountPickerSheet: View {
         }
     }
 
+    /// A single account row inside the picker. Tinted brand-color checkmark
+    /// when active, semibold display name, selection haptic on tap.
+    @ViewBuilder
+    private func accountRow(account: SocialAccount, brandTint: Color) -> some View {
+        let isActive = selectedAccountId == account.id
+        Button {
+            HapticEngine.selection.trigger()
+            onSelectAccount(account.id)
+            isPresented = false
+        } label: {
+            HStack(spacing: 12) {
+                ProfileImageView(account: account)
+                    .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    EmojiDisplayNameText(
+                        account.displayName ?? account.username,
+                        emojiMap: account.displayNameEmojiMap,
+                        font: .headline,
+                        fontWeight: isActive ? .semibold : .regular,
+                        foregroundColor: .primary,
+                        lineLimit: 1
+                    )
+                    Text("@\(account.username)")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                if isActive {
+                    accountCheckmark(tint: brandTint)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username)")
+        .accessibilityHint(isActive ? "Currently selected" : "Switches to this account")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+
+    /// Brand-tinted palette-mode checkmark used to mark the active account.
+    @ViewBuilder
+    private func accountCheckmark(tint: Color) -> some View {
+        Image(systemName: "checkmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(.white, tint)
+            .symbolRenderingMode(.palette)
+            .transition(.scale.combined(with: .opacity))
+            .accessibilityHidden(true)
+    }
+
+    /// 32pt tinted rounded-square tile with a white SF Symbol — same
+    /// language SettingsView uses for its row leading icons.
+    @ViewBuilder
+    private func tintedTile(symbol: String, tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 32, height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.gradient)
+            )
+            .accessibilityHidden(true)
+    }
 }
 
 struct ContentView_Previews: PreviewProvider {

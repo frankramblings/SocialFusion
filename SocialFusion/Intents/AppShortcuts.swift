@@ -3,23 +3,26 @@ import AppIntents
 struct SocialFusionShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
-            intent: OpenInSocialFusionIntent(),
+            intent: PostWithConfirmationIntent(),
             phrases: [
-                "Open link in \(.applicationName)",
-                "View link in \(.applicationName)"
+                "Compose a post in \(.applicationName)",
+                "Write a post in \(.applicationName)",
+                "New post in \(.applicationName)",
+                "Post to \(.applicationName)",
             ],
-            shortTitle: "Open URL",
-            systemImageName: "link"
+            shortTitle: "Compose Post",
+            systemImageName: "square.and.pencil"
         )
 
         AppShortcut(
-            intent: ShareToSocialFusionIntent(),
+            intent: CreateDraftIntent(),
             phrases: [
-                "Share to \(.applicationName)",
-                "Post to \(.applicationName)"
+                "Save a draft in \(.applicationName)",
+                "Draft a post in \(.applicationName)",
+                "New draft in \(.applicationName)",
             ],
-            shortTitle: "Share",
-            systemImageName: "square.and.arrow.up"
+            shortTitle: "Save Draft",
+            systemImageName: "doc.text"
         )
 
         AppShortcut(
@@ -27,7 +30,8 @@ struct SocialFusionShortcuts: AppShortcutsProvider {
             phrases: [
                 "Open \(.applicationName)",
                 "Show my timeline in \(.applicationName)",
-                "Open \(.applicationName) timeline"
+                "Open \(.applicationName) timeline",
+                "What's new in \(.applicationName)",
             ],
             shortTitle: "Home Timeline",
             systemImageName: "house"
@@ -37,20 +41,42 @@ struct SocialFusionShortcuts: AppShortcutsProvider {
             intent: OpenNotificationsIntent(),
             phrases: [
                 "Show \(.applicationName) notifications",
-                "Open \(.applicationName) notifications"
+                "Open \(.applicationName) notifications",
+                "Check \(.applicationName) notifications",
             ],
             shortTitle: "Notifications",
             systemImageName: "bell"
         )
 
         AppShortcut(
-            intent: PostWithConfirmationIntent(),
+            intent: OpenMentionsIntent(),
             phrases: [
-                "Compose a post in \(.applicationName)",
-                "Write a post in \(.applicationName)"
+                "Show my \(.applicationName) mentions",
+                "Open \(.applicationName) mentions",
+                "Who mentioned me in \(.applicationName)",
             ],
-            shortTitle: "Compose Post",
-            systemImageName: "square.and.pencil"
+            shortTitle: "Mentions",
+            systemImageName: "at"
+        )
+
+        AppShortcut(
+            intent: ShareToSocialFusionIntent(),
+            phrases: [
+                "Share to \(.applicationName)",
+                "Send to \(.applicationName)",
+            ],
+            shortTitle: "Share",
+            systemImageName: "square.and.arrow.up"
+        )
+
+        AppShortcut(
+            intent: OpenInSocialFusionIntent(),
+            phrases: [
+                "Open link in \(.applicationName)",
+                "View link in \(.applicationName)",
+            ],
+            shortTitle: "Open URL",
+            systemImageName: "link"
         )
     }
 }

@@ -307,18 +307,31 @@ struct TimelineFeedPickerPopover: View {
 
     private func drillInHeader(title: String, backTo: Step) -> some View {
         HStack(spacing: 8) {
-            Button(action: { step = backTo }) {
+            Button {
+                HapticEngine.selection.trigger()
+                step = backTo
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    // Visual 28pt; outer 44pt extends hit area to
+                    // the HIG minimum. Same pattern as PostMenu
+                    // (a86637c) and SearchChipRow (62055bc).
+                    .frame(width: 28, height: 28)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("Back")
+            .accessibilityHint("Returns to the previous feed-picker step")
 
             Text(title)
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundColor(.primary)
+                // Drill-in section header — mark as a heading so
+                // VoiceOver users can navigate to it via the
+                // Headings rotor.
                 .accessibilityAddTraits(.isHeader)
 
             Spacer()

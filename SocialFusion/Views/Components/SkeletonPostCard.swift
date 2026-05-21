@@ -15,28 +15,28 @@ struct SkeletonPostCard: View {
 
       VStack(alignment: .leading, spacing: 8) {
         // Display name bar
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
           .fill(shimmerFill)
           .frame(width: 120, height: 14)
 
         // Handle bar
-        RoundedRectangle(cornerRadius: 4)
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
           .fill(shimmerFill)
           .frame(width: 80, height: 12)
 
         // Body text lines
         VStack(alignment: .leading, spacing: 6) {
-          RoundedRectangle(cornerRadius: 4)
+          RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(shimmerFill)
             .frame(maxWidth: .infinity)
             .frame(height: 12)
 
-          RoundedRectangle(cornerRadius: 4)
+          RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(shimmerFill)
             .frame(maxWidth: .infinity)
             .frame(height: 12)
 
-          RoundedRectangle(cornerRadius: 4)
+          RoundedRectangle(cornerRadius: 4, style: .continuous)
             .fill(shimmerFill)
             .frame(width: 180, height: 12)
         }
@@ -50,15 +50,17 @@ struct SkeletonPostCard: View {
   }
 
   private var shimmerFill: some ShapeStyle {
+    // System-named grays adapt cleanly across light/dark mode, unlike
+    // Color.gray.opacity() which reads as brown-tinted in dark mode.
     if reduceMotion {
-      return AnyShapeStyle(Color.gray.opacity(0.15))
+      return AnyShapeStyle(Color(.systemGray5))
     }
     return AnyShapeStyle(
       LinearGradient(
         stops: [
-          .init(color: Color.gray.opacity(0.1), location: phase - 0.3),
-          .init(color: Color.gray.opacity(0.25), location: phase),
-          .init(color: Color.gray.opacity(0.1), location: phase + 0.3),
+          .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+          .init(color: Color(.systemGray4), location: phase),
+          .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
         ],
         startPoint: .leading,
         endPoint: .trailing
@@ -80,25 +82,32 @@ struct SkeletonTimelineView: View {
   }
 
   var body: some View {
-    if reduceMotion {
-      staticContent
-    } else {
-      TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-        let elapsed = context.date.timeIntervalSinceReferenceDate
-        let period: Double = 1.5
-        let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+    Group {
+      if reduceMotion {
+        staticContent
+      } else {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+          let elapsed = context.date.timeIntervalSinceReferenceDate
+          let period: Double = 1.5
+          let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
 
-        ScrollView {
-          LazyVStack(spacing: 0) {
-            ForEach(0..<clampedCount, id: \.self) { _ in
-              SkeletonPostCard(phase: phase, reduceMotion: false)
-              Divider()
+          ScrollView {
+            LazyVStack(spacing: 0) {
+              ForEach(0..<clampedCount, id: \.self) { _ in
+                SkeletonPostCard(phase: phase, reduceMotion: false)
+                Divider()
+              }
             }
           }
+          .scrollDisabled(true)
         }
-        .scrollDisabled(true)
       }
     }
+    // Collapse the entire skeleton stack into a single VoiceOver
+    // utterance — otherwise the user hears 'Loading post' once per
+    // card (up to 6 times) as they navigate.
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Loading timeline")
   }
 
   private var staticContent: some View {
@@ -111,6 +120,49 @@ struct SkeletonTimelineView: View {
       }
     }
     .scrollDisabled(true)
+  }
+}
+
+/// Embeddable skeleton stack — same shimmer cards as
+/// `SkeletonTimelineView` but *without* the outer ScrollView.
+/// Use this when the skeleton is rendered inside another scroll
+/// container (e.g. a tab inside ProfileView's scrolling layout) so
+/// nested scrolls don't fight each other.
+struct InlineSkeletonPostStack: View {
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var cardCount: Int = 4
+
+  private var clampedCount: Int {
+    min(max(cardCount, 1), 6)
+  }
+
+  var body: some View {
+    Group {
+      if reduceMotion {
+        VStack(spacing: 0) {
+          ForEach(0..<clampedCount, id: \.self) { _ in
+            SkeletonPostCard(phase: 0.5, reduceMotion: true)
+            Divider()
+          }
+        }
+      } else {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+          let elapsed = context.date.timeIntervalSinceReferenceDate
+          let period: Double = 1.5
+          let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+
+          VStack(spacing: 0) {
+            ForEach(0..<clampedCount, id: \.self) { _ in
+              SkeletonPostCard(phase: phase, reduceMotion: false)
+              Divider()
+            }
+          }
+        }
+      }
+    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("Loading posts")
   }
 }
 

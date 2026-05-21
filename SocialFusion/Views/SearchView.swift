@@ -19,7 +19,7 @@ private struct SearchStoreWrapper<Content: View>: View {
 
 struct SearchView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
-    @EnvironmentObject var fusedMomentStore: FusedMomentStore
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
 
@@ -87,65 +87,29 @@ struct SearchView: View {
                 // Results or Empty State
                 if observedStore.phase.isLoading && observedStore.results.isEmpty {
                     Spacer()
-                    ProgressView("Searching...")
+                    ProgressView {
+                        Text("Searching")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
                     Spacer()
                 } else if case .error(let message) = observedStore.phase {
                     Spacer()
-                    VStack(spacing: 12) {
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.largeTitle)
-                            .foregroundColor(.orange)
-                            // Decorative — the title text reads the state.
-                            .accessibilityHidden(true)
-                        Text("Search Error")
-                            .font(.headline)
-                            .accessibilityAddTraits(.isHeader)
-                        Text(message)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                        // Recovery affordance: a transient network blip
-                        // shouldn't force the user to retype. Matches
-                        // the Retry button surfaced by the error toast
-                        // and Fused outage banner — consistent recovery
-                        // pattern across the app.
-                        Button {
-                            HapticEngine.tap.trigger()
-                            observedStore.performSearch()
-                        } label: {
-                            Text("Try Again")
-                                .font(.subheadline.weight(.semibold))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(Color.accentColor, in: Capsule())
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.top, 4)
-                        .accessibilityHint("Re-runs the search.")
-                    }
+                    SearchStatusView(
+                        symbol: "exclamationmark.triangle",
+                        tint: .orange,
+                        title: "Search Error",
+                        message: message
+                    )
                     Spacer()
                 } else if observedStore.phase == .empty {
                     Spacer()
-                    VStack(spacing: 12) {
-                        Image(systemName: "magnifyingglass")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                            // Decorative — the title below already says
-                            // what state this is.
-                            .accessibilityHidden(true)
-                        Text("No Results")
-                            .font(.headline)
-                        Text("Try a different search term")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    // Header trait so VoiceOver's headings rotor lands
-                    // here — matches the rotor-anchor pass across the
-                    // app's other primary empty states (af05798, ed63fd6,
-                    // 638a2d5, 3b244b1).
-                    .accessibilityElement(children: .combine)
-                    .accessibilityAddTraits(.isHeader)
+                    SearchStatusView(
+                        symbol: "magnifyingglass",
+                        tint: .secondary,
+                        title: "No Results",
+                        message: "Try a different search term or check your spelling."
+                    )
                     Spacer()
                 } else if observedStore.phase.hasResults {
                     resultsList(store: observedStore)
@@ -155,7 +119,11 @@ struct SearchView: View {
                 }
             } else {
                 Spacer()
-                ProgressView("Initializing...")
+                ProgressView {
+                    Text("Getting ready")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
                 Spacer()
             }
         }
@@ -174,7 +142,9 @@ struct SearchView: View {
                 }
             }
         }
+        .scrollDismissesKeyboard(.immediately)
         .onSubmit(of: .search) {
+            HapticEngine.tap.trigger()
             searchStore?.performSearch()
         }
         .navigationDestination(
@@ -311,16 +281,18 @@ struct SearchView: View {
 
             // Bottom pagination indicator
             if store.isLoadingNextPage {
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Loading more...")
+                        .scaleEffect(0.85)
+                    Text("Loading more results")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
                 .listRowSeparator(.hidden)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading more results")
             }
         }
         .listStyle(PlainListStyle())
@@ -406,35 +378,48 @@ struct SearchView: View {
                             }
                             .font(.subheadline)
                             .foregroundColor(.secondary)
-                            .accessibilityLabel("Clear recent searches")
-                            .accessibilityHint("Removes all entries from the Recent list.")
+                            .accessibilityHint("Removes all recent search history")
                         }
                         .padding(.horizontal)
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 10) {
                                 ForEach(store.recentSearches, id: \.self) { query in
-                                    Button(action: {
+                                    Button {
                                         HapticEngine.tap.trigger()
                                         store.text = query
                                         store.performSearch()
-                                    }) {
+                                    } label: {
                                         HStack(spacing: 6) {
                                             Image(systemName: "magnifyingglass")
-                                                .font(.caption2)
+                                                .font(.caption2.weight(.semibold))
                                                 .foregroundColor(.secondary)
+                                                .accessibilityHidden(true)
                                             Text(query)
                                                 .font(.subheadline)
                                                 .foregroundColor(.primary)
                                         }
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 9)
-                                        .background(.ultraThinMaterial)
-                                        .cornerRadius(20)
+                                        .background(
+                                            Capsule(style: .continuous)
+                                                // Solid fallback under Reduce
+                                                // Transparency — same shape as
+                                                // the timeline pills (7361c5e)
+                                                // and other floating-material
+                                                // chips in the app.
+                                                .fill(reduceTransparency
+                                                      ? AnyShapeStyle(Color(.secondarySystemBackground))
+                                                      : AnyShapeStyle(.ultraThinMaterial))
+                                                .overlay(
+                                                    Capsule(style: .continuous)
+                                                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                                                )
+                                        )
                                     }
-                                    .accessibilityElement(children: .ignore)
+                                    .buttonStyle(SearchChipPressStyle())
                                     .accessibilityLabel("Recent search: \(query)")
-                                    .accessibilityHint("Re-runs this search.")
+                                    .accessibilityHint("Runs this search again")
                                 }
                             }
                             .padding(.horizontal)
@@ -452,38 +437,44 @@ struct SearchView: View {
 
                         VStack(spacing: 0) {
                             ForEach(Array(store.pinnedSearches.enumerated()), id: \.element.id) { index, savedSearch in
-                                Button(action: {
+                                Button {
                                     HapticEngine.tap.trigger()
                                     store.text = savedSearch.query
                                     store.scope = savedSearch.scope
                                     store.networkSelection = savedSearch.networkSelection
                                     store.performSearch()
-                                }) {
-                                    HStack {
+                                } label: {
+                                    HStack(spacing: 10) {
                                         Image(systemName: "pin.fill")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.orange.gradient)
+                                            .symbolRenderingMode(.hierarchical)
+                                            .accessibilityHidden(true)
                                         Text(savedSearch.displayName)
                                             .font(.subheadline)
                                             .foregroundColor(.primary)
                                         Spacer()
                                         Image(systemName: "chevron.right")
-                                            .font(.caption2)
+                                            .font(.caption2.weight(.semibold))
                                             .foregroundStyle(.quaternary)
+                                            .accessibilityHidden(true)
                                     }
                                     .padding(.horizontal, 16)
                                     .padding(.vertical, 12)
+                                    .contentShape(Rectangle())
                                 }
-                                .accessibilityElement(children: .ignore)
+                                .buttonStyle(.plain)
                                 .accessibilityLabel("Pinned search: \(savedSearch.displayName)")
-                                .accessibilityHint("Re-runs this saved search.")
+                                .accessibilityHint("Runs this saved search")
                                 if index < store.pinnedSearches.count - 1 {
-                                    Divider().padding(.leading, 40)
+                                    Divider().padding(.leading, 42)
                                 }
                             }
                         }
-                        .background(Color(.secondarySystemGroupedBackground))
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(.secondarySystemGroupedBackground))
+                        )
                         .padding(.horizontal)
                     }
                 }
@@ -506,51 +497,70 @@ struct SearchView: View {
 
     // MARK: - Trending Tags Section
 
+    /// Plural-aware label for a trending tag row. Says 'Hashtag <name>'
+    /// followed by the post count + platform name. Matches
+    /// SearchTagRow's label shape exactly (iter 166) so the two trending-
+    /// tag display surfaces read identically for VoiceOver.
+    private func trendingTagLabel(for tag: SearchTag) -> String {
+        var label = "Hashtag \(tag.name)"
+        if let count = tag.usageCount, count > 0 {
+            let displayed = tag.formattedUsageCount ?? "\(count)"
+            label += ", \(displayed) post\(count == 1 ? "" : "s")"
+        }
+        label += ", on \(tag.platform.rawValue.capitalized)"
+        return label
+    }
+
     private var trendingTagsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Trending on Mastodon")
                 .font(.headline)
                 .padding(.horizontal)
-                // Heading trait for VoiceOver's headings rotor —
-                // matches the rotor-anchor sweep across landing
-                // surfaces (af05798, ed63fd6, 638a2d5, 3b244b1,
-                // d3c81a0, 63017aa).
                 .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
                 ForEach(Array(trendingTags.enumerated()), id: \.element.id) { index, tag in
                     NavigationLink(destination: TagDetailView(tag: tag).environmentObject(serviceManager)) {
-                        HStack {
-                            Text("#\(tag.name)")
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.primary)
+                        HStack(spacing: 6) {
+                            // Two-tone hashtag: the # in accent, the name in primary
+                            HStack(spacing: 0) {
+                                Text("#")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundColor(.accentColor)
+                                Text(tag.name)
+                                    .font(.subheadline.weight(.medium))
+                                    .foregroundColor(.primary)
+                            }
                             Spacer()
                             if let count = tag.formattedUsageCount {
                                 Text(count)
-                                    .font(.caption)
+                                    .font(.caption.weight(.medium))
                                     .foregroundColor(.secondary)
+                                    .monospacedDigit()
                             }
                             Image(systemName: "chevron.right")
-                                .font(.caption2)
+                                .font(.caption2.weight(.semibold))
                                 .foregroundStyle(.quaternary)
+                                .accessibilityHidden(true)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 12)
+                        .contentShape(Rectangle())
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(
-                        tag.formattedUsageCount.map { "Hashtag #\(tag.name), \($0) uses" }
-                            ?? "Hashtag #\(tag.name)"
-                    )
-                    .accessibilityHint("Opens posts tagged with this hashtag.")
+                    .buttonStyle(.plain)
+                    .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(trendingTagLabel(for: tag))
+                    .accessibilityHint("Opens posts for this hashtag")
                     if index < trendingTags.count - 1 {
                         Divider().padding(.leading, 16)
                     }
                 }
             }
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
             .padding(.horizontal)
         }
     }
@@ -562,6 +572,7 @@ struct SearchView: View {
             Text("Trending on Mastodon")
                 .font(.headline)
                 .padding(.horizontal)
+                .accessibilityAddTraits(.isHeader)
 
             VStack(spacing: 0) {
                 ForEach(0..<5, id: \.self) { index in
@@ -581,14 +592,16 @@ struct SearchView: View {
                 }
             }
             .redacted(reason: .placeholder)
-            .background(Color(.secondarySystemGroupedBackground))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemGroupedBackground))
+            )
             .padding(.horizontal)
-            // VoiceOver hides the placeholder geometry; announces the
-            // load state once instead of streaming through each row's
-            // redacted shapes.
+            // Skeleton placeholder rows — collapse into a single
+            // 'Loading trending tags' utterance for VoiceOver instead
+            // of '#placeholder, 0.0K' read five times.
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Loading trending topics")
+            .accessibilityLabel("Loading trending tags")
         }
     }
 
@@ -596,30 +609,63 @@ struct SearchView: View {
 
     private var noAccountsEmptyState: some View {
         VStack(spacing: 16) {
-            Image(systemName: "person.crop.circle.badge.plus")
-                .font(.system(size: 44))
-                .foregroundColor(.secondary)
-                .padding(.top, 40)
-                // Decorative — the hint below names the state.
-                .accessibilityHidden(true)
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.accentColor.opacity(0.16), Color.accentColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 70
+                        )
+                    )
+                    .frame(width: 140, height: 140)
 
-            Text("Add an account to discover\ntrending topics")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            Button(action: { showAddAccountView = true }) {
-                Text("Add Account")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Color.blue)
-                    .cornerRadius(20)
+                Image(systemName: "person.crop.circle.badge.plus")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(Color.accentColor.gradient)
+                    .symbolRenderingMode(.hierarchical)
             }
-            .accessibilityHint("Opens the add-account flow.")
+            .padding(.top, 24)
+
+            VStack(spacing: 6) {
+                Text("Discover trending topics")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+                    .accessibilityAddTraits(.isHeader)
+
+                Text("Add an account to see what's happening across Mastodon and Bluesky.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                HapticEngine.tap.trigger()
+                showAddAccountView = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.subheadline.weight(.semibold))
+                    Text("Add Account")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.accentColor.gradient)
+                        .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+                )
+            }
+            .buttonStyle(SearchChipPressStyle())
+            .padding(.top, 4)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 24)
     }
 
     // MARK: - Direct Open Handling
@@ -649,6 +695,7 @@ struct SearchView: View {
     
     private var composeButton: some View {
         Button {
+            HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
@@ -659,7 +706,7 @@ struct SearchView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Compose")
-        .accessibilityHint("Create a new post")
+        .accessibilityHint("Opens the post composer")
         .accessibilityIdentifier("ComposeToolbarButton")
         #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {
@@ -669,15 +716,7 @@ struct SearchView: View {
     }
     
     private func report(_ post: Post) {
-        Task {
-            do {
-                try await serviceManager.reportPost(post)
-                HapticEngine.success.trigger()
-            } catch {
-                HapticEngine.error.trigger()
-                ErrorHandler.shared.handleError(error)
-            }
-        }
+        post.report(via: serviceManager)
     }
     
 }
@@ -687,28 +726,54 @@ struct SearchView: View {
 struct DirectOpenRow: View {
     let target: DirectOpenTarget
     let onTap: () -> Void
-    
+
     var body: some View {
-        Button(action: onTap) {
-            HStack {
+        Button {
+            HapticEngine.tap.trigger()
+            onTap()
+        } label: {
+            HStack(spacing: 10) {
                 Image(systemName: iconName)
-                    .foregroundColor(.blue)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.accentColor)
+                    .accessibilityHidden(true)
                 Text(displayText)
-                    .font(.subheadline)
+                    .font(.subheadline.weight(.medium))
                     .foregroundColor(.primary)
                 Spacer()
                 Image(systemName: "arrow.right.circle.fill")
-                    .foregroundColor(.blue)
+                    .font(.subheadline)
+                    .foregroundStyle(.white, Color.accentColor)
+                    .symbolRenderingMode(.palette)
+                    .accessibilityHidden(true)
             }
-            .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(8)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.accentColor.opacity(0.22), lineWidth: 0.5)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(accessibilityHintForTarget)
+    }
+
+    private var accessibilityHintForTarget: String {
+        switch target {
+        case .profile: return "Opens this user's profile"
+        case .post: return "Opens this post"
+        case .tag: return "Searches posts with this hashtag"
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(displayText)
         .accessibilityAddTraits(.isButton)
     }
-    
+
     private var iconName: String {
         switch target {
         case .profile: return "person.circle"
@@ -736,7 +801,81 @@ struct DirectOpenRow: View {
 struct PlatformIndicator: View {
     let platform: SocialPlatform
 
+    // Single source of truth for the brand color — was a hand-rolled
+    // RGB tuple per case (which happened to match the brand hex but
+    // would drift if either ever needed a tweak).
+    private var brandColor: Color { platform.swiftUIColor }
+
     var body: some View {
-        PlatformLogoBadge(platform: platform, size: 22, shadowEnabled: false)
+        Image(platform.icon)
+            .resizable()
+            .renderingMode(.template)
+            .scaledToFit()
+            .frame(width: 16, height: 16)
+            .foregroundColor(brandColor)
+            .padding(4)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(brandColor.opacity(0.12))
+            )
+            .accessibilityLabel(platform.rawValue.capitalized)
+    }
+}
+
+/// A refined empty/error state for the search surface — tinted halo behind a
+/// hierarchical SF Symbol, with title + message. Consistent with the rest of
+/// the app's empty-state visual language.
+private struct SearchStatusView: View {
+    let symbol: String
+    let tint: Color
+    let title: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [tint.opacity(0.16), tint.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 64
+                        )
+                    )
+                    .frame(width: 128, height: 128)
+
+                Image(systemName: symbol)
+                    .font(.system(size: 40, weight: .light))
+                    .foregroundStyle(tint.gradient)
+                    .symbolRenderingMode(.hierarchical)
+            }
+
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title). \(message)")
+    }
+}
+
+/// Subtle press feedback for recent-search chips — small scale + dim, matching
+/// the press treatment used on link previews and other tappable cards.
+private struct SearchChipPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }

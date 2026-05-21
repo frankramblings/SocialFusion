@@ -91,6 +91,7 @@ public final class RelationshipViewModel: ObservableObject {
       state = previousState
       HapticEngine.error.trigger()
       self.error = error
+      HapticEngine.error.trigger()
       ErrorHandler.shared.handleError(error)
     }
   }
@@ -112,6 +113,7 @@ public final class RelationshipViewModel: ObservableObject {
       state = previousState
       HapticEngine.error.trigger()
       self.error = error
+      HapticEngine.error.trigger()
       ErrorHandler.shared.handleError(error)
     }
   }
@@ -128,16 +130,16 @@ public final class RelationshipViewModel: ObservableObject {
       let newState = try await graphService.mute(actorID, account: account)
       state = newState
       relationshipStore.setMuted(actorID, newState.isMuting)
-      // Mute is a protective action — the user wants to confirm
-      // their boundary held. Success haptic mirrors follow/unfollow;
-      // failure haptic alerts them that the protection didn't apply.
-      HapticEngine.success.trigger()
+      // Social-blast action — .warning rather than .success so the
+      // haptic itself signals "you did a serious thing"
+      HapticEngine.warning.trigger()
     } catch {
       // Revert on failure
       state = previousState
       relationshipStore.setMuted(actorID, false)
       HapticEngine.error.trigger()
       self.error = error
+      HapticEngine.error.trigger()
       ErrorHandler.shared.handleError(error)
     }
   }
@@ -161,6 +163,7 @@ public final class RelationshipViewModel: ObservableObject {
       relationshipStore.setMuted(actorID, true)
       HapticEngine.error.trigger()
       self.error = error
+      HapticEngine.error.trigger()
       ErrorHandler.shared.handleError(error)
     }
   }
@@ -178,19 +181,20 @@ public final class RelationshipViewModel: ObservableObject {
       let newState = try await graphService.block(actorID, account: account)
       state = newState
       relationshipStore.setBlocked(actorID, newState.isBlocking)
-      // Block is the strongest protective action — the user picked it
-      // deliberately and deserves clear tactile confirmation it held.
-      HapticEngine.success.trigger()
+      // Block is the heaviest social action — warning haptic so it
+      // feels distinctly different from a like or follow.
+      HapticEngine.warning.trigger()
     } catch {
       // Revert on failure
       state = previousState
       relationshipStore.setBlocked(actorID, false)
       HapticEngine.error.trigger()
       self.error = error
+      HapticEngine.error.trigger()
       ErrorHandler.shared.handleError(error)
     }
   }
-  
+
   /// Unblock the actor (optimistic update)
   public func unblock() async {
     let previousState = state
@@ -210,6 +214,7 @@ public final class RelationshipViewModel: ObservableObject {
       relationshipStore.setBlocked(actorID, true)
       HapticEngine.error.trigger()
       self.error = error
+      HapticEngine.error.trigger()
       ErrorHandler.shared.handleError(error)
     }
   }

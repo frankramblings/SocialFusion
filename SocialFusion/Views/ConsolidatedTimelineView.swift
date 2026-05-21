@@ -16,47 +16,86 @@ struct ConsolidatedTimelineEmptyStateView: View {
     let onAddAccount: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 16) {
-            image
-                .font(.system(size: 48))
-                .foregroundColor(.secondary)
-                // Decorative — the title/message below name the state.
-                // VoiceOver would otherwise read SF Symbol names like
-                // "person crop circle badge plus" verbatim before
-                // getting to the actual content.
-                .accessibilityHidden(true)
+        VStack(spacing: 18) {
+            // Tinted halo + hierarchical glyph — matches the empty-state
+            // visual language used everywhere else in the app.
+            ZStack {
+                if state != .loading {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [tint.opacity(0.16), tint.opacity(0.0)],
+                                center: .center,
+                                startRadius: 4,
+                                endRadius: 70
+                            )
+                        )
+                        .frame(width: 140, height: 140)
+                }
 
-            Text(title)
-                .font(.title2)
-                .fontWeight(.medium)
-                .multilineTextAlignment(.center)
-                .accessibilityAddTraits(.isHeader)
+                image
+            }
+            .accessibilityHidden(true)
 
-            Text(message)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
+            VStack(spacing: 6) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.88))
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             if state == .noAccounts, let onAddAccount = onAddAccount {
-                Button(action: onAddAccount) {
-                    Text("Add Account")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Color.blue)
-                        .cornerRadius(25)
+                Button {
+                    HapticEngine.tap.trigger()
+                    onAddAccount()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Add Account")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.accentColor.gradient)
+                            .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+                    )
                 }
-                .padding(.top, 8)
-                .accessibilityHint("Opens the add-account flow.")
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             } else if let onRetry = onRetry, state != .loading {
-                Button("Retry") {
+                Button {
                     HapticEngine.tap.trigger()
                     onRetry()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Try Again")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 11)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.accentColor.gradient)
+                            .shadow(color: Color.accentColor.opacity(0.32), radius: 10, x: 0, y: 4)
+                    )
                 }
-                .buttonStyle(.borderedProminent)
-                .padding(.top, 8)
-                .accessibilityHint("Retries loading the timeline.")
+                .buttonStyle(.plain)
+                .padding(.top, 4)
             }
         }
         .padding()
@@ -71,12 +110,35 @@ struct ConsolidatedTimelineEmptyStateView: View {
                 .scaleEffect(1.5)
         case .noAccounts:
             Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
         case .noInternet:
             Image(systemName: "wifi.slash")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
         case .noPostsYet:
-            Image(systemName: "timeline.selection")
+            Image(systemName: "tray")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
         case .lowMemory:
             Image(systemName: "memorychip")
+                .font(.system(size: 44, weight: .light))
+                .foregroundStyle(tint.gradient)
+                .symbolRenderingMode(.hierarchical)
+        }
+    }
+
+    /// Accent tint for the halo + glyph, varied by semantic state.
+    private var tint: Color {
+        switch state {
+        case .loading: return .secondary
+        case .noAccounts: return .accentColor
+        case .noInternet: return .orange
+        case .noPostsYet: return .secondary
+        case .lowMemory: return .yellow
         }
     }
 
@@ -159,6 +221,11 @@ struct ConsolidatedTimelineView: View {
     @State private var lastProcessedTopVisibleID: String?
     @State private var lastProcessedTopVisibleIndex: Int = -1
     @State private var lastProcessedTopVisibleOffset: CGFloat = .greatestFiniteMagnitude
+    // Separate from lastProcessedTopVisibleIndex because the unread tick
+    // runs on the undebounced path while position processing runs on the
+    // debounced one — they need independent latches to avoid one path
+    // suppressing the other's reaction to the same scroll event.
+    @State private var lastTickedTopVisibleIndex: Int = -1
     @State private var lastTopVisibleId: String?
     @State private var lastTopVisibleOffset: CGFloat = 0
     @State private var timelineAlertState: TimelineAlertState?
@@ -195,9 +262,12 @@ struct ConsolidatedTimelineView: View {
 
     // Ambient unread pulse
     @State private var unreadPulseActive = false
+    @State private var pillBumpScale: CGFloat = 1.0
+    @State private var lastSeenPillCount: Int = 0
 
     // Scroll-to-top fade
     @State private var scrollToTopOpacity: Double = 1.0
+    @State private var scrollToTopFadeTask: Task<Void, Never>?
 
     // New post highlight glow
     @State private var highlightedPostIds: Set<String> = []
@@ -239,11 +309,11 @@ struct ConsolidatedTimelineView: View {
                         title: currentFeedTitle,
                         isExpanded: showFeedPicker,
                         action: {
-                            // Spring on the picker pop-down is decorative —
-                            // the visible state change is the signal.
-                            // Reduce-motion users get the toggle without
-                            // the bounce so it's not jarring.
-                            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
+                            // Spring on tap → smooth pop-in/out for
+                            // sighted users. reduceMotion: no
+                            // animation envelope at all, so the
+                            // picker just appears/disappears.
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFeedPicker.toggle()
                             }
                         }
@@ -262,7 +332,10 @@ struct ConsolidatedTimelineView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
+                            // Tap-outside dismissal mirrors the
+                            // open animation (with reduceMotion
+                            // gating) so close/open feel symmetric.
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFeedPicker = false
                             }
                         }
@@ -387,9 +460,25 @@ struct ConsolidatedTimelineView: View {
                 }
                 if timelineAlertState?.error.localizedDescription != error.localizedDescription {
                     timelineAlertState = TimelineAlertState(error: error)
-                    ToastManager.shared.showError(error.localizedDescription) {
-                        controller.clearError()
-                        timelineAlertState = nil
+                }
+            }
+            .alert(
+                "Couldn't Load Timeline",
+                isPresented: Binding(
+                    get: { timelineAlertState != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            timelineAlertState = nil
+                            controller.clearError()
+                        }
+                    }
+                )
+            ) {
+                Button("Retry") {
+                    let error = timelineAlertState?.error
+                    timelineAlertState = nil
+                    controller.clearError()
+                    if let error = error {
                         ErrorHandler.shared.handleError(error) {
                             controller.refreshTimeline()
                         }
@@ -507,7 +596,12 @@ struct ConsolidatedTimelineView: View {
             blueskyAccounts: serviceManager.blueskyAccounts,
             onSelect: handleFeedSelection(_:)
         )
-        .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
+        // Reduce motion: drop the subtle scale-in pop, keep just
+        // a fade so the picker still has *some* transition (no
+        // animation at all looks broken).
+        .transition(reduceMotion
+                    ? .opacity
+                    : .opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
     }
 
     private var debugOverlay: some View {
@@ -535,7 +629,7 @@ struct ConsolidatedTimelineView: View {
         .font(.caption2)
         .padding(8)
         .background(.thinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .opacity(UITestHooks.isEnabled ? 0.85 : 0.01)
         #else
         EmptyView()
@@ -564,7 +658,7 @@ struct ConsolidatedTimelineView: View {
             timelineView
                 .scaleEffect(isComposePresented && !reduceMotion ? 0.95 : 1.0)
                 .blur(radius: isComposePresented && !reduceTransparency ? 3 : 0)
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComposePresented)
+                .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: isComposePresented)
         case .loading:
             SkeletonTimelineView()
                 .transition(.opacity)
@@ -783,14 +877,18 @@ struct ConsolidatedTimelineView: View {
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                                         .stroke(
+                                            // Brand stroke routes through
+                                            // SocialPlatform.swiftUIColor — was
+                                            // hand-rolled RGB tuples that
+                                            // happened to match the canonical
+                                            // hex (86a7ca5). Single source of
+                                            // truth across the app.
                                             highlightedPostIds.contains(post.stableId)
-                                                ? (post.platform == .mastodon
-                                                    ? Color(red: 99/255, green: 100/255, blue: 255/255)
-                                                    : Color(red: 0, green: 133/255, blue: 255/255))
+                                                ? post.platform.swiftUIColor
                                                 : Color.clear,
                                             lineWidth: 1
                                         )
-                                        .animation(.easeOut(duration: 1.0), value: highlightedPostIds.contains(post.stableId))
+                                        .animation(reduceMotion ? nil : .easeOut(duration: 1.0), value: highlightedPostIds.contains(post.stableId))
                                 )
 
                             if post.id != controller.posts.last?.id {
@@ -813,16 +911,19 @@ struct ConsolidatedTimelineView: View {
                         }
 
                         if controller.isLoadingNextPage {
+                            // infiniteScrollLoadingView declares its own
+                            // .accessibilityElement(.ignore) + label from
+                            // iter 109. Don't re-label here.
                             infiniteScrollLoadingView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("Loading more posts")
                         }
 
                         if !controller.hasNextPage && !controller.posts.isEmpty {
+                            // endOfTimelineView has its own combine+label
+                            // ('You're all caught up, no more posts to load')
+                            // from iter 108 — don't override it here.
                             endOfTimelineView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("End of timeline")
-                                .accessibilityHint("No more posts to load")
                         }
                     }
                     .scrollTargetLayout()
@@ -831,6 +932,14 @@ struct ConsolidatedTimelineView: View {
                 .coordinateSpace(name: "timelineScroll")
                 .onPreferenceChange(TimelineVisibleItemPreferenceKey.self) { positions in
                     let filteredPositions = filterTrackedPositions(positions)
+
+                    // Tick the unread pill DOWN immediately as posts cross
+                    // the top of the viewport — the rest of the processing
+                    // (anchor persistence etc.) can stay debounced, but the
+                    // pill count needs to update one-by-one to feel right.
+                    // Same shape Ivory uses: each post that scrolls in from
+                    // above subtracts 1.
+                    tickUnreadIfNeeded(from: filteredPositions)
 
                     positionProcessingTask?.cancel()
                     positionProcessingTask = Task { @MainActor in
@@ -852,16 +961,33 @@ struct ConsolidatedTimelineView: View {
                     updateJumpToLastReadVisibility()
                 }
                 .refreshable {
-                    // BUFFER-THEN-MERGE: Fetch posts to buffer during .refreshable,
-                    // then merge AFTER spinner dismisses. This prevents SwiftUI's
-                    // built-in scroll-to-top behavior since content doesn't change.
+                    // Pull-to-refresh = STAY IN PLACE + PILL.
                     //
-                    // scrollPosition(id:) binding automatically preserves position when
-                    // posts are inserted. As long as scrollAnchorId stays constant,
-                    // the user stays at the same post visually.
+                    // Pulled at the top? You stay anchored to the post that
+                    // *was* at offset 0; the freshly-fetched posts merge in
+                    // above your viewport (invisible until you scroll up),
+                    // and the newPostsPill appears so you can tap it (or the
+                    // home tab, or the status bar) to whoosh up to them.
+                    //
+                    // This matches Ivory/Tweetbot's behavior of never losing
+                    // your reading place to a refresh. The pill is the hint;
+                    // we deliberately do *not* advance the anchor.
+                    //
+                    // Mechanism: scrollPosition(id:) is bound to scrollAnchorId,
+                    // and updatePosts() (during the merge) stashes that anchor
+                    // as restorationAnchor under the default preserveViewport
+                    // policy. SwiftUI keeps the anchor post pinned to the
+                    // viewport top while new posts are inserted above it.
+                    // Once merged, the scroll offset is N*postHeight, so
+                    // isNearTop becomes false and the pill condition trips.
+                    //
+                    // wasScrolledDown: true is intentional even when the user
+                    // *was* at top — it tells updatePosts() to track the new
+                    // posts as unread-above-anchor (the count that drives the
+                    // pill) instead of clearing unread because we're "at top".
 
                     isRefreshing = true
-                    controller.prepareForRefresh(wasScrolledDown: !controller.isNearTop)
+                    controller.prepareForRefresh(wasScrolledDown: true)
                     logAnchorState("refresh start (buffer) anchor=\(scrollAnchorId ?? "nil")")
 
                     // Fetch posts to buffer - timeline stays unchanged during fetch
@@ -872,20 +998,63 @@ struct ConsolidatedTimelineView: View {
                     // .refreshable ends here - spinner dismisses
                     isRefreshing = false
                     HapticEngine.refreshComplete(hasNewContent: bufferedCount > 0).trigger()
-                    guard bufferedCount > 0 else { return }
+
+                    // Zero new posts: quiet info toast confirms the refresh
+                    // ran without moving anything. ToastManager auto-posts a
+                    // VoiceOver announcement so the message is spoken too.
+                    guard bufferedCount > 0 else {
+                        ToastManager.shared.show(
+                            "You're up to date",
+                            severity: .info,
+                            duration: 1.4
+                        )
+                        return
+                    }
 
                     logAnchorState("post-refresh merge starting, buffer=\(bufferedCount)")
 
-                    // Small delay to ensure .refreshable animation is fully complete
+                    // Small delay so the .refreshable spinner has fully
+                    // animated out before the timeline mutates underneath it.
                     Task {
                         try? await Task.sleep(nanoseconds: 100_000_000)
-
-                        // Merge buffered posts - scrollPosition(id:) preserves position automatically
-                        // No offset compensation needed - just trust the binding
+                        // Default preserveViewport policy + tracked unread =
+                        // stay anchored, pill appears.
                         controller.mergeBufferedPosts()
-
                         logAnchorState("post-refresh merge complete")
                     }
+                }
+                .onChange(of: controller.posts) { _, newPosts in
+                    // Stay-in-place after buffer merge.
+                    //
+                    // scrollPosition(id:) alone doesn't re-pin the anchor
+                    // when posts are *prepended*: the binding's value
+                    // (scrollAnchorId = old top post) doesn't change, so
+                    // SwiftUI doesn't rescroll. The scroll offset stays
+                    // at 0 while the data shifted N items down, so the
+                    // new top post ends up at the viewport top — the
+                    // exact jump we're trying to prevent.
+                    //
+                    // Fix: call proxy.scrollTo(restorationId, anchor: .top)
+                    // imperatively right after the data change. This
+                    // pins the old anchor back to the viewport top, so
+                    // new posts merge in above the viewport (invisibly)
+                    // and isNearTop becomes false so the pill appears.
+                    guard let restorationId = controller.restorationAnchor else { return }
+                    guard newPosts.contains(where: { scrollIdentifier(for: $0) == restorationId }) else {
+                        controller.clearRestorationAnchor()
+                        return
+                    }
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) {
+                        proxy.scrollTo(restorationId, anchor: .top)
+                        scrollAnchorId = restorationId
+                    }
+                    persistedAnchorId = restorationId
+                    pendingAnchorRestoreId = nil
+                    anchorLockUntil = Date().addingTimeInterval(0.8)
+                    controller.clearRestorationAnchor()
+                    logAnchorState("proxy re-anchor id=\(restorationId)")
                 }
                 .simultaneousGesture(
                     DragGesture()
@@ -928,10 +1097,13 @@ struct ConsolidatedTimelineView: View {
                     for id in postIds {
                         highlightedPostIds.insert(id)
                     }
-                    // Auto-clear highlight after 2 seconds
+                    // Auto-clear highlight after 2 seconds. Fade the
+                    // border out for sighted users; reduceMotion =
+                    // instant removal (a 1-second fade is exactly the
+                    // 'unnecessary motion' the setting suppresses).
                     Task { @MainActor in
                         try? await Task.sleep(nanoseconds: 2_000_000_000)
-                        withAnimation(.easeOut(duration: 1.0)) {
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 1.0)) {
                             for id in postIds {
                                 highlightedPostIds.remove(id)
                             }
@@ -998,16 +1170,19 @@ struct ConsolidatedTimelineView: View {
                         }
 
                         if controller.isLoadingNextPage {
+                            // infiniteScrollLoadingView declares its own
+                            // .accessibilityElement(.ignore) + label from
+                            // iter 109. Don't re-label here.
                             infiniteScrollLoadingView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("Loading more posts")
                         }
 
                         if !controller.hasNextPage && !controller.posts.isEmpty {
+                            // endOfTimelineView has its own combine+label
+                            // ('You're all caught up, no more posts to load')
+                            // from iter 108 — don't override it here.
                             endOfTimelineView
                                 .padding(.vertical, 20)
-                                .accessibilityLabel("End of timeline")
-                                .accessibilityHint("No more posts to load")
                         }
                     }
                 }
@@ -1025,7 +1200,14 @@ struct ConsolidatedTimelineView: View {
                     // .refreshable ends here - spinner dismisses
                     isRefreshing = false
                     HapticEngine.refreshComplete(hasNewContent: bufferedCount > 0).trigger()
-                    guard bufferedCount > 0 else { return }
+                    guard bufferedCount > 0 else {
+                        ToastManager.shared.show(
+                            "You're up to date",
+                            severity: .info,
+                            duration: 1.4
+                        )
+                        return
+                    }
 
                     logAnchorState("post-refresh merge starting (iOS 16), buffer=\(bufferedCount)")
 
@@ -1083,21 +1265,8 @@ struct ConsolidatedTimelineView: View {
 
     private func report(reason: String) {
         guard let post = reportingPost else { return }
-        Task {
-            do {
-                try await serviceManager.reportPost(post, reason: reason)
-                // Reporting is a deliberate moderation action — success
-                // haptic confirms the report landed. The sheet has
-                // already dismissed by this point, so the haptic is the
-                // only feedback the user gets.
-                HapticEngine.success.trigger()
-                DebugLog.verbose("✅ Successfully reported post")
-            } catch {
-                HapticEngine.error.trigger()
-                DebugLog.verbose("❌ Failed to report post: \(error.localizedDescription)")
-            }
-            reportingPost = nil
-        }
+        post.report(via: serviceManager, reason: reason)
+        reportingPost = nil
     }
 
     /// Count of new posts above viewport
@@ -1124,37 +1293,111 @@ struct ConsolidatedTimelineView: View {
             Button(action: { handleNewPostsTap(proxy: proxy) }) {
                 HStack(spacing: 8) {
                     Text("\(count) new post\(count == 1 ? "" : "s")")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold))
+                        // monospacedDigit prevents the digit from jiggling
+                        // mid-morph during .contentTransition(.numericText()) —
+                        // without it, proportional widths shift as 5→6→7
+                        // morphs and the pill subtly wobbles. Same trick
+                        // Apple uses on its own count badges.
+                        .monospacedDigit()
                         .contentTransition(.numericText())
                         .animation(
                             .spring(response: 0.3, dampingFraction: 0.8),
                             value: count
                         )
                     Image(systemName: "arrow.up.to.line")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .background(
+                    // Reduce Transparency: fall back to a solid
+                    // capsule. ultraThinMaterial is the polished
+                    // default, but for users who've asked the
+                    // system to dial back transparency the pill
+                    // should read as solid against the timeline.
+                    Group {
+                        if reduceTransparency {
+                            Capsule().fill(Color(.secondarySystemBackground))
+                        } else {
+                            Capsule().fill(.ultraThinMaterial)
+                        }
+                    }
+                )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                // Invisible padding extends the tap target to ~45pt
+                // vertical without enlarging the visual pill. The HIG
+                // minimum for interactive elements is 44pt and the
+                // visible pill at .subheadline + 8pt padding lands at
+                // ~33pt — comfortable for index finger but tight for
+                // thumb taps on big phones.
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
-            .opacity(unreadPulseActive ? 1.0 : 0.85)
-            .onAppear { if !reduceMotion { unreadPulseActive = true } }
-            .onDisappear { unreadPulseActive = false }
-            .animation(
-                reduceMotion ? .none : .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
-                value: unreadPulseActive
-            )
+            .buttonStyle(TimelinePillPressStyle())
+            // Brief two-beat attention pulse on appearance — then settle.
+            // The pill's prominent ultraThinMaterial + accent glow is enough
+            // standing presence; a perpetual breathing animation just creates
+            // visual noise as you read the feed below it.
+            //
+            // pillBumpScale multiplies in on top of the entrance scale when
+            // the count *increases* while the pill is visible — a subtle
+            // 'more new posts just arrived' signal. Composes multiplicatively
+            // with the entrance: 0.96 → 1.0 → 1.06 → 1.0.
+            .scaleEffect((unreadPulseActive ? 1.0 : 0.96) * pillBumpScale)
+            .opacity(unreadPulseActive ? 1.0 : 0.0)
+            .onAppear {
+                lastSeenPillCount = count
+                if reduceMotion {
+                    unreadPulseActive = true
+                } else {
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.7)) {
+                        unreadPulseActive = true
+                    }
+                }
+                // VoiceOver users won't see the pill slide in or
+                // notice the visual pulse. Announce the arrival so
+                // they get the same beat sighted users do — same
+                // pattern ToastNotification uses for toasts. Only
+                // fires when VoiceOver is actually running, so we
+                // don't pay the announcement cost for everyone.
+                if UIAccessibility.isVoiceOverRunning {
+                    let phrase = count == 1
+                        ? "1 new post above. Double-tap to view."
+                        : "\(count) new posts above. Double-tap to view."
+                    UIAccessibility.post(notification: .announcement, argument: phrase)
+                }
+            }
+            .onDisappear {
+                unreadPulseActive = false
+                pillBumpScale = 1.0
+                lastSeenPillCount = 0
+            }
+            .onChange(of: count) { _, newValue in
+                guard !reduceMotion, newValue > lastSeenPillCount, lastSeenPillCount > 0 else {
+                    lastSeenPillCount = newValue
+                    return
+                }
+                lastSeenPillCount = newValue
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+                    pillBumpScale = 1.06
+                }
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 160_000_000)
+                    withAnimation(.spring(response: 0.42, dampingFraction: 0.72)) {
+                        pillBumpScale = 1.0
+                    }
+                }
+            }
             .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
             .accessibilityIdentifier("NewPostsPill")
             .padding(.top, 8)
             .accessibilityLabel("\(count) new post\(count == 1 ? "" : "s")")
-            .accessibilityHint("Tap to scroll to newest posts")
+            .accessibilityHint("Scrolls to the newest posts")
         }
     }
     
@@ -1180,23 +1423,40 @@ struct ConsolidatedTimelineView: View {
             Button(action: { handleJumpToLastRead(proxy: proxy, postId: lastReadId) }) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle.fill")
-                        .font(.caption)
+                        .font(.caption.weight(.semibold))
                     Text("Jump to Last Read")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
+                        .font(.subheadline.weight(.semibold))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
+                .background(
+                    // Reduce Transparency: fall back to a solid
+                    // capsule. ultraThinMaterial is the polished
+                    // default, but for users who've asked the
+                    // system to dial back transparency the pill
+                    // should read as solid against the timeline.
+                    Group {
+                        if reduceTransparency {
+                            Capsule().fill(Color(.secondarySystemBackground))
+                        } else {
+                            Capsule().fill(.ultraThinMaterial)
+                        }
+                    }
+                )
                 .clipShape(Capsule())
                 .overlay(
                     Capsule().stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
                 .shadow(color: Color.black.opacity(0.08), radius: 6, x: 0, y: 2)
+                // Same hit-target extension as newPostsPill (iter 211).
+                .padding(.vertical, 6)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(TimelinePillPressStyle())
+            .transition(.move(edge: .bottom).combined(with: .opacity))
             .accessibilityIdentifier("JumpToLastReadButton")
             .accessibilityLabel("Jump to Last Read")
-            .accessibilityHint("Tap to scroll to the last post you read")
+            .accessibilityHint("Scrolls to the last post you read")
         }
     }
     
@@ -1223,70 +1483,89 @@ struct ConsolidatedTimelineView: View {
     }
     
     private func updateJumpToLastReadVisibility() {
-        guard let lastReadId = lastReadPostId else {
-            showJumpToLastRead = false
-            return
-        }
-        
-        // Check if last read post exists in current posts
-        guard controller.posts.contains(where: { $0.id == lastReadId }) else {
-            showJumpToLastRead = false
-            return
-        }
-        
-        // Don't show if merge pill is showing (to avoid clutter)
-        if controller.bufferCount > 0 {
-            showJumpToLastRead = false
-            return
-        }
-        
-        // Check if we're at the top (don't show if at top)
-        if #available(iOS 17.0, *) {
-            let topId = controller.posts.first.map(scrollIdentifier(for:))
-            if let topId = topId, scrollAnchorId == topId {
-                showJumpToLastRead = false
-                return
-            }
-        }
-        
-        // Check if current position is below last read
-        if let currentAnchorId = scrollAnchorId,
-           let currentIndex = controller.posts.firstIndex(where: { scrollIdentifier(for: $0) == currentAnchorId }),
-           let lastReadIndex = controller.posts.firstIndex(where: { $0.id == lastReadId }),
-           currentIndex > lastReadIndex {
-            showJumpToLastRead = true
+        // Compute the next visibility state in one pass, then commit it
+        // through a single withAnimation transaction. Previously each
+        // branch assigned showJumpToLastRead directly without animation,
+        // so the pill would pop in/out abruptly when scroll position or
+        // buffer count changed underneath it.
+        let next = computeJumpToLastReadVisibility()
+        guard next != showJumpToLastRead else { return }
+        if reduceMotion {
+            showJumpToLastRead = next
         } else {
-            // Also show if we don't have a current anchor but have posts and last read
-            if scrollAnchorId == nil && !controller.posts.isEmpty {
-                showJumpToLastRead = true
-            } else {
-                showJumpToLastRead = false
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                showJumpToLastRead = next
             }
         }
     }
 
+    private func computeJumpToLastReadVisibility() -> Bool {
+        guard let lastReadId = lastReadPostId else { return false }
+        guard controller.posts.contains(where: { $0.id == lastReadId }) else { return false }
+        // Don't show if merge pill is showing (to avoid clutter)
+        if controller.bufferCount > 0 { return false }
+        // Don't show if we're already at the top
+        if #available(iOS 17.0, *) {
+            let topId = controller.posts.first.map(scrollIdentifier(for:))
+            if let topId = topId, scrollAnchorId == topId { return false }
+        }
+        // Show when current position is below the last read post
+        if let currentAnchorId = scrollAnchorId,
+           let currentIndex = controller.posts.firstIndex(where: { scrollIdentifier(for: $0) == currentAnchorId }),
+           let lastReadIndex = controller.posts.firstIndex(where: { $0.id == lastReadId }),
+           currentIndex > lastReadIndex {
+            return true
+        }
+        // Also show if we have no anchor but have posts + last read
+        return scrollAnchorId == nil && !controller.posts.isEmpty
+    }
+
+    /// Scroll the timeline back to the top. Callers are responsible for
+    /// firing the tap haptic at the *moment of intent* (button tap, double-
+    /// tap-home, etc.); this method intentionally fires none of its own so
+    /// the user feels one crisp tap instead of two.
     private func scrollToTop(using proxy: ScrollViewProxy) {
         guard let topId = controller.posts.first.map(scrollIdentifier(for:)) else { return }
         let isFarFromTop = newPostsAboveCount > 20 || !controller.isNearTop
 
         if isFarFromTop && !reduceMotion {
-            // Distance-aware: fade out, jump, fade back in
-            withAnimation(.easeOut(duration: 0.15)) {
-                scrollToTopOpacity = 0.3
+            // Distance-aware: fade out, jump, fade back in. SwiftUI's
+            // animated scroll over hundreds of items is visibly janky;
+            // a brief crossfade masks the jump so it reads as 'whoosh
+            // back to the top' rather than 'scroll bar shoots away'.
+            //
+            // Opacity floor lifted from 0.3 → 0.65: the deeper dip read
+            // like a glitch (background flashing through, posts ghosting
+            // out). 0.65 still hides the index swap but keeps content
+            // visually present throughout the transition. Net duration
+            // tightened to 0.30s — the gesture should feel quick.
+            //
+            // Cancel any in-flight fade Task before starting a new one
+            // so back-to-back triggers (e.g. tap pill then tap home tab)
+            // can't leave opacity stuck at 0.65. The defer guarantees
+            // restoration to 1.0 even if the Task is cancelled mid-sleep.
+            scrollToTopFadeTask?.cancel()
+            withAnimation(.easeOut(duration: 0.12)) {
+                scrollToTopOpacity = 0.65
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            scrollToTopFadeTask = Task { @MainActor in
+                defer {
+                    if scrollToTopOpacity != 1.0 {
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            scrollToTopOpacity = 1.0
+                        }
+                    }
+                }
+                try? await Task.sleep(nanoseconds: 120_000_000)
+                guard !Task.isCancelled else { return }
                 if #available(iOS 17.0, *) {
                     scrollAnchorId = topId
                 } else {
                     proxy.scrollTo(topId, anchor: .top)
                 }
-                withAnimation(.easeIn(duration: 0.25)) {
-                    scrollToTopOpacity = 1.0
-                }
-                HapticEngine.tap.trigger()
             }
         } else {
-            // Close to top: smooth animated scroll
+            // Close to top: smooth animated scroll.
             if #available(iOS 17.0, *) {
                 withAnimation(reduceMotion ? .none : .easeInOut(duration: 0.35)) {
                     scrollAnchorId = topId
@@ -1296,36 +1575,42 @@ struct ConsolidatedTimelineView: View {
                     proxy.scrollTo(topId, anchor: .top)
                 }
             }
-            HapticEngine.tap.trigger()
         }
     }
 
     private var infiniteScrollLoadingView: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             ProgressView()
-                .scaleEffect(0.8)
-            Text("Loading more posts...")
+                .scaleEffect(0.85)
+            Text("Loading more posts")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
         .padding(.horizontal)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Loading more posts")
     }
 
     private var endOfTimelineView: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundColor(.green)
-            Text("You're all caught up!")
-                .font(.subheadline)
-                .fontWeight(.medium)
+                .foregroundStyle(.white, Color.green)
+                .symbolRenderingMode(.palette)
+            Text("You're all caught up")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
             Text("No more posts to load")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal)
+        .padding(.vertical, 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("You're all caught up, no more posts to load")
     }
 
     private func postCard(for post: Post) -> some View {
@@ -1501,6 +1786,35 @@ struct ConsolidatedTimelineView: View {
         }
 
         return filtered
+    }
+
+    /// Cheap, undebounced unread-count tick. Called on *every* position
+    /// change so the pill drops 13 → 12 → 11 in real time as posts cross
+    /// the top of the viewport, instead of jumping 13 → 0 after the user
+    /// stops scrolling (which is what happens if you wait for the 80ms
+    /// debounced path).
+    ///
+    /// The controller side already enforces "only decrease" semantics
+    /// (updateUnreadFromTopVisibleIndex guards with `newCount < current`),
+    /// so this is safe to call freely — scroll-back-down won't tick the
+    /// count back up.
+    private func tickUnreadIfNeeded(from positions: [String: TimelineItemInfo]) {
+        guard let topVisibleInfo = positions
+            .filter({ $0.value.minY >= -50 })
+            .min(by: { $0.value.minY < $1.value.minY }) else {
+            return
+        }
+        let topVisibleIndex = topVisibleInfo.value.index
+        guard topVisibleIndex != lastTickedTopVisibleIndex else { return }
+        lastTickedTopVisibleIndex = topVisibleIndex
+        controller.updateUnreadFromTopVisibleIndex(topVisibleIndex)
+        // Also subtract any *visible* posts that were still in the unread
+        // set — covers the case where the topVisibleIndex didn't change
+        // but more posts came into view below it (resize, rotation, etc.).
+        let visibleIds = Set(positions.filter { $0.value.minY >= 0 }.keys)
+        if !visibleIds.isEmpty {
+            controller.markVisiblePostsAsRead(visibleIds)
+        }
     }
 
     private func processVisiblePositions(_ positions: [String: TimelineItemInfo]) {
@@ -1753,4 +2067,16 @@ private struct TimelineVisibleItemPreferenceKey: PreferenceKey {
 
 #Preview {
     ConsolidatedTimelineView(serviceManager: SocialServiceManager())
+}
+
+/// Subtle press feedback for floating timeline pills (new posts, jump to last
+/// read). Scales down and dims briefly to acknowledge the tap. Used by the
+/// pills inside ConsolidatedTimelineView.
+private struct TimelinePillPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.8), value: configuration.isPressed)
+    }
 }

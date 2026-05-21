@@ -30,26 +30,9 @@ struct PostPlatformBadge: View {
                         .stroke(capsuleStroke, lineWidth: 0.5)
                 )
         )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(platform.accessibilityLabel)
-    }
-
-    private var isHighContrast: Bool { prefs.highContrastNetworkIndicators }
-
-    private var textColor: Color {
-        isHighContrast ? .primary : platform.swiftUIColor
-    }
-
-    private var capsuleFill: Color {
-        isHighContrast
-            ? Color(.systemGray6)
-            : platform.swiftUIColor.opacity(0.1)
-    }
-
-    private var capsuleStroke: Color {
-        isHighContrast
-            ? Color.primary.opacity(0.35)
-            : platform.swiftUIColor.opacity(0.3)
+        // The badge is a single semantic unit; combine the icon +
+        // text so VoiceOver reads "Bluesky" once, not "image, Bluesky."
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -30,12 +30,14 @@ struct PostAvatar: View {
     }
 
     private var platformColor: Color {
-        switch platform {
-        case .bluesky:
-            return .blue
-        case .mastodon:
-            return .purple
-        }
+        // Route through SocialPlatform.swiftUIColor so the avatar
+        // ring picks up the canonical brand purple / blue (the same
+        // hex used everywhere else for badges, indicators, tints).
+        // Was hard-coded to system .purple / .blue, which now read
+        // as a slightly different shade than the rest of the brand
+        // surfaces — visible side-by-side, especially the brand
+        // dot overlay on quote-post and DM avatars.
+        platform.swiftUIColor
     }
 }
 

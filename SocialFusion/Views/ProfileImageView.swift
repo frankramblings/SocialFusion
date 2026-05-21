@@ -9,11 +9,14 @@ public struct ProfileImageView: View {
 
     public var body: some View {
         ZStack {
-            // Colored circle for outline based on platform
+            // Colored circle for outline based on platform.
+            // Routes through SocialPlatform.swiftUIColor — single
+            // source of truth (86a7ca5). Color("PrimaryColor") /
+            // Color("SecondaryColor") asset references conflict
+            // with SwiftUI's built-in .primary / .secondary
+            // semantics and surface build warnings.
             Circle()
-                .fill(
-                    account.platform == .mastodon ? Color("PrimaryColor") : Color("SecondaryColor")
-                )
+                .fill(account.platform.swiftUIColor)
                 .frame(width: 34, height: 34)
 
             // Profile image or initial
@@ -25,13 +28,10 @@ public struct ProfileImageView: View {
                         .frame(width: 30, height: 30)
                         .clipShape(Circle())
                 } placeholder: {
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 30, height: 30)
-                        .overlay(
-                            ProgressView()
-                                .scaleEffect(0.6)
-                        )
+                    // Initials while the image is loading — same identity
+                    // as the no-URL InitialView branch, so the avatar
+                    // doesn't flash between spinner and letter.
+                    InitialView(account: account)
                 }
                 .frame(width: 30, height: 30)
                 .clipShape(Circle())
@@ -91,9 +91,11 @@ struct InitialView: View {
     var body: some View {
         Text(String((account.displayName ?? account.username).prefix(1)))
             .font(.system(size: 14, weight: .bold))
-            .foregroundColor(
-                account.platform == .mastodon ? Color("PrimaryColor") : Color("SecondaryColor")
-            )
+            // Initial color = brand color via swiftUIColor.
+            // (Was Color("PrimaryColor") / Color("SecondaryColor"),
+            // the asset-catalog references that conflict with
+            // SwiftUI's `.primary` / `.secondary` semantics.)
+            .foregroundColor(account.platform.swiftUIColor)
             .frame(width: 30, height: 30)
             .background(Circle().fill(Color.white))
     }

@@ -10,8 +10,9 @@ struct AnimatedGIFView: View {
         AnimatedGIFViewRepresentable(url: url)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Animated GIF")
-            .accessibilityHint("This is an animated image that plays automatically")
-            .accessibilityAddTraits([.playsSound])
+            // Note: GIFs are silent — .playsSound would be misleading to
+            // VoiceOver users. Just describing the content is enough.
+            .accessibilityAddTraits(.isImage)
     }
 }
 

@@ -6,6 +6,9 @@ struct NavBarPillSelector<LeadingContent: View>: View {
     let action: () -> Void
     let leadingContent: LeadingContent?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     init(title: String, isExpanded: Bool, action: @escaping () -> Void, @ViewBuilder leadingContent: () -> LeadingContent) {
         self.title = title
         self.isExpanded = isExpanded
@@ -14,25 +17,33 @@ struct NavBarPillSelector<LeadingContent: View>: View {
     }
 
     var body: some View {
-        Button(action: action) {
+        Button {
+            HapticEngine.tap.trigger()
+            action()
+        } label: {
             HStack(spacing: 6) {
                 if let leadingContent {
                     leadingContent
                 }
                 Text(title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.subheadline.weight(.medium))
                 Image(systemName: "chevron.down")
-                    .font(.caption2)
-                    .fontWeight(.semibold)
+                    .font(.caption2.weight(.semibold))
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: isExpanded)
+                    .accessibilityHidden(true)
             }
             .foregroundColor(.primary)
             .padding(.horizontal, 16)
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(.ultraThinMaterial)
+                    // Solid fallback under Reduce Transparency so the
+                    // pill remains a distinct shape against the
+                    // navigation bar's content blur.
+                    .fill(reduceTransparency
+                          ? AnyShapeStyle(Color(.secondarySystemBackground))
+                          : AnyShapeStyle(.ultraThinMaterial))
                     .overlay(
                         Capsule()
                             .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
@@ -41,12 +52,20 @@ struct NavBarPillSelector<LeadingContent: View>: View {
                     .shadow(color: .black.opacity(0.02), radius: 2, x: 0, y: 0.5)
             )
         }
-        .buttonStyle(PlainButtonStyle())
-        .accessibilityElement(children: .ignore)
+        .buttonStyle(NavBarPillButtonStyle())
         .accessibilityLabel(title)
         .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint(isExpanded ? "Closes the menu." : "Opens the menu.")
+        .accessibilityHint(isExpanded ? "Closes the feed picker" : "Opens the feed picker")
+    }
+}
+
+/// Subtle press feedback for the nav-bar pill — a small scale-down on press.
+private struct NavBarPillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.88 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -87,6 +106,8 @@ struct NavBarPillDropdown: View {
     let sections: [NavBarPillDropdownSection]
     let width: CGFloat
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(sections.enumerated()), id: \.offset) { sectionIndex, section in
@@ -124,7 +145,13 @@ struct NavBarPillDropdown: View {
         .frame(width: width)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.ultraThinMaterial)
+                // Dropdown panel — solid fallback for Reduce Transparency
+                // matches the pill above. The two surfaces need consistent
+                // treatment or one looks like glass and the other like
+                // a card during the same interaction.
+                .fill(reduceTransparency
+                      ? AnyShapeStyle(Color(.secondarySystemBackground))
+                      : AnyShapeStyle(.ultraThinMaterial))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
@@ -141,6 +168,8 @@ struct NavBarPillDropdownContainer<Content: View>: View {
     let maxHeight: CGFloat
     let content: Content
 
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
     init(width: CGFloat, maxHeight: CGFloat = 300, @ViewBuilder content: () -> Content) {
         self.width = width
         self.maxHeight = maxHeight
@@ -154,7 +183,9 @@ struct NavBarPillDropdownContainer<Content: View>: View {
         .frame(width: width)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(reduceTransparency
+                      ? AnyShapeStyle(Color(.secondarySystemBackground))
+                      : AnyShapeStyle(.ultraThinMaterial))
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
@@ -174,43 +205,35 @@ struct NavBarPillDropdownRow: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: {
-            // The pill dropdown always represents a selection (filter,
-            // feed, account) — fire the system selection haptic so the
-            // row feels like every other iOS picker. Doing it here once
-            // is safer than asking each call-site to remember, and the
-            // showChevron rows that *navigate* still benefit (the
-            // chevron rows always lead to a new surface, which also
-            // warrants a tactile cue).
+        Button {
             HapticEngine.selection.trigger()
             action()
-        }) {
-            HStack(spacing: 8) {
+        } label: {
+            HStack(spacing: 10) {
                 if let icon {
                     Image(icon)
                         .resizable()
                         .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
                         .frame(width: 16, height: 16)
-                        .foregroundColor(.primary)
+                        .foregroundColor(isSelected ? .accentColor : .primary.opacity(0.75))
                 }
                 Text(title)
-                    .font(.subheadline)
-                    .foregroundColor(.primary)
+                    .font(.subheadline.weight(isSelected ? .semibold : .regular))
+                    .foregroundColor(isSelected ? .accentColor : .primary)
                     .lineLimit(1)
 
                 Spacer()
 
                 if showChevron {
                     Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(.secondary.opacity(0.7))
                 } else if isSelected {
                     Image(systemName: "checkmark")
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.blue)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.accentColor)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 16)
@@ -218,9 +241,18 @@ struct NavBarPillDropdownRow: View {
             .background(Color.clear)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
+        .buttonStyle(NavBarPillRowPressStyle())
+    }
+}
+
+/// Subtle background flash on press for dropdown rows — feels like a real
+/// menu row, not a static button.
+private struct NavBarPillRowPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                Color.primary.opacity(configuration.isPressed ? 0.06 : 0)
+            )
+            .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }

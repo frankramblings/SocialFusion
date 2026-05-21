@@ -27,9 +27,19 @@ struct PostAuthorView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        // Wrap the parent-provided callback in a tap haptic — without
+        // one, tapping the avatar/name/handle to navigate to a profile
+        // feels mute, while every other tappable surface in the app
+        // (action buttons, share, kebab menu) fires a beat. Only one
+        // of the three buttons can fire per tap, so no double-haptic.
+        let onAuthorTapWithHaptic: () -> Void = {
+            HapticEngine.tap.trigger()
+            onAuthorTap()
+        }
+
+        return HStack(spacing: 12) {
             // Author avatar
-            Button(action: onAuthorTap) {
+            Button(action: onAuthorTapWithHaptic) {
                 PostAuthorImageView(
                     authorProfilePictureURL: stableAuthorImageURL,
                     platform: stablePlatform,
@@ -38,10 +48,11 @@ struct PostAuthorView: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityHidden(true)  // Combined into the row's single a11y element below
 
             // Author info
             VStack(alignment: .leading, spacing: 2) {
-                Button(action: onAuthorTap) {
+                Button(action: onAuthorTapWithHaptic) {
                     EmojiDisplayNameText(
                         stableAuthorName,
                         emojiMap: stableAuthorEmojiMap,
@@ -54,7 +65,7 @@ struct PostAuthorView: View {
                 .buttonStyle(PlainButtonStyle())
 
                 HStack(spacing: 4) {
-                    Button(action: onAuthorTap) {
+                    Button(action: onAuthorTapWithHaptic) {
                         Text("@\(stableAuthorUsername)")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -86,18 +97,33 @@ struct PostAuthorView: View {
 
             Spacer()
         }
+        // Consolidate the avatar + name + username + time into a single
+        // accessibility element. VoiceOver previously had to step through
+        // three separate buttons that all did the same thing.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(stableAuthorName), @\(stableAuthorUsername)")
+        // Use the .full unit style for VoiceOver so 'six min ago' reads as
+        // 'six minutes ago' — the abbreviated form is for visual scanning,
+        // not screen-reader audio.
+        .accessibilityValue(formatRelativeTimeFull(from: stableCreatedAt))
+        .accessibilityHint("Opens this user's profile")
+        .accessibilityAddTraits(.isButton)
     }
 
     private var timeAgoString: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: post.createdAt, relativeTo: Date())
+        SharedFormatters.relativeAbbreviated.localizedString(
+            for: post.createdAt, relativeTo: Date()
+        )
     }
 
     private func formatRelativeTime(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        SharedFormatters.relativeAbbreviated.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// Full-word relative time for VoiceOver — '6 minutes ago' rather
+    /// than '6m'. Visual UI keeps the abbreviated form.
+    private func formatRelativeTimeFull(from date: Date) -> String {
+        SharedFormatters.relativeFull.localizedString(for: date, relativeTo: Date())
     }
 }
 

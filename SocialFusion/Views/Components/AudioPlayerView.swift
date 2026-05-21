@@ -24,6 +24,7 @@ struct AudioPlayerView: View {
     @State private var isGeneratingWaveform = false
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let waveformHeight: CGFloat = 60
     private let controlSize: CGFloat = 44
@@ -107,7 +108,7 @@ struct AudioPlayerView: View {
                 // Loading waveform
                 HStack(spacing: 2) {
                     ForEach(0..<40, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: 1)
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(Color.secondary.opacity(0.3))
                             .frame(width: 3, height: CGFloat.random(in: 8...waveformHeight))
                     }
@@ -174,51 +175,94 @@ struct AudioPlayerView: View {
                 isDragging = editing
             }
             .accentColor(.primary)
+            .accessibilityLabel("Playback position")
+            .accessibilityValue(playbackPositionAccessibility)
         }
+    }
+
+    /// VoiceOver value for the playback slider — 'N minutes M seconds
+    /// of total' rather than the raw 0-1 percentage Slider would say
+    /// by default.
+    private var playbackPositionAccessibility: String {
+        let current = Int(currentTime)
+        let total = Int(duration)
+        return "\(formatSeconds(current)) of \(formatSeconds(total))"
+    }
+
+    private func formatSeconds(_ totalSeconds: Int) -> String {
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        let minutePart = "\(minutes) minute\(minutes == 1 ? "" : "s")"
+        let secondPart = "\(seconds) second\(seconds == 1 ? "" : "s")"
+        if minutes == 0 { return secondPart }
+        if seconds == 0 { return minutePart }
+        return "\(minutePart) \(secondPart)"
     }
 
     private var controlsView: some View {
         HStack(spacing: 24) {
             // Skip back 15s
-            Button(action: skipBackward) {
+            Button {
+                HapticEngine.tap.trigger()
+                skipBackward()
+            } label: {
                 Image(systemName: "gobackward.15")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(currentTime < 15)
             .accessibilityLabel("Skip back 15 seconds")
 
             Spacer()
 
             // Play/Pause button
-            Button(action: togglePlayback) {
+            Button {
+                HapticEngine.tap.trigger()
+                togglePlayback()
+            } label: {
                 ZStack {
                     Circle()
                         .fill(Color.primary)
                         .frame(width: controlSize, height: controlSize)
+                        .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
 
-                    Image(
-                        systemName: isLoading
-                            ? "hourglass" : (isPlaying ? "pause.fill" : "play.fill")
-                    )
-                    .font(.title2)
-                    .foregroundColor(colorScheme == .dark ? .black : .white)
-                    .offset(x: (!isLoading && !isPlaying) ? 2 : 0)  // Center play icon visually
+                    if isLoading {
+                        ProgressView()
+                            .scaleEffect(0.85)
+                            .tint(colorScheme == .dark ? .black : .white)
+                    } else {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                            .font(.title2)
+                            .foregroundColor(colorScheme == .dark ? .black : .white)
+                            .offset(x: isPlaying ? 0 : 2)  // Center play icon visually
+                            .contentTransition(.symbolEffect(.replace))
+                    }
                 }
+                .scaleEffect(isLoading ? 0.94 : 1.0)
+                .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: isLoading)
+                .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: isPlaying)
             }
+            .buttonStyle(.plain)
             .disabled(isLoading || hasError)
-            .scaleEffect(isLoading ? 0.9 : 1.0)
-            .animation(.easeInOut(duration: 0.2), value: isLoading)
-            .accessibilityLabel(isLoading ? "Loading audio" : (isPlaying ? "Pause" : "Play"))
+            .accessibilityLabel(isLoading ? "Loading" : (isPlaying ? "Pause" : "Play"))
 
             Spacer()
 
             // Skip forward 15s
-            Button(action: skipForward) {
+            Button {
+                HapticEngine.tap.trigger()
+                skipForward()
+            } label: {
                 Image(systemName: "goforward.15")
                     .font(.title2)
                     .foregroundColor(.primary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(duration > 0 && currentTime > duration - 15)
             .accessibilityLabel("Skip forward 15 seconds")
         }
@@ -258,7 +302,7 @@ struct AudioPlayerView: View {
                     duration = item.duration.seconds
                 } else if item.status == .failed {
                     hasError = true
-                    errorMessage = "Failed to load audio"
+                    errorMessage = "Couldn't load audio"
                 }
             }
         }
@@ -458,7 +502,7 @@ private struct WaveformView: View {
                     let xPosition = CGFloat(index) * barWidth
                     let isPlayed = xPosition < progressX
 
-                    RoundedRectangle(cornerRadius: 1)
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
                         .fill(isPlayed ? Color.primary : Color.secondary.opacity(0.3))
                         .frame(width: max(barWidth - 1, 2), height: barHeight)
                 }
@@ -496,8 +540,8 @@ private struct SimpleWaveformView: View {
             ZStack(alignment: .leading) {
                 // Background bars
                 HStack(spacing: 2) {
-                    ForEach(0..<Self.barFractions.count, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 1)
+                    ForEach(0..<50, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(Color.secondary.opacity(0.3))
                             .frame(width: 3, height: height * Self.barFractions[index])
                     }
@@ -506,8 +550,8 @@ private struct SimpleWaveformView: View {
                 // Progress overlay — uses the SAME stable fractions so the
                 // overlay and background line up bar-for-bar.
                 HStack(spacing: 2) {
-                    ForEach(0..<Self.barFractions.count, id: \.self) { index in
-                        RoundedRectangle(cornerRadius: 1)
+                    ForEach(0..<50, id: \.self) { index in
+                        RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(Color.primary)
                             .frame(width: 3, height: height * Self.barFractions[index])
                     }

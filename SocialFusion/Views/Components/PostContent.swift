@@ -60,10 +60,17 @@ private struct ContentWarningView: View {
 
                 Spacer()
 
-                Button(action: { isExpanded.toggle() }) {
+                Button {
+                    HapticEngine.selection.trigger()
+                    isExpanded.toggle()
+                } label: {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .foregroundColor(.secondary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel(isExpanded ? "Hide content" : "Show content")
             }
 
             // Warning text
@@ -79,7 +86,9 @@ private struct ContentWarningView: View {
             }
         }
         .padding()
-        .background(Color.gray.opacity(0.1))
+        // systemGray6 adapts to light/dark; Color.gray.opacity
+        // shifts brown against dark backgrounds.
+        .background(Color(.systemGray6))
         .cornerRadius(8)
     }
 }

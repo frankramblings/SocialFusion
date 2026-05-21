@@ -90,6 +90,22 @@ public class AutomaticTokenRefreshService: ObservableObject {
                 // Show user notification for this specific issue
                 showReauthenticationNotification(for: account)
 
+            } catch BlueskyTokenError.invalidRefreshToken, BlueskyTokenError.noRefreshToken {
+                // Bluesky's refresh token has expired or is missing.
+                // The server returned `invalidRefreshToken` / `ExpiredToken`,
+                // meaning retrying with the same token is futile — every
+                // subsequent call will fail with the same error. Route to
+                // the reauth bucket so the user gets prompted to sign in
+                // again, instead of spinning forever on a dead token.
+                accountsNeedingReauthList.append(account)
+                let errorMessage =
+                    "Account '\(account.username)' needs re-authentication (refresh token expired or invalid)"
+                logger.warning("\(errorMessage)")
+                refreshErrors.append(errorMessage)
+                errorCount += 1
+
+                showReauthenticationNotification(for: account)
+
             } catch {
                 errorCount += 1
                 let errorMessage =

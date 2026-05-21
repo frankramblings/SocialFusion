@@ -52,15 +52,8 @@ struct PostActionBar: View {
         self.postActionCoordinator = postActionCoordinator
     }
 
-    // Platform color helper
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    // Platform color via SocialPlatform.swiftUIColor (canonical hex).
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     // Helper function to format counts
     private func formatCount(_ count: Int) -> String {
@@ -137,7 +130,8 @@ struct PostActionBar: View {
                     }
                 )
                 .accessibilityLabel("Quote Post")
-                .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
+                .accessibilityValue(state.isQuoted ? "Already quoted" : "")
+                .accessibilityHint("Opens the composer with this post quoted")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -195,7 +189,8 @@ struct PostActionBar: View {
                     }
                 )
                 .accessibilityLabel("Quote Post")
-                .accessibilityHint(post.isQuoted ? "You've already quoted this post — quotes it again." : "")
+                .accessibilityValue(post.isQuoted ? "Already quoted" : "")
+                .accessibilityHint("Opens the composer with this post quoted")
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -272,12 +267,18 @@ struct SmallPostActionBar: View {
                 )
                 .frame(maxWidth: .infinity)
 
-                Button(action: onShare) {
+                Button(action: {
+                    HapticEngine.tap.trigger()
+                    onShare()
+                }) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
+                        .frame(minHeight: 44) // HIG min tap target
                 }
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("Share")
+                .accessibilityHint("Opens the share sheet for this post")
             } else {
                 // Legacy / fallback small buttons
                 SmallUnifiedReplyButton(
@@ -322,12 +323,18 @@ struct SmallPostActionBar: View {
                 )
                 .frame(maxWidth: .infinity)
 
-                Button(action: onShare) {
+                Button(action: {
+                    HapticEngine.tap.trigger()
+                    onShare()
+                }) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 14))
                         .foregroundColor(.secondary)
+                        .frame(minHeight: 44) // HIG min tap target
                 }
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel("Share")
+                .accessibilityHint("Opens the share sheet for this post")
             }
         }
         .padding(.top, 4)
@@ -389,9 +396,8 @@ struct PostActionBarWithViewModel: View {
                     }
                 )
                 .accessibilityLabel("Reply")
-                .accessibilityValue(state.replyCount > 0
-                    ? "\(state.replyCount) repl\(state.replyCount == 1 ? "y" : "ies")"
-                    : "")
+                .accessibilityValue(smallReplyValue(count: state.replyCount, isReplied: state.isReplied))
+                .accessibilityHint("Opens the reply composer")
                 .frame(maxWidth: .infinity)
 
                 UnifiedRepostButton(
@@ -400,10 +406,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: isProcessing,
                     onTap: { coordinator.toggleRepost(for: viewModel.post) }
                 )
-                .accessibilityLabel(state.isReposted ? "Undo Repost" : "Repost")
-                .accessibilityValue(state.repostCount > 0
-                    ? "\(state.repostCount) repost\(state.repostCount == 1 ? "" : "s")"
-                    : "")
+                .accessibilityLabel("Repost")
+                .accessibilityValue(smallRepostValue(count: state.repostCount, isReposted: state.isReposted))
+                .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
+                .accessibilityAddTraits(state.isReposted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedLikeButton(
@@ -413,10 +419,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: isProcessing,
                     onTap: { coordinator.toggleLike(for: viewModel.post) }
                 )
-                .accessibilityLabel(state.isLiked ? "Unlike" : "Like")
-                .accessibilityValue(state.likeCount > 0
-                    ? "\(state.likeCount) like\(state.likeCount == 1 ? "" : "s")"
-                    : "")
+                .accessibilityLabel("Like")
+                .accessibilityValue(smallLikeValue(count: state.likeCount, isLiked: state.isLiked))
+                .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
+                .accessibilityAddTraits(state.isLiked ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedQuoteButton(
@@ -427,14 +433,17 @@ struct PostActionBarWithViewModel: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel("Quote Post")
-                .accessibilityHint(state.isQuoted ? "You've already quoted this post — quotes it again." : "")
+                .accessibilityLabel("Quote")
+                .accessibilityHint("Opens the composer with this post quoted")
+                .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
                     post: viewModel.post,
                     onTap: onShare
                 )
+                .accessibilityLabel("Share")
+                .accessibilityHint("Opens share options")
                 .frame(maxWidth: .infinity)
             } else {
                 UnifiedReplyButton(
@@ -447,9 +456,8 @@ struct PostActionBarWithViewModel: View {
                     }
                 )
                 .accessibilityLabel("Reply")
-                .accessibilityValue(viewModel.replyCount > 0
-                    ? "\(viewModel.replyCount) repl\(viewModel.replyCount == 1 ? "y" : "ies")"
-                    : "")
+                .accessibilityValue(smallReplyValue(count: viewModel.replyCount, isReplied: viewModel.post.isReplied))
+                .accessibilityHint("Opens the reply composer")
                 .frame(maxWidth: .infinity)
 
                 UnifiedRepostButton(
@@ -458,10 +466,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: viewModel.isLoading,
                     onTap: onRepost
                 )
-                .accessibilityLabel(viewModel.isReposted ? "Undo Repost" : "Repost")
-                .accessibilityValue(viewModel.repostCount > 0
-                    ? "\(viewModel.repostCount) repost\(viewModel.repostCount == 1 ? "" : "s")"
-                    : "")
+                .accessibilityLabel("Repost")
+                .accessibilityValue(smallRepostValue(count: viewModel.repostCount, isReposted: viewModel.isReposted))
+                .accessibilityHint(viewModel.isReposted ? "Removes your repost" : "Reposts to your timeline")
+                .accessibilityAddTraits(viewModel.isReposted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedLikeButton(
@@ -471,10 +479,10 @@ struct PostActionBarWithViewModel: View {
                     isProcessing: viewModel.isLoading,
                     onTap: onLike
                 )
-                .accessibilityLabel(viewModel.isLiked ? "Unlike" : "Like")
-                .accessibilityValue(viewModel.likeCount > 0
-                    ? "\(viewModel.likeCount) like\(viewModel.likeCount == 1 ? "" : "s")"
-                    : "")
+                .accessibilityLabel("Like")
+                .accessibilityValue(smallLikeValue(count: viewModel.likeCount, isLiked: viewModel.isLiked))
+                .accessibilityHint(viewModel.isLiked ? "Removes your like" : "Likes this post")
+                .accessibilityAddTraits(viewModel.isLiked ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 UnifiedQuoteButton(
@@ -485,8 +493,9 @@ struct PostActionBarWithViewModel: View {
                         onQuote()
                     }
                 )
-                .accessibilityLabel("Quote Post")
-                .accessibilityHint(viewModel.post.isQuoted ? "You've already quoted this post — quotes it again." : "")
+                .accessibilityLabel("Quote")
+                .accessibilityHint("Opens the composer with this post quoted")
+                .accessibilityAddTraits(viewModel.post.isQuoted ? .isSelected : [])
                 .frame(maxWidth: .infinity)
 
                 PostShareButton(
@@ -497,6 +506,35 @@ struct PostActionBarWithViewModel: View {
             }
         }
         .padding(.vertical, 2)
+    }
+
+    // MARK: - Accessibility values
+    //
+    // Mirror the action-bar a11y convention: noun-only label, state+count
+    // value, action hint. See UnifiedInteractionButtons / ActionBar.
+
+    fileprivate func smallReplyValue(count: Int, isReplied: Bool) -> String {
+        let parts = [
+            isReplied ? "You replied" : nil,
+            count > 0 ? "\(count) repl\(count == 1 ? "y" : "ies")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func smallRepostValue(count: Int, isReposted: Bool) -> String {
+        let parts = [
+            isReposted ? "Reposted" : nil,
+            count > 0 ? "\(count) repost\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
+    }
+
+    fileprivate func smallLikeValue(count: Int, isLiked: Bool) -> String {
+        let parts = [
+            isLiked ? "Liked" : nil,
+            count > 0 ? "\(count) like\(count == 1 ? "" : "s")" : nil,
+        ].compactMap { $0 }
+        return parts.joined(separator: ", ")
     }
 }
 

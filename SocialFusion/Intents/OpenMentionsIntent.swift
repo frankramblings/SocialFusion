@@ -13,6 +13,6 @@ struct OpenMentionsIntent: AppIntent {
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
         await UIApplication.shared.open(URL(string: "socialfusion://mentions")!)
-        return .result(dialog: "Opened Mentions")
+        return .result(dialog: "Showing your mentions.")
     }
 }

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct NotificationsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
     
@@ -35,7 +36,7 @@ struct NotificationsView: View {
         
         // Dismiss dropdown if scrolling
         if showFilterDropdown && abs(offset - previousOffset) > 5 {
-            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                 showFilterDropdown = false
             }
         }
@@ -61,30 +62,53 @@ struct NotificationsView: View {
                             HStack {
                                 Spacer()
                                 ProgressView()
+                                    .accessibilityLabel("Loading notifications")
                                 Spacer()
                             }
                             .padding(.top, 40)
                         } else if filteredNotifications.isEmpty {
-                            VStack(spacing: 20) {
-                                Image(systemName: "bell.slash")
-                                    .font(.system(size: 50))
-                                    .foregroundColor(.gray.opacity(0.3))
-                                    // Decorative — VoiceOver would otherwise
-                                    // announce "bell slash" verbatim, which is
-                                    // redundant with the title below.
-                                    .accessibilityHidden(true)
-                                Text(selectedFilter == nil ? "No notifications yet" : "No \(selectedFilter!.displayName.lowercased()) notifications")
-                                    .font(.headline)
-                                    .foregroundColor(.secondary)
+                            VStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(
+                                            RadialGradient(
+                                                colors: [
+                                                    Color.accentColor.opacity(0.14),
+                                                    Color.accentColor.opacity(0.0),
+                                                ],
+                                                center: .center,
+                                                startRadius: 4,
+                                                endRadius: 70
+                                            )
+                                        )
+                                        .frame(width: 140, height: 140)
+
+                                    Image(systemName: selectedFilter == nil ? "bell.slash" : "tray")
+                                        .font(.system(size: 44, weight: .light))
+                                        .foregroundStyle(Color.secondary.gradient)
+                                        .symbolRenderingMode(.hierarchical)
+                                        .contentTransition(.symbolEffect(.replace))
+                                }
+
+                                VStack(spacing: 6) {
+                                    Text(selectedFilter == nil ? "All quiet" : "No \(selectedFilter!.displayName.lowercased())")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundColor(.primary.opacity(0.8))
+
+                                    Text(selectedFilter == nil
+                                         ? "When someone interacts with your posts, you'll see it here."
+                                         : "Try switching filters to see other notifications.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.top, 100)
-                            // Combined element + header trait so the
-                            // empty state lands on the headings rotor
-                            // — matches Watching empty state (ed63fd6)
-                            // and the Fused-conversation caption.
+                            .padding(.top, 80)
+                            .padding(.bottom, 40)
                             .accessibilityElement(children: .combine)
-                            .accessibilityAddTraits(.isHeader)
                         } else {
                             ForEach(filteredNotifications) { notification in
                                 if let post = notification.post {
@@ -132,7 +156,7 @@ struct NotificationsView: View {
                     Color.black.opacity(0.001)
                         .ignoresSafeArea()
                         .onTapGesture {
-                            withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                 showFilterDropdown = false
                             }
                         }
@@ -154,7 +178,8 @@ struct NotificationsView: View {
                                                 title: filter?.displayName ?? "All",
                                                 isSelected: selectedFilter == filter,
                                                 action: {
-                                                    withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
+                                                    // NavBarPillDropdownRow fires .selection internally.
+                                                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                                                         selectedFilter = filter
                                                         showFilterDropdown = false
                                                     }
@@ -173,7 +198,7 @@ struct NotificationsView: View {
                         Spacer()
                     }
                 }
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.95)))
             }
         }
         .background(Color(.systemBackground))
@@ -186,7 +211,9 @@ struct NotificationsView: View {
                     title: filterTitle,
                     isExpanded: showFilterDropdown,
                     action: {
-                        withAnimation(reduceMotion ? .none : .spring(response: 0.3, dampingFraction: 0.8)) {
+                        // NavBarPillSelector fires .tap internally; no need
+                        // to duplicate it here.
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                             showFilterDropdown.toggle()
                         }
                     }
@@ -209,6 +236,7 @@ struct NotificationsView: View {
 
     private var composeButton: some View {
         Button {
+            HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
@@ -219,7 +247,7 @@ struct NotificationsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Compose")
-        .accessibilityHint("Create a new post")
+        .accessibilityHint("Opens the post composer")
         .accessibilityIdentifier("ComposeToolbarButton")
         #if DEBUG
         .onLongPressGesture(minimumDuration: 1.0) {
@@ -302,14 +330,19 @@ struct FilterButton: View {
                 .fontWeight(isSelected ? .semibold : .regular)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(isSelected ? Color.blue.opacity(0.15) : Color.clear)
-                .foregroundColor(isSelected ? .blue : .secondary)
+                // Selected-state tint = accentColor so the filter
+                // chip respects the user's app-level tint (and
+                // matches whatever the rest of the system is doing
+                // for selection). Was hard-coded .blue, which broke
+                // alignment with non-blue accents.
+                .background(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+                .foregroundColor(isSelected ? .accentColor : .secondary)
                 .opacity(opacity)
                 .cornerRadius(20)
                 .conditionalLiquidGlass(enabled: isSelected, prominence: .thin)
                 .overlay(
                     Capsule()
-                        .stroke(isSelected ? Color.blue.opacity(0.3) : Color.gray.opacity(0.2), lineWidth: 1)
+                        .stroke(isSelected ? Color.accentColor.opacity(0.3) : Color(.systemGray4), lineWidth: 1)
                 )
         }
     }
@@ -330,34 +363,42 @@ extension AppNotification.NotificationType {
 
 struct NotificationRow: View {
     let notification: AppNotification
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 notificationIcon
-                    .font(.system(size: 18))
+                    .font(.system(size: 18, weight: .semibold))
+                    .symbolRenderingMode(.hierarchical)
                     .frame(width: 24)
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
+                        let initial = String((notification.fromAccount.displayName ?? notification.fromAccount.username).prefix(1)).uppercased()
                         if let avatarURL = notification.fromAccount.avatarURL, let url = URL(string: avatarURL) {
                             CachedAsyncImage(url: url, priority: .high) { image in
                                 image.resizable()
                                     .aspectRatio(contentMode: .fill)
                             } placeholder: {
-                                Circle().fill(Color.gray.opacity(0.3))
+                                Circle().fill(Color(.systemGray5))
                                     .overlay(
-                                        ProgressView()
-                                            .scaleEffect(0.5)
+                                        Text(initial)
+                                            .font(.footnote.weight(.semibold))
+                                            .foregroundColor(Color(.systemGray))
                                     )
                             }
                             .frame(width: 32, height: 32)
                             .clipShape(Circle())
                         } else {
-                            Circle().fill(Color.gray.opacity(0.3))
+                            Circle().fill(Color(.systemGray5))
                                 .frame(width: 32, height: 32)
+                                .overlay(
+                                    Text(initial)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundColor(Color(.systemGray))
+                                )
                         }
-                        
+
                         VStack(alignment: .leading) {
                             EmojiDisplayNameText(
                                 notification.fromAccount.displayName ?? notification.fromAccount.username,
@@ -371,78 +412,77 @@ struct NotificationRow: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }
-                        
+
                         Spacer()
-                        
-                        Text(notification.createdAt.relativeTimeString)
+
+                        Text(notification.createdAt, style: .relative)
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .monospacedDigit()
                     }
-                    
+
                     if let post = notification.post {
-                        Text(PostNormalizerImpl.shared.normalizeContent(post.content))
-                            .font(.system(size: 14))
-                            .lineLimit(2)
-                            .foregroundColor(.primary.opacity(0.8))
-                            .padding(.leading, 4)
-                            .overlay(
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .frame(width: 2)
-                                    .padding(.leading, -4),
-                                alignment: .leading
-                            )
+                        // Quoted-post snippet — the side bar tints to the
+                        // notification type's color so the row tells a tiny
+                        // visual story (which post got which kind of love).
+                        HStack(alignment: .top, spacing: 8) {
+                            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                                .fill(notificationAccentColor.opacity(0.4))
+                                .frame(width: 2.5)
+
+                            Text(PostNormalizerImpl.shared.normalizeContent(post.content))
+                                .font(.footnote)
+                                .lineLimit(2)
+                                .foregroundColor(.primary.opacity(0.78))
+                        }
+                        .padding(.leading, 2)
                     }
                 }
             }
         }
         .padding(.vertical, 8)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(combinedAccessibilityLabel)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
     }
 
-    /// One-shot VoiceOver label: "Brent Simmons liked your post: '...',
-    /// 5 minutes ago." Without this each NotificationRow fragments into
-    /// 5+ sub-elements (icon, avatar, name, action text, time, excerpt).
-    private var combinedAccessibilityLabel: String {
-        var parts: [String] = []
-        // Decode entities — Mastodon displayName can carry raw HTML
-        // entities ("Frank&#8217;s"), which VoiceOver would read as
-        // "Frank ampersand pound 8217 semicolon s." Same boundary fix
-        // as EmojiDisplayNameText (afcbaa9) for the visible chip
-        // adjacent to this label.
-        let name = (notification.fromAccount.displayName ?? notification.fromAccount.username).decodingHTMLEntities
-        parts.append("\(name) \(notificationText)")
-        if let post = notification.post {
-            let excerpt = PostNormalizerImpl.shared.normalizeContent(post.content)
-            if !excerpt.isEmpty {
-                parts.append("\"\(excerpt.prefix(140))\"")
-            }
-        }
-        let relative = RelativeDateTimeFormatter()
-        parts.append(relative.localizedString(for: notification.createdAt, relativeTo: Date()))
-        return parts.joined(separator: ", ")
-    }
-    
     @ViewBuilder
     private var notificationIcon: some View {
+        Group {
+            switch notification.type {
+            case .like:
+                Image(systemName: "heart.fill").foregroundStyle(Color.red.gradient)
+            case .repost:
+                Image(systemName: "arrow.2.squarepath").foregroundStyle(Color.green.gradient)
+            case .mention:
+                Image(systemName: "at").foregroundStyle(Color.blue.gradient)
+            case .follow:
+                Image(systemName: "person.badge.plus.fill").foregroundStyle(Color.purple.gradient)
+            case .poll:
+                Image(systemName: "chart.bar.fill").foregroundStyle(Color.orange.gradient)
+            case .update:
+                Image(systemName: "pencil").foregroundStyle(Color(.systemGray).gradient)
+            }
+        }
+        // Hierarchical rendering gives all the notification glyphs the
+        // same depth language used throughout the polished surfaces.
+        // .gray → systemGray for the same dark-mode-adaptive reasons
+        // we converted elsewhere.
+        .symbolRenderingMode(.hierarchical)
+    }
+
+    /// The accent color used for the quoted-post side bar — picks up the
+    /// type's identity so the row tells a coherent story end-to-end.
+    private var notificationAccentColor: Color {
         switch notification.type {
-        case .like:
-            Image(systemName: "heart.fill").foregroundColor(.red)
-        case .repost:
-            Image(systemName: "arrow.2.squarepath").foregroundColor(.green)
-        case .mention:
-            Image(systemName: "at").foregroundColor(.blue)
-        case .follow:
-            Image(systemName: "person.badge.plus.fill").foregroundColor(.purple)
-        case .poll:
-            Image(systemName: "chart.bar.fill").foregroundColor(.orange)
-        case .update:
-            Image(systemName: "pencil").foregroundColor(.gray)
+        case .like: return .red
+        case .repost: return .green
+        case .mention: return .blue
+        case .follow: return .purple
+        case .poll: return .orange
+        case .update: return .gray
         }
     }
-    
+
     private var notificationText: String {
         switch notification.type {
         case .like: return "liked your post"
@@ -452,5 +492,27 @@ struct NotificationRow: View {
         case .poll: return "a poll you voted in has ended"
         case .update: return "edited a post"
         }
+    }
+
+    private var accessibilityLabel: String {
+        let name = notification.fromAccount.displayName ?? notification.fromAccount.username
+        var label = "\(name) \(notificationText)"
+
+        // Append the post snippet so VoiceOver can hear which post got
+        // the interaction — visually present in the row, but invisible
+        // to VoiceOver without this.
+        if let post = notification.post {
+            let snippet = PostNormalizerImpl.shared.normalizeContent(post.content)
+            if !snippet.isEmpty {
+                label += ". \(snippet)"
+            }
+        }
+
+        // Append a natural-language timestamp ('5 minutes ago') rather
+        // than relying on the visible '5m' shorthand — same readability
+        // treatment we apply elsewhere.
+        label += ". \(SharedFormatters.relativeFull.localizedString(for: notification.createdAt, relativeTo: Date()))"
+
+        return label
     }
 }

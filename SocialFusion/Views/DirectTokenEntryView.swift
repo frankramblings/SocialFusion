@@ -2,7 +2,8 @@ import SwiftUI
 
 struct DirectTokenEntryView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var serverURL = ""
     @State private var accessToken = ""
@@ -13,25 +14,35 @@ struct DirectTokenEntryView: View {
 
     private enum Field { case serverURL, accessToken }
 
+    /// Focus targets so the keyboard's return-key can navigate field-to-field.
+    private enum Field { case server, token }
+    @FocusState private var focusedField: Field?
+
     var body: some View {
         Form {
             Section(header: Text("Server Information")) {
                 TextField("Server URL (e.g. mastodon.social)", text: $serverURL)
-                    .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
+                    .keyboardType(.URL)
                     .autocorrectionDisabled(true)
-                    .focused($focusedField, equals: .serverURL)
-                    .onSubmit { focusedField = .accessToken }
+                    .textContentType(.URL)
                     .submitLabel(.next)
+                    .focused($focusedField, equals: .server)
+                    .onSubmit { focusedField = .token }
             }
 
             Section(header: Text("Authentication")) {
                 SecureField("Access Token", text: $accessToken)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled(true)
-                    .focused($focusedField, equals: .accessToken)
                     .submitLabel(.done)
-                    .onSubmit { if isFormValid { addAccount() } }
+                    .focused($focusedField, equals: .token)
+                    .onSubmit {
+                        if isFormValid {
+                            focusedField = nil
+                            addAccount()
+                        }
+                    }
 
                 Text(
                     "You can obtain an access token from your Mastodon's instance settings page, under Development → Your applications."
@@ -41,52 +52,86 @@ struct DirectTokenEntryView: View {
             }
 
             Section {
-                Button(action: addAccount) {
-                    if isLoading {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle())
-                    } else {
-                        Text("Add Account")
-                            .frame(maxWidth: .infinity)
-                            .foregroundColor(.white)
+                Button {
+                    HapticEngine.tap.trigger()
+                    addAccount()
+                } label: {
+                    HStack(spacing: 8) {
+                        if isLoading {
+                            ProgressView()
+                                .scaleEffect(0.85)
+                                .tint(.white)
+                        }
+                        Text(isLoading ? "Adding…" : "Add Account")
+                            .font(.headline.weight(.semibold))
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    // White text on accent gradient (enabled) reads correctly.
+                    // When disabled, the gray background isn't dark enough for
+                    // white text — use .secondary so the label retains contrast.
+                    .foregroundColor(isFormValid ? .white : .secondary)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(
+                                isFormValid
+                                    ? AnyShapeStyle(Color.accentColor.gradient)
+                                    : AnyShapeStyle(Color(.systemGray5))
+                            )
+                            .shadow(
+                                color: isFormValid ? Color.accentColor.opacity(0.28) : .clear,
+                                radius: 10,
+                                x: 0,
+                                y: 4
+                            )
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(isFormValid ? Color.blue : Color.gray)
-                .cornerRadius(10)
+                .buttonStyle(.plain)
                 .disabled(isLoading || !isFormValid)
-                // When the button swaps Text for ProgressView during
-                // submission, VoiceOver loses the "Add Account" label.
-                // Pin both states explicitly.
-                .accessibilityLabel(isLoading ? "Adding account" : "Add Account")
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+                .accessibilityHint(isFormValid ? "Adds this account to SocialFusion" : "Fill in the server and access token to continue")
             }
 
             if let error = errorMessage {
                 Section {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.footnote)
+                    Label {
+                        Text(error)
+                            .font(.footnote)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.red.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .foregroundColor(.red)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Error: \(error)")
                 }
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
 
             if let success = successMessage {
                 Section {
-                    Text(success)
-                        .foregroundColor(.green)
-                        .font(.footnote)
+                    Label {
+                        Text(success)
+                            .font(.footnote)
+                    } icon: {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(Color.green.gradient)
+                            .symbolRenderingMode(.hierarchical)
+                    }
+                    .foregroundColor(.green)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("Success: \(success)")
                 }
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
         }
-        .onAppear {
-            // Auto-focus the server field — the only reason a user is on
-            // this sheet is to type a URL and a token. One less tap to
-            // start the flow.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                focusedField = .serverURL
-            }
-        }
-
+        // Animate the inline error/success banner appearance so they
+        // glide in rather than popping. .easeOut matches the curve
+        // used elsewhere for inline reveal.
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: errorMessage)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: successMessage)
     }
 
     private var isFormValid: Bool {
@@ -114,21 +159,30 @@ struct DirectTokenEntryView: View {
                     HapticEngine.success.trigger()
                     isLoading = false
                     successMessage = "Successfully added account: \(account.username)"
+                    HapticEngine.success.trigger()
 
                     // Clear form after success
                     serverURL = ""
                     accessToken = ""
 
-                    // Dismiss after a short delay
+                    let welcomeName = "@\(account.username)"
+
+                    // Dismiss after a short delay so the inline success
+                    // message reads, then post the global welcome toast
+                    // so the user gets a matching confirmation in the
+                    // parent view (consistent with the OAuth/Bluesky
+                    // add flows).
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        presentationMode.wrappedValue.dismiss()
+                        dismiss()
+                        ToastManager.shared.show("Welcome, \(welcomeName)", severity: .success, duration: 1.8)
                     }
                 }
             } catch {
                 await MainActor.run {
                     HapticEngine.error.trigger()
                     isLoading = false
-                    errorMessage = "Failed to add account: \(error.localizedDescription)"
+                    errorMessage = "Couldn't add account: \(error.localizedDescription)"
+                    HapticEngine.error.trigger()
                 }
             }
         }

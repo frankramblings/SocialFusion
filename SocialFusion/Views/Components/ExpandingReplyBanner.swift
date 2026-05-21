@@ -82,6 +82,20 @@ class PostParentCache: ObservableObject {
     }
 }
 
+/// Sentinel strings the Bluesky parser stores in `inReplyToUsername` when
+/// the parent post can't be loaded — not because we just don't have its
+/// handle yet, but because the AT Protocol response told us it's
+/// genuinely unfetchable. The banner detects these and renders graceful
+/// phrasing instead of "Replying to someone".
+enum ReplyParentSentinel {
+    static let blocked = "__sf_parent_blocked__"
+    static let notFound = "__sf_parent_not_found__"
+
+    static func isSentinel(_ username: String) -> Bool {
+        username == blocked || username == notFound
+    }
+}
+
 struct ExpandingReplyBanner: View {
     // MARK: - Properties
     let username: String
@@ -102,6 +116,7 @@ struct ExpandingReplyBanner: View {
     // MARK: - Environment
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @Environment(\.isLiquidGlassEnabled) private var isLiquidGlassEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Use the shared PostParentCache instance
     private var parentCache: PostParentCache { PostParentCache.shared }
@@ -110,20 +125,60 @@ struct ExpandingReplyBanner: View {
     @State private var isPressed = false
     @State private var contentHeight: CGFloat = 0
 
-    // Apple-style animation timing curves
+    // Apple-style animation timing curves. Under reduceMotion the
+    // 0.35-0.45s movement-laden curves collapse to a brief opacity
+    // pop so the expand/collapse still has *some* transition (none
+    // at all reads as broken) without the height-and-scale dance.
     private var expandAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
     }
 
     private var collapseAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
     }
 
     private var chevronAnimation: Animation {
-        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+        reduceMotion
+            ? .easeOut(duration: 0.1)
+            : .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+    }
+
+    /// True when the upstream username is a generic fallback that would
+    /// render as "someone" — i.e. PostCardView couldn't extract a handle
+    /// from the feed response, or we only have a Bluesky DID-derived stub.
+    /// These are the cases where fetching the parent post will actually
+    /// resolve the name; for any clean handle we already have, no fetch
+    /// is needed.
+    ///
+    /// Known-unfetchable parents (blocked/deleted, see `ReplyParentSentinel`)
+    /// deliberately return false — we already know the right phrasing and
+    /// shouldn't waste an API call confirming it.
+    private var needsParentResolution: Bool {
+        if ReplyParentSentinel.isSentinel(username) { return false }
+        if username.isEmpty { return true }
+        if username == "someone" { return true }
+        if username == "unknown" { return true }
+        // Bluesky DID fallback shape from BlueskyService: "user-" + last 8 of DID.
+        if username.hasPrefix("user-") && username.count == 13 { return true }
+        // Raw DIDs occasionally slip through.
+        if username.hasPrefix("did:") { return true }
+        return false
     }
 
     private var displayUsername: String {
+        // Priority 0: AT Protocol told us this parent is genuinely
+        // unfetchable. Render the human phrasing into the existing
+        // "Replying to {name}" template, e.g. "Replying to a deleted post".
+        switch username {
+        case ReplyParentSentinel.notFound: return "a deleted post"
+        case ReplyParentSentinel.blocked: return "a blocked account"
+        default: break
+        }
+
         // Priority 1: Use the real display name from the fetched parent post if available
         if let parent = parent {
             // Use display name (real name) if available and not empty.
@@ -197,14 +252,7 @@ struct ExpandingReplyBanner: View {
         return nil
     }
 
-    private var platformColor: Color {
-        switch network {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    private var platformColor: Color { network.swiftUIColor }
 
     // Liquid glass morphing state based on banner state
     private var liquidGlassMorphingState: MorphingState {
@@ -253,10 +301,11 @@ struct ExpandingReplyBanner: View {
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 .animation(chevronAnimation, value: isExpanded)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -277,7 +326,9 @@ struct ExpandingReplyBanner: View {
 
     @ViewBuilder
     private var expandedContent: some View {
-        if let parent = parent, !parent.isPlaceholder {
+        if ReplyParentSentinel.isSentinel(username) {
+            unfetchableParentContent
+        } else if let parent = parent, !parent.isPlaceholder {
             ParentPostPreview(post: parent) {
                 onParentPostTap?(parent)
             }
@@ -294,34 +345,84 @@ struct ExpandingReplyBanner: View {
         }
     }
 
-    private func errorContent(error: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundColor(.orange)
-                .font(.title2)
-            Text("Unable to load parent post")
-                .font(.caption)
+    /// Expanded state for parents the AT Protocol marked as blocked or
+    /// notFound. No retry button — there's nothing to retry.
+    private var unfetchableParentContent: some View {
+        let icon: String
+        let heading: String
+        let detail: String
+        switch username {
+        case ReplyParentSentinel.blocked:
+            icon = "hand.raised.fill"
+            heading = "Blocked account"
+            detail = "The post being replied to is from an account you've blocked or that has blocked you."
+        case ReplyParentSentinel.notFound:
+            icon = "trash"
+            heading = "Post deleted"
+            detail = "The post being replied to was deleted by its author or is no longer available."
+        default:
+            icon = "questionmark.circle"
+            heading = "Unavailable"
+            detail = "The original post can't be shown."
+        }
+        return VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(.tertiary)
+                .symbolRenderingMode(.hierarchical)
+                .accessibilityHidden(true)
+            Text(heading)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
+            Text(detail)
+                .font(.caption2)
                 .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func errorContent(error: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.title3)
+                .foregroundStyle(Color.orange.gradient)
+                .symbolRenderingMode(.hierarchical)
+            Text("Couldn't load parent post")
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.primary.opacity(0.85))
             Text(error)
                 .font(.caption2)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Retry") {
-                // Tap haptic — async parent fetch can take a beat to
-                // surface progress; matches the retry-haptic vocabulary
-                // used across the app (3929dc2, 6028402).
+            Button {
                 HapticEngine.tap.trigger()
                 fetchAttempted = false
                 fetchError = nil
                 if let parentId = parentId {
                     triggerParentFetch(parentId: parentId)
                 }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.clockwise")
+                    Text("Try Again")
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(Color.accentColor.opacity(0.14))
+                )
             }
-            .font(.caption)
-            .foregroundColor(.blue)
+            .buttonStyle(.plain)
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 14)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
     }
@@ -358,9 +459,11 @@ struct ExpandingReplyBanner: View {
         .contentShape(Rectangle())
         .onTapGesture {
             if let parentId = parentId {
+                HapticEngine.tap.trigger()
                 triggerParentFetch(parentId: parentId)
             }
         }
+        .accessibilityHint("Loads the original post this is replying to")
     }
 
     private var cornerRadius: CGFloat {
@@ -412,9 +515,12 @@ struct ExpandingReplyBanner: View {
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    isPressed = pressing
-                    if pressing {
-                        HapticEngine.tap.trigger()
+                    // Visual press feedback only — the haptic fires on the
+                    // actual action (handleBannerTap), not on press-down,
+                    // to avoid the double-buzz that comes from layering a
+                    // long-press tracker on top of a Button.
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = pressing
                     }
                 }, perform: {}
             )
@@ -470,12 +576,14 @@ struct ExpandingReplyBanner: View {
                         "✅ ExpandingReplyBanner: Found cached parent: \(cachedPost.authorUsername)"
                     )
                     #endif
-                } else {
-                    #if DEBUG
-                    print(
-                        "🔍 ExpandingReplyBanner: No cached parent found for key: \(cacheKey)"
-                    )
-                    #endif
+                } else if needsParentResolution {
+                    // The upstream handle is a generic fallback ("someone",
+                    // a DID stub, etc.). The proactive timeline-wide prefetch
+                    // is batched and a fast scroller can outrun it, so kick
+                    // off a silent on-appear fetch for just this banner.
+                    // PostParentCache dedupes by id, so this won't duplicate
+                    // an in-flight fetch.
+                    triggerParentFetch(parentId: parentId, silent: true)
                 }
             }
         }
@@ -506,8 +614,22 @@ struct ExpandingReplyBanner: View {
         onBannerTap?()
     }
 
-    private func triggerParentFetch(parentId: String) {
-        // Skip if already loading, attempted, or if we already have the parent
+    private func triggerParentFetch(parentId: String, silent: Bool = false) {
+        // Known-unfetchable parents (blocked / deleted): no point hitting
+        // the API — the AT Protocol already told us during feed parsing.
+        // The expanded state renders a graceful message instead.
+        if ReplyParentSentinel.isSentinel(username) {
+            return
+        }
+
+        // Skip if already loading, attempted, or if we already have the parent.
+        // Also skip if the shared cache already has it — populated by either
+        // SocialServiceManager.proactivelyFetchParentPosts or a prior banner.
+        let cacheKey = "\(network.rawValue):\(parentId)"
+        if let cached = parentCache.getCachedPost(id: cacheKey) {
+            parent = cached
+            return
+        }
         guard !isLoading && !fetchAttempted && parent == nil else {
             #if DEBUG
             print(
@@ -521,7 +643,12 @@ struct ExpandingReplyBanner: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
 
-            isLoading = true
+            // For silent (on-appear) resolution, don't flash the ProgressView
+            // in the banner header — the only visible effect should be the
+            // name updating from "someone" to the real handle.
+            if !silent {
+                isLoading = true
+            }
             fetchAttempted = true
             fetchError = nil
 
@@ -544,8 +671,6 @@ struct ExpandingReplyBanner: View {
 
                 if let post = fetchedPost {
                     parent = post
-                    // Use the same cache key format as SocialServiceManager
-                    let cacheKey = "\(network.rawValue):\(parentId)"
                     parentCache.cache[cacheKey] = post
                     #if DEBUG
                     print(
@@ -609,10 +734,10 @@ struct ParentPostSkeleton: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     // Username skeleton with liquid glass
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color(.systemBackground))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
                                 .fill(.ultraThinMaterial)
                         )
                         .frame(width: 85, height: 14)
@@ -620,10 +745,10 @@ struct ParentPostSkeleton: View {
                             variant: .clear, intensity: 0.5, morphingState: .transitioning)
 
                     // Handle skeleton with liquid glass
-                    RoundedRectangle(cornerRadius: 4)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color(.systemBackground))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 4)
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
                                 .fill(.ultraThinMaterial)
                         )
                         .frame(width: 65, height: 11)
@@ -634,10 +759,10 @@ struct ParentPostSkeleton: View {
                 Spacer()
 
                 // Time skeleton with liquid glass
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(width: 35, height: 11)
@@ -647,30 +772,30 @@ struct ParentPostSkeleton: View {
 
             // Content skeleton with varied widths and liquid glass effects
             VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(height: 14)
                     .advancedLiquidGlass(
                         variant: .clear, intensity: 0.5, morphingState: .transitioning)
 
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(width: 220, height: 14)
                     .advancedLiquidGlass(
                         variant: .clear, intensity: 0.4, morphingState: .transitioning)
 
-                RoundedRectangle(cornerRadius: 4)
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
                     .fill(Color(.systemBackground))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 4)
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(.ultraThinMaterial)
                     )
                     .frame(width: 160, height: 14)
@@ -683,8 +808,13 @@ struct ParentPostSkeleton: View {
             // Use Task to defer state updates outside view rendering cycle
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 1_000_000)  // 0.001 seconds
-                // Skip the looping shimmer when reduce-motion is on.
-                guard !reduceMotion else { return }
+                // Reduce-motion: park the shimmer center-stage so the skeleton
+                // still reads as "loading" but doesn't animate.
+                if reduceMotion {
+                    shimmerOffset = 0
+                    return
+                }
+                // Start gentle shimmer animation
                 withAnimation(
                     .easeInOut(duration: 2.0)
                         .repeatForever(autoreverses: false)

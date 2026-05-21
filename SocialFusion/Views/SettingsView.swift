@@ -5,8 +5,7 @@ import UserNotifications
 
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
-    @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
-    @EnvironmentObject private var accessibilityPreferences: AccessibilityPreferences
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
@@ -27,6 +26,7 @@ struct SettingsView: View {
     @State private var showClearDatabaseAlert = false
     @State private var showClearOtherAlert = false
     @State private var clearingInProgress = false
+    @State private var showLogoutConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -80,11 +80,15 @@ struct SettingsView: View {
                     .foregroundColor(.secondary)
                     
                     NavigationLink(destination: MutedKeywordsView().environmentObject(serviceManager)) {
-                        HStack {
+                        HStack(spacing: 12) {
+                            SettingsIcon(symbol: "eye.slash", tint: .orange)
                             Text("Muted Keywords")
                             Spacer()
                             Text("\(serviceManager.currentBlockedKeywords.count)")
                                 .foregroundColor(.secondary)
+                                .monospacedDigit()
+                                .contentTransition(.numericText(value: Double(serviceManager.currentBlockedKeywords.count)))
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: serviceManager.currentBlockedKeywords.count)
                         }
                         // Combine the row's title and count so VoiceOver
                         // hears "Muted Keywords, 7" as a single
@@ -260,28 +264,40 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("About")) {
-                    Button("About SocialFusion") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showingAbout = true
+                    } label: {
+                        settingsRow(symbol: "info.circle", tint: .accentColor, title: "About SocialFusion")
                     }
 
-                    Button("Privacy Policy") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showingPrivacyPolicy = true
+                    } label: {
+                        settingsRow(symbol: "hand.raised", tint: .blue, title: "Privacy Policy")
                     }
 
-                    Button("Terms of Service") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showingTermsOfService = true
+                    } label: {
+                        settingsRow(symbol: "doc.text", tint: .gray, title: "Terms of Service")
                     }
 
-                    HStack {
+                    HStack(spacing: 12) {
+                        SettingsIcon(symbol: "tag", tint: .secondary)
                         Text("Version")
                         Spacer()
                         Text("1.0.0")
                             .foregroundColor(.secondary)
+                            .monospacedDigit()
                     }
                 }
 
                 Section(header: Text("Storage")) {
-                    HStack {
+                    HStack(spacing: 12) {
+                        SettingsIcon(symbol: "internaldrive", tint: .indigo)
                         Text("Cache Size")
                         Spacer()
                         if isCalculatingSize {
@@ -291,29 +307,43 @@ struct SettingsView: View {
                         } else {
                             Text(formattedSize(totalCacheSize))
                                 .foregroundColor(.secondary)
+                                .monospacedDigit()
+                                // Cache size morphs as bytes change after
+                                // a clear — smooth the digit transition.
+                                .contentTransition(.numericText())
+                                .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: totalCacheSize)
                         }
                     }
                     .onAppear {
                         Task { await calculateTotalCacheSize() }
                     }
 
-                    Button("Clear Image Cache") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showClearImageAlert = true
+                    } label: {
+                        settingsRow(symbol: "photo.stack", tint: .orange, title: "Clear Image Cache")
                     }
                     .disabled(clearingInProgress)
-                    .accessibilityHint("Opens a confirmation before removing all cached profile and post images.")
+                    .accessibilityHint("Opens a confirmation to clear cached images")
 
-                    Button("Reset Post Database") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showClearDatabaseAlert = true
+                    } label: {
+                        settingsRow(symbol: "arrow.counterclockwise.circle", tint: .orange, title: "Reset Post Database")
                     }
                     .disabled(clearingInProgress)
-                    .accessibilityHint("Opens a confirmation before clearing the local post database. Timelines will rebuild on next refresh.")
+                    .accessibilityHint("Opens a confirmation to reset the offline post cache")
 
-                    Button("Clear Other Caches") {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showClearOtherAlert = true
+                    } label: {
+                        settingsRow(symbol: "trash", tint: .orange, title: "Clear Other Caches")
                     }
                     .disabled(clearingInProgress)
-                    .accessibilityHint("Opens a confirmation before removing link-preview and metadata caches.")
+                    .accessibilityHint("Opens a confirmation to clear link, emoji, and search caches")
                 }
 
                 #if DEBUG
@@ -331,15 +361,18 @@ struct SettingsView: View {
                 #endif
 
                 Section {
-                    Button(role: .destructive, action: {
-                        Task {
-                            await serviceManager.logout()
-                        }
-                    }) {
-                        Text("Log Out All Accounts")
-                            .foregroundColor(.red)
+                    Button {
+                        HapticEngine.warning.trigger()
+                        showLogoutConfirmation = true
+                    } label: {
+                        settingsRow(
+                            symbol: "rectangle.portrait.and.arrow.right",
+                            tint: .red,
+                            title: "Log Out All Accounts",
+                            titleColor: .red
+                        )
                     }
-                    .accessibilityHint("Removes all signed-in accounts from this device.")
+                    .accessibilityHint("Opens a confirmation to sign out of every connected account")
                 }
             }
             .navigationTitle("Settings")
@@ -358,10 +391,12 @@ struct SettingsView: View {
                 NavigationStack {
                     ProfileImageDebugView()
                         .toolbar {
-                            ToolbarItem(placement: .navigationBarTrailing) {
+                            ToolbarItem(placement: .confirmationAction) {
                                 Button("Done") {
+                                    HapticEngine.tap.trigger()
                                     showingDebugOptions = false
                                 }
+                                .fontWeight(.semibold)
                             }
                         }
                 }
@@ -379,6 +414,7 @@ struct SettingsView: View {
             }
             .alert("Clear Image Cache", isPresented: $showClearImageAlert) {
                 Button("Clear", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     Task { await clearImageCache() }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -387,6 +423,7 @@ struct SettingsView: View {
             }
             .alert("Reset Post Database", isPresented: $showClearDatabaseAlert) {
                 Button("Reset", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     Task { await clearPostDatabase() }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -395,11 +432,24 @@ struct SettingsView: View {
             }
             .alert("Clear Other Caches", isPresented: $showClearOtherAlert) {
                 Button("Clear", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     Task { await clearOtherCaches() }
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This will clear link preview, emoji, media dimension, and search caches.")
+            }
+            // Sign out is an irreversible, multi-account-affecting
+            // action — accidental taps were one tap away from
+            // removing every credential. Confirm before logout.
+            .alert("Log Out All Accounts?", isPresented: $showLogoutConfirmation) {
+                Button("Log Out", role: .destructive) {
+                    HapticEngine.warning.trigger()
+                    Task { await serviceManager.logout() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You'll need to sign back in to use SocialFusion. Drafts and timeline state will be cleared.")
             }
         }
     }
@@ -407,9 +457,7 @@ struct SettingsView: View {
     // MARK: - Storage Helpers
 
     private func formattedSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
+        SharedFormatters.byteCount.string(fromByteCount: bytes)
     }
 
     private func calculateTotalCacheSize() async {
@@ -439,6 +487,9 @@ struct SettingsView: View {
 
         ImageCache.shared.clearCache()
         await calculateTotalCacheSize()
+        await MainActor.run {
+            ToastManager.shared.show("Image cache cleared", severity: .success, duration: 1.6)
+        }
     }
 
     private func clearPostDatabase() async {
@@ -448,6 +499,9 @@ struct SettingsView: View {
         await TimelineSwiftDataStore.shared.clearAll()
         try? await serviceManager.fetchTimeline(force: true)
         await calculateTotalCacheSize()
+        await MainActor.run {
+            ToastManager.shared.show("Post database reset", severity: .success, duration: 1.6)
+        }
     }
 
     private func clearOtherCaches() async {
@@ -459,56 +513,149 @@ struct SettingsView: View {
         MediaDimensionCache.shared.clearAll()
         SearchCache.shared.clear()
         await calculateTotalCacheSize()
+        await MainActor.run {
+            ToastManager.shared.show("Other caches cleared", severity: .success, duration: 1.6)
+        }
+    }
+
+    /// Standard settings row with a leading tinted icon tile + title.
+    /// Matches the iOS Settings app convention so each row has a colored
+    /// anchor on the leading edge, making the form quicker to scan.
+    @ViewBuilder
+    fileprivate func settingsRow(
+        symbol: String,
+        tint: Color,
+        title: String,
+        titleColor: Color = .primary
+    ) -> some View {
+        HStack(spacing: 12) {
+            SettingsIcon(symbol: symbol, tint: tint)
+            Text(title)
+                .foregroundColor(titleColor)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+/// A 28pt tinted rounded square containing an SF Symbol — the visual
+/// language Apple's own Settings app uses for row leading icons.
+private struct SettingsIcon: View {
+    let symbol: String
+    let tint: Color
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(tint.gradient)
+            )
+            .accessibilityHidden(true)
     }
 }
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
 
+    private var bundleVersion: String {
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        return "Version \(short) (\(build))"
+    }
+
+    private var copyrightYear: String {
+        String(Calendar.current.component(.year, from: Date()))
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    Image(systemName: "globe.americas.fill")
-                        .font(.system(size: 80))
-                        .foregroundColor(Color("PrimaryColor"))
-                        .padding(.top, 40)
+                VStack(spacing: 24) {
+                    // Logo composition — the brand purple + blue circles fusing,
+                    // mirroring the launch animation. Static here since it's a
+                    // header element rather than a moment.
+                    ZStack {
+                        // Outer glow
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        Color(red: 0.54, green: 0.39, blue: 1.00).opacity(0.22),
+                                        Color.clear,
+                                    ],
+                                    center: .center,
+                                    startRadius: 4,
+                                    endRadius: 90
+                                )
+                            )
+                            .frame(width: 180, height: 180)
 
-                    Text("SocialFusion")
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+                        // Mastodon purple
+                        Circle()
+                            .fill(Color(red: 0.54, green: 0.39, blue: 1.00))
+                            .frame(width: 64, height: 64)
+                            .offset(x: -16)
+                            .blendMode(.plusLighter)
 
-                    Text("Version 1.0.0")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        // Bluesky blue
+                        Circle()
+                            .fill(Color(red: 0.00, green: 0.59, blue: 1.00))
+                            .frame(width: 64, height: 64)
+                            .offset(x: 16)
+                            .blendMode(.plusLighter)
 
-                    Divider()
-                        .padding(.horizontal, 40)
+                        // Center fusion lens
+                        Circle()
+                            .fill(Color(red: 0.11, green: 0.91, blue: 1.00))
+                            .frame(width: 24, height: 24)
+                            .blur(radius: 4)
+                    }
+                    .padding(.top, 36)
+                    .accessibilityHidden(true)
+
+                    VStack(spacing: 6) {
+                        Text("SocialFusion")
+                            .font(.largeTitle.weight(.bold))
+                            .accessibilityAddTraits(.isHeader)
+
+                        Text(bundleVersion)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundColor(.secondary)
+                    }
 
                     Text(
                         "A streamlined, modern native iOS social media aggregator that seamlessly integrates content from Mastodon (ActivityPub) and Bluesky (AT Protocol) into one intuitive interface."
                     )
                     .font(.body)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 20)
+                    .foregroundColor(.primary.opacity(0.85))
+                    .padding(.horizontal, 28)
+                    .padding(.top, 8)
 
-                    Spacer()
+                    Spacer(minLength: 24)
 
-                    Text("© 2023 SocialFusion Team")
+                    Text("© \(copyrightYear) SocialFusion")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 24)
                 }
+                .frame(maxWidth: .infinity)
                 .padding()
             }
-
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    dismiss()
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
                 }
-                .keyboardShortcut(.escape, modifiers: []))
+            }
         }
     }
 }
@@ -523,15 +670,27 @@ struct WebContentView: View {
         NavigationStack {
             ScrollView {
                 Text(content)
-                    .padding()
+                    .font(.body)
+                    .foregroundColor(.primary.opacity(0.9))
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 16)
             }
-
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    dismiss()
-                })
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
         }
     }
 }

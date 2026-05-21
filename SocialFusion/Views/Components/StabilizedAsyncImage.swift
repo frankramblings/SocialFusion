@@ -10,6 +10,7 @@ struct StabilizedAsyncImage: View {
 
     @State private var imageSize: CGSize = .zero
     @State private var hasLoaded = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Stabilize the URL to prevent cancellation during view updates
     private let stableURL: URL?
@@ -38,24 +39,29 @@ struct StabilizedAsyncImage: View {
                     .resizable()
                     .aspectRatio(aspectRatio, contentMode: contentMode)
                     .frame(maxWidth: .infinity, maxHeight: idealHeight)
-                    .cornerRadius(cornerRadius)
-                    .clipped()
-                    .transition(.opacity.combined(with: .scale(scale: 0.95)))
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    // Drop the scale-in on Reduce Motion — the
+                    // fade-in alone communicates "image arrived"
+                    // without the subtle pop that the setting is
+                    // meant to suppress.
+                    .transition(reduceMotion
+                                ? .opacity
+                                : .opacity.combined(with: .scale(scale: 0.95)))
                     .onAppear {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                             hasLoaded = true
                         }
                     }
 
             case .failure(_):
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(Color(.systemGray5))
                     .frame(maxWidth: .infinity, idealHeight: idealHeight)
-                    .cornerRadius(cornerRadius)
                     .overlay(
                         Image(systemName: "photo")
                             .font(.title2)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(Color(.systemGray2).gradient)
+                            .symbolRenderingMode(.hierarchical)
                     )
 
             case .empty:
@@ -65,10 +71,9 @@ struct StabilizedAsyncImage: View {
                         cornerRadius: cornerRadius
                     )
                 } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.1))
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(Color(.systemGray6))
                         .frame(maxWidth: .infinity, idealHeight: idealHeight)
-                        .cornerRadius(cornerRadius)
                 }
 
             @unknown default:
@@ -76,46 +81,55 @@ struct StabilizedAsyncImage: View {
             }
         }
         .id(stableURL?.absoluteString ?? "no-url")  // Stable ID to prevent cancellation
-        .animation(.easeInOut(duration: 0.2), value: hasLoaded)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: hasLoaded)
     }
 }
 
-/// Loading state for stabilized images
+/// Loading state for stabilized images.
+///
+/// Drives the shimmer phase via TimelineView so all visible image
+/// skeletons pulse in perfect sync against the system clock — and
+/// to avoid AttributeGraph cycles that the older
+/// `withAnimation(.repeatForever)` + `@State phase` pattern can
+/// trigger when used inside other view updates. Matches the
+/// SkeletonPostCard + StabilizedLinkPreview shimmer pattern.
 private struct StabilizedImageLoadingView: View {
     let height: CGFloat
     let cornerRadius: CGFloat
-    @State private var phase: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Rectangle()
-            .fill(
-                LinearGradient(
-                    stops: [
-                        .init(color: Color.gray.opacity(0.1), location: phase - 0.3),
-                        .init(color: Color.gray.opacity(0.3), location: phase),
-                        .init(color: Color.gray.opacity(0.1), location: phase + 0.3),
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
-            .frame(
-                maxWidth: .infinity,
-                idealHeight: height,
-                maxHeight: height
-            )
-            .cornerRadius(cornerRadius)
-            .onAppear {
-                // Skip the looping shimmer when reduce-motion is on. The
-                // static mid-phase gradient still reads as a placeholder
-                // without the moving sweep.
-                guard !reduceMotion else { return }
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                    phase = 1.3
+        Group {
+            if reduceMotion {
+                // Static fallback — same band of color, no motion.
+                Rectangle().fill(Color(.systemGray5))
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let elapsed = context.date.timeIntervalSinceReferenceDate
+                    let period: Double = 1.5
+                    let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+                    Rectangle().fill(shimmerGradient(phase: phase))
                 }
             }
-            .accessibilityHidden(true)
+        }
+        .frame(
+            maxWidth: .infinity,
+            idealHeight: height,
+            maxHeight: height
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    private func shimmerGradient(phase: CGFloat) -> LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+                .init(color: Color(.systemGray4), location: phase),
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }
 

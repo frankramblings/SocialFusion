@@ -22,6 +22,7 @@ struct FullscreenMediaView: View {
     @State private var isSharing: Bool = false
     @State private var videoPlayers: [URL: AVPlayer] = [:]
     @State private var currentPlayer: AVPlayer? = nil
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         media: Post.Attachment, allMedia: [Post.Attachment], showAltTextInitially: Bool = false,
@@ -92,7 +93,11 @@ struct FullscreenMediaView: View {
                                             .onEnded { _ in
                                                 previousScale = 1.0
                                                 if currentScale < 1.0 {
-                                                    withAnimation {
+                                                    // Snap back from pinched-too-small with a
+                                                    // spring — feels like elasticity returning,
+                                                    // not just a reset. ReduceMotion users get
+                                                    // a flat short easeOut instead.
+                                                    withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.32, dampingFraction: 0.78)) {
                                                         currentScale = 1.0
                                                         currentOffset = .zero
                                                         previousOffset = .zero
@@ -156,8 +161,9 @@ struct FullscreenMediaView: View {
                                                     if hasMultipleImages && isPrimarilyHorizontal {
                                                         // Reset drag offset and let TabView handle the horizontal swipe
                                                         withAnimation(
-                                                            .spring(
-                                                                response: 0.3, dampingFraction: 0.8)
+                                                            reduceMotion
+                                                                ? nil
+                                                                : .spring(response: 0.3, dampingFraction: 0.8)
                                                         ) {
                                                             dragOffset = .zero
                                                         }
@@ -190,14 +196,15 @@ struct FullscreenMediaView: View {
 
                                                     if shouldDismiss {
                                                         // Swipe to dismiss
-                                                        withAnimation(.easeOut(duration: 0.3)) {
+                                                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) {
                                                             onDismiss()
                                                         }
                                                     } else {
                                                         // Reset if swipe wasn't strong enough
                                                         withAnimation(
-                                                            .spring(
-                                                                response: 0.3, dampingFraction: 0.8)
+                                                            reduceMotion
+                                                                ? nil
+                                                                : .spring(response: 0.3, dampingFraction: 0.8)
                                                         ) {
                                                             dragOffset = .zero
                                                         }
@@ -207,8 +214,10 @@ struct FullscreenMediaView: View {
                                     )
                                 )
                                 .onTapGesture(count: 2) {
-                                    // Double tap to zoom in/out
-                                    withAnimation {
+                                    // Double tap zoom — spring sells the
+                                    // 'snap to' feel like the Photos app.
+                                    // ReduceMotion users get a flat easeOut.
+                                    withAnimation(reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.36, dampingFraction: 0.78)) {
                                         if currentScale > 1.0 {
                                             currentScale = 1.0
                                             currentOffset = .zero
@@ -220,7 +229,7 @@ struct FullscreenMediaView: View {
                                     }
                                 }
                                 .onTapGesture(count: 1) {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                                         overlaysVisible.toggle()
                                         if !overlaysVisible { showAltText = false }
                                     }
@@ -231,14 +240,10 @@ struct FullscreenMediaView: View {
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .never))
                 .onChange(of: currentIndex) {
-                    // Selection haptic on page change — matches Photos.app's
-                    // subtle tactile cue when scrubbing between images. Fires
-                    // for both swipe and arrow-key navigation since both
-                    // funnel through this onChange.
-                    HapticEngine.selection.trigger()
-
-                    // Reset zoom and drag when switching images
-                    withAnimation {
+                    // Reset zoom + drag when paging between images. Quick
+                    // easeOut so the next image arrives un-zoomed and
+                    // centered without a visible 'springing back' moment.
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
                         currentScale = 1.0
                         currentOffset = .zero
                         previousOffset = .zero
@@ -253,17 +258,20 @@ struct FullscreenMediaView: View {
                         HStack {
                             Spacer()
                             Button(action: {
-                                withAnimation(.easeOut(duration: 0.3)) {
+                                HapticEngine.tap.trigger()
+                                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.3)) {
                                     onDismiss()
                                 }
                             }) {
                                 Image(systemName: "xmark")
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.white)
-                                    .padding(10)
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(GlassyButtonStyle())
                             .accessibilityLabel("Close fullscreen viewer")
+                            .accessibilityHint("Returns to the previous screen")
                             .padding(.trailing, 8)
                         }
                         .padding(.top, 12)
@@ -289,10 +297,10 @@ struct FullscreenMediaView: View {
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 16)
                                         .background(
-                                            RoundedRectangle(cornerRadius: 16)
+                                            RoundedRectangle(cornerRadius: 16, style: .continuous)
                                                 .fill(Color.black.opacity(0.92))
                                                 .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
+                                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                                                         .stroke(
                                                             Color.white.opacity(0.15), lineWidth: 1)
                                                 )
@@ -310,77 +318,85 @@ struct FullscreenMediaView: View {
                             HStack(alignment: .bottom) {
                                 // Info button (lower left) - only show if alt text exists
                                 if let altText = allMedia[currentIndex].altText, !altText.isEmpty {
-                                    Button(action: {
-                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                    Button {
+                                        HapticEngine.selection.trigger()
+                                        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
                                             showAltText.toggle()
                                         }
-                                        HapticEngine.tap.trigger()
-                                    }) {
+                                    } label: {
                                         Text("ALT")
-                                            .font(.caption2)
-                                            .fontWeight(.medium)
+                                            .font(.caption2.weight(.bold))
                                             .foregroundColor(showAltText ? .black : .white)
-                                            .padding(.horizontal, 6)
-                                            .padding(.vertical, 3)
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
                                             .background(
                                                 showAltText
-                                                    ? Color.yellow : Color.white.opacity(0.2),
+                                                    ? Color.yellow : Color.white.opacity(0.22),
                                                 in: Capsule()
+                                            )
+                                            .overlay(
+                                                Capsule()
+                                                    .strokeBorder(
+                                                        showAltText ? Color.clear : Color.white.opacity(0.15),
+                                                        lineWidth: 0.5
+                                                    )
                                             )
                                             .padding(10)
                                     }
                                     .buttonStyle(GlassyButtonStyle())
-                                    // Label reflects the action a tap will
-                                    // perform — Show when alt is hidden,
-                                    // Hide when it's already shown — so
-                                    // VoiceOver users land on a
-                                    // self-describing toggle target.
-                                    .accessibilityLabel(showAltText
-                                        ? "Hide image description"
-                                        : "Show image description")
-                                    .accessibilityValue(showAltText ? "Showing" : "Hidden")
-                                    .accessibilityHint("Toggles the alt text overlay.")
+                                    .accessibilityLabel("Image description")
+                                    .accessibilityValue(showAltText ? "Visible" : "Hidden")
+                                    .accessibilityHint(showAltText ? "Hides the description" : "Shows the description")
+                                    .accessibilityAddTraits(showAltText ? .isSelected : [])
                                 }
 
                                 Spacer()
 
                                 // Share button (lower right)
                                 Button(action: {
+                                    HapticEngine.tap.trigger()
                                     shareMedia(at: currentIndex)
                                 }) {
-                                    Image(systemName: isSharing ? "checkmark" : "square.and.arrow.up")
+                                    Image(systemName: isSharing ? "checkmark.circle.fill" : "square.and.arrow.up")
                                         .font(.title2)
                                         .foregroundColor(isSharing ? .green : .white)
+                                        .contentTransition(.symbolEffect(.replace.offUp))
                                         .padding(12)
                                 }
                                 .buttonStyle(GlassyButtonStyle())
                                 .disabled(isSharing)
-                                .accessibilityLabel(isSharing ? "Sharing..." : "Share image")
+                                .accessibilityLabel(isSharing ? "Sharing" : "Share image")
+                                .accessibilityHint(isSharing ? "" : "Opens share options for this image")
                             }
 
-                            // Page indicator dots (only if multiple images)
+                            // Page indicator dots (only if multiple images).
+                            // Active dot elongates to a pill, matching iOS's
+                            // native page-control style — gives the user a
+                            // clear sense of where they are in the carousel.
                             if allMedia.count > 1 {
-                                HStack(spacing: 8) {
+                                HStack(spacing: 6) {
                                     ForEach(0..<allMedia.count, id: \.self) { idx in
-                                        Circle()
-                                            .fill(
-                                                idx == currentIndex
-                                                    ? Color.white : Color.white.opacity(0.3)
-                                            )
-                                            .frame(width: 7, height: 7)
+                                        let isActive = idx == currentIndex
+                                        Capsule(style: .continuous)
+                                            .fill(isActive ? Color.white : Color.white.opacity(0.36))
+                                            .frame(width: isActive ? 18 : 7, height: 7)
+                                            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.78), value: isActive)
                                     }
                                 }
-                                .padding(8)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
                                 .background(.ultraThinMaterial)
-                                .clipShape(Capsule())
-                                .shadow(color: Color.black.opacity(0.15), radius: 4, x: 0, y: 1)
+                                .clipShape(Capsule(style: .continuous))
+                                .shadow(color: Color.black.opacity(0.2), radius: 6, x: 0, y: 2)
+                                .environment(\.colorScheme, .dark)
+                                .accessibilityLabel("Image \(currentIndex + 1) of \(allMedia.count)")
                             }
                         }
                         .padding(.horizontal, 16)
                         .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
                     }
-                    .animation(.easeInOut(duration: 0.2), value: overlaysVisible)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: overlaysVisible)
                 }
 
             }
@@ -469,13 +485,13 @@ struct FullscreenMediaView: View {
                     .resizable()
                     .scaledToFit()
             } placeholder: {
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .scaleEffect(2)
-                    Text("Loading...")
-                        .foregroundColor(.white)
-                        .font(.subheadline)
+                        .scaleEffect(1.6)
+                    Text("Loading image")
+                        .foregroundColor(.white.opacity(0.85))
+                        .font(.subheadline.weight(.medium))
                 }
             }
             // Use a stable ID based on URL only (not attachment.id) to allow cache reuse
@@ -746,7 +762,7 @@ private struct FullscreenVideoPlayerView: View {
                     ProgressView()
                         .progressViewStyle(CircularProgressViewStyle(tint: .white))
                         .scaleEffect(2)
-                    Text("Loading video...")
+                    Text("Loading video")
                         .foregroundColor(.white)
                         .font(.subheadline)
                 }

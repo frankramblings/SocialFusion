@@ -3,6 +3,7 @@ import UIKit
 
 struct AccountsView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingAddAccount = false
     @State private var selectedPlatform: SocialPlatform = .mastodon
 
@@ -11,36 +12,51 @@ struct AccountsView: View {
     @State private var showDebugInfo = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             List {
                 // "All" selection option
                 Section {
                     Button(action: {
                         toggleSelection(id: "all")
                     }) {
-                        HStack {
+                        HStack(spacing: 12) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.purple.opacity(0.2))
+                                    .fill(Color.accentColor.opacity(0.16))
                                     .frame(width: 32, height: 32)
 
                                 Text("All")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(.purple)
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundColor(.accentColor)
                             }
 
+                            let isActive = serviceManager.selectedAccountIds.contains("all")
                             Text("All Accounts")
                                 .font(.headline)
+                                .fontWeight(isActive ? .semibold : .regular)
 
                             Spacer()
 
-                            if serviceManager.selectedAccountIds.contains("all") {
-                                Image(systemName: "checkmark")
-                                    .foregroundColor(.blue)
+                            if isActive {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(.white, Color.accentColor)
+                                    .symbolRenderingMode(.palette)
+                                    .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                             }
                         }
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .buttonStyle(.plain)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel("All Accounts")
+                    .accessibilityHint(
+                        serviceManager.selectedAccountIds.contains("all")
+                            ? "Currently selected. Tap to deselect"
+                            : "Tap to select all accounts"
+                    )
+                    .accessibilityAddTraits(
+                        serviceManager.selectedAccountIds.contains("all") ? .isSelected : []
+                    )
                 }
 
                 // Accounts needing re-authentication section
@@ -48,11 +64,10 @@ struct AccountsView: View {
                     !tokenRefreshService.accountsNeedingReauth.isEmpty
                 {
                     Section(
-                        header: HStack {
+                        header: HStack(spacing: 6) {
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundColor(.orange)
-                                // Decorative — title text reads the state.
-                                .accessibilityHidden(true)
+                                .foregroundStyle(Color.orange.gradient)
+                                .symbolRenderingMode(.hierarchical)
                             Text("Authentication Required")
                                 .foregroundColor(.orange)
                         }
@@ -66,72 +81,47 @@ struct AccountsView: View {
                 // Mastodon accounts section
                 Section(header: Text("Mastodon")) {
                     if serviceManager.mastodonAccounts.isEmpty {
-                        Button(action: {
-                            HapticEngine.tap.trigger()
-                            selectedPlatform = .mastodon
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Mastodon Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .mastodon, label: "Add Mastodon Account")
                     } else {
                         ForEach(serviceManager.mastodonAccounts) { account in
                             accountSelectionRow(account)
                         }
-
-                        Button(action: {
-                            HapticEngine.tap.trigger()
-                            selectedPlatform = .mastodon
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Another Mastodon Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .mastodon, label: "Add Another Mastodon Account")
                     }
                 }
 
                 // Bluesky accounts section
                 Section(header: Text("Bluesky")) {
                     if serviceManager.blueskyAccounts.isEmpty {
-                        Button(action: {
-                            HapticEngine.tap.trigger()
-                            selectedPlatform = .bluesky
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Bluesky Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .bluesky, label: "Add Bluesky Account")
                     } else {
                         ForEach(serviceManager.blueskyAccounts) { account in
                             accountSelectionRow(account)
                         }
-
-                        Button(action: {
-                            HapticEngine.tap.trigger()
-                            selectedPlatform = .bluesky
-                            showingAddAccount = true
-                        }) {
-                            Label("Add Another Bluesky Account", systemImage: "plus.circle")
-                        }
+                        addAccountButton(platform: .bluesky, label: "Add Another Bluesky Account")
                     }
                 }
 
                 Section(header: Text("Settings")) {
                     NavigationLink(destination: SettingsView()) {
-                        HStack {
-                            Image(systemName: "gear")
-                                .frame(width: 32, height: 32)
+                        HStack(spacing: 12) {
+                            tintedTile(symbol: "gear", tint: .gray)
                             Text("Settings")
                         }
                     }
 
                     // Hidden debug toggle
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         showDebugInfo.toggle()
-                    }) {
-                        HStack {
-                            Image(systemName: "ladybug")
-                                .frame(width: 32, height: 32)
+                    } label: {
+                        HStack(spacing: 12) {
+                            tintedTile(symbol: "ladybug.fill", tint: .green)
                             Text("Debug Info")
+                                .foregroundColor(.primary)
                         }
                     }
+                    .accessibilityHint(showDebugInfo ? "Hides debug information" : "Shows debug information")
                 }
             }
 
@@ -146,16 +136,9 @@ struct AccountsView: View {
                     accountToDelete = nil
                 }
                 Button("Remove", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     if let account = accountToDelete {
-                        // Success haptic — account removal is a
-                        // protective destructive action and the visual
-                        // change (account vanishes, timeline refreshes
-                        // to "all") happens asynchronously. The haptic
-                        // confirms the boundary held the moment the
-                        // user taps Remove, before the visible state
-                        // catches up. Matches the iMessage "leave
-                        // conversation" pattern (5ba617c-adjacent).
-                        HapticEngine.success.trigger()
+                        let removedName = account.displayName ?? "@\(account.username)"
                         Task {
                             await serviceManager.removeAccount(account)
                             // Remove account from selected IDs if it was selected
@@ -172,12 +155,17 @@ struct AccountsView: View {
 
                             // Update service manager's selection
                             serviceManager.selectedAccountIds = serviceManager.selectedAccountIds
+
+                            await MainActor.run {
+                                ToastManager.shared.show("Removed \(removedName)", severity: .success, duration: 1.6)
+                            }
                         }
                     }
                 }
             } message: {
+                let name = accountToDelete?.displayName ?? accountToDelete?.username ?? "this account"
                 Text(
-                    "Are you sure you want to remove \(accountToDelete?.displayName ?? accountToDelete?.username ?? "this account")? This action cannot be undone."
+                    "Remove \(name) from this device? You can add it again later."
                 )
             }
             .onAppear {
@@ -195,6 +183,37 @@ struct AccountsView: View {
     }
 
     // Account row with selection toggle
+    /// Colored leading-icon tile matching SettingsView's SettingsIcon
+    /// pattern. Mirrors ContentView's tintedTile (same dimensions and
+    /// styling) for visual consistency across the Settings entry points.
+    @ViewBuilder
+    private func tintedTile(symbol: String, tint: Color) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 32, height: 32)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(tint.gradient)
+            )
+            .accessibilityHidden(true)
+    }
+
+    /// 'Add Account' row button with haptic + a11y. Used by both Mastodon
+    /// and Bluesky sections, in both empty and non-empty states, so the
+    /// behavior is consistent across all four call sites.
+    private func addAccountButton(platform: SocialPlatform, label: String) -> some View {
+        Button {
+            HapticEngine.tap.trigger()
+            selectedPlatform = platform
+            showingAddAccount = true
+        } label: {
+            Label(label, systemImage: "plus.circle")
+        }
+        .accessibilityLabel(label)
+        .accessibilityHint("Opens the account sign-in flow")
+    }
+
     private func accountSelectionRow(_ account: SocialAccount) -> some View {
         VStack(spacing: 8) {
             HStack {
@@ -237,15 +256,16 @@ struct AccountsView: View {
                 Button(action: {
                     toggleSelection(id: account.id)
                 }) {
-                    if serviceManager.selectedAccountIds.contains(account.id) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundColor(.blue)
-                            .font(.system(size: 24))
-                    } else {
-                        Image(systemName: "circle")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 24))
-                    }
+                    let isSelected = serviceManager.selectedAccountIds.contains(account.id)
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24))
+                        .foregroundStyle(
+                            isSelected ? Color.white : Color.secondary.opacity(0.5),
+                            isSelected ? platformColor(for: account.platform) : Color.clear
+                        )
+                        .symbolRenderingMode(.palette)
+                        .contentTransition(.symbolEffect(.replace))
+                        .accessibilityLabel(isSelected ? "Selected" : "Not selected")
                 }
                 .buttonStyle(PlainButtonStyle())
                 .accessibilityLabel(serviceManager.selectedAccountIds.contains(account.id)
@@ -260,14 +280,30 @@ struct AccountsView: View {
             .onTapGesture {
                 toggleSelection(id: account.id)
             }
-            .background(Color(UIColor.tertiarySystemBackground))
-            .cornerRadius(8)
+            .background(Color(.tertiarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            // The whole row toggles selection — combine into one a11y
+            // unit so VoiceOver reads it as a single named toggle rather
+            // than stepping through icon, name, handle, checkmark
+            // separately.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(account.displayName ?? account.username), @\(account.username)")
+            .accessibilityHint(
+                serviceManager.selectedAccountIds.contains(account.id)
+                    ? "Currently included. Tap to exclude from the timeline"
+                    : "Tap to include in the timeline"
+            )
+            .accessibilityAddTraits(serviceManager.selectedAccountIds.contains(account.id) ? .isSelected : [])
 
             // Delete button row - more subtle design
             HStack {
                 Spacer()
 
                 Button(action: {
+                    // Warning haptic on the destructive entry-point —
+                    // tells the user a confirmation is coming before
+                    // they even read the alert title.
+                    HapticEngine.warning.trigger()
                     confirmDelete(account: account)
                 }) {
                     HStack(spacing: 4) {
@@ -280,6 +316,7 @@ struct AccountsView: View {
                     .padding(.vertical, 6)
                     .padding(.horizontal, 12)
                 }
+                .accessibilityHint("Opens a confirmation to remove this account")
                 .buttonStyle(BorderlessButtonStyle())
             }
             .padding(.top, 2)
@@ -288,9 +325,11 @@ struct AccountsView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 4)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(.secondarySystemBackground))
+        )
+        .shadow(color: Color.black.opacity(0.08), radius: 3, x: 0, y: 1)
         .padding(.vertical, 4)
     }
 
@@ -387,12 +426,9 @@ struct AccountsView: View {
                 Spacer()
 
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                    .font(.system(size: 20))
-                    // Decorative — the section header (above) already
-                    // announces "Authentication Required", and the
-                    // guidance text below explains the next step.
-                    .accessibilityHidden(true)
+                    .foregroundStyle(Color.orange.gradient)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 22))
             }
 
             // Guidance text
@@ -402,63 +438,87 @@ struct AccountsView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             // Action buttons
-            HStack(spacing: 12) {
-                Button(action: {
-                    // Warning haptic before the destructive remove —
-                    // this button isn't wrapped in a confirmation alert
-                    // (unlike the other two Remove paths on this view)
-                    // because the account is already non-functional, but
-                    // the user still deserves a tactile cue that
-                    // something destructive just happened.
+            HStack(spacing: 10) {
+                Button {
                     HapticEngine.warning.trigger()
-                    // Remove the account
+                    let removedName = account.displayName ?? "@\(account.username)"
                     Task {
                         await serviceManager.removeAccount(account)
                         tokenRefreshService.clearReauthNotification(for: account)
+                        await MainActor.run {
+                            ToastManager.shared.show("Removed \(removedName)", severity: .success, duration: 1.6)
+                        }
                     }
-                }) {
+                } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "trash")
-                            .font(.system(size: 12))
+                            .font(.caption.weight(.semibold))
                         Text("Remove")
-                            .font(.system(size: 12))
+                            .font(.caption.weight(.semibold))
                     }
                     .foregroundColor(.red)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 7)
                     .padding(.horizontal, 12)
-                    .background(Color.red.opacity(0.1))
-                    .cornerRadius(6)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.red.opacity(0.12))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(Color.red.opacity(0.22), lineWidth: 0.5)
+                            )
+                    )
                 }
+                .buttonStyle(ReauthButtonPressStyle())
+                .accessibilityLabel("Remove account")
+                .accessibilityHint("Deletes \(account.username) from this device")
 
-                Button(action: {
-                    // Show add account flow for this platform
+                Button {
+                    HapticEngine.tap.trigger()
                     selectedPlatform = account.platform
                     showingAddAccount = true
-                }) {
+                } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: "plus.circle")
-                            .font(.system(size: 12))
-                        Text("Re-add Account")
-                            .font(.system(size: 12))
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption.weight(.semibold))
+                        Text("Re-authenticate")
+                            .font(.caption.weight(.semibold))
                     }
-                    .foregroundColor(.blue)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 12)
-                    .background(Color.blue.opacity(0.1))
-                    .cornerRadius(6)
+                    .foregroundColor(.white)
+                    .padding(.vertical, 7)
+                    .padding(.horizontal, 14)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.accentColor.gradient)
+                            .shadow(color: Color.accentColor.opacity(0.28), radius: 6, x: 0, y: 2)
+                    )
                 }
+                .buttonStyle(ReauthButtonPressStyle())
+                .accessibilityLabel("Re-authenticate")
+                .accessibilityHint("Adds \(account.username) again with fresh credentials")
 
                 Spacer()
             }
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 12)
-        .background(Color.orange.opacity(0.05))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.orange.opacity(0.06))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.orange.opacity(0.28), lineWidth: 0.5)
+        )
+    }
+}
+
+/// Subtle press feedback for the re-auth row buttons — small scale + dim.
+private struct ReauthButtonPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.interactiveSpring(response: 0.24, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -508,8 +568,9 @@ struct AccountRow: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.secondary)
-                    .font(.system(size: 14))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
         .sheet(isPresented: $showingAccountDetails) {
@@ -528,198 +589,88 @@ struct AccountRow: View {
     }
 }
 
-struct LegacyAddAccountView: View {
-    let platform: SocialPlatform
-    let onAccountAdded: (SocialAccount) -> Void
-
-    @State private var server = ""
-    @State private var username = ""
-    @State private var password = ""
-    @State private var isLoading = false
-    @State private var errorMessage = ""
-    @Environment(\.presentationMode) var presentationMode
-
-    var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("Account Information")) {
-                    if platform == .mastodon {
-                        TextField("Server (e.g., mastodon.social)", text: $server)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled(true)
-                            .keyboardType(.URL)
-                    }
-
-                    TextField("Username", text: $username)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-
-                    SecureField("Password", text: $password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled(true)
-                }
-
-                if !errorMessage.isEmpty {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundColor(.red)
-                    }
-                }
-
-                Section {
-                    Button(action: addAccount) {
-                        if isLoading {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle())
-                        } else {
-                            Text("Add Account")
-                        }
-                    }
-                    .disabled(isLoading || !isFormValid)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                }
-            }
-
-            .navigationBarItems(
-                trailing: Button("Cancel") {
-                    presentationMode.wrappedValue.dismiss()
-                })
-        }
-    }
-
-    private var isFormValid: Bool {
-        if platform == .mastodon {
-            return !server.isEmpty && !username.isEmpty && !password.isEmpty
-        } else {
-            return !username.isEmpty && !password.isEmpty
-        }
-    }
-
-    private func addAccount() {
-        isLoading = true
-        errorMessage = ""
-
-        if platform == .mastodon {
-            Task {
-                do {
-                    // Use the MastodonService to authenticate
-                    let mastodonService = MastodonService()
-                    let newAccount = try await mastodonService.authenticate(
-                        server: URL(string: server),
-                        username: username,
-                        password: password
-                    )
-
-                    // Handle successful authentication
-                    DispatchQueue.main.async {
-                        self.onAccountAdded(newAccount)
-                        self.isLoading = false
-                        self.presentationMode.wrappedValue.dismiss()
-                    }
-                } catch {
-                    // Handle authentication error
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Authentication failed: \(error.localizedDescription)"
-                        self.isLoading = false
-                    }
-                }
-            }
-        } else if platform == .bluesky {
-            Task {
-                do {
-                    // Use the BlueskyService to authenticate
-                    let blueskyService = BlueskyService()
-                    let newAccount = try await blueskyService.authenticate(
-                        server: URL(string: "bsky.social"),
-                        username: username,
-                        password: password
-                    )
-
-                    // Handle successful authentication
-                    DispatchQueue.main.async {
-                        self.onAccountAdded(newAccount)
-                        self.isLoading = false
-                        self.presentationMode.wrappedValue.dismiss()
-                    }
-                } catch {
-                    // Handle authentication error
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Authentication failed: \(error.localizedDescription)"
-                        self.isLoading = false
-                    }
-                }
-            }
-        }
-    }
-}
-
 struct AccountDetailView: View {
     let account: SocialAccount
     @State private var showingDeleteConfirmation = false
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
     @EnvironmentObject var serviceManager: SocialServiceManager
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Account Information")) {
-                    HStack {
-                        Text("Platform")
-                        Spacer()
-                        Text(account.platform.accessibilityLabel)
-                            .foregroundColor(.secondary)
-                    }
-
-                    HStack {
-                        Text("Username")
-                        Spacer()
-                        Text("@\(account.username)")
-                            .foregroundColor(.secondary)
-                    }
-
-                    HStack {
-                        Text("Server")
-                        Spacer()
-                        Text(account.serverURL?.absoluteString ?? "")
-                            .foregroundColor(.secondary)
+                    detailRow(label: "Platform", value: account.platform.rawValue.capitalized)
+                    detailRow(label: "Username", value: "@\(account.username)")
+                    if let server = account.serverURL?.host ?? account.serverURL?.absoluteString {
+                        detailRow(label: "Server", value: server)
                     }
                 }
 
                 Section {
-                    Button(action: {
+                    Button(role: .destructive) {
+                        HapticEngine.warning.trigger()
                         showingDeleteConfirmation = true
-                    }) {
-                        HStack {
+                    } label: {
+                        Label {
+                            Text("Remove Account")
+                        } icon: {
                             Image(systemName: "trash")
-                                .font(.system(size: 15))
-                            Text("Delete Account")
-                                .font(.system(size: 16))
-                            Spacer()
+                                .foregroundStyle(Color.red.gradient)
+                                .symbolRenderingMode(.hierarchical)
                         }
-                        .foregroundColor(.red)
                     }
                 }
             }
-
-            .navigationBarItems(
-                trailing: Button("Done") {
-                    presentationMode.wrappedValue.dismiss()
+            .navigationTitle("Account Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
                 }
-            )
+            }
             .alert("Remove Account", isPresented: $showingDeleteConfirmation) {
                 Button("Cancel", role: .cancel) {
                     // Do nothing
                 }
                 Button("Remove", role: .destructive) {
+                    HapticEngine.warning.trigger()
+                    let removedName = account.displayName ?? "@\(account.username)"
                     Task {
                         await serviceManager.removeAccount(account)
-                        presentationMode.wrappedValue.dismiss()
+                        await MainActor.run {
+                            ToastManager.shared.show("Removed \(removedName)", severity: .success, duration: 1.6)
+                            dismiss()
+                        }
                     }
                 }
             } message: {
-                Text("Are you sure you want to remove this account? This action cannot be undone.")
+                Text("Remove this account from your device? You can add it again later.")
             }
         }
+    }
+
+    /// A consistent label/value row for the account-info section.
+    /// Value uses .monospacedDigit so usernames + server addresses
+    /// stay aligned column-wise when stacked.
+    @ViewBuilder
+    private func detailRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Text(value)
+                .foregroundColor(.secondary)
+                .textSelection(.enabled)
+        }
+        // Combine the two Texts so VoiceOver reads 'Platform: Mastodon'
+        // rather than 'Platform' and 'Mastodon' as separate stops.
+        // Keep .textSelection on the value text so iPad+keyboard users
+        // can still long-press to copy.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(label): \(value)")
     }
 }
 

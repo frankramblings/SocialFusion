@@ -4,6 +4,8 @@ import PhotosUI
 struct ChatView: View {
   @EnvironmentObject var serviceManager: SocialServiceManager
   @EnvironmentObject var chatStreamService: ChatStreamService
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   let conversation: DMConversation
 
   @State private var messages: [UnifiedChatMessage] = []
@@ -23,9 +25,8 @@ struct ChatView: View {
   @State private var searchText = ""
   @State private var currentMatchIndex = 0
 
-  private var platformColor: Color {
-    conversation.platform == .bluesky ? .blue : .purple
-  }
+  /// Brand-tinted color via SocialPlatform.swiftUIColor.
+  private var platformColor: Color { conversation.platform.swiftUIColor }
 
   private var myAccountIds: Set<String> {
     Set(serviceManager.accounts.map(\.platformSpecificId))
@@ -41,52 +42,76 @@ struct ChatView: View {
   var body: some View {
     VStack(spacing: 0) {
       if isSearching {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
           Image(systemName: "magnifyingglass")
+            .font(.subheadline)
             .foregroundColor(.secondary)
-            // Decorative — the TextField's placeholder names the
-            // surface ("Search messages..."), so the SF Symbol's
-            // verbatim name would be redundant.
-            .accessibilityHidden(true)
-          TextField("Search messages...", text: $searchText)
+          TextField("Search messages", text: $searchText)
             .textFieldStyle(.plain)
+            .font(.subheadline)
+            .submitLabel(.search)
+            .autocorrectionDisabled(true)
+            .textInputAutocapitalization(.never)
             .onChange(of: searchText) { _, _ in
               currentMatchIndex = 0
             }
 
           if !matchingMessageIds.isEmpty {
             Text("\(currentMatchIndex + 1) of \(matchingMessageIds.count)")
-              .font(.caption)
+              .font(.caption.weight(.medium).monospacedDigit())
               .foregroundColor(.secondary)
               .fixedSize()
+              .contentTransition(.numericText(value: Double(currentMatchIndex)))
               .accessibilityLabel("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
 
-            Button {
-              if currentMatchIndex > 0 { currentMatchIndex -= 1 }
-            } label: {
-              Image(systemName: "chevron.up")
-                .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary)
-            }
-            .disabled(currentMatchIndex == 0)
-            .accessibilityLabel("Previous match")
+            HStack(spacing: 2) {
+              Button {
+                HapticEngine.selection.trigger()
+                if currentMatchIndex > 0 { currentMatchIndex -= 1 }
+              } label: {
+                Image(systemName: "chevron.up")
+                  .font(.caption.weight(.semibold))
+                  .foregroundColor(currentMatchIndex > 0 ? .primary : .secondary.opacity(0.5))
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
+              }
+              .disabled(currentMatchIndex == 0)
+              .accessibilityLabel("Previous match")
+              .accessibilityValue("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
 
-            Button {
-              if currentMatchIndex < matchingMessageIds.count - 1 { currentMatchIndex += 1 }
-            } label: {
-              Image(systemName: "chevron.down")
-                .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary)
+              Button {
+                HapticEngine.selection.trigger()
+                if currentMatchIndex < matchingMessageIds.count - 1 { currentMatchIndex += 1 }
+              } label: {
+                Image(systemName: "chevron.down")
+                  .font(.caption.weight(.semibold))
+                  .foregroundColor(currentMatchIndex < matchingMessageIds.count - 1 ? .primary : .secondary.opacity(0.5))
+                  .frame(width: 44, height: 44)
+                  .contentShape(Rectangle())
+              }
+              .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
+              .accessibilityLabel("Next match")
+              .accessibilityValue("Match \(currentMatchIndex + 1) of \(matchingMessageIds.count)")
             }
-            .disabled(currentMatchIndex >= matchingMessageIds.count - 1)
-            .accessibilityLabel("Next match")
           } else if !searchText.isEmpty {
             Text("No results")
-              .font(.caption)
+              .font(.caption.weight(.medium))
               .foregroundColor(.secondary)
+              .accessibilityLabel("No matching messages found")
           }
         }
-        .padding(.horizontal)
+        .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .background(Color(.systemGray6))
+        // Solid fallback for users with Reduce Transparency on —
+        // the in-conversation search bar should still read as a
+        // distinct strip above the message list when materials
+        // are dialed back.
+        .background(reduceTransparency ? AnyShapeStyle(Color(.secondarySystemBackground)) : AnyShapeStyle(.ultraThinMaterial))
+        .overlay(
+          Divider(),
+          alignment: .bottom
+        )
+        .transition(.move(edge: .top).combined(with: .opacity))
       }
       messagesList
       inputBar
@@ -99,12 +124,10 @@ struct ChatView: View {
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
-          // Selection haptic — the bar slides in or out, which is
-          // significant enough chrome change to deserve tactile
-          // confirmation. Matches the haptic vocabulary used elsewhere
-          // for chrome toggles (FilterPicker, FeedPicker).
           HapticEngine.selection.trigger()
-          withAnimation { isSearching.toggle() }
+          withAnimation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82)) {
+            isSearching.toggle()
+          }
           if !isSearching {
             searchText = ""
             currentMatchIndex = 0
@@ -112,11 +135,13 @@ struct ChatView: View {
         } label: {
           Image(systemName: isSearching ? "xmark" : "magnifyingglass")
             .foregroundColor(.secondary)
+            .contentTransition(.symbolEffect(.replace))
         }
         .accessibilityLabel(isSearching ? "Close search" : "Search messages")
       }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
+          HapticEngine.tap.trigger()
           showSettings = true
         } label: {
           Image(systemName: "info.circle")
@@ -131,7 +156,7 @@ struct ChatView: View {
       }
       .environmentObject(serviceManager)
     }
-    .alert("Error", isPresented: Binding(
+    .alert("Something Went Wrong", isPresented: Binding(
       get: { errorMessage != nil },
       set: { if !$0 { errorMessage = nil } }
     )) {
@@ -148,6 +173,7 @@ struct ChatView: View {
       set: { if !$0 { deleteConfirmMessage = nil } }
     )) {
       Button("Delete", role: .destructive) {
+        HapticEngine.warning.trigger()
         if let msg = deleteConfirmMessage {
           performDelete(msg)
         }
@@ -187,6 +213,8 @@ struct ChatView: View {
             ProgressView()
               .padding(.top, 40)
               .accessibilityLabel("Loading messages")
+          } else if messages.isEmpty {
+            emptyConversationView
           } else {
             ForEach(Array(groupedMessages.enumerated()), id: \.offset) { _, section in
               dateHeader(for: section.date)
@@ -202,19 +230,27 @@ struct ChatView: View {
       }
       .onChange(of: messages.count) { _, _ in
         if let last = messages.last {
-          withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+          // New-message scroll uses a springier curve so the latest
+          // message arriving feels alive, not just mechanical.
+          // Reduce Motion: scroll instantly so the message arrives
+          // without the bounce.
+          withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
+            proxy.scrollTo(last.id, anchor: .bottom)
+          }
         }
       }
       .onChange(of: currentMatchIndex) { _, newIndex in
         if matchingMessageIds.indices.contains(newIndex) {
-          withAnimation {
+          // Search nav uses a snappier easeOut so consecutive
+          // up/down taps feel responsive.
+          withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
             proxy.scrollTo(matchingMessageIds[newIndex], anchor: .center)
           }
         }
       }
       .onChange(of: searchText) { _, _ in
         if let firstMatch = matchingMessageIds.first {
-          withAnimation {
+          withAnimation(reduceMotion ? nil : .easeOut(duration: 0.24)) {
             proxy.scrollTo(firstMatch, anchor: .center)
           }
         }
@@ -264,11 +300,13 @@ struct ChatView: View {
       )
       .opacity(!searchText.isEmpty && !matchingMessageIds.contains(message.id) ? 0.3 : 1.0)
       .background(
-        RoundedRectangle(cornerRadius: 12)
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
           .fill(matchingMessageIds.indices.contains(currentMatchIndex) && matchingMessageIds[currentMatchIndex] == message.id
-                ? Color.yellow.opacity(0.2) : Color.clear)
+                ? Color.yellow.opacity(0.22) : Color.clear)
           .padding(.horizontal, 8)
       )
+      .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: currentMatchIndex)
+      .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: searchText)
       .padding(.horizontal, 12)
       .padding(.top, isFirst ? 8 : 2)
       .padding(.bottom, isLast ? 8 : 2)
@@ -280,76 +318,164 @@ struct ChatView: View {
     VStack(spacing: 0) {
       Divider()
       if let editing = editingMessage {
-        HStack {
-          VStack(alignment: .leading, spacing: 2) {
-            Text("Editing")
-              .font(.caption)
-              .fontWeight(.semibold)
+        HStack(spacing: 10) {
+          Image(systemName: "pencil")
+            .font(.caption.weight(.bold))
+            .foregroundColor(platformColor)
+            .frame(width: 22, height: 22)
+            .background(
+              Circle()
+                .fill(platformColor.opacity(0.14))
+            )
+
+          VStack(alignment: .leading, spacing: 1) {
+            Text("Editing message")
+              .font(.caption.weight(.semibold))
               .foregroundColor(platformColor)
             Text(editing.text)
               .font(.caption)
               .foregroundColor(.secondary)
               .lineLimit(1)
           }
+
           Spacer()
+
           Button {
-            editingMessage = nil
-            newMessageText = ""
+            HapticEngine.tap.trigger()
+            withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
+              editingMessage = nil
+              newMessageText = ""
+            }
           } label: {
             Image(systemName: "xmark.circle.fill")
+              .font(.system(size: 18))
               .foregroundColor(.secondary)
+              .frame(width: 44, height: 44)
+              .contentShape(Rectangle())
           }
+          .buttonStyle(.plain)
           .accessibilityLabel("Cancel editing")
         }
-        .padding(.horizontal)
-        .padding(.vertical, 6)
-        .background(Color(.systemGray6))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(platformColor.opacity(0.08))
+        .overlay(
+          Rectangle()
+            .fill(platformColor.opacity(0.18))
+            .frame(height: 0.5),
+          alignment: .bottom
+        )
       }
       ChatMediaPickerBar(selectedItems: $selectedMedia)
-      HStack(spacing: 12) {
+      HStack(spacing: 10) {
         PhotosPicker(selection: $selectedMedia, maxSelectionCount: 4, matching: .images) {
           Image(systemName: "plus.circle.fill")
-            .font(.system(size: 24))
-            .foregroundColor(.secondary)
+            .font(.system(size: 26))
+            .foregroundStyle(.secondary, Color(.systemGray5))
+            .symbolRenderingMode(.hierarchical)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
         }
-        .accessibilityLabel("Attach photos")
+        .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+        .accessibilityLabel("Add photos")
+        .accessibilityHint("Opens the photo picker to attach up to 4 images")
 
-        TextField("Message...", text: $newMessageText, axis: .vertical)
+        TextField("Message", text: $newMessageText, axis: .vertical)
           .lineLimit(1...5)
-          .padding(10)
-          .background(Color(.systemGray6))
-          .cornerRadius(20)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 9)
+          .background(
+            Capsule(style: .continuous)
+              .fill(Color(.systemGray6))
+              .overlay(
+                Capsule(style: .continuous)
+                  .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+              )
+          )
 
         sendButton
       }
-      .padding(.horizontal)
+      .padding(.horizontal, 12)
       .padding(.vertical, 8)
       .background(Color(.systemBackground))
     }
   }
 
-  private var sendButton: some View {
-    Button(action: sendMessage) {
-      if isSending {
-        ProgressView()
-          .scaleEffect(0.8)
-          .foregroundColor(.white)
-          .padding(10)
-          .background(platformColor)
-          .clipShape(Circle())
-      } else {
-        Image(systemName: "paperplane.fill")
-          .foregroundColor(.white)
-          .padding(10)
-          .background(trimmedMessageIsEmpty ? Color.gray : platformColor)
-          .clipShape(Circle())
+  /// Empty-conversation placeholder — matches the tinted-halo
+  /// composition Apple uses in Messages, and the rest of this app's
+  /// empty states.
+  private var emptyConversationView: some View {
+    VStack(spacing: 14) {
+      ZStack {
+        Circle()
+          .fill(
+            RadialGradient(
+              colors: [platformColor.opacity(0.18), platformColor.opacity(0.0)],
+              center: .center,
+              startRadius: 4,
+              endRadius: 60
+            )
+          )
+          .frame(width: 120, height: 120)
+        Image(systemName: "bubble.left.and.bubble.right")
+          .font(.system(size: 36, weight: .light))
+          .foregroundStyle(platformColor.gradient)
+          .symbolRenderingMode(.hierarchical)
+      }
+      VStack(spacing: 6) {
+        Text("No messages yet")
+          .font(.title3.weight(.semibold))
+          .foregroundColor(.primary.opacity(0.85))
+        Text("Say hello to start the conversation.")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .multilineTextAlignment(.center)
+          .padding(.horizontal, 32)
+          .fixedSize(horizontal: false, vertical: true)
       }
     }
-    .disabled(trimmedMessageIsEmpty || isLoading || isSending)
-    .accessibilityLabel(isSending ? "Sending message" : "Send message")
-    // Cmd+Return → Send. Matches the primary compose flow and Echo
-    // composer; standard "ship it" gesture for keyboard users.
-    .keyboardShortcut(.return, modifiers: .command)
+    .padding(.top, 80)
+    .frame(maxWidth: .infinity)
+    .accessibilityElement(children: .combine)
+  }
+
+  private var sendButton: some View {
+    let canSend = !newMessageText.isEmpty && !isLoading && !isSending
+    return Button {
+      HapticEngine.tap.trigger()
+      sendMessage()
+    } label: {
+      ZStack {
+        Circle()
+          .fill(canSend ? AnyShapeStyle(platformColor.gradient) : AnyShapeStyle(Color(.systemGray4)))
+          .frame(width: 36, height: 36)
+          .shadow(color: canSend ? platformColor.opacity(0.3) : .clear, radius: 6, x: 0, y: 2)
+
+        if isSending {
+          ProgressView()
+            .scaleEffect(0.7)
+            .tint(.white)
+        } else {
+          Image(systemName: "arrow.up")
+            .font(.system(size: 16, weight: .bold))
+            .foregroundColor(.white)
+            .contentTransition(.symbolEffect(.replace))
+        }
+      }
+      .scaleEffect(canSend ? 1.0 : 0.92)
+      .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: canSend)
+      .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: isSending)
+      // The visible button is 36pt; extend hit area to 44pt minimum
+      // so the user's thumb has comfortable room to land.
+      .frame(width: 44, height: 44)
+      .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .disabled(!canSend)
+    .accessibilityLabel(isSending ? "Sending" : "Send message")
+    .accessibilityHint(canSend
+                       ? "Sends your message"
+                       : "Type a message to enable")
   }
 
   // MARK: - Message Grouping
@@ -441,22 +567,42 @@ struct ChatView: View {
       .foregroundColor(.secondary)
       .padding(.vertical, 8)
       .frame(maxWidth: .infinity)
+      // Section headers in the messages list — .isHeader lets VoiceOver
+      // users navigate between date sections via the rotor, the same
+      // way iOS Messages does.
+      .accessibilityAddTraits(.isHeader)
+  }
+
+  private var navAvatarInitial: String {
+    String((conversation.participant.displayName ?? conversation.participant.username).prefix(1)).uppercased()
   }
 
   @ViewBuilder
   private var navAvatar: some View {
-    if conversation.isGroup {
-      GroupAvatarStack(participants: conversation.participants, size: 28)
-    } else if let urlString = conversation.participant.avatarURL,
-       let url = URL(string: urlString) {
-      CachedAsyncImage(url: url, priority: .high) { image in
-        image.resizable().aspectRatio(contentMode: .fill)
-      } placeholder: {
-        Circle().fill(Color.gray.opacity(0.3))
+    Group {
+      if conversation.isGroup {
+        GroupAvatarStack(participants: conversation.participants, size: 28)
+      } else if let urlString = conversation.participant.avatarURL,
+         let url = URL(string: urlString) {
+        CachedAsyncImage(url: url, priority: .high) { image in
+          image.resizable().aspectRatio(contentMode: .fill)
+        } placeholder: {
+          Circle()
+            .fill(Color(.systemGray5))
+            .overlay(
+              Text(navAvatarInitial)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(Color(.systemGray))
+            )
+        }
+        .frame(width: 28, height: 28)
+        .clipShape(Circle())
       }
-      .frame(width: 28, height: 28)
-      .clipShape(Circle())
     }
+    // Decorative — the conversation title in the toolbar's center
+    // already names the person/group. Hiding from VoiceOver avoids
+    // an "Image" read with no context after the title is already read.
+    .accessibilityHidden(true)
   }
 
   private func isFromMe(_ message: UnifiedChatMessage) -> Bool {
@@ -477,10 +623,11 @@ struct ChatView: View {
   }
 
   private func toggleReaction(messageId: String, emoji: String, alreadyReacted: Bool) {
-    // Tapback-style selection haptic on add or remove. iMessage's
-    // reactions fire this same haptic; without it the visual change
-    // (a small chip below the bubble) is easy to miss.
-    HapticEngine.selection.trigger()
+    // Capture pre-toggle reaction state so we can roll back on network
+    // failure — otherwise an optimistic add/remove would stay even when
+    // the server rejected it, leaving the UI out of sync.
+    let previousReactions = reactions[messageId]?[emoji]
+
     if alreadyReacted {
       for myId in myAccountIds {
         reactions[messageId, default: [:]][emoji]?.remove(myId)
@@ -503,6 +650,16 @@ struct ChatView: View {
         #if DEBUG
         print("[Reactions] Failed to toggle reaction: \(error.localizedDescription)")
         #endif
+        // Roll back the optimistic update + tell the user.
+        await MainActor.run {
+          if let previousReactions {
+            reactions[messageId, default: [:]][emoji] = previousReactions
+          } else {
+            reactions[messageId]?[emoji] = nil
+          }
+          HapticEngine.error.trigger()
+          ToastManager.shared.show("Couldn't update reaction", severity: .error, duration: 2.0)
+        }
       }
     }
   }
@@ -557,8 +714,9 @@ struct ChatView: View {
         self.messages = fetched.reversed()
         self.isLoading = false
       } catch {
-        self.errorMessage = "Failed to load messages: \(error.localizedDescription)"
+        self.errorMessage = "Couldn't load messages: \(error.localizedDescription)"
         self.isLoading = false
+        HapticEngine.error.trigger()
       }
     }
   }
@@ -590,15 +748,11 @@ struct ChatView: View {
           self.isSending = false
           loadMessages()
         } catch {
-          // Failure-only haptic: success stays silent to match iMessage,
-          // but a failed send is a meaningful event the user needs to
-          // notice — the alert alone is easy to miss when the keyboard
-          // is up and the buffer was just cleared.
-          HapticEngine.error.trigger()
-          self.errorMessage = "Failed to edit message: \(error.localizedDescription)"
+          self.errorMessage = "Couldn't edit message: \(error.localizedDescription)"
           self.newMessageText = text
           self.editingMessage = editing
           self.isSending = false
+          HapticEngine.error.trigger()
         }
       }
       return
@@ -613,16 +767,19 @@ struct ChatView: View {
         self.messages.append(sent)
         self.isSending = false
       } catch {
-        HapticEngine.error.trigger()
-        self.errorMessage = "Failed to send message: \(error.localizedDescription)"
+        self.errorMessage = "Couldn't send message: \(error.localizedDescription)"
         self.newMessageText = text
         self.isSending = false
+        HapticEngine.error.trigger()
       }
     }
   }
 
   private func performDelete(_ message: UnifiedChatMessage) {
-    withAnimation {
+    // Message removal — easeOut with a slight bounce response so the
+    // bubble feels like it's being lifted out, not just vanishing.
+    // Reduce Motion: vanish without the spring envelope.
+    withAnimation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82)) {
       messages.removeAll { $0.id == message.id }
     }
     Task {
@@ -634,7 +791,8 @@ struct ChatView: View {
       } catch {
         HapticEngine.error.trigger()
         loadMessages()
-        errorMessage = "Failed to delete message"
+        errorMessage = "Couldn't delete that message"
+        HapticEngine.error.trigger()
       }
     }
   }

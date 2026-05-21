@@ -491,7 +491,7 @@ public final class TimelineViewModel: ObservableObject {
                 self.logger.error(
                     "Failed to like/unlike post: \(error.localizedDescription, privacy: .public)")
                 await MainActor.run {
-                    ToastManager.shared.show("Couldn't like post. Please try again.")
+                    ToastManager.shared.show("Couldn't like post. Please try again.", severity: .error)
                 }
             }
         }
@@ -547,7 +547,7 @@ public final class TimelineViewModel: ObservableObject {
                 }
                 self.logger.error("Failed to repost/unrepost: \(error.localizedDescription)")
                 await MainActor.run {
-                    ToastManager.shared.show("Couldn't repost. Please try again.")
+                    ToastManager.shared.show("Couldn't repost. Please try again.", severity: .error)
                 }
             }
         }

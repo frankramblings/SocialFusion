@@ -7,13 +7,24 @@ import UIKit
 /// Modifier that conditionally applies clipShape
 private struct ConditionalClipShapeModifier: ViewModifier {
     let shouldClip: Bool
-    
+
     func body(content: Content) -> some View {
         if shouldClip {
             content.clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         } else {
             content
         }
+    }
+}
+
+/// Tracks the height of the 'selected post + below' block so the thread
+/// view can add only as much trailing padding as it needs for the selected
+/// post to reach the top of the viewport on initial scroll. Replaces the
+/// old magic 400pt spacer with a measured, dynamic value.
+private struct SelectedAndBelowHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 
@@ -65,39 +76,32 @@ struct PostDetailView: View {
     @State private var isInitialPositioned: Bool = false
     @State private var scrollTargetID: String? = nil
     @State private var scrollTrigger: Int = 0
+    @State private var selectedAndBelowHeight: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Thread scroll position keys
     private let selectedPostScrollID = "selected-post"
     private let topScrollID = "top-anchor"
 
-    // Date formatter for detailed timestamp
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    // Date formatter for detailed timestamp. Routes through
+    // SharedFormatters so the formatter is allocated once for the
+    // app, not per-view-instance (SwiftUI re-creates view structs
+    // constantly).
+    private var dateFormatter: DateFormatter { SharedFormatters.detailedDateTime }
 
-    // Platform color for visual consistency
+    // Platform color via SocialPlatform.swiftUIColor (canonical hex
+    // per 86a7ca5). Was hand-rolled RGB tuples that happened to
+    // match the brand hex.
     private var platformColor: Color {
         let displayPost = viewModel.post.originalPost ?? viewModel.post
-        switch displayPost.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
+        return displayPost.platform.swiftUIColor
     }
 
     private func platformTint(for platform: SocialPlatform) -> Color {
-        switch platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
+        platform.swiftUIColor
     }
 
     init(viewModel: PostViewModel, focusReplyComposer: Bool = false) {
@@ -112,17 +116,22 @@ struct PostDetailView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         VStack(alignment: .leading, spacing: 0) {
-                            threadContentView(topInset: geometry.safeAreaInsets.top)
+                            threadContentView(
+                                topInset: geometry.safeAreaInsets.top,
+                                viewportHeight: geometry.size.height
+                            )
                         }
                         .opacity(isInitialPositioned ? 1 : 0)
                     }
                     .background(alignment: .topLeading) {
                         if !parentPosts.isEmpty {
-                            // Subtle thread continuation line hints at history above
+                            // Subtle thread continuation line hints at history above.
+                            // Uses Color.secondary so the gradient adapts to dark
+                            // mode (was Color.gray.opacity which reads brown-tinted).
                             LinearGradient(
                                 colors: [
-                                    Color.gray.opacity(0.12),
-                                    Color.gray.opacity(0.06),
+                                    Color.secondary.opacity(0.18),
+                                    Color.secondary.opacity(0.08),
                                     Color.clear,
                                 ],
                                 startPoint: .top,
@@ -209,7 +218,7 @@ struct PostDetailView: View {
                 .accessibilityHint("Opens a menu with Open in Browser, Copy Link, Share, Share as Image, and Report Post.")
             }
         }
-        .alert("Reply failed", isPresented: $showQuickReplyError) {
+        .alert("Reply Couldn't Send", isPresented: $showQuickReplyError) {
             Button("OK", role: .cancel) {
                 showQuickReplyError = false
             }
@@ -241,12 +250,24 @@ struct PostDetailView: View {
                 serviceManager.postActionCoordinator.refreshIfStale(for: viewModel.post)
             }
         }
+        .onChange(of: inlineReplyRemaining) { oldValue, newValue in
+            // Mirror the compose-view haptic vocabulary on the inline
+            // quick-reply counter: tactile callout the moment a
+            // threshold is *crossed*, so the user feels it without
+            // looking at the count. Going back under stays silent —
+            // the warning channel is for "watch out", not "you're ok now."
+            if oldValue >= 0 && newValue < 0 {
+                HapticEngine.warning.trigger()
+            } else if oldValue >= 50 && newValue < 50 {
+                HapticEngine.selection.trigger()
+            }
+        }
     }
 
     // MARK: - Thread Content View
 
     @ViewBuilder
-    private func threadContentView(topInset: CGFloat) -> some View {
+    private func threadContentView(topInset: CGFloat, viewportHeight: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // 1. Initial Top Spacer (ensures clearance for transparent header)
             Color.clear
@@ -287,8 +308,14 @@ struct PostDetailView: View {
                 }
             }
 
-            // 3. Selected post section
+            // 3-5. Selected post + replies header + reply posts —
+            // wrapped in a measured container so the end-of-thread spacer
+            // (item 6) can size dynamically rather than padding a fixed
+            // 400pt that's either too much (short threads) or pointless
+            // (long threads).
             VStack(alignment: .leading, spacing: 0) {
+                // 3. Selected post section
+                VStack(alignment: .leading, spacing: 0) {
                 // Selected post content
                 SelectedPostView(
                     post: viewModel.post,
@@ -408,11 +435,8 @@ struct PostDetailView: View {
                     .padding(.leading, isDeepReply ? 12 : 0)
                     .overlay(alignment: .leading) {
                         if isDeepReply {
-                            let accentColor: Color = post.platform == .mastodon
-                                ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-                                : Color(red: 0, green: 133 / 255, blue: 255 / 255)
-                            RoundedRectangle(cornerRadius: 1)
-                                .fill(accentColor.opacity(0.4))
+                            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                                .fill(post.platform.swiftUIColor.opacity(0.4))
                                 .frame(width: 2)
                                 .padding(.vertical, 8)
                         }
@@ -425,9 +449,29 @@ struct PostDetailView: View {
                     }
                 }
             }
+            }
+            // Measure the height of the selected post + replies block so
+            // the trailing spacer below can be sized just-enough.
+            .background(
+                GeometryReader { measureGeo in
+                    Color.clear.preference(
+                        key: SelectedAndBelowHeightKey.self,
+                        value: measureGeo.size.height
+                    )
+                }
+            )
+            .onPreferenceChange(SelectedAndBelowHeightKey.self) { newHeight in
+                selectedAndBelowHeight = newHeight
+            }
 
-            // End of thread spacer
-            Color.clear.frame(height: 400)
+            // 6. End-of-thread spacer — dynamic.
+            // Sized so that the selected post can scroll to the top of the
+            // viewport on initial render even when there are few or no
+            // replies, without the magic 400pt overshoot that produced the
+            // weird empty gap below short threads. When the thread is long
+            // enough that replies already fill the viewport, this collapses
+            // to zero and the user just scrolls naturally.
+            Color.clear.frame(height: max(0, viewportHeight - selectedAndBelowHeight))
         }
     }
 
@@ -455,20 +499,23 @@ struct PostDetailView: View {
             !isReplying
         {
             VStack(spacing: 10) {
-                HStack(spacing: 8) {
+                HStack(spacing: 10) {
                     quickReplyAccountMenu(for: replyTarget.platform)
 
                     Spacer()
 
                     Text("\(inlineReplyRemaining)")
-                        .font(.caption.weight(.semibold))
+                        .font(.caption.weight(.semibold).monospacedDigit())
                         .foregroundColor(
                             inlineReplyRemaining < 0
                                 ? .red
                                 : (inlineReplyRemaining < 50 ? .orange : .secondary)
                         )
+                        .contentTransition(.numericText(value: Double(inlineReplyRemaining)))
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: inlineReplyRemaining)
 
                     Button {
+                        HapticEngine.tap.trigger()
                         openFullComposer(for: replyTarget)
                     } label: {
                         Image(systemName: "square.and.pencil")
@@ -477,61 +524,107 @@ struct PostDetailView: View {
                             .padding(8)
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(Color(UIColor.secondarySystemBackground))
+                                    .fill(Color(.secondarySystemBackground))
                             )
                     }
                     .accessibilityLabel("Open full composer")
+                    .accessibilityHint("Switches to the full composer with this reply")
 
-                    Button(action: resetQuickReplyState) {
+                    Button {
+                        HapticEngine.tap.trigger()
+                        resetQuickReplyState()
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Dismiss quick reply")
                 }
 
-                HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 10) {
                     TextField(
-                        "Reply to @\(replyTarget.authorUsername)...",
+                        "Reply to @\(replyTarget.authorUsername)…",
                         text: $inlineReplyText,
                         axis: .vertical
                     )
-                    .textFieldStyle(.roundedBorder)
                     .focused($isInlineReplyFocused)
                     .lineLimit(1...4)
                     .submitLabel(.send)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(.systemGray6))
+                            .overlay(
+                                Capsule(style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                            )
+                    )
                     .onSubmit {
                         if canSendInlineReply {
                             sendInlineReply()
                         }
                     }
 
-                    if isSendingQuickReply {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .frame(width: 32, height: 32)
-                    } else {
-                        Button(action: sendInlineReply) {
-                            Image(systemName: "paperplane.fill")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .padding(10)
-                                .background(
-                                    Circle()
-                                        .fill(
-                                            canSendInlineReply
-                                                ? platformTint(for: replyTarget.platform)
-                                                : Color.gray.opacity(0.4)
-                                        )
+                    Button {
+                        HapticEngine.tap.trigger()
+                        sendInlineReply()
+                    } label: {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    canSendInlineReply
+                                        ? AnyShapeStyle(platformTint(for: replyTarget.platform).gradient)
+                                        : AnyShapeStyle(Color(.systemGray4))
                                 )
+                                .frame(width: 36, height: 36)
+                                .shadow(
+                                    color: canSendInlineReply
+                                        ? platformTint(for: replyTarget.platform).opacity(0.3)
+                                        : .clear,
+                                    radius: 6,
+                                    x: 0,
+                                    y: 2
+                                )
+
+                            if isSendingQuickReply {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .contentTransition(.symbolEffect(.replace))
+                            }
                         }
-                        .disabled(!canSendInlineReply)
-                        .accessibilityLabel("Send reply")
+                        .scaleEffect(canSendInlineReply ? 1.0 : 0.92)
+                        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: canSendInlineReply)
+                        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: isSendingQuickReply)
+                        // 36pt visible, 44pt hit area — same recipe as
+                        // the chat send button and other primary
+                        // affordances in the app.
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                     }
+                    .buttonStyle(.plain)
+                    .disabled(!canSendInlineReply || isSendingQuickReply)
+                    .accessibilityLabel(isSendingQuickReply ? "Sending reply" : "Send reply")
+                    .accessibilityHint(canSendInlineReply
+                                       ? "Posts your reply"
+                                       : "Add text or stay under the character limit to enable")
                 }
             }
             .padding(12)
-            .background(.ultraThinMaterial)
+            // Solid container fallback for Reduce Transparency. The
+            // quick-reply card floats over the timeline, so without
+            // this users with the setting on see post text bleed
+            // through.
+            .background(reduceTransparency
+                        ? AnyShapeStyle(Color(.secondarySystemBackground))
+                        : AnyShapeStyle(.ultraThinMaterial))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: Color.black.opacity(0.12), radius: 8, x: 0, y: 4)
             .padding(.horizontal, 12)
@@ -549,15 +642,22 @@ struct PostDetailView: View {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.caption)
-                    .foregroundColor(.orange)
-                Text("Add \(platform.accessibilityLabel) account")
+                    .foregroundStyle(Color.orange.gradient)
+                    .symbolRenderingMode(.hierarchical)
+                Text("Add \(platform.rawValue.capitalized) account")
                     .font(.caption.weight(.semibold))
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.orange.opacity(0.12))
-            .clipShape(Capsule())
+            .background(
+                Capsule()
+                    .fill(Color.orange.opacity(0.12))
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.orange.opacity(0.22), lineWidth: 0.5)
+                    )
+            )
         } else if accounts.count == 1, let account = accounts.first {
             HStack(spacing: 6) {
                 PlatformLogoBadge(platform: platform, size: 16, shadowEnabled: false)
@@ -572,7 +672,7 @@ struct PostDetailView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(Color(UIColor.secondarySystemBackground))
+            .background(Color(.secondarySystemBackground))
             .clipShape(Capsule())
         } else {
             Menu {
@@ -619,7 +719,7 @@ struct PostDetailView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground))
+                .background(Color(.secondarySystemBackground))
                 .clipShape(Capsule())
             }
         }
@@ -727,9 +827,7 @@ struct PostDetailView: View {
         case .shareSheet:
             viewModel.post.presentShareSheet()
         case .report:
-            Task {
-                await viewModel.reportPost()
-            }
+            viewModel.post.report(via: serviceManager)
         @unknown default:
             break
         }
@@ -785,7 +883,7 @@ struct PostDetailView: View {
         if prefill && inlineReplyText.isEmpty {
             inlineReplyText = "@\(targetPost.authorUsername) "
         }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
             isQuickReplyActive = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
@@ -950,7 +1048,7 @@ struct PostDetailView: View {
             scrollTrigger += 1
 
             // Finally reveal the view
-            withAnimation(.easeIn(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeIn(duration: 0.2)) {
                 isInitialPositioned = true
             }
             hasScrolledToSelectedPost = true
@@ -1001,7 +1099,7 @@ struct PostDetailView: View {
         scrollOffset = offset
         let shouldShow = offset < -120 && !parentPosts.isEmpty
         if showParentIndicator != shouldShow {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 showParentIndicator = shouldShow
             }
         }
@@ -1010,13 +1108,19 @@ struct PostDetailView: View {
     @ViewBuilder
     private func parentPostsIndicator() -> some View {
         Button(action: {
+            HapticEngine.tap.trigger()
             scrollTargetID = topScrollID
             scrollTrigger += 1
             showParentIndicator = false
         }) {
             ZStack {
                 Circle()
-                    .fill(.ultraThinMaterial)
+                    // Solid fallback for Reduce Transparency — the
+                    // floating "scroll up to parents" chevron should
+                    // stay a distinct shape over the timeline.
+                    .fill(reduceTransparency
+                          ? AnyShapeStyle(Color(.secondarySystemBackground))
+                          : AnyShapeStyle(.ultraThinMaterial))
                     .frame(width: 44, height: 44)
                     .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 0.5))
                 Image(systemName: "chevron.up")
@@ -1026,7 +1130,10 @@ struct PostDetailView: View {
         }
         .buttonStyle(.plain)
         .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-        .transition(.scale.combined(with: .opacity))
+        // Reduce Motion drops the scale pop-in — opacity fade alone.
+        .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+        .accessibilityLabel("Scroll to parent posts")
+        .accessibilityHint("Returns to the top of the thread")
     }
 }
 
@@ -1040,19 +1147,13 @@ struct SelectedPostView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) private var colorScheme
 
-    // Platform color
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
-    }
+    // Platform color via SocialPlatform.swiftUIColor.
+    private var platformColor: Color { post.platform.swiftUIColor }
 
-    // Thread line color
+    // Thread line color — uses Color.secondary so it adapts to dark mode.
+    // Color.gray.opacity reads as brown-tinted against dark backgrounds.
     private var threadLineColor: Color {
-        Color.gray.opacity(0.25)
+        Color.secondary.opacity(0.35)
     }
 
     var body: some View {
@@ -1188,9 +1289,10 @@ struct PostRow: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    // Thread line color
+    // Thread line color — uses Color.secondary so it adapts to dark mode.
+    // Color.gray.opacity reads as brown-tinted against dark backgrounds.
     private var threadLineColor: Color {
-        Color.gray.opacity(0.25)
+        Color.secondary.opacity(0.35)
     }
 
     // Content styling
@@ -1214,7 +1316,13 @@ struct PostRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             // Column 1: Unified Thread/Avatar Column (60pt)
-            ZStack(alignment: .center) {
+            // ZStack is .top-aligned so the avatar sits at the top of its
+            // column — matching the feed's top-left placement and how
+            // Ivory / Ice Cubes / Indigo render thread rows. Previously
+            // .center was making the avatar float to the vertical middle
+            // of the entire post (text + media), which the user never
+            // asked for and which reads as visually weird.
+            ZStack(alignment: .top) {
                 if showThreadLine {
                     Rectangle()
                         .fill(threadLineColor)
@@ -1228,8 +1336,13 @@ struct PostRow: View {
                     authorName: post.authorName
                 )
                 .frame(width: profileImageSize, height: profileImageSize)
-                .background(Color(.systemBackground))  // Punch-out
+                .background(Color(.systemBackground))  // Punch-out — hides the thread line behind the avatar circle
                 .clipShape(Circle())
+                // Push the avatar down to line up with the author name in
+                // the adjacent content column. The content VStack has
+                // .padding(.vertical, 12) below, so the name's top edge
+                // lives 12pt down from the row's top. We mirror that here.
+                .padding(.top, 12)
             }
             .frame(width: 60)
 
@@ -1351,9 +1464,7 @@ extension View {
 
 extension Date {
     func timeAgoDisplay() -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: self, relativeTo: Date())
+        SharedFormatters.relativeAbbreviated.localizedString(for: self, relativeTo: Date())
     }
 }
 
@@ -1367,12 +1478,7 @@ struct LegacyPostDetailView: View {
     @State private var isReplying: Bool = false
     @Environment(\.dismiss) private var dismiss
 
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
+    private var dateFormatter: DateFormatter { SharedFormatters.detailedDateTime }
 
     var body: some View {
         ScrollView {

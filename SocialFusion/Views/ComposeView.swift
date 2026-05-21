@@ -27,21 +27,16 @@ struct ReplyContextHeader: View {
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
 
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    // Brand color — single source of truth via SocialPlatform.swiftUIColor
+    // (resolves to the canonical hex per 86a7ca5).
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // "Replying to" indicator
             HStack(spacing: 6) {
                 Image(systemName: "arrow.turn.up.left")
-                    .font(.caption)
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(platformColor)
 
                 Text("Replying to")
@@ -49,17 +44,23 @@ struct ReplyContextHeader: View {
                     .foregroundColor(.secondary)
 
                 Text("@\(post.authorUsername)")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                    .font(.caption.weight(.medium))
                     .foregroundColor(platformColor)
 
                 Spacer()
 
-                // Platform indicator: route through PlatformLogoBadge so the
-                // Settings → Accessibility high-contrast toggle reaches the
-                // compose reply header. Sized to match the prior inline image.
-                PlatformLogoBadge(platform: post.platform, size: 16, shadowEnabled: false)
+                // Platform indicator — needs .renderingMode(.template) for
+                // the .foregroundColor tint to actually apply.
+                Image(post.platform.icon)
+                    .resizable()
+                    .renderingMode(.template)
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
+                    .foregroundColor(platformColor)
+                    .accessibilityHidden(true)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Replying to @\(post.authorUsername)")
             .padding(.horizontal, 16)
             .padding(.top, 12)
 
@@ -67,31 +68,43 @@ struct ReplyContextHeader: View {
             VStack(alignment: .leading, spacing: 8) {
                 // Author info
                 HStack(spacing: 8) {
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         navigationEnvironment.navigateToUser(from: post)
-                    }) {
+                    } label: {
                         let stableImageURL = URL(string: post.authorProfilePictureURL)
+                        let replyInitial = String((post.authorName.isEmpty ? post.authorUsername : post.authorName).prefix(1)).uppercased()
                         CachedAsyncImage(url: stableImageURL) { image in
                             image
                                 .resizable()
                                 .scaledToFill()
                         } placeholder: {
                             Circle()
-                                .fill(Color.gray.opacity(0.3))
+                                .fill(Color(.systemGray5))
                                 .overlay(
-                                    ProgressView()
-                                        .scaleEffect(0.6)
+                                    Text(replyInitial.isEmpty ? "?" : replyInitial)
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundColor(Color(.systemGray))
                                 )
                         }
                         .frame(width: 32, height: 32)
                         .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    // Visual 32pt for the compact reply-context
+                    // avatar; outer 44pt extends hit area to the
+                    // HIG minimum. Same pattern as PostMenu kebab
+                    // (a86637c) and feed-picker back (ca4bccd).
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+                    .accessibilityLabel("\(post.authorName.isEmpty ? post.authorUsername : post.authorName) profile")
+                    .accessibilityHint("Opens this user's profile")
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Button(action: {
+                        Button {
+                            HapticEngine.tap.trigger()
                             navigationEnvironment.navigateToUser(from: post)
-                        }) {
+                        } label: {
                             EmojiDisplayNameText(
                                 post.authorName,
                                 emojiMap: post.authorEmojiMap,
@@ -103,9 +116,10 @@ struct ReplyContextHeader: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        Button(action: {
+                        Button {
+                            HapticEngine.tap.trigger()
                             navigationEnvironment.navigateToUser(from: post)
-                        }) {
+                        } label: {
                             Text("@\(post.authorUsername)")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -133,17 +147,17 @@ struct ReplyContextHeader: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(
                         colorScheme == .dark
-                            ? Color(UIColor.tertiarySystemBackground)
-                            : Color(UIColor.secondarySystemBackground)
+                            ? Color(.tertiarySystemBackground)
+                            : Color(.secondarySystemBackground)
                     )
             )
             .padding(.horizontal, 16)
         }
         .padding(.bottom, 8)
-        .background(Color(UIColor.systemBackground))
+        .background(Color(.systemBackground))
         .overlay(
             Divider(),
             alignment: .bottom
@@ -680,6 +694,19 @@ struct ComposeAutocompleteServiceKey: Equatable {
 }
 
 struct ComposeView: View {
+    // Content-warning long-press presets — paired with SF Symbols so the
+    // context menu reads visually rather than as a flat text list.
+    private struct CWPreset {
+        let label: String
+        let symbol: String
+    }
+    private let cwPresetsMenu: [CWPreset] = [
+        CWPreset(label: "Spoilers", symbol: "eye.slash"),
+        CWPreset(label: "Politics", symbol: "building.columns"),
+        CWPreset(label: "NSFW", symbol: "exclamationmark.shield"),
+        CWPreset(label: "Violence", symbol: "exclamationmark.triangle"),
+    ]
+
     @State private var threadPosts: [ThreadPost] = [ThreadPost()]
     @State private var activePostIndex: Int = 0
     @State private var showImagePicker = false
@@ -692,7 +719,7 @@ struct ComposeView: View {
     @State private var showDraftActionSheet = false
     @State private var showDraftsList = false
     @State private var showAltTextSheet = false
-    @State private var postingStatus: String = "Posting..."
+    @State private var postingStatus: String = "Posting…"
     @State private var selectedImageIndexForAltText: Int = 0
     @State private var currentAltText: String = ""
     @State private var selectedAccounts: [SocialPlatform: String] = [:]
@@ -703,6 +730,8 @@ struct ComposeView: View {
     @State private var partialSuccessInfo: PartialSuccessInfo? = nil
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Reply and quote context
     let replyingTo: Post?
@@ -762,6 +791,19 @@ struct ComposeView: View {
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
 
     private var postVisibilityOptions = ["Public", "Unlisted", "Followers Only", "Direct"]
+
+    /// SF Symbol for each visibility option index. Mirrors the icon
+    /// vocabulary Mastodon's web UI uses (globe for public, open
+    /// padlock for unlisted, padlock for followers, envelope for DM).
+    private func visibilityIcon(for index: Int) -> String {
+        switch index {
+        case 0: return "globe"
+        case 1: return "lock.open"
+        case 2: return "lock"
+        case 3: return "envelope"
+        default: return "globe"
+        }
+    }
     @State private var selectedVisibility: Int
 
     // Character limits
@@ -784,6 +826,60 @@ struct ComposeView: View {
 
     private var isOverLimit: Bool {
         remainingChars < 0
+    }
+
+    /// Visual character counter: a small progress ring that fills as the user
+    /// approaches the limit, with the remaining count inside. Color goes
+    /// from secondary → orange → red as urgency builds.
+    @ViewBuilder
+    private var characterCounter: some View {
+        let total = max(currentCharLimit, 1)
+        let used = total - remainingChars  // can exceed total when over limit
+        let progress = min(Double(used) / Double(total), 1.0)
+        let isNearLimit = remainingChars < 50
+
+        // Tint cascades by urgency: secondary → orange → red
+        let tint: Color = isOverLimit ? .red : (isNearLimit ? .orange : .secondary)
+        // Once the user is near the limit, the ring becomes visible. Before that
+        // the counter is just a number — keeps the toolbar quiet during normal
+        // composition.
+        let ringVisible = isNearLimit || isOverLimit
+
+        ZStack {
+            if ringVisible {
+                Circle()
+                    .stroke(tint.opacity(0.2), lineWidth: 2)
+                    .frame(width: 24, height: 24)
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 24, height: 24)
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: progress)
+            }
+
+            if isOverLimit {
+                // When over, swap the digit for an alert glyph.
+                // Reduce Motion drops the scale-in pop; the
+                // glyph just appears.
+                Image(systemName: "exclamationmark")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.red)
+                    .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
+            } else {
+                Text("\(remainingChars)")
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundColor(tint)
+                    .contentTransition(.numericText(value: Double(remainingChars)))
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: remainingChars)
+            }
+        }
+        .frame(width: 28, height: 28)
+        .accessibilityLabel(
+            isOverLimit
+                ? "\(-remainingChars) characters over limit"
+                : "\(remainingChars) characters remaining"
+        )
     }
 
     private var overLimitPlatformsString: String {
@@ -810,16 +906,51 @@ struct ComposeView: View {
     }
 
     // Helper for button text
+    /// True when any thread post has text or attached media — used to
+    /// gate interactive dismiss + the Cancel-button save-as-draft prompt.
+    /// Same definition in both places so behavior is consistent.
+    private var hasComposeContent: Bool {
+        threadPosts.contains { post in
+            !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !post.images.isEmpty
+        }
+    }
+
+    /// VoiceOver hint for the primary post button when it's enabled.
+    /// Tells the user what the tap will actually do.
+    private var postButtonHint: String {
+        if quotingTo != nil {
+            return "Sends your quote post"
+        } else if replyingTo != nil {
+            return "Sends your reply"
+        } else {
+            return "Sends to selected platforms"
+        }
+    }
+
+    /// VoiceOver hint when the post button is disabled — explains what
+    /// the user needs to do to re-enable it. Without this, VoiceOver
+    /// users only hear 'No Accounts, dimmed, button' with no fix.
+    private var postButtonDisabledHint: String {
+        if !hasAccountsForSelectedPlatforms {
+            return "Add an account for the selected platforms"
+        } else if isPosting {
+            return "Sending in progress"
+        } else {
+            return "Type a message to enable"
+        }
+    }
+
     private var buttonText: String {
         if !hasAccountsForSelectedPlatforms {
             return "No Accounts"
         } else if isPosting {
             if quotingTo != nil {
-                return "Quoting..."
+                return "Quoting…"
             } else if replyingTo != nil {
-                return "Replying..."
+                return "Replying…"
             } else {
-                return "Posting..."
+                return "Posting…"
             }
         } else {
             if quotingTo != nil {
@@ -837,21 +968,25 @@ struct ComposeView: View {
         if !hasAccountsForSelectedPlatforms {
             return Color.orange
         } else if canPost {
-            return replyingTo != nil ? platformColor : Color.blue
+            // Reply context = platform tint; otherwise the
+            // user's accent so the Post button respects app-level
+            // tint (was fixed Color.blue).
+            return replyingTo != nil ? platformColor : Color.accentColor
         } else {
-            return Color.gray.opacity(0.5)
+            // Disabled state — use systemGray3 so the button reads as
+            // 'present but not actionable' in both light + dark mode,
+            // rather than the flat translucent gray that goes brown
+            // in dark mode.
+            return Color(.systemGray3)
         }
     }
 
-    // Platform color for reply context
+    // Platform color for reply context — routes through the
+    // unified brand color source. Fallback for "not replying"
+    // case stays Color.accentColor so the chrome respects the
+    // user's app-level tint rather than defaulting to fixed blue.
     private var platformColor: Color {
-        guard let replyingTo = replyingTo else { return .blue }
-        switch replyingTo.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
+        replyingTo?.platform.swiftUIColor ?? .accentColor
     }
 
     private struct PlatformLimitStatus: Identifiable {
@@ -931,20 +1066,31 @@ struct ComposeView: View {
                 Menu {
                     Picker("Visibility", selection: $selectedVisibility) {
                         ForEach(0..<postVisibilityOptions.count, id: \.self) { index in
-                            Text(postVisibilityOptions[index]).tag(index)
+                            Label(postVisibilityOptions[index], systemImage: visibilityIcon(for: index))
+                                .tag(index)
                         }
                     }
                 } label: {
-                    Image(systemName: "eye")
+                    Image(systemName: visibilityIcon(for: selectedVisibility))
+                        .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.secondary)
-                        .padding(8)
-                        .background(Color(UIColor.secondarySystemBackground))
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 36, height: 36)
+                        .background(Color(.secondarySystemBackground))
                         .clipShape(Circle())
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
                 }
+                .simultaneousGesture(TapGesture().onEnded { HapticEngine.tap.trigger() })
+                .onChange(of: selectedVisibility) { _, _ in HapticEngine.selection.trigger() }
+                .accessibilityLabel("Post visibility")
+                .accessibilityValue(postVisibilityOptions.indices.contains(selectedVisibility) ? postVisibilityOptions[selectedVisibility] : "Public")
+                .accessibilityHint("Choose who can see this post")
+                .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
-            .background(Color(UIColor.systemBackground))
+            .background(Color(.systemBackground))
             .overlay(
                 Divider(),
                 alignment: .bottom
@@ -1067,14 +1213,14 @@ struct ComposeView: View {
                                 VStack(spacing: 8) {
                                     ProgressView()
                                         .scaleEffect(0.8)
-                                    Text("Searching...")
+                                    Text("Searching")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(UIColor.systemBackground))
+                                        .fill(Color(.systemBackground))
                                         .shadow(
                                             color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
                                 )
@@ -1082,19 +1228,21 @@ struct ComposeView: View {
                             } else if autocompleteService?.networkError != nil {
                                 // Show network error state
                                 VStack(spacing: 8) {
-                                    Image(systemName: "exclamationmark.triangle")
-                                        .foregroundColor(.orange)
-                                        .accessibilityHidden(true)
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(Color.orange.gradient)
+                                        .symbolRenderingMode(.hierarchical)
                                     Text("Network unavailable")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundColor(.primary.opacity(0.78))
                                     Text("Showing recent suggestions only")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(12)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .fill(Color(.secondarySystemBackground))
+                                )
                                 .frame(maxWidth: 200)
                                 .accessibilityElement(children: .combine)
                             } else {
@@ -1103,16 +1251,25 @@ struct ComposeView: View {
                                 VStack(spacing: 8) {
                                     ProgressView()
                                         .scaleEffect(0.8)
-                                    Text("Loading suggestions...")
-                                        .font(.caption)
+                                    Text("Loading suggestions")
+                                        .font(.caption.weight(.medium))
                                         .foregroundColor(.secondary)
                                 }
                                 .padding(12)
                                 .background(
                                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                        .fill(Color(UIColor.systemBackground))
-                                        .shadow(
-                                            color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                        // Same Reduce Transparency fallback
+                                        // as AutocompleteOverlay (3a785f4) —
+                                        // the loading tooltip floats over the
+                                        // composer and keyboard.
+                                        .fill(reduceTransparency
+                                              ? AnyShapeStyle(Color(.secondarySystemBackground))
+                                              : AnyShapeStyle(.regularMaterial))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+                                        )
+                                        .shadow(color: .black.opacity(0.16), radius: 10, x: 0, y: 4)
                                 )
                                 .frame(maxWidth: 200)
                             }
@@ -1145,28 +1302,41 @@ struct ComposeView: View {
     @ViewBuilder
     private var threadPaginationSection: some View {
         if threadPosts.count > 1 {
-            HStack {
+            HStack(spacing: 6) {
                 ForEach(0..<threadPosts.count, id: \.self) { index in
-                    Circle()
-                        .fill(
-                            index == activePostIndex
-                                ? platformColor : Color.gray.opacity(0.3)
-                        )
-                        .frame(width: 8, height: 8)
+                    // Active page renders as an elongated pill (matching the
+                    // FullscreenMediaView page dots), inactive as a small dot.
+                    // Spring animation so taps glide between pages.
+                    let isActive = index == activePostIndex
+                    Capsule(style: .continuous)
+                        .fill(isActive ? AnyShapeStyle(platformColor) : AnyShapeStyle(Color.secondary.opacity(0.3)))
+                        .frame(width: isActive ? 18 : 7, height: 7)
                         .onTapGesture {
+                            HapticEngine.selection.trigger()
                             activePostIndex = index
                         }
+                        .accessibilityLabel("Thread post \(index + 1) of \(threadPosts.count)")
+                        .accessibilityHint(isActive ? "Currently editing" : "Switches to this thread post")
+                        .accessibilityAddTraits(isActive ? .isSelected : [])
+                        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: isActive)
                 }
 
                 Spacer()
 
-                Button(action: {
-                    threadPosts.remove(at: activePostIndex)
-                    activePostIndex = max(0, activePostIndex - 1)
-                }) {
+                Button {
+                    HapticEngine.warning.trigger()
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
+                        _ = threadPosts.remove(at: activePostIndex)
+                        activePostIndex = max(0, activePostIndex - 1)
+                    }
+                } label: {
                     Image(systemName: "trash")
-                        .foregroundColor(.red)
+                        .foregroundStyle(Color.red.gradient)
+                        .symbolRenderingMode(.hierarchical)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
+                .accessibilityLabel("Remove thread post \(activePostIndex + 1)")
             }
             .padding(.horizontal)
             .padding(.bottom, 8)
@@ -1181,12 +1351,17 @@ struct ComposeView: View {
                     Text("Poll")
                         .font(.headline)
                     Spacer()
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         threadPosts[activePostIndex].showPoll = false
                         threadPosts[activePostIndex].pollOptions = []
-                    }) {
+                    } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
+                            .font(.title3)
+                            .foregroundStyle(Color(.systemGray3))
+                            .symbolRenderingMode(.hierarchical)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Remove poll")
                 }
@@ -1201,29 +1376,40 @@ struct ComposeView: View {
                         .textFieldStyle(RoundedBorderTextFieldStyle())
 
                         if threadPosts[activePostIndex].pollOptions.count > 2 {
-                            Button(action: {
-                                threadPosts[activePostIndex].pollOptions.remove(at: index)
-                            }) {
+                            Button {
+                                HapticEngine.tap.trigger()
+                                withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
+                                    _ = threadPosts[activePostIndex].pollOptions.remove(at: index)
+                                }
+                            } label: {
                                 Image(systemName: "minus.circle.fill")
-                                    .foregroundColor(.red)
+                                    .foregroundStyle(Color.red.gradient)
+                                    .symbolRenderingMode(.hierarchical)
+                                    .frame(width: 32, height: 32)
+                                    .contentShape(Rectangle())
                             }
-                            .accessibilityLabel("Remove poll option \(index + 1)")
+                            .accessibilityLabel("Remove option \(index + 1)")
                         }
                     }
                 }
 
                 if threadPosts[activePostIndex].pollOptions.count < 4 {
-                    Button(action: {
-                        threadPosts[activePostIndex].pollOptions.append("")
-                    }) {
+                    Button {
+                        HapticEngine.tap.trigger()
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
+                            threadPosts[activePostIndex].pollOptions.append("")
+                        }
+                    } label: {
                         Label("Add Option", systemImage: "plus.circle")
                             .font(.subheadline)
                     }
                 }
             }
             .padding()
-            .background(Color(UIColor.secondarySystemBackground))
-            .cornerRadius(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color(.secondarySystemBackground))
+            )
             .padding(.horizontal)
             .padding(.bottom, 8)
         }
@@ -1241,28 +1427,40 @@ struct ComposeView: View {
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: 100, height: 100)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                                .shadow(
-                                    color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .accessibilityLabel("Image \(index + 1) of \(threadPosts[activePostIndex].images.count)")
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                                )
+                                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
 
-                            Button(action: {
+                            Button {
+                                HapticEngine.tap.trigger()
                                 threadPosts[activePostIndex].images.remove(at: index)
                                 if index < threadPosts[activePostIndex].imageAltTexts.count {
                                     threadPosts[activePostIndex].imageAltTexts.remove(
                                         at: index)
                                 }
-                            }) {
+                            } label: {
+                                // 44pt minimum tap target — icon stays anchored to
+                                // the top-trailing corner of the frame, extra hit
+                                // area extends inward/down (off the image edge
+                                // toward the user's thumb).
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 18))
                                     .foregroundColor(.white)
                                     .background(Color.black.opacity(0.6))
                                     .clipShape(Circle())
+                                    .frame(width: 44, height: 44, alignment: .topTrailing)
+                                    .contentShape(Rectangle())
                             }
-                            .padding(6)
                             .accessibilityLabel("Remove image \(index + 1)")
+                            .accessibilityHint("Discards this image from the post")
 
                             // Alt Text Button with completion state
                             Button(action: {
+                                HapticEngine.tap.trigger()
                                 selectedImageIndexForAltText = index
                                 // Ensure array is large enough
                                 while threadPosts[activePostIndex].imageAltTexts.count <= index {
@@ -1287,12 +1485,20 @@ struct ComposeView: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 4)
                                 .background(
-                                    index < threadPosts[activePostIndex].imageAltTexts.count
-                                        && !threadPosts[activePostIndex].imageAltTexts[index]
-                                            .isEmpty
-                                        ? Color.blue : Color.black.opacity(0.6)
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(
+                                            // "ALT set" badge tracks accentColor
+                                            // (was hard-coded .blue) so it stays
+                                            // visually consistent with other
+                                            // "this is set" indicators across
+                                            // the app and respects the user's
+                                            // accent setting.
+                                            index < threadPosts[activePostIndex].imageAltTexts.count
+                                                && !threadPosts[activePostIndex].imageAltTexts[index]
+                                                    .isEmpty
+                                                ? Color.accentColor : Color.black.opacity(0.6)
+                                        )
                                 )
-                                .cornerRadius(4)
                             }
                             .padding(6)
                             .frame(
@@ -1305,7 +1511,7 @@ struct ComposeView: View {
             }
             .frame(height: 120)
             .padding(.vertical, 10)
-            .background(Color(UIColor.systemBackground))
+            .background(Color(.systemBackground))
             .overlay(
                 Divider(),
                 alignment: .bottom
@@ -1326,147 +1532,185 @@ struct ComposeView: View {
 
     @ViewBuilder
     private var bottomToolbar: some View {
-        HStack {
+        HStack(spacing: 4) {
             // Add image button
-            Button(action: {
+            composeToolButton(
+                symbol: "photo",
+                isActive: false,
+                accessibilityLabel: "Add photo"
+            ) {
+                HapticEngine.tap.trigger()
                 showImagePicker = true
-            }) {
-                Image(systemName: "photo")
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    .clipShape(Circle())
             }
             .accessibilityLabel("Add photo")
 
-            // CW toggle button
-            Button(action: {
-                threadPosts[activePostIndex].cwEnabled.toggle()
-                if !threadPosts[activePostIndex].cwEnabled {
-                    threadPosts[activePostIndex].cwText = ""
+            // CW toggle button — warning orange when active to match its semantics
+            composeToolButton(
+                symbol: threadPosts[activePostIndex].cwEnabled ? "eye.slash.fill" : "eye.slash",
+                isActive: threadPosts[activePostIndex].cwEnabled,
+                activeTint: .orange,
+                accessibilityLabel: threadPosts[activePostIndex].cwEnabled ? "Remove content warning" : "Add content warning"
+            ) {
+                HapticEngine.selection.trigger()
+                withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82)) {
+                    threadPosts[activePostIndex].cwEnabled.toggle()
+                    if !threadPosts[activePostIndex].cwEnabled {
+                        threadPosts[activePostIndex].cwText = ""
+                    }
                 }
-            }) {
-                Image(
-                    systemName: threadPosts[activePostIndex].cwEnabled
-                        ? "eye.slash.fill" : "eye.slash"
-                )
-                .font(.system(size: 20))
-                .foregroundColor(threadPosts[activePostIndex].cwEnabled ? .blue : .secondary)
-                .padding(8)
-                .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                .clipShape(Circle())
             }
             .accessibilityLabel(threadPosts[activePostIndex].cwEnabled ? "Remove content warning" : "Add content warning")
             .accessibilityHint("Long-press for preset warnings.")
             .contextMenu {
-                // Long-press presets
-                ForEach(["Spoilers", "Politics", "NSFW", "Violence"], id: \.self) { preset in
-                    Button(action: {
+                // Long-press presets — each preset gets a Label with an
+                // appropriate SF Symbol so users can scan visually.
+                ForEach(cwPresetsMenu, id: \.label) { preset in
+                    Button {
+                        HapticEngine.selection.trigger()
                         threadPosts[activePostIndex].cwEnabled = true
-                        threadPosts[activePostIndex].cwText = preset
-                    }) {
-                        Text(preset)
+                        threadPosts[activePostIndex].cwText = preset.label
+                    } label: {
+                        Label(preset.label, systemImage: preset.symbol)
                     }
                 }
             }
 
             // Add post to thread button
-            Button(action: {
-                let newPost = ThreadPost()
-                threadPosts.append(newPost)
-                activePostIndex = threadPosts.count - 1
-            }) {
-                Image(systemName: "plus.circle")
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    .clipShape(Circle())
+            composeToolButton(
+                symbol: "plus.circle",
+                isActive: false,
+                accessibilityLabel: "Add post to thread"
+            ) {
+                HapticEngine.tap.trigger()
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82)) {
+                    let newPost = ThreadPost()
+                    threadPosts.append(newPost)
+                    activePostIndex = threadPosts.count - 1
+                }
             }
             .accessibilityLabel("Add another post to thread")
 
             // Add poll button
-            Button(action: {
+            composeToolButton(
+                symbol: "chart.bar",
+                isActive: threadPosts[activePostIndex].showPoll,
+                activeTint: .accentColor,
+                isDisabled: threadPosts[activePostIndex].showPoll,
+                accessibilityLabel: "Add poll"
+            ) {
+                HapticEngine.tap.trigger()
                 if !threadPosts[activePostIndex].showPoll {
-                    threadPosts[activePostIndex].showPoll = true
-                    threadPosts[activePostIndex].pollOptions = ["", ""]
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
+                        threadPosts[activePostIndex].showPoll = true
+                        threadPosts[activePostIndex].pollOptions = ["", ""]
+                    }
                 }
-            }) {
-                Image(systemName: "chart.bar")
-                    .font(.system(size: 20))
-                    .foregroundColor(.secondary)
-                    .padding(8)
-                    .background(Color(UIColor.secondarySystemBackground).opacity(0.7))
-                    .clipShape(Circle())
             }
-            .disabled(threadPosts[activePostIndex].showPoll)
-            .accessibilityLabel("Add poll")
 
             Spacer()
 
-            // Character counter with feedback
-            HStack(spacing: 4) {
-                if isOverLimit {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.red)
+            // Character counter with feedback — Twitter-style progress ring
+            // surrounds the count once you cross the warning threshold, so the
+            // urgency builds visually without distracting earlier in composition.
+            characterCounter
+                .padding(.horizontal, 8)
+                .onTapGesture {
+                    if isOverLimit {
+                        HapticEngine.warning.trigger()
+                        alertTitle = "Over the Limit"
+                        alertMessage =
+                            "This post is too long for \(overLimitPlatformsString)."
+                        showAlert = true
+                    }
                 }
-
-                Text("\(remainingChars)")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(
-                        isOverLimit ? .red : (remainingChars < 50 ? .orange : .secondary)
-                    )
-            }
-            .padding(.horizontal, 8)
-            .onTapGesture {
-                if isOverLimit {
-                    alertTitle = "Character Limit Exceeded"
-                    alertMessage =
-                        "You are over the character limit for \(overLimitPlatformsString)."
-                    showAlert = true
-                }
-            }
-            // VoiceOver: "47" alone is meaningless. Surface what the
-            // number represents, the over-limit state, and that it's
-            // actionable (taps open the over-limit alert).
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(
-                isOverLimit
-                    ? "Over character limit by \(-remainingChars)"
-                    : "\(remainingChars) characters remaining"
-            )
-            .accessibilityAddTraits(isOverLimit ? .isButton : [])
-            .accessibilityHint(isOverLimit ? "Shows character-limit details." : "")
 
             // Post button - Enhanced with platform color
             Button(action: {
+                HapticEngine.tap.trigger()
                 postContent()
             }) {
                 Text(buttonText)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-                    .foregroundColor(.white)
+                    // Disabled background is light gray — keep the label
+                    // .secondary so contrast survives in both modes.
+                    .foregroundColor(canPost ? .white : .secondary)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
             }
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(canPost ? platformColor : Color.gray.opacity(0.3))
+                Capsule(style: .continuous)
+                    .fill(canPost ? AnyShapeStyle(platformColor.gradient) : AnyShapeStyle(Color(.systemGray5)))
+                    .shadow(
+                        color: canPost ? platformColor.opacity(0.28) : .clear,
+                        radius: 8,
+                        x: 0,
+                        y: 3
+                    )
             )
             .disabled(!canPost)
-            .animation(.easeInOut(duration: 0.2), value: canPost)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: canPost)
+            .accessibilityHint(canPost ? postButtonHint : postButtonDisabledHint)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color(UIColor.systemBackground))
+        .background(Color(.systemBackground))
         .overlay(
             Divider(),
             alignment: .top
         )
+    }
+
+    /// Compose toolbar button — circular tinted background, scales on press,
+    /// shows an active tint when toggled on. Subtle but consistent feedback.
+    private func composeToolButton(
+        symbol: String,
+        isActive: Bool,
+        activeTint: Color = .accentColor,
+        isDisabled: Bool = false,
+        accessibilityLabel: String? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 18, weight: .regular))
+                .foregroundColor(isActive ? activeTint : .secondary)
+                .frame(width: 36, height: 36)
+                .background(
+                    Circle()
+                        .fill(
+                            isActive
+                                ? activeTint.opacity(0.16)
+                                : Color(.secondarySystemBackground).opacity(0.7)
+                        )
+                )
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            isActive ? activeTint.opacity(0.28) : Color.clear,
+                            lineWidth: 0.5
+                        )
+                )
+                .contentTransition(.symbolEffect(.replace))
+                .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: isActive)
+                // 36pt visible circle, 44pt hit target so the tool bar
+                // is forgiving to thumb taps.
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(ComposeToolPressStyle())
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.4 : 1.0)
+        .accessibilityLabel(accessibilityLabel ?? symbol)
+    }
+
+    private struct ComposeToolPressStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+                .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.75), value: configuration.isPressed)
+        }
     }
 
     var body: some View {
@@ -1491,9 +1735,20 @@ struct ComposeView: View {
                 LinkInputDialog(isPresented: $showLinkInput) { url, displayText in
                     insertLinkAtCursor(url: url, displayText: displayText)
                 }
+                // Two-field form — medium detent keeps the compose view
+                // partially visible underneath so the user has context
+                // for what they're inserting the link into.
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
             .navigationTitle(replyingTo != nil ? "Reply" : "New Post")
             .navigationBarTitleDisplayMode(.inline)
+            // Block swipe-to-dismiss while the user has typed content or
+            // attached an image — otherwise a half-thumb gesture would
+            // silently lose their post. The Cancel button still works
+            // (and triggers the save-as-draft flow). Apple Mail uses the
+            // same rule on its compose sheet.
+            .interactiveDismissDisabled(hasComposeContent)
             .navigationDestination(
                 isPresented: Binding(
                     get: { navigationEnvironment.selectedUser != nil },
@@ -1508,11 +1763,13 @@ struct ComposeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
-                        let hasContent = threadPosts.contains { post in
-                            !post.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                || !post.images.isEmpty
-                        }
-                        if hasContent {
+                        // Tap haptic when there's content (about to
+                        // open the discard/save sheet — that's a
+                        // confirmation, warrants feedback). Plain
+                        // dismissal also benefits from the standard
+                        // tap haptic the rest of the app fires.
+                        HapticEngine.tap.trigger()
+                        if hasComposeContent {
                             showDraftActionSheet = true
                         } else {
                             dismiss()
@@ -1522,11 +1779,14 @@ struct ComposeView: View {
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !draftStore.drafts.isEmpty && replyingTo == nil {
-                        Button(action: { showDraftsList = true }) {
+                        Button(action: {
+                            HapticEngine.tap.trigger()
+                            showDraftsList = true
+                        }) {
                             Image(systemName: "archivebox")
                         }
                         .accessibilityLabel("Drafts")
-                        .accessibilityHint("Opens the list of saved drafts.")
+                        .accessibilityHint("Opens your saved drafts")
                     }
                 }
             }
@@ -1551,6 +1811,7 @@ struct ComposeView: View {
             }
             .confirmationDialog("Drafts", isPresented: $showDraftActionSheet) {
                 Button("Save Draft") {
+                    HapticEngine.tap.trigger()
                     draftStore.saveDraft(
                         posts: threadPosts,
                         platforms: selectedPlatforms,
@@ -1558,8 +1819,10 @@ struct ComposeView: View {
                         selectedAccounts: selectedAccounts
                     )
                     dismiss()
+                    ToastManager.shared.show("Draft saved", severity: .success, duration: 1.4)
                 }
                 Button("Delete Post", role: .destructive) {
+                    HapticEngine.warning.trigger()
                     dismiss()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -1601,6 +1864,23 @@ struct ComposeView: View {
                 // Update platform conflicts when platforms change
                 updatePlatformConflicts()
             }
+            .onChange(of: remainingChars) { oldValue, newValue in
+                // Tactile callouts for two thresholds, fired the moment
+                // you *cross* them so you feel the change before you
+                // look down at the ring. Tapbots/Tweetbot bake the same
+                // beat into Ivory's compose toolbar.
+                //
+                // Going over → warning haptic (firm, distinct). Going
+                // back under doesn't re-fire — that'd feel like a nag.
+                // Crossing into the last 50 → soft selection click.
+                // The reverse direction (good news) stays silent to
+                // keep the channel reserved for "watch out" beats.
+                if oldValue >= 0 && newValue < 0 {
+                    HapticEngine.warning.trigger()
+                } else if oldValue >= 50 && newValue < 50 {
+                    HapticEngine.selection.trigger()
+                }
+            }
             .modifier(lifecycleModifier)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
@@ -1615,23 +1895,48 @@ struct ComposeView: View {
                 PhotoPicker(selectedImages: $threadPosts[activePostIndex].images, maxImages: 4)
             }
             .sheet(isPresented: $showAltTextSheet) {
-                NavigationView {
-                    AltTextEditorSheet(
-                        image: selectedImageIndexForAltText < threadPosts[activePostIndex].images.count
-                            ? threadPosts[activePostIndex].images[selectedImageIndexForAltText]
-                            : nil,
-                        text: $currentAltText
-                    )
+                NavigationStack {
+                    VStack {
+                        if selectedImageIndexForAltText < threadPosts[activePostIndex].images.count
+                        {
+                            Image(
+                                uiImage: threadPosts[activePostIndex].images[
+                                    selectedImageIndexForAltText]
+                            )
+                            .resizable()
+                            .scaledToFit()
+                            .frame(height: 200)
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .padding()
+                            .accessibilityLabel("Image \(selectedImageIndexForAltText + 1) of \(threadPosts[activePostIndex].images.count)")
+                        }
+
+                        TextField(
+                            "Describe the image for screen readers", text: $currentAltText,
+                            axis: .vertical
+                        )
+                        .lineLimit(3...10)
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color(.secondarySystemBackground))
+                        )
+                        .padding(.horizontal)
+
+                        Spacer()
+                    }
                     .navigationTitle("Image Description")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
+                        ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") {
+                                HapticEngine.tap.trigger()
                                 showAltTextSheet = false
                             }
                         }
-                        ToolbarItem(placement: .navigationBarTrailing) {
+                        ToolbarItem(placement: .confirmationAction) {
                             Button("Done") {
+                                HapticEngine.success.trigger()
                                 // Save ALT text back to the post
                                 while threadPosts[activePostIndex].imageAltTexts.count <= selectedImageIndexForAltText {
                                     threadPosts[activePostIndex].imageAltTexts.append("")
@@ -1639,9 +1944,15 @@ struct ComposeView: View {
                                 threadPosts[activePostIndex].imageAltTexts[selectedImageIndexForAltText] = currentAltText
                                 showAltTextSheet = false
                             }
+                            .fontWeight(.semibold)
                         }
                     }
                 }
+                // Alt-text editor — image preview + 3-10 line text field.
+                // Default to large, allow medium so the user can shrink
+                // the sheet if they want to see the compose context.
+                .presentationDetents([.large, .medium])
+                .presentationDragIndicator(.visible)
             }
             .alert(isPresented: $showAlert) {
                 if let partial = partialSuccessInfo {
@@ -1679,18 +1990,31 @@ struct ComposeView: View {
                             Color.black.opacity(0.4)
                                 .edgesIgnoringSafeArea(.all)
 
-                            VStack(spacing: 16) {
+                            VStack(spacing: 14) {
                                 ProgressView()
-                                    .scaleEffect(1.5)
+                                    .scaleEffect(1.4)
 
                                 Text(postingStatus)
-                                    .font(.headline)
-                                    .foregroundColor(.white)
+                                    .font(.headline.weight(.semibold))
+                                    .foregroundColor(.primary)
+                                    .multilineTextAlignment(.center)
                             }
                             .padding(24)
-                            .background(Color(UIColor.systemBackground))
-                            .cornerRadius(12)
-                            .shadow(radius: 10)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    // Solid fallback for Reduce Transparency
+                                    // so the "Posting…" card stays opaque
+                                    // against the dimmed compose backdrop.
+                                    .fill(reduceTransparency
+                                          ? AnyShapeStyle(Color(.secondarySystemBackground))
+                                          : AnyShapeStyle(.regularMaterial))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                            .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                                    )
+                            )
+                            .shadow(color: .black.opacity(0.22), radius: 14, x: 0, y: 6)
+                            .shadow(color: .black.opacity(0.08), radius: 1, x: 0, y: 1)
                         }
                     }
                 }
@@ -1810,7 +2134,7 @@ struct ComposeView: View {
                                 .fill(
                                     status.isOverLimit
                                         ? Color.red.opacity(0.12)
-                                        : Color(UIColor.secondarySystemBackground)
+                                        : Color(.secondarySystemBackground)
                                 )
                         )
                         .overlay(
@@ -1878,7 +2202,7 @@ struct ComposeView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(UIColor.secondarySystemBackground))
+                .background(Color(.secondarySystemBackground))
                 .clipShape(Capsule())
             }
         }
@@ -1888,9 +2212,11 @@ struct ComposeView: View {
         guard canPost else {
             // Handle the case where user tries to post without proper accounts
             if !hasAccountsForSelectedPlatforms {
-                let missing = missingAccountPlatforms.map { $0.rawValue }.joined(separator: " and ")
-                alertTitle = "Missing Accounts"
-                alertMessage = "Please add \(missing) account(s) to post to the selected platforms."
+                let missing = missingAccountPlatforms.map { $0.rawValue.capitalized }
+                let platformList = missing.joined(separator: " and ")
+                let isPlural = missing.count > 1
+                alertTitle = isPlural ? "Missing Accounts" : "Missing Account"
+                alertMessage = "Add \(isPlural ? "" : "a ")\(platformList) account\(isPlural ? "s" : "") to post on \(isPlural ? "these platforms" : "this platform")."
                 showAlert = true
             }
             return
@@ -1901,7 +2227,7 @@ struct ComposeView: View {
         if quotingTo != nil {
             postingStatus = "Creating quote..."
         } else {
-            postingStatus = replyingTo != nil ? "Sending reply..." : "Posting..."
+            postingStatus = replyingTo != nil ? "Sending reply…" : "Posting…"
         }
         HapticEngine.tap.trigger()
 
@@ -2069,7 +2395,7 @@ struct ComposeView: View {
                         if updatedPrevious.isEmpty && !failedReplies.isEmpty {
                             throw ServiceError.postFailed(
                                 reason:
-                                    "Failed to reply on all platforms: \(failedReplies.values.joined(separator: ", "))"
+                                    "Reply failed on all platforms: \(failedReplies.values.joined(separator: ", "))"
                             )
                         }
 
@@ -2133,9 +2459,8 @@ struct ComposeView: View {
                 await MainActor.run {
                     isPosting = false
                     HapticEngine.error.trigger()
-                    alertTitle = "Error"
-                    alertMessage =
-                        "Failed to \(replyingTo != nil ? "reply" : "post"): \(error.localizedDescription)"
+                    alertTitle = replyingTo != nil ? "Reply Couldn't Send" : "Post Couldn't Send"
+                    alertMessage = error.localizedDescription
                     showAlert = true
                 }
 
@@ -2745,43 +3070,65 @@ struct PlatformToggleButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    // Helper function to get platform color that's compatible with iOS 16
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Platform color via SocialPlatform.swiftUIColor — single
+    // source of truth for brand color (86a7ca5). Was reaching for
+    // "AppPrimaryColor" / "AppSecondaryColor" asset-catalog
+    // references that duplicated the brand purple/blue.
     private func getPlatformColor() -> Color {
-        switch platform {
-        case .mastodon:
-            return Color("AppPrimaryColor")
-        case .bluesky:
-            return Color("AppSecondaryColor")
-        }
+        platform.swiftUIColor
     }
 
     // Helper function to get a lighter version of the platform color
     private func getLightPlatformColor() -> Color {
-        return getPlatformColor().opacity(0.1)
+        getPlatformColor().opacity(0.1)
     }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
+        Button {
+            HapticEngine.selection.trigger()
+            action()
+        } label: {
+            HStack(spacing: 5) {
                 Image(platform.icon)
                     .resizable()
+                    .renderingMode(.template)
                     .scaledToFit()
                     .frame(width: 14, height: 14)
 
-                // accessibilityLabel returns the properly-cased name
-                // ("Mastodon" / "Bluesky"); rawValue would render
-                // lowercased, which looked like a debug string.
-                Text(platform.accessibilityLabel)
-                    .font(.subheadline)
+                Text(platform.rawValue.capitalized)
+                    .font(.subheadline.weight(isSelected ? .semibold : .medium))
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.vertical, 7)
             .foregroundColor(isSelected ? .white : getPlatformColor())
             .background(
                 Capsule()
                     .fill(isSelected ? getPlatformColor() : getLightPlatformColor())
             )
+            .overlay(
+                Capsule()
+                    .strokeBorder(
+                        isSelected ? Color.clear : getPlatformColor().opacity(0.22),
+                        lineWidth: 0.5
+                    )
+            )
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
         }
+        .buttonStyle(PlatformTogglePressStyle())
+        .accessibilityLabel(platform.rawValue.capitalized)
+        .accessibilityHint(isSelected ? "Excludes from this post" : "Includes in this post")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+private struct PlatformTogglePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.82), value: configuration.isPressed)
     }
 }
 
@@ -2800,9 +3147,112 @@ struct DraftsListView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                ForEach(draftStore.drafts) { draft in
+            Group {
+                if draftStore.drafts.isEmpty {
+                    emptyState
+                } else {
+                    draftsList
+                }
+            }
+            .navigationTitle("Drafts")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        HapticEngine.tap.trigger()
+                        dismiss()
+                    }
+                }
+                if !draftStore.drafts.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        EditButton()
+                    }
+                }
+            }
+            .alert("Rename Draft", isPresented: Binding(get: { draftToRename != nil }, set: { if !$0 { draftToRename = nil } })) {
+                TextField("Draft Name", text: $newName)
+                Button("Cancel", role: .cancel) {
+                    draftToRename = nil
+                }
+                Button("Rename") {
+                    if let draft = draftToRename {
+                        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        draftStore.renameDraft(draft, newName: newName)
+                        HapticEngine.success.trigger()
+                        if !trimmed.isEmpty {
+                            ToastManager.shared.show("Renamed to '\(trimmed)'", severity: .success, duration: 1.6)
+                        } else {
+                            ToastManager.shared.show("Draft renamed", severity: .success, duration: 1.4)
+                        }
+                    }
+                    draftToRename = nil
+                }
+            }
+        }
+    }
+
+    /// Empty state shown when there are no saved drafts — matches the
+    /// tinted-halo composition used throughout the app's other empty states.
+    private var emptyState: some View {
+        VStack(spacing: 16) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.accentColor.opacity(0.14), Color.accentColor.opacity(0.0)],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 70
+                        )
+                    )
+                    .frame(width: 140, height: 140)
+
+                Image(systemName: "doc.text")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundStyle(Color.accentColor.gradient)
+                    .symbolRenderingMode(.hierarchical)
+            }
+
+            VStack(spacing: 6) {
+                Text("No drafts yet")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.primary.opacity(0.85))
+
+                Text("Save a post-in-progress and it'll show up here.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 40)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Composes a single-utterance VoiceOver label for a draft row.
+    /// Without this, VoiceOver stepped through pin-icon, name, body
+    /// preview, date, post count, and platform icons separately.
+    private func draftAccessibilityLabel(for draft: DraftPost) -> String {
+        var parts: [String] = []
+        if draft.isPinned { parts.append("Pinned") }
+        let displayName = draft.name ?? draft.posts.first?.text ?? "(No content)"
+        parts.append(displayName.isEmpty ? "Empty draft" : displayName)
+        if draft.posts.count > 1 {
+            parts.append("\(draft.posts.count) posts")
+        }
+        let platforms = draft.selectedPlatforms.map { $0.rawValue.capitalized }.joined(separator: ", ")
+        if !platforms.isEmpty {
+            parts.append("for \(platforms)")
+        }
+        return parts.joined(separator: ", ")
+    }
+
+    private var draftsList: some View {
+        List {
+            ForEach(draftStore.drafts) { draft in
                     Button(action: {
+                        HapticEngine.tap.trigger()
                         onSelect(draft)
                     }) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -2810,7 +3260,9 @@ struct DraftsListView: View {
                                 if draft.isPinned {
                                     Image(systemName: "pin.fill")
                                         .font(.caption2)
-                                        .foregroundColor(.orange)
+                                        .foregroundStyle(Color.orange.gradient)
+                                        .symbolRenderingMode(.hierarchical)
+                                        .accessibilityLabel("Pinned")
                                 }
                                 
                                 if let name = draft.name {
@@ -2853,8 +3305,12 @@ struct DraftsListView: View {
                                 HStack(spacing: 4) {
                                     ForEach(Array(draft.selectedPlatforms), id: \.self) {
                                         platform in
+                                        // .renderingMode(.template) lets the
+                                        // parent's .foregroundColor(.secondary)
+                                        // actually tint the icon.
                                         Image(platform.icon)
                                             .resizable()
+                                            .renderingMode(.template)
                                             .scaledToFit()
                                             .frame(width: 12, height: 12)
                                     }
@@ -2864,8 +3320,12 @@ struct DraftsListView: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(draftAccessibilityLabel(for: draft))
+                    .accessibilityHint("Opens this draft. Swipe left to delete or rename, right to pin.")
                     .swipeActions(edge: .leading) {
                         Button {
+                            HapticEngine.selection.trigger()
                             draftStore.togglePin(draft)
                         } label: {
                             Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
@@ -2874,12 +3334,14 @@ struct DraftsListView: View {
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {
+                            HapticEngine.warning.trigger()
                             draftStore.deleteDraft(draft)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
-                        
+
                         Button {
+                            HapticEngine.tap.trigger()
                             draftToRename = draft
                             newName = draft.name ?? ""
                         } label: {
@@ -2889,51 +3351,29 @@ struct DraftsListView: View {
                     }
                     .contextMenu {
                         Button {
+                            HapticEngine.selection.trigger()
                             draftStore.togglePin(draft)
                         } label: {
                             Label(draft.isPinned ? "Unpin" : "Pin", systemImage: draft.isPinned ? "pin.slash.fill" : "pin.fill")
                         }
-                        
+
                         Button {
+                            HapticEngine.tap.trigger()
                             draftToRename = draft
                             newName = draft.name ?? ""
                         } label: {
                             Label("Rename", systemImage: "pencil")
                         }
-                        
+
                         Divider()
-                        
+
                         Button(role: .destructive) {
+                            HapticEngine.warning.trigger()
                             draftStore.deleteDraft(draft)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
                     }
-                }
-            }
-            .navigationTitle("Drafts")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-            }
-            .alert("Rename Draft", isPresented: Binding(get: { draftToRename != nil }, set: { if !$0 { draftToRename = nil } })) {
-                TextField("Draft Name", text: $newName)
-                Button("Cancel", role: .cancel) {
-                    draftToRename = nil
-                }
-                Button("Rename") {
-                    if let draft = draftToRename {
-                        draftStore.renameDraft(draft, newName: newName)
-                    }
-                    draftToRename = nil
-                }
             }
         }
     }
@@ -3015,28 +3455,36 @@ struct LinkInputDialog: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Link Details")) {
                     TextField("URL (https://...)", text: $url)
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
+                        .textContentType(.URL)
+                        .submitLabel(.next)
                         .focused($isUrlFocused)
-                    
+                        .onSubmit {
+                            isUrlFocused = false
+                        }
+
                     TextField("Display Text", text: $displayText)
+                        .submitLabel(.done)
                 }
             }
             .navigationTitle("Insert Link")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
+                        HapticEngine.tap.trigger()
                         isPresented = false
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Insert") {
+                        HapticEngine.success.trigger()
                         if !url.isEmpty {
                             // Ensure URL has scheme
                             var finalURL = url
@@ -3048,7 +3496,7 @@ struct LinkInputDialog: View {
                         isPresented = false
                     }
                     .disabled(url.isEmpty)
-                    .fontWeight(.bold)
+                    .fontWeight(.semibold)
                 }
             }
             .onAppear {

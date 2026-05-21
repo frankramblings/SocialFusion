@@ -22,16 +22,19 @@ struct AuthWebView: View {
                 )
             } else {
                 // For older iOS versions, we'll use SFSafariViewController
-                Button(action: {
+                Button {
+                    HapticEngine.tap.trigger()
                     presentSafariView = true
-                }) {
+                } label: {
                     Text("Continue to Authorization")
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.blue)
-                        .cornerRadius(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color.accentColor.gradient)
+                        )
                 }
                 .padding()
                 .sheet(isPresented: $presentSafariView) {
@@ -124,7 +127,7 @@ struct SafariAuthView: UIViewControllerRepresentable {
     let onComplete: (URL) -> Void
     let onCancel: () -> Void
 
-    @Environment(\.presentationMode) var presentationMode
+    @Environment(\.dismiss) var dismiss
 
     class Coordinator: NSObject, SFSafariViewControllerDelegate {
         let parent: SafariAuthView
@@ -134,7 +137,7 @@ struct SafariAuthView: UIViewControllerRepresentable {
         }
 
         func safariViewControllerDidFinish(_ controller: SFSafariViewController) {
-            parent.presentationMode.wrappedValue.dismiss()
+            parent.dismiss()
             parent.onCancel()
         }
     }
@@ -151,14 +154,20 @@ struct SafariAuthView: UIViewControllerRepresentable {
             queue: .main
         ) { notification in
             if let url = notification.object as? URL {
-                self.presentationMode.wrappedValue.dismiss()
+                self.dismiss()
                 self.onComplete(url)
             }
         }
 
         let safariVC = SFSafariViewController(url: url)
         safariVC.delegate = context.coordinator
-        safariVC.preferredControlTintColor = UIColor.systemBlue
+        // Match the app's tint so the OAuth flow's Safari chrome
+        // (Done button, etc.) reads as part of SocialFusion rather
+        // than the iOS default. Falls back to systemBlue if the
+        // asset is missing — same fallback shape as the share
+        // extension nav bar (7d019f2).
+        safariVC.preferredControlTintColor =
+            UIColor(named: "AppPrimaryColor") ?? UIColor.systemBlue
         safariVC.dismissButtonStyle = .done
 
         return safariVC

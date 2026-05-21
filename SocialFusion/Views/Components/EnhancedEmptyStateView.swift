@@ -107,8 +107,14 @@ struct EnhancedEmptyStateView: View {
             case .rateLimited(let retryAfter):
                 if let retryAfter = retryAfter {
                     let minutes = Int(retryAfter / 60)
+                    let waitPhrase: String
+                    if minutes > 0 {
+                        waitPhrase = "\(minutes) minute\(minutes == 1 ? "" : "s")"
+                    } else {
+                        waitPhrase = "a moment"
+                    }
                     return
-                        "You've made too many requests. Please wait \(minutes > 0 ? "\(minutes) minutes" : "a moment") before trying again."
+                        "You've made too many requests. Please wait \(waitPhrase) before trying again."
                 } else {
                     return "You've made too many requests. Please wait before trying again."
                 }
@@ -238,40 +244,52 @@ struct EnhancedEmptyStateView: View {
                 systemStatusView
             }
 
-            // Action buttons
-            VStack(spacing: 12) {
+            // Action buttons — refined with gradient fill and subtle shadow on primary,
+            // soft tinted background on secondary
+            VStack(spacing: 10) {
                 if let primaryTitle = state.primaryActionTitle {
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         handlePrimaryAction()
-                    }) {
-                        HStack {
+                    } label: {
+                        HStack(spacing: 8) {
                             if state == .loading {
                                 ProgressView()
                                     .scaleEffect(0.8)
                                     .tint(.white)
                             }
                             Text(primaryTitle)
+                                .font(.headline)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(state.color)
+                        .padding(.vertical, 15)
                         .foregroundColor(.white)
-                        .cornerRadius(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(state.color.gradient)
+                                .shadow(color: state.color.opacity(0.28), radius: 12, x: 0, y: 4)
+                        )
                     }
+                    .buttonStyle(EmptyStatePressStyle())
                     .disabled(state == .loading)
                 }
 
                 if let secondaryTitle = state.secondaryActionTitle {
-                    Button(action: {
+                    Button {
+                        HapticEngine.tap.trigger()
                         handleSecondaryAction()
-                    }) {
+                    } label: {
                         Text(secondaryTitle)
+                            .font(.subheadline.weight(.medium))
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.secondary.opacity(0.1))
-                            .foregroundColor(.secondary)
-                            .cornerRadius(12)
+                            .padding(.vertical, 14)
+                            .foregroundColor(.primary.opacity(0.7))
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05))
+                            )
                     }
+                    .buttonStyle(EmptyStatePressStyle())
                 }
             }
             .padding(.horizontal, 32)
@@ -279,7 +297,19 @@ struct EnhancedEmptyStateView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(UIColor.systemBackground))
+        .background(Color(.systemBackground))
+    }
+
+    private struct EmptyStatePressStyle: ButtonStyle {
+        func makeBody(configuration: Configuration) -> some View {
+            configuration.label
+                .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+                .opacity(configuration.isPressed ? 0.9 : 1.0)
+                .animation(
+                    .interactiveSpring(response: 0.25, dampingFraction: 0.8),
+                    value: configuration.isPressed
+                )
+        }
     }
 
     private var shouldShowSystemStatus: Bool {

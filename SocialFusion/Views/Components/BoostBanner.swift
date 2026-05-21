@@ -15,19 +15,12 @@ struct BoostBanner: View {
         self.emojiMap = emojiMap
     }
 
-    private var platformColor: Color {
-        switch platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    private var platformColor: Color { platform.swiftUIColor }
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "repeat")
-                .font(.caption)
+            Image(systemName: "arrow.2.squarepath")
+                .font(.caption.weight(.semibold))
                 .foregroundColor(platformColor)
                 .scaleEffect(isPressed ? 0.95 : 1.0)
             HStack(spacing: 0) {
@@ -62,7 +55,12 @@ struct BoostBanner: View {
                 withAnimation(.easeInOut(duration: 0.1)) {
                     isPressed = pressing
                 }
-            }, perform: {})
+            }, perform: {}
+        )
+        // Read as a single phrase: "Boosted by @handle" — not three separate
+        // tokens (icon, name, "boosted") that VoiceOver users have to assemble.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Boosted by \(handle)")
     }
 }
 
@@ -84,16 +82,29 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
     @State private var isPressed = false
     @State private var hasTriggeredLoad = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    // Same shape as ExpandingReplyBanner's animation envelopes.
+    // Under reduceMotion the 0.3-0.45s movement-laden curves
+    // collapse to a brief opacity-only easeOut so the expand
+    // still has *some* transition (no animation at all reads as
+    // broken).
     private var expandAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.45)
     }
 
     private var collapseAnimation: Animation {
-        .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
+        reduceMotion
+            ? .easeOut(duration: 0.12)
+            : .timingCurve(0.4, 0.0, 0.6, 1.0, duration: 0.35)
     }
 
     private var chevronAnimation: Animation {
-        .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
+        reduceMotion
+            ? .easeOut(duration: 0.1)
+            : .timingCurve(0.25, 0.1, 0.25, 1.0, duration: 0.3)
     }
 
     private var visibleBoosters: [User] {
@@ -140,28 +151,25 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
         return "Boosted by \(first), \(second) + \(remaining) more"
     }
 
-    private var collapsedAccessibilityLabel: String { collapsedText }
-    private var collapsedAccessibilityHint: String {
-        isExpanded
-            ? "Collapses the booster list."
-            : "Expands to show all boosters."
+    private var collapsedAccessibilityLabel: String {
+        collapsedText
     }
 
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
+    /// Hint for the collapsed banner — describes the consequence
+    /// without using 'Double-tap' (VoiceOver announces that itself
+    /// for any focused button).
+    private var collapsedAccessibilityHint: String {
+        "Opens the full list of boosters"
     }
+
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     // MARK: - Extracted Subviews (helps type-checker)
 
     private var bannerHeaderContent: some View {
         HStack(spacing: 8) {
-            Image(systemName: "repeat")
-                .font(.caption)
+            Image(systemName: "arrow.2.squarepath")
+                .font(.caption.weight(.semibold))
                 .foregroundColor(platformColor)
 
             OverlappingAvatarStack(users: collapsedBoosters, size: 18, overlapFraction: 0.33)
@@ -174,10 +182,11 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.caption2)
-                .foregroundColor(.secondary)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
                 .rotationEffect(.degrees(isExpanded ? 90 : 0))
                 .animation(chevronAnimation, value: isExpanded)
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -233,20 +242,17 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
             .onLongPressGesture(
                 minimumDuration: 0, maximumDistance: .infinity,
                 pressing: { pressing in
-                    isPressed = pressing
-                    if pressing {
-                        HapticEngine.tap.trigger()
+                    // Visual press feedback only — haptic fires on the
+                    // actual tap action (handleBannerTap), not press-down,
+                    // to avoid double-buzz from layering long-press on Button.
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = pressing
                     }
                 }, perform: {}
             )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(collapsedAccessibilityLabel)
             .accessibilityHint(collapsedAccessibilityHint)
-            // Communicate the current expansion state. VoiceOver's
-            // expanded/collapsed state announcement makes the tap target
-            // self-describing without the user needing to infer state
-            // from the hint's verb tense.
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
 
             expandedContent
                 .opacity(showContent ? 1 : 0)
@@ -333,20 +339,38 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
         user.displayName?.isEmpty == false ? (user.displayName ?? "") : user.username
     }
 
+    private var isMutual: Bool { user.isFollowedByMe && user.followsMe }
+    private var followsMe: Bool { user.followsMe && !user.isFollowedByMe }
+
     var body: some View {
-        Button(action: { viewModel.openProfile(userID: user.id) }) {
+        Button {
+            HapticEngine.tap.trigger()
+            viewModel.openProfile(userID: user.id)
+        } label: {
             HStack(spacing: 12) {
                 BoosterAvatarView(url: user.avatarURL, size: 32)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    EmojiDisplayNameText(
-                        displayedName,
-                        emojiMap: user.displayNameEmojiMap,
-                        font: .subheadline,
-                        fontWeight: .regular,
-                        foregroundColor: .primary,
-                        lineLimit: 1
-                    )
+                    HStack(spacing: 6) {
+                        EmojiDisplayNameText(
+                            displayedName,
+                            emojiMap: user.displayNameEmojiMap,
+                            font: .subheadline,
+                            fontWeight: .semibold,
+                            foregroundColor: .primary,
+                            lineLimit: 1
+                        )
+
+                        // Mutuals get a quiet accent pill; one-way "Follows you"
+                        // stays neutral. Mirrors FollowsYouBadge's treatment so
+                        // the booster list and profile header speak the same
+                        // visual language about relationships.
+                        if isMutual {
+                            relationshipPill(symbol: "person.2.fill", text: "Mutuals", tinted: true)
+                        } else if followsMe {
+                            relationshipPill(symbol: nil, text: "Follows you", tinted: false)
+                        }
+                    }
 
                     Text("@\(user.username)")
                         .font(.caption)
@@ -355,24 +379,77 @@ struct BoosterRowView<ViewModel: BoostBannerViewModel>: View {
                 }
 
                 Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityHint("Opens this user's profile")
         .contextMenu {
-            Button("View Profile") {
+            Button {
+                HapticEngine.tap.trigger()
                 viewModel.openProfile(userID: user.id)
+            } label: {
+                Label("View Profile", systemImage: "person.crop.circle")
             }
-            Button(user.isFollowedByMe ? "Unfollow" : "Follow") {
+            Button {
+                HapticEngine.selection.trigger()
                 if user.isFollowedByMe {
                     viewModel.unfollow(userID: user.id)
                 } else {
                     viewModel.follow(userID: user.id)
                 }
+            } label: {
+                Label(
+                    user.isFollowedByMe ? "Unfollow" : "Follow",
+                    systemImage: user.isFollowedByMe ? "person.badge.minus" : "person.badge.plus"
+                )
             }
-            Button("Mute") { viewModel.mute(userID: user.id) }
-            Button("Block", role: .destructive) { viewModel.block(userID: user.id) }
+            Button {
+                HapticEngine.warning.trigger()
+                viewModel.mute(userID: user.id)
+            } label: {
+                Label("Mute", systemImage: "speaker.slash")
+            }
+            Button(role: .destructive) {
+                HapticEngine.warning.trigger()
+                viewModel.block(userID: user.id)
+            } label: {
+                Label("Block", systemImage: "hand.raised")
+            }
         }
+    }
+
+    private var accessibilityLabel: String {
+        var parts: [String] = ["\(displayedName), @\(user.username)"]
+        if isMutual { parts.append("Mutuals") }
+        else if followsMe { parts.append("Follows you") }
+        return parts.joined(separator: ", ")
+    }
+
+    @ViewBuilder
+    private func relationshipPill(symbol: String?, text: String, tinted: Bool) -> some View {
+        HStack(spacing: 3) {
+            if let symbol {
+                Image(systemName: symbol)
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            Text(text)
+                .font(.caption2.weight(.medium))
+        }
+        .foregroundColor(tinted ? .accentColor : .secondary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(tinted ? Color.accentColor.opacity(0.12) : Color(.secondarySystemBackground))
+        )
     }
 }
 

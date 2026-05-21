@@ -164,68 +164,74 @@ struct LinkPreviewContent: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Image section
-            if let imageURL = imageURL {
-                AsyncImage(url: imageURL) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
-                            .frame(maxWidth: .infinity, maxHeight: 200)
-                            .cornerRadius(MediaConstants.CornerRadius.feed)
-                            .clipped()
-                    case .failure(_):
-                        EmptyView()
-                    case .empty:
-                        Rectangle()
-                            .fill(Color.gray.opacity(0.15))
-                            .frame(maxWidth: .infinity, maxHeight: 200)
-                            .cornerRadius(MediaConstants.CornerRadius.feed)
-                            .overlay(ProgressView())
-                    @unknown default:
-                        EmptyView()
-                    }
-                }
-                .id(imageURL.absoluteString)
-            }
-
-            // Text content
-            VStack(alignment: .leading, spacing: 6) {
-                if let title = metadata.title, !title.isEmpty {
-                    Text(title)
-                        .font(.headline)
-                        .fontWeight(.semibold)
-                        .lineLimit(2)
-                        .foregroundColor(.primary)
-                }
-
-                // Use domain as description if no other description available
-                Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-        }
-        .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
-        .onTapGesture {
+        Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                // Image section
+                if let imageURL = imageURL {
+                    AsyncImage(url: imageURL) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(maxWidth: .infinity, maxHeight: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
+                                .clipped()
+                        case .failure(_):
+                            EmptyView()
+                        case .empty:
+                            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                                .fill(Color(.systemGray5))
+                                .frame(maxWidth: .infinity, maxHeight: 200)
+                                .overlay(ProgressView())
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .id(imageURL.absoluteString)
+                }
+
+                // Text content
+                VStack(alignment: .leading, spacing: 6) {
+                    if let title = metadata.title, !title.isEmpty {
+                        Text(title)
+                            .font(.headline.weight(.semibold))
+                            .lineLimit(2)
+                            .foregroundColor(.primary)
+                            .multilineTextAlignment(.leading)
+                    }
+
+                    // Use domain as description if no other description available
+                    HStack(spacing: 4) {
+                        Image(systemName: "link")
+                            .font(.system(size: 10))
+                        Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
+                            .font(.caption)
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                    .fill(Color(.systemGray6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityAddTraits(.isLink)
-        .accessibilityHint("Opens in your browser.")
+        .buttonStyle(LinkPreviewCardPressStyle())
+        .accessibilityLabel(metadata.title ?? url.host ?? "Link")
+        .accessibilityValue(url.host ?? "")
+        .accessibilityHint("Opens this link in your browser")
         .onAppear {
             loadImage()
         }
@@ -279,51 +285,43 @@ struct LinkPreviewContent: View {
 
 // Improved placeholder with better styling
 struct LinkPreviewPlaceholder: View {
-    @Environment(\.colorScheme) private var colorScheme
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Image placeholder
-            Rectangle()
-                .fill(Color.gray.opacity(0.2))
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .fill(Color(.systemGray5))
                 .frame(height: 120)
-                .cornerRadius(MediaConstants.CornerRadius.feed)
                 .overlay(
                     ProgressView()
                         .scaleEffect(0.8)
                 )
 
-            // Text placeholders
+            // Text placeholders — system-named grays adapt to dark mode
+            // (Color.gray.opacity reads as brown-tinted in dark mode).
             VStack(alignment: .leading, spacing: 6) {
-                Rectangle()
-                    .fill(Color.gray.opacity(0.3))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color(.systemGray5))
                     .frame(height: 16)
                     .frame(maxWidth: .infinity)
-                    .cornerRadius(4)
 
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color(.systemGray5).opacity(0.7))
                     .frame(height: 12)
                     .frame(maxWidth: 120)
-                    .cornerRadius(4)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
         .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .fill(Color(.systemGray6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         .redacted(reason: .placeholder)
-        // Same fix as LoadingQuoteView / Profile skeleton / Search
-        // trending placeholder: the .redacted shapes would otherwise
-        // get announced individually as geometry. Combine into one
-        // load-state announcement.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading link preview")
     }
@@ -335,52 +333,64 @@ struct LinkPreviewFallback: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Link icon
-            Image(systemName: "link")
-                .font(.title2)
-                .foregroundColor(.secondary)
-                .frame(width: 40, height: 40)
-                .background(
-                    Circle()
-                        .fill(Color.gray.opacity(0.15))
-                )
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                    .font(.callout)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .lineLimit(1)
-
-                Text("External Link")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-
-            Image(systemName: "arrow.up.right")
-                .font(.callout)
-                .foregroundColor(.secondary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .fill(colorScheme == .dark ? Color(.systemGray6) : Color(.systemGray6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .stroke(Color.gray.opacity(0.3), lineWidth: 0.5)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
-        .onTapGesture {
+        Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
+        } label: {
+            HStack(spacing: 12) {
+                // Link icon — tinted accent so the affordance feels intentional
+                Image(systemName: "link")
+                    .font(.title3.weight(.semibold))
+                    .foregroundColor(.accentColor)
+                    .frame(width: 40, height: 40)
+                    .background(
+                        Circle()
+                            .fill(Color.accentColor.opacity(0.14))
+                    )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
+                        .font(.callout.weight(.medium))
+                        .foregroundColor(.primary)
+                        .lineLimit(1)
+                        .multilineTextAlignment(.leading)
+
+                    Text("External Link")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(.secondary.opacity(0.7))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                    .fill(Color(.systemGray6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous))
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Link: \(url.host?.replacingOccurrences(of: "www.", with: "") ?? url.absoluteString)")
-        .accessibilityAddTraits(.isLink)
-        .accessibilityHint("Opens in your browser.")
+        .buttonStyle(LinkPreviewCardPressStyle())
+        .accessibilityLabel(url.host ?? "External link")
+        .accessibilityHint("Opens this link in your browser")
+    }
+}
+
+/// Subtle press feedback for link previews — small scale + dim. Shared between
+/// the rich content and fallback variants so taps feel consistent.
+private struct LinkPreviewCardPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .opacity(configuration.isPressed ? 0.86 : 1.0)
+            .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }

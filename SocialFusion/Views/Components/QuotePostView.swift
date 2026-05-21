@@ -38,6 +38,10 @@ public struct QuotePostView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
+            // Tap haptic matches the rest of the app's
+            // tap-to-navigate vocabulary (PostCardView, PostAvatar
+            // tap, etc.). Without it the quote post felt mute.
+            HapticEngine.tap.trigger()
             if let onTap = onTap {
                 onTap()
             } else {
@@ -80,6 +84,7 @@ public struct QuotePostView: View {
 
     private var authorAvatar: some View {
         Button(action: {
+            HapticEngine.tap.trigger()
             navigationEnvironment.navigateToUser(from: post)
         }) {
             ZStack(alignment: .bottomTrailing) {
@@ -124,6 +129,7 @@ public struct QuotePostView: View {
     private var authorInfo: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
+                HapticEngine.tap.trigger()
                 navigationEnvironment.navigateToUser(from: post)
             }) {
                 EmojiDisplayNameText(
@@ -138,6 +144,7 @@ public struct QuotePostView: View {
             .buttonStyle(PlainButtonStyle())
 
             Button(action: {
+                HapticEngine.tap.trigger()
                 navigationEnvironment.navigateToUser(from: post)
             }) {
                 Text("@\(post.authorUsername)")
@@ -149,7 +156,7 @@ public struct QuotePostView: View {
     }
 
     private var timestamp: some View {
-        Text(formatRelativeTime(from: post.createdAt))
+        Text(post.createdAt.relativeTimeString)
             .font(.caption)
             .foregroundColor(.secondary)
     }
@@ -176,7 +183,9 @@ public struct QuotePostView: View {
 
     private var errorMediaView: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.2))
+            // systemGray5 adapts to light/dark; plain Color.gray
+            // shifts to a brown tint against dark backgrounds.
+            .fill(Color(.systemGray5))
             .frame(maxWidth: .infinity, maxHeight: 220)
             .cornerRadius(14)
             .overlay(
@@ -187,7 +196,7 @@ public struct QuotePostView: View {
 
     private var loadingMediaView: some View {
         Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
             .frame(maxWidth: .infinity, maxHeight: 220)
             .cornerRadius(14)
             .overlay(
@@ -206,27 +215,6 @@ public struct QuotePostView: View {
                 lineWidth: 0.5)
     }
 
-    // MARK: - Helper Functions
-
-    private func formatRelativeTime(from date: Date) -> String {
-        let now = Date()
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: date, to: now)
-
-        if let year = components.year, year > 0 {
-            return "\(year)y"
-        } else if let month = components.month, month > 0 {
-            return "\(month)mo"
-        } else if let day = components.day, day > 0 {
-            return day >= 7 ? "\(day/7)w" : "\(day)d"
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m"
-        } else {
-            return "now"
-        }
-    }
 }
 
 #Preview {

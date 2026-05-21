@@ -46,7 +46,13 @@ struct StabilizedLinkPreview: View {
     var body: some View {
         contentView
             .frame(maxWidth: .infinity)
-            .animation(.easeInOut(duration: 0.2), value: isLoading)
+            // NO layout animation between loading and loaded states. Both states
+            // now reserve identical heights (see linkPreviewTextSectionHeight),
+            // so an animated transition would only smooth a non-existent
+            // change. More importantly: animating layout DURING async load
+            // pushes posts below the viewport, which is exactly the timeline
+            // jump symptom users were seeing when scrolling through cards
+            // that hadn't finished fetching their LP metadata yet.
             // DEBUG: Track layout shifts for link previews
             .trackLayoutShifts(id: "linkpreview-\(url.absoluteString.hashValue)", componentType: "LinkPreview")
             .onAppear {
@@ -216,18 +222,69 @@ struct StabilizedLinkPreview: View {
 /// ZERO LAYOUT SHIFT: Both states must use the same height to prevent reflow
 private let linkPreviewImageHeight: CGFloat = 180
 
-/// Loading state with shimmer effect - MUST match loaded state geometry exactly
+/// Fixed height reservations for the text section. Both loading skeletons
+/// and loaded content reserve exactly these heights, so the card's total
+/// height stays constant from skeleton → rich content. Numbers tuned to
+/// fit 2-line subheadline + 2-line footnote + 1-line caption comfortably
+/// using SF Pro at default Dynamic Type.
+private let linkPreviewTitleReservedHeight: CGFloat = 40   // 2 lines of subheadline
+private let linkPreviewDescReservedHeight: CGFloat = 34    // 2 lines of footnote
+private let linkPreviewDomainReservedHeight: CGFloat = 18  // 1 line of caption + chrome
+
+/// Loading state with shimmer effect - MUST match loaded state geometry exactly.
+///
+/// Uses TimelineView so the shimmer phase is driven by the system clock rather
+/// than a `@State` + `withAnimation(.repeatForever)`. The latter pattern is
+/// known to cause AttributeGraph cycles when used inside other view updates,
+/// and matches what SkeletonPostCard does for the same reason.
 private struct StabilizedLinkLoadingView: View {
     let height: CGFloat  // Kept for backward compatibility, but we use linkPreviewImageHeight
-    @State private var phase: CGFloat = 0
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        Group {
+            if reduceMotion {
+                staticContent
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let elapsed = context.date.timeIntervalSinceReferenceDate
+                    let period: Double = 1.5
+                    let phase = CGFloat(elapsed.truncatingRemainder(dividingBy: period) / period * 1.3)
+                    layout(phase: phase)
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+                .fill(Color(.systemGray6).opacity(0.5))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
+                Color(.separator).opacity(0.3), lineWidth: 0.5)
+        )
+        .clipShape(
+            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
+        )
+        .accessibilityLabel("Loading link preview")
+    }
+
+    /// Static fallback used when reduce-motion is on — same layout, no shimmer.
+    private var staticContent: some View {
+        layout(phase: 0.5, animated: false)
+    }
+
+    @ViewBuilder
+    private func layout(phase: CGFloat, animated: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // ZERO LAYOUT SHIFT: Image area uses same height as loaded state (180pt)
             Rectangle()
-                .fill(shimmerGradient)
+                // Reduce-motion fallback uses systemGray5 to stay
+                // in the same gray family as light/dark backgrounds.
+                // Color.gray.opacity reads as brown-tinted in dark
+                // mode — the same fix the rest of the codebase
+                // applies (see SkeletonPostCard, FetchQuotePostView).
+                .fill(animated ? AnyShapeStyle(shimmerGradient(phase: phase)) : AnyShapeStyle(Color(.systemGray5)))
                 .frame(maxWidth: .infinity)
                 .frame(height: linkPreviewImageHeight)
                 .clipShape(
@@ -241,65 +298,70 @@ private struct StabilizedLinkLoadingView: View {
                     )
                 )
 
-            // Text placeholder area - matches loaded state structure
+            // Text placeholder area — reserves the exact same heights as
+            // the loaded rich content so the card never resizes during
+            // metadata fetch. See linkPreviewTitleReservedHeight etc.
+            //
+            // All skeleton fills route through system grays. Color.gray
+            // is a fixed device color that shifts brown in dark mode;
+            // systemGray4/5 adapt cleanly. Same family as the rest of
+            // the codebase's skeletons.
+            let titleFill = Color(.systemGray4)
+            let bodyFill = Color(.systemGray5)
             VStack(alignment: .leading, spacing: 4) {
-                // Title placeholder
-                Rectangle()
-                    .fill(Color.gray.opacity(0.2))
-                    .frame(height: 15)
-                    .frame(maxWidth: .infinity)
-                    .cornerRadius(4)
+                // Title placeholder — 2-line subheadline reservation.
+                // Renders as one stacked pair of pills so the skeleton
+                // hints at multi-line content without being a single
+                // monolithic block.
+                VStack(alignment: .leading, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(titleFill)
+                        .frame(height: 14)
+                        .frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(titleFill)
+                        .frame(height: 14)
+                        .frame(maxWidth: 220)
+                }
+                .frame(height: linkPreviewTitleReservedHeight, alignment: .topLeading)
 
-                // Description placeholder
-                Rectangle()
-                    .fill(Color.gray.opacity(0.15))
-                    .frame(height: 13)
-                    .frame(maxWidth: 200)
-                    .cornerRadius(4)
+                // Description placeholder — 2-line footnote reservation.
+                VStack(alignment: .leading, spacing: 4) {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(bodyFill)
+                        .frame(height: 12)
+                        .frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(bodyFill)
+                        .frame(height: 12)
+                        .frame(maxWidth: 180)
+                }
+                .frame(height: linkPreviewDescReservedHeight, alignment: .topLeading)
 
-                // URL/domain placeholder
+                // URL/domain placeholder — 1-line caption reservation.
                 HStack(spacing: 4) {
                     Circle()
-                        .fill(Color.gray.opacity(0.15))
+                        .fill(bodyFill)
                         .frame(width: 10, height: 10)
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.15))
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(bodyFill)
                         .frame(width: 80, height: 12)
-                        .cornerRadius(4)
                 }
-                .padding(.top, 2)
+                .frame(height: linkPreviewDomainReservedHeight, alignment: .leading)
             }
             .padding(12)
         }
-        .background(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
-                .fill(Color(.systemGray6).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
-                Color(.separator).opacity(0.3), lineWidth: 0.5)
-        )
-        .clipShape(
-            RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
-        )
-        .onAppear {
-            // Skip the looping shimmer when reduce-motion is on; the static
-            // gradient + .accessibilityHidden on the placeholder is enough
-            // to communicate "loading."
-            guard !reduceMotion else { return }
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                phase = 1.3
-            }
-        }
-        .accessibilityHidden(true)
     }
 
-    private var shimmerGradient: LinearGradient {
+    private func shimmerGradient(phase: CGFloat) -> LinearGradient {
+        // System grays adapt to light/dark mode. Same shimmer
+        // pattern SkeletonPostCard uses for visual consistency
+        // across all loading surfaces in the app.
         LinearGradient(
             stops: [
-                .init(color: Color.gray.opacity(0.05), location: phase - 0.3),
-                .init(color: Color.gray.opacity(0.15), location: phase),
-                .init(color: Color.gray.opacity(0.05), location: phase + 0.3),
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase - 0.3),
+                .init(color: Color(.systemGray4), location: phase),
+                .init(color: Color(.systemGray5).opacity(0.6), location: phase + 0.3),
             ],
             startPoint: .leading,
             endPoint: .trailing
@@ -321,6 +383,7 @@ private struct StabilizedLinkRichContentView: View {
 
     var body: some View {
         Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -345,7 +408,7 @@ private struct StabilizedLinkRichContentView: View {
                     } else if let iconURL = iconURL {
                         // Use icon in large slot if no featured image (Bluesky/Ivory style)
                         ZStack {
-                            Color.gray.opacity(0.05)
+                            Color(.systemGray6)
 
                             AsyncImage(url: iconURL) { phase in
                                 if let image = phase.image {
@@ -377,51 +440,69 @@ private struct StabilizedLinkRichContentView: View {
                 )
 
                 // Text Section
+                // ZERO LAYOUT SHIFT: every row reserves a fixed height
+                // matching the skeleton state. Short titles / missing
+                // descriptions render whitespace in the reserved space
+                // rather than collapsing — which means scrolling never
+                // sees the card resize as LP metadata trickles in.
                 VStack(alignment: .leading, spacing: 4) {
-                    // Prefer passed title (from server card), fall back to LP metadata title
+                    // Title row — always reserves 2-line subheadline height.
                     let title = passedTitle ?? metadata?.title
-                    if let title = title, !title.isEmpty, title != url.host {
-                        Text(title)
-                            .font(.system(size: 15, weight: .semibold))
-                            .lineLimit(2)
-                            .foregroundColor(.primary)
-                            .multilineTextAlignment(.leading)
+                    Group {
+                        if let title = title, !title.isEmpty, title != url.host {
+                            Text(title)
+                                .font(.subheadline.weight(.semibold))
+                                .lineLimit(2)
+                                .foregroundColor(.primary)
+                                .multilineTextAlignment(.leading)
+                        } else {
+                            Color.clear
+                        }
                     }
+                    .frame(height: linkPreviewTitleReservedHeight, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    // Prefer passed description (from server card), fall back to LP metadata description
+                    // Description row — always reserves 2-line footnote height.
                     let description = passedDescription ?? metadata.flatMap { extractDescription(from: $0) }
-                    if let description = description, !description.isEmpty {
-                        Text(description)
-                            .font(.system(size: 13))
-                            .lineLimit(2)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.leading)
+                    Group {
+                        if let description = description, !description.isEmpty {
+                            Text(description)
+                                .font(.footnote)
+                                .lineLimit(2)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.leading)
+                        } else {
+                            Color.clear
+                        }
                     }
+                    .frame(height: linkPreviewDescReservedHeight, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
+                    // Domain row — reserves caption-sized vertical space.
                     HStack(spacing: 4) {
                         Image(systemName: "link")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                         Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                            .font(.system(size: 12))
+                            .font(.caption)
                     }
                     .foregroundColor(.secondary)
-                    .padding(.top, 2)
+                    .frame(height: linkPreviewDomainReservedHeight, alignment: .leading)
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .background(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                     .fill(Color(.systemGray6).opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 1))
             .clipShape(
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(LinkPreviewPressStyle())
         .onAppear {
             if imageURL == nil && iconURL == nil {
                 loadMedia()
@@ -432,7 +513,7 @@ private struct StabilizedLinkRichContentView: View {
     private var imagePlaceholder: some View {
         // ZERO LAYOUT SHIFT: Placeholder uses same height as loaded images
         Rectangle()
-            .fill(Color.gray.opacity(0.1))
+            .fill(Color(.systemGray6))
             .frame(height: linkPreviewImageHeight)
             .overlay(
                 Image(systemName: "link")
@@ -489,6 +570,7 @@ private struct StabilizedLinkCompactContentView: View {
 
     var body: some View {
         Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 12) {
@@ -502,11 +584,11 @@ private struct StabilizedLinkCompactContentView: View {
                         }
                     }
                     .frame(width: 44, height: 44)
-                    .background(Color.gray.opacity(0.1))
+                    .background(Color(.systemGray6))
                     .cornerRadius(8)
                 } else {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.1))
+                        RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color(.systemGray6))
                         Image(systemName: "link").foregroundColor(.secondary)
                     }
                     .frame(width: 44, height: 44)
@@ -515,12 +597,12 @@ private struct StabilizedLinkCompactContentView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     let title = passedTitle ?? metadata.title ?? url.host ?? "Link"
                     Text(title)
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .lineLimit(1)
                         .foregroundColor(.primary)
 
                     Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "External Link")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                 }
@@ -528,22 +610,23 @@ private struct StabilizedLinkCompactContentView: View {
                 Spacer()
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.secondary.opacity(0.5))
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                     .fill(Color(.systemGray6).opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 0.5))
             .clipShape(
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(LinkPreviewPressStyle())
         .onAppear {
             if iconURL == nil { loadIcon() }
         }
@@ -572,38 +655,55 @@ private struct StabilizedLinkFallbackView: View {
 
     var body: some View {
         Button {
+            HapticEngine.tap.trigger()
             UIApplication.shared.open(url)
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "link.circle.fill")
                     .font(.title2)
-                    .foregroundColor(.blue)
+                    .foregroundColor(.accentColor)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(url.host?.replacingOccurrences(of: "www.", with: "") ?? "Link")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.subheadline.weight(.medium))
                         .foregroundColor(.primary)
 
                     Text("External Link")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(10)
             .background(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed)
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
                     .fill(Color(.systemGray6).opacity(0.5))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed).stroke(
+                RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous).stroke(
                     Color(.separator).opacity(0.3), lineWidth: 0.5))
             .clipShape(
                 RoundedRectangle(cornerRadius: MediaConstants.CornerRadius.feed, style: .continuous)
             )
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(LinkPreviewPressStyle())
+    }
+}
+
+/// Subtle press feedback for link previews — they're large tappable cards, so
+/// a small scale + dim makes the tap feel intentional without being theatrical.
+private struct LinkPreviewPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
+            .opacity(configuration.isPressed ? 0.86 : 1.0)
+            .animation(.interactiveSpring(response: 0.25, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 

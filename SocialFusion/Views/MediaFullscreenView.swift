@@ -202,13 +202,18 @@ struct LegacyFullscreenMediaView: View {
                 if showControls {
                     VStack {
                         HStack {
-                            Button(action: { dismiss() }) {
+                            Button {
+                                HapticEngine.tap.trigger()
+                                dismiss()
+                            } label: {
                                 Image(systemName: "xmark")
                                     .font(.headline)
                                     .foregroundColor(.white)
                                     .padding(12)
                                     .background(Color.black.opacity(0.5))
                                     .clipShape(Circle())
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
                             }
                             .padding(.leading)
                             .accessibilityLabel("Close")

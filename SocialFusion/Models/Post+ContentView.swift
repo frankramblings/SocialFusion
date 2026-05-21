@@ -554,13 +554,13 @@ struct YouTubeVideoPreview: View {
                 }
             }
         }
-        .background(Color.gray.opacity(0.2))
+        .background(Color(.systemGray5))
     }
 
     private var loadingThumbnail: some View {
         ZStack {
             Rectangle()
-                .fill(Color.gray.opacity(0.2))
+                .fill(Color(.systemGray5))
 
             VStack(spacing: 8) {
                 ProgressView()
@@ -733,6 +733,11 @@ struct YouTubeVideoPreview: View {
     }
 
     private func openInYouTube() {
+        // Tap feedback before the app context switches — without
+        // this, tapping the play button on a feed video felt mute
+        // compared to every other tap-to-open in the app.
+        HapticEngine.tap.trigger()
+
         // Try to open in YouTube app first, then fallback to web
         let youtubeAppURL = URL(string: "youtube://watch?v=\(videoID)")
 
@@ -765,6 +770,10 @@ struct YouTubeVideoPreview: View {
 
     private func copyVideoLink() {
         UIPasteboard.general.string = url.absoluteString
+        HapticEngine.tap.trigger()
+        Task { @MainActor in
+            ToastManager.shared.show("Link copied", severity: .success, duration: 1.4)
+        }
         #if DEBUG
         print("📋 [YouTubeVideoPreview] Copied video link to clipboard: \(url.absoluteString)")
         #endif
@@ -1023,6 +1032,11 @@ struct YouTubeWebView: UIViewRepresentable {
                 #if DEBUG
                 print("📱 [YouTubeWebView] Opening video in YouTube app: \(parent.videoID)")
                 #endif
+                // Tap haptic matches the openInYouTube path on the
+                // feed thumbnail (f19a35a). The tap originated inside
+                // the WebView's embedded player, so we add the haptic
+                // here as the native-side handler.
+                HapticEngine.tap.trigger()
                 let youtubeAppURL = URL(string: "youtube://watch?v=\(parent.videoID)")
                 let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(parent.videoID)")!
 
@@ -1057,6 +1071,7 @@ struct ExpandableTextView: View {
 
     @State private var isExpanded: Bool = false
     @Environment(\.preventNestedQuotes) private var preventNestedQuotes
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shouldTruncate: Bool {
         // Never truncate if allowTruncation is false (anchor post)
@@ -1249,18 +1264,22 @@ struct ExpandableTextView: View {
             // Show More button
             if shouldTruncate && !isExpanded {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    HapticEngine.tap.trigger()
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         isExpanded = true
                     }
                 }) {
                     Text("SHOW MORE")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.blue)
+                        // Tracks accentColor so the affordance respects
+                        // the user's app-level tint. Was fixed .blue.
+                        .foregroundColor(.accentColor)
                         .textCase(.uppercase)
                         .tracking(0.3)
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint("Expands the full post text")
             }
 
             // CRITICAL: Always show quote posts regardless of attachments or content

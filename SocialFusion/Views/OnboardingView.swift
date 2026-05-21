@@ -2,6 +2,7 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var currentPage = 0
     @State private var showingAddAccount = false
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
@@ -63,60 +64,74 @@ struct OnboardingView: View {
                 }
             }
             .tabViewStyle(PageTabViewStyle(indexDisplayMode: .always))
+            // Subtle tap on page swipe — same feedback iOS gives for
+            // pageable carousels in apps like Photos.
+            .onChange(of: currentPage) { _, _ in
+                HapticEngine.selection.trigger()
+            }
 
-            // The Echo Policy page renders its own primary actions, so we
-            // suppress the shared Next/Skip footer for that step.
-            if !isOnEchoPolicyPage {
-                VStack(spacing: 20) {
-                    if isOnLastPage {
-                        Button(action: {
-                            // The "first account" tap is the user's
-                            // commitment to start using the app — a
-                            // small tap haptic acknowledges the choice
-                            // before the sheet animation takes over.
-                            HapticEngine.tap.trigger()
-                            showingAddAccount = true
-                        }) {
-                            Text("Add Your First Account")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 40)
-                        .transition(.scale.combined(with: .opacity))
-                    } else {
-                        Button(action: advanceToNextPage) {
-                            Text("Next")
-                                .font(.headline)
-                                .foregroundColor(.blue)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(12)
-                        }
-                        .padding(.horizontal, 40)
-                    }
-
-                    Button(action: {
-                        // Tap haptic — Skip commits the user out of
-                        // onboarding (sets hasCompletedOnboarding) and
-                        // the AppStorage propagation can take a beat to
-                        // animate the carousel away. Haptic confirms
-                        // the commitment landed. Matches the "Add Your
-                        // First Account" haptic on the last page.
+            VStack(spacing: 20) {
+                if currentPage == pages.count - 1 {
+                    Button {
                         HapticEngine.tap.trigger()
-                        hasCompletedOnboarding = true
-                    }) {
-                        Text("Skip")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                        showingAddAccount = true
+                    } label: {
+                        Text("Add Your First Account")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.accentColor.gradient)
+                                    .shadow(color: Color.accentColor.opacity(0.35), radius: 12, x: 0, y: 4)
+                            )
                     }
-                    .opacity(isOnLastPage ? 0 : 1)
+                    .buttonStyle(PressableButtonStyle())
+                    .padding(.horizontal, 40)
+                    // Reduce Motion drops the scale-in pop on the final
+                    // CTA. The button still has an opacity transition
+                    // so the swap from "Next" feels intentional.
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.95).combined(with: .opacity))
+                    .accessibilityHint("Opens the add-account sheet to sign in to Mastodon or Bluesky")
+                } else {
+                    Button {
+                        HapticEngine.tap.trigger()
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.82)) {
+                            currentPage += 1
+                        }
+                    } label: {
+                        Text("Next")
+                            .font(.headline)
+                            .foregroundColor(.accentColor)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(Color.accentColor.opacity(0.12))
+                            )
+                    }
+                    .buttonStyle(PressableButtonStyle())
+                    .padding(.horizontal, 40)
+                    .accessibilityLabel("Next")
+                    .accessibilityValue("Page \(currentPage + 1) of \(pages.count)")
+                    .accessibilityHint("Advances to the next onboarding page")
                 }
-                .padding(.bottom, 50)
+
+                Button {
+                    HapticEngine.tap.trigger()
+                    hasCompletedOnboarding = true
+                } label: {
+                    Text("Skip")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .opacity(currentPage == pages.count - 1 ? 0 : 1)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: currentPage)
+                // When visually invisible, hide from VoiceOver too — otherwise
+                // a swipe over an opacity-zero button still focuses it.
+                .accessibilityHidden(currentPage == pages.count - 1)
+                .accessibilityHint("Skips the rest of onboarding")
             }
         }
         .sheet(isPresented: $showingAddAccount) {
@@ -234,38 +249,96 @@ struct OnboardingPage {
 struct OnboardingPageView: View {
     let page: OnboardingPage
 
+    @State private var iconAppeared = false
+    @State private var titleAppeared = false
+    @State private var bodyAppeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 40) {
             Spacer()
 
-            Image(systemName: page.imageName)
-                .font(.system(size: 120))
-                .foregroundColor(page.color)
-                // Decorative — the title text below carries the
-                // semantic content. VoiceOver would otherwise announce
-                // a long SF Symbol name (e.g. "list bullet rectangle
-                // portrait fill") before the title that actually
-                // matters.
-                .accessibilityHidden(true)
+            // Iconography — tinted halo behind the symbol gives it presence,
+            // and the symbol pulses gently on iOS 17+
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                page.color.opacity(0.22),
+                                page.color.opacity(0.0),
+                            ],
+                            center: .center,
+                            startRadius: 4,
+                            endRadius: 110
+                        )
+                    )
+                    .frame(width: 220, height: 220)
 
-            VStack(spacing: 16) {
+                Image(systemName: page.imageName)
+                    .font(.system(size: 96, weight: .light))
+                    .foregroundStyle(page.color.gradient)
+                    .apply { view in
+                        if #available(iOS 17.0, *) {
+                            view.symbolEffect(.pulse.byLayer, options: .repeating, value: iconAppeared)
+                        } else {
+                            view
+                        }
+                    }
+            }
+            .scaleEffect(iconAppeared ? 1.0 : 0.85)
+            .opacity(iconAppeared ? 1 : 0)
+
+            VStack(spacing: 14) {
                 Text(page.title)
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                    .font(.system(.largeTitle, design: .default).weight(.bold))
                     .multilineTextAlignment(.center)
-                    .accessibilityAddTraits(.isHeader)
+                    .opacity(titleAppeared ? 1 : 0)
+                    .offset(y: titleAppeared ? 0 : 12)
 
                 Text(page.description)
                     .font(.body)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
+                    .lineSpacing(2)
                     .padding(.horizontal, 40)
+                    .opacity(bodyAppeared ? 1 : 0)
+                    .offset(y: bodyAppeared ? 0 : 10)
             }
-            // Combine title + description into one element so VoiceOver
-            // hears the whole page intro in one swipe.
-            .accessibilityElement(children: .combine)
 
             Spacer()
+        }
+        // The page is a single editorial unit — combine the icon,
+        // title, and description so VoiceOver reads it as one
+        // utterance ('<title>, <description>') rather than three
+        // separate stops.
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(page.title). \(page.description)")
+        .onAppear {
+            runEntrance()
+        }
+    }
+
+    private func runEntrance() {
+        if reduceMotion {
+            iconAppeared = true
+            titleAppeared = true
+            bodyAppeared = true
+            return
+        }
+        // Staggered choreography — feels alive without being showy
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.78)) {
+            iconAppeared = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+                titleAppeared = true
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) {
+                bodyAppeared = true
+            }
         }
     }
 }
@@ -275,5 +348,21 @@ struct OnboardingView_Previews: PreviewProvider {
         OnboardingView()
             .environmentObject(SocialServiceManager())
             .environmentObject(EchoPolicyStore())
+    }
+}
+
+/// A subtle scale-down on press — the kind of tactile feedback Apple's own
+/// system buttons provide. Used for primary onboarding CTAs.
+struct PressableButtonStyle: ButtonStyle {
+    var scale: CGFloat = 0.97
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? scale : 1.0)
+            .opacity(configuration.isPressed ? 0.92 : 1.0)
+            .animation(
+                .interactiveSpring(response: 0.25, dampingFraction: 0.8),
+                value: configuration.isPressed
+            )
     }
 }

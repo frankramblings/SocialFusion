@@ -9,6 +9,7 @@ struct AutocompleteOverlay: View {
   
   @State private var selectedIndex: Int = 0
   @FocusState private var isFocused: Bool
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   
   // Constants for height management
   private let maxVisibleItems: CGFloat = 5.5  // Show ~5.5 items before scrolling
@@ -36,6 +37,7 @@ struct AutocompleteOverlay: View {
                 )
                 .id(index)
                 .onTapGesture {
+                  HapticEngine.selection.trigger()
                   onSelect(suggestion)
                 }
               }
@@ -47,13 +49,34 @@ struct AutocompleteOverlay: View {
             withAnimation(.easeInOut(duration: 0.2)) {
               proxy.scrollTo(newIndex, anchor: .center)
             }
+            // Match the keyboard-driven highlight with the same
+            // tactile click the tap path already fires (line 39).
+            // Without this, arrow-key navigation feels mute — like
+            // the suggestion list is only really "alive" under the
+            // finger. Same beat Apple uses on Spotlight / macOS
+            // menu navigation.
+            HapticEngine.selection.trigger()
           }
         }
         .background(
-          RoundedRectangle(cornerRadius: 12, style: .continuous)
-            .fill(Color(UIColor.systemBackground))
-            .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+          // Reduce Transparency: solid panel so the suggestion list
+          // is fully opaque against whatever's beneath it. The
+          // overlay floats over the keyboard / compose surface, so
+          // a translucent panel can compete with text below it
+          // when the system has explicitly asked for higher
+          // contrast.
+          RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(reduceTransparency
+                  ? AnyShapeStyle(Color(.secondarySystemBackground))
+                  : AnyShapeStyle(.regularMaterial))
+            .overlay(
+              RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+            .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 6)
+            .shadow(color: Color.black.opacity(0.06), radius: 1, x: 0, y: 1)
         )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .frame(maxWidth: 300)
         .position(
           x: max(150, min(geometry.size.width - 150, token.caretRect.midX)),
@@ -81,7 +104,9 @@ struct AutocompleteOverlay: View {
 struct AutocompleteSuggestionRow: View {
   let suggestion: AutocompleteSuggestion
   let isSelected: Bool
-  
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   var body: some View {
     HStack(spacing: 12) {
       // Avatar (for mentions)
@@ -92,30 +117,29 @@ struct AutocompleteSuggestionRow: View {
             .aspectRatio(contentMode: .fill)
         } placeholder: {
           Circle()
-            .fill(Color.gray.opacity(0.3))
+            .fill(Color(.systemGray5))
         }
         .frame(width: 32, height: 32)
         .clipShape(Circle())
       } else if suggestion.entityPayload.platform == .mastodon || suggestion.entityPayload.platform == .bluesky {
         // Placeholder circle for mentions without avatar
         Circle()
-          .fill(Color.gray.opacity(0.3))
+          .fill(Color(.systemGray5))
           .frame(width: 32, height: 32)
           .overlay(
             Text(suggestion.displayText.prefix(1).uppercased())
-              .font(.caption)
+              .font(.caption.weight(.semibold))
               .foregroundColor(.secondary)
           )
       }
-      
+
       // Text content
       VStack(alignment: .leading, spacing: 2) {
         Text(suggestion.displayText)
-          .font(.subheadline)
-          .fontWeight(.medium)
+          .font(.subheadline.weight(.medium))
           .foregroundColor(.primary)
           .lineLimit(1)
-        
+
         if let subtitle = suggestion.subtitle {
           Text(subtitle)
             .font(.caption)
@@ -123,52 +147,51 @@ struct AutocompleteSuggestionRow: View {
             .lineLimit(1)
         }
       }
-      
+
       Spacer()
-      
-      // Platform badges — routed through PlatformLogoBadge so high-contrast
-      // mode reaches this surface (was raw inline color-tinted images).
+
+      // Platform badges — route through SocialPlatform.swiftUIColor
+      // (which resolves to Color.mastodonColor / Color.blueskyColor,
+      // unified to canonical brand hex in 86a7ca5). Single source of
+      // truth for brand color — was a hand-rolled RGB tuple per case.
       HStack(spacing: 4) {
         ForEach(Array(suggestion.platforms), id: \.self) { platform in
-          PlatformLogoBadge(platform: platform, size: 14, shadowEnabled: false)
+          Image(platform.icon)
+            .resizable()
+            .renderingMode(.template)
+            .foregroundStyle(platform.swiftUIColor)
+            .frame(width: 12, height: 12)
         }
       }
 
-      // Recent indicator
+      // Recent indicator — hierarchical so it picks up theme contrast
       if suggestion.isRecent {
         Image(systemName: "clock.fill")
           .font(.caption2)
-          .foregroundColor(.secondary)
+          .foregroundStyle(Color.secondary.gradient)
+          .symbolRenderingMode(.hierarchical)
           .accessibilityLabel("Recent")
       }
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 8)
-    .background(isSelected ? Color(UIColor.secondarySystemBackground) : Color.clear)
+    .background(
+      // Accent-tinted highlight for the keyboard-selected row, matching
+      // the menu-row press treatment used in NavBarPillDropdownRow.
+      isSelected
+        ? Color.accentColor.opacity(0.12)
+        : Color.clear
+    )
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isSelected)
     .contentShape(Rectangle())
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(combinedLabel)
-    .accessibilityAddTraits(isSelected ? [.isSelected, .isButton] : .isButton)
-  }
-
-  /// Combine the suggestion's text, subtitle, platform set, and "recent"
-  /// flag into one VoiceOver announcement. Without this each row read as
-  /// 4+ sub-elements (avatar, name, subtitle, platform icons, clock).
-  private var combinedLabel: String {
-    var parts: [String] = [suggestion.displayText]
-    if let subtitle = suggestion.subtitle {
-      parts.append(subtitle)
-    }
-    let platformsList = suggestion.platforms
-      .map(\.accessibilityLabel)
-      .sorted()
-      .joined(separator: " and ")
-    if !platformsList.isEmpty {
-      parts.append("on \(platformsList)")
-    }
-    if suggestion.isRecent {
-      parts.append("Recent")
-    }
-    return parts.joined(separator: ", ")
+    // Combine the row's avatar + text + platform badges into a single
+    // VoiceOver utterance so keyboard navigation through suggestions
+    // doesn't stop on every sub-element. The displayText alone reads
+    // sensibly ("@username" or "#hashtag") — subtitle gets appended
+    // when present.
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(suggestion.subtitle.map { "\(suggestion.displayText), \($0)" }
+                        ?? suggestion.displayText)
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 }
