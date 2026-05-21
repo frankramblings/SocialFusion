@@ -1445,6 +1445,7 @@ struct ComposeView: View {
                                     .contentShape(Rectangle())
                             }
                             .accessibilityLabel("Remove image \(index + 1)")
+                            .accessibilityHint("Discards this image from the post")
 
                             // Alt Text Button with completion state
                             Button(action: {
