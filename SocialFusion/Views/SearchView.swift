@@ -19,6 +19,7 @@ private struct SearchStoreWrapper<Content: View>: View {
 
 struct SearchView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Binding var showComposeView: Bool
     @Binding var showValidationView: Bool
 
@@ -402,7 +403,14 @@ struct SearchView: View {
                                         .padding(.vertical, 9)
                                         .background(
                                             Capsule(style: .continuous)
-                                                .fill(.ultraThinMaterial)
+                                                // Solid fallback under Reduce
+                                                // Transparency — same shape as
+                                                // the timeline pills (7361c5e)
+                                                // and other floating-material
+                                                // chips in the app.
+                                                .fill(reduceTransparency
+                                                      ? AnyShapeStyle(Color(.secondarySystemBackground))
+                                                      : AnyShapeStyle(.ultraThinMaterial))
                                                 .overlay(
                                                     Capsule(style: .continuous)
                                                         .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
