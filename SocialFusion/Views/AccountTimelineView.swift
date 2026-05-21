@@ -569,6 +569,15 @@ struct AccountTimelineView: View {
                         mergePillVisible = true
                     }
                 }
+                // Mirror the ConsolidatedTimelineView pill's VoiceOver
+                // announcement (3494ab5) so account-scoped timelines
+                // also speak the pill arrival to VoiceOver users.
+                if UIAccessibility.isVoiceOverRunning {
+                    let phrase = count == 1
+                        ? "1 new post above. Double-tap to view."
+                        : "\(count) new posts above. Double-tap to view."
+                    UIAccessibility.post(notification: .announcement, argument: phrase)
+                }
             }
             .onDisappear {
                 mergePillVisible = false
