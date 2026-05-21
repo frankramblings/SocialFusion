@@ -733,6 +733,11 @@ struct YouTubeVideoPreview: View {
     }
 
     private func openInYouTube() {
+        // Tap feedback before the app context switches — without
+        // this, tapping the play button on a feed video felt mute
+        // compared to every other tap-to-open in the app.
+        HapticEngine.tap.trigger()
+
         // Try to open in YouTube app first, then fallback to web
         let youtubeAppURL = URL(string: "youtube://watch?v=\(videoID)")
 
