@@ -6,6 +6,7 @@ import Photos
 public struct ShareAsImageSheet: View {
     @ObservedObject var viewModel: ShareAsImageViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showingShareSheet = false
     @State private var shareFileURLs: [URL] = []
     @State private var isSavingToPhotos = false
@@ -165,12 +166,12 @@ public struct ShareAsImageSheet: View {
                     .shadow(color: .black.opacity(0.08), radius: 4, y: 2)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .padding(12)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                 }
             }
             .frame(height: 400)
-            .animation(.easeInOut(duration: 0.2), value: viewModel.previewImage != nil)
-            .animation(.easeInOut(duration: 0.2), value: isPreviewBusy)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: viewModel.previewImage != nil)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isPreviewBusy)
 
             if let error = viewModel.errorMessage {
                 VStack(spacing: 12) {
