@@ -38,6 +38,10 @@ public struct QuotePostView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
+            // Tap haptic matches the rest of the app's
+            // tap-to-navigate vocabulary (PostCardView, PostAvatar
+            // tap, etc.). Without it the quote post felt mute.
+            HapticEngine.tap.trigger()
             if let onTap = onTap {
                 onTap()
             } else {
@@ -59,6 +63,7 @@ public struct QuotePostView: View {
 
     private var authorAvatar: some View {
         Button(action: {
+            HapticEngine.tap.trigger()
             navigationEnvironment.navigateToUser(from: post)
         }) {
             ZStack(alignment: .bottomTrailing) {
@@ -103,6 +108,7 @@ public struct QuotePostView: View {
     private var authorInfo: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: {
+                HapticEngine.tap.trigger()
                 navigationEnvironment.navigateToUser(from: post)
             }) {
                 EmojiDisplayNameText(
@@ -117,6 +123,7 @@ public struct QuotePostView: View {
             .buttonStyle(PlainButtonStyle())
 
             Button(action: {
+                HapticEngine.tap.trigger()
                 navigationEnvironment.navigateToUser(from: post)
             }) {
                 Text("@\(post.authorUsername)")
