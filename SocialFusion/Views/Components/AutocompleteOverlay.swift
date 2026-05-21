@@ -104,7 +104,9 @@ struct AutocompleteOverlay: View {
 struct AutocompleteSuggestionRow: View {
   let suggestion: AutocompleteSuggestion
   let isSelected: Bool
-  
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   var body: some View {
     HStack(spacing: 12) {
       // Avatar (for mentions)
@@ -180,7 +182,7 @@ struct AutocompleteSuggestionRow: View {
         ? Color.accentColor.opacity(0.12)
         : Color.clear
     )
-    .animation(.easeOut(duration: 0.12), value: isSelected)
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: isSelected)
     .contentShape(Rectangle())
     // Combine the row's avatar + text + platform badges into a single
     // VoiceOver utterance so keyboard navigation through suggestions
