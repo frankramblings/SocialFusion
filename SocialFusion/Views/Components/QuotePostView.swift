@@ -135,7 +135,7 @@ public struct QuotePostView: View {
     }
 
     private var timestamp: some View {
-        Text(formatRelativeTime(from: post.createdAt))
+        Text(post.createdAt.relativeTimeString)
             .font(.caption)
             .foregroundColor(.secondary)
     }
@@ -194,27 +194,6 @@ public struct QuotePostView: View {
                 lineWidth: 0.5)
     }
 
-    // MARK: - Helper Functions
-
-    private func formatRelativeTime(from date: Date) -> String {
-        let now = Date()
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute], from: date, to: now)
-
-        if let year = components.year, year > 0 {
-            return "\(year)y"
-        } else if let month = components.month, month > 0 {
-            return "\(month)mo"
-        } else if let day = components.day, day > 0 {
-            return day >= 7 ? "\(day/7)w" : "\(day)d"
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m"
-        } else {
-            return "now"
-        }
-    }
 }
 
 #Preview {

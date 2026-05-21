@@ -12,32 +12,6 @@ struct ParentPostPreview: View {
     // Maximum characters before content is trimmed
     private let maxCharacters = 500
 
-    // Formatter for relative timestamps
-    private func formatRelativeTime(from date: Date) -> String {
-        let now = Date()
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second], from: date, to: now)
-
-        if let year = components.year, year > 0 {
-            return "\(year)y"
-        } else if let month = components.month, month > 0 {
-            return "\(month)mo"
-        } else if let day = components.day, day > 0 {
-            if day < 7 {
-                return "\(day)d"
-            } else {
-                let week = day / 7
-                return "\(week)w"
-            }
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m"
-        } else {
-            return "now"
-        }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
@@ -98,7 +72,7 @@ struct ParentPostPreview: View {
                 Spacer()
 
                 // Time ago with refined styling
-                Text(formatRelativeTime(from: post.createdAt))
+                Text(post.createdAt.relativeTimeString)
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .opacity(isPressed ? 0.7 : 1.0)
