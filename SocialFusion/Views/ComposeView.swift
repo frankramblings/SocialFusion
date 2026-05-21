@@ -2989,19 +2989,17 @@ struct PlatformToggleButton: View {
     let isSelected: Bool
     let action: () -> Void
 
-    // Helper function to get platform color that's compatible with iOS 16
+    // Platform color via SocialPlatform.swiftUIColor — single
+    // source of truth for brand color (86a7ca5). Was reaching for
+    // "AppPrimaryColor" / "AppSecondaryColor" asset-catalog
+    // references that duplicated the brand purple/blue.
     private func getPlatformColor() -> Color {
-        switch platform {
-        case .mastodon:
-            return Color("AppPrimaryColor")
-        case .bluesky:
-            return Color("AppSecondaryColor")
-        }
+        platform.swiftUIColor
     }
 
     // Helper function to get a lighter version of the platform color
     private func getLightPlatformColor() -> Color {
-        return getPlatformColor().opacity(0.1)
+        getPlatformColor().opacity(0.1)
     }
 
     var body: some View {
