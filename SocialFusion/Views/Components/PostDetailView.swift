@@ -484,7 +484,7 @@ struct PostDetailView: View {
                                 : (inlineReplyRemaining < 50 ? .orange : .secondary)
                         )
                         .contentTransition(.numericText(value: Double(inlineReplyRemaining)))
-                        .animation(.easeOut(duration: 0.15), value: inlineReplyRemaining)
+                        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: inlineReplyRemaining)
 
                     Button {
                         HapticEngine.tap.trigger()

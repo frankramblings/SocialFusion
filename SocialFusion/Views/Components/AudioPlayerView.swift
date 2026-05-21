@@ -24,6 +24,7 @@ struct AudioPlayerView: View {
     @State private var isGeneratingWaveform = false
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let waveformHeight: CGFloat = 60
     private let controlSize: CGFloat = 44
@@ -241,8 +242,8 @@ struct AudioPlayerView: View {
                     }
                 }
                 .scaleEffect(isLoading ? 0.94 : 1.0)
-                .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isLoading)
-                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isPlaying)
+                .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.78), value: isLoading)
+                .animation(reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.75), value: isPlaying)
             }
             .buttonStyle(.plain)
             .disabled(isLoading || hasError)

@@ -166,8 +166,8 @@ struct ProfileToggleButton: View {
             HapticEngine.success.trigger()
             onLongPress()
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
-        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78), value: isSelected)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6), value: isPressed)
         .accessibilityLabel("@\(account.username)")
         .accessibilityValue(isSelected ? "Selected for posting" : "Not selected")
         .accessibilityHint("Activates posting from this account. Long press to switch accounts for this platform.")
@@ -220,7 +220,7 @@ struct VisibilityButton: View {
         .accessibilityLabel("Post visibility")
         .accessibilityValue(options.indices.contains(selectedVisibility) ? options[selectedVisibility] : "Public")
         .accessibilityHint("Choose who can see this post")
-        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
     }
 
     private func iconForIndex(_ index: Int) -> String {

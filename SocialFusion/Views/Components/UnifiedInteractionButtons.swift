@@ -389,6 +389,8 @@ struct UnifiedInteractionButtons: View {
   let onShare: () -> Void
   let includeShare: Bool
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   init(
     post: Post,
     store: PostActionStore,
@@ -532,7 +534,7 @@ struct UnifiedInteractionButtons: View {
       }
     }
     .opacity(isPending ? 0.7 : 1.0)
-    .animation(.easeInOut(duration: 0.2), value: isProcessing)
+    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isProcessing)
   }
 }
 
