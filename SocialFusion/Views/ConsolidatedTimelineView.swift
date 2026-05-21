@@ -617,7 +617,7 @@ struct ConsolidatedTimelineView: View {
             timelineView
                 .scaleEffect(isComposePresented && !reduceMotion ? 0.95 : 1.0)
                 .blur(radius: isComposePresented && !reduceTransparency ? 3 : 0)
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: isComposePresented)
+                .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: isComposePresented)
         case .loading:
             SkeletonTimelineView()
                 .transition(.opacity)

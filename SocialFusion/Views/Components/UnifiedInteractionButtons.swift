@@ -469,7 +469,7 @@ struct UnifiedInteractionButtons: View {
         onTap: { await onReply() }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
+      .animation(reduceMotion ? nil : .default, value: hasError)
       .accessibilityLabel("Reply")
       .accessibilityValue(replyAccessibilityValue)
       .accessibilityHint("Opens the reply composer")
@@ -483,7 +483,7 @@ struct UnifiedInteractionButtons: View {
         onTap: { coordinator.toggleRepost(for: post) }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
+      .animation(reduceMotion ? nil : .default, value: hasError)
       .accessibilityLabel("Repost")
       .accessibilityValue(repostAccessibilityValue)
       .accessibilityHint(state.isReposted ? "Removes your repost" : "Reposts to your timeline")
@@ -499,7 +499,7 @@ struct UnifiedInteractionButtons: View {
         onTap: { coordinator.toggleLike(for: post) }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
+      .animation(reduceMotion ? nil : .default, value: hasError)
       .accessibilityLabel("Like")
       .accessibilityValue(likeAccessibilityValue)
       .accessibilityHint(state.isLiked ? "Removes your like" : "Likes this post")
@@ -516,7 +516,7 @@ struct UnifiedInteractionButtons: View {
         }
       )
       .modifier(ShakeEffect(animatableData: hasError ? 1 : 0))
-      .animation(.default, value: hasError)
+      .animation(reduceMotion ? nil : .default, value: hasError)
       .accessibilityLabel("Quote")
       .accessibilityHint("Opens the composer with this post quoted")
       .accessibilityAddTraits(state.isQuoted ? .isSelected : [])
