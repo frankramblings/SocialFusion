@@ -29,31 +29,7 @@ struct PostTimestamp: View {
     }
     
     private func formatRelativeDate() -> String {
-        let now = Date()
-        let components = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute, .second],
-            from: date,
-            to: now
-        )
-        
-        if let year = components.year, year > 0 {
-            return "\(year)y"
-        } else if let month = components.month, month > 0 {
-            return "\(month)mo"
-        } else if let day = components.day, day > 0 {
-            if day < 7 {
-                return "\(day)d"
-            } else {
-                let week = day / 7
-                return "\(week)w"
-            }
-        } else if let hour = components.hour, hour > 0 {
-            return "\(hour)h"
-        } else if let minute = components.minute, minute > 0 {
-            return "\(minute)m"
-        } else {
-            return "now"
-        }
+        date.relativeTimeString
     }
     
     private func formatAbsoluteDate() -> String {
