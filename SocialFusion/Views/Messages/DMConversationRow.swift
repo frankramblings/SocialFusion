@@ -4,14 +4,10 @@ struct DMConversationRow: View {
   let conversation: DMConversation
 
   /// Brand-tinted color used for the unread indicator.
-  private var platformColor: Color {
-    switch conversation.platform {
-    case .bluesky:
-      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-    case .mastodon:
-      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-    }
-  }
+  /// Routes through SocialPlatform.swiftUIColor — same canonical
+  /// hex everywhere in the app (86a7ca5). Hand-rolled RGB tuples
+  /// previously matched the hex but were stale.
+  private var platformColor: Color { conversation.platform.swiftUIColor }
 
   private var hasUnread: Bool { conversation.unreadCount > 0 }
 

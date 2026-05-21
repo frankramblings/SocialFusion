@@ -25,15 +25,8 @@ struct ChatView: View {
   @State private var searchText = ""
   @State private var currentMatchIndex = 0
 
-  /// Brand-tinted color matching the rest of the app's identity.
-  private var platformColor: Color {
-    switch conversation.platform {
-    case .bluesky:
-      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-    case .mastodon:
-      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-    }
-  }
+  /// Brand-tinted color via SocialPlatform.swiftUIColor.
+  private var platformColor: Color { conversation.platform.swiftUIColor }
 
   private var myAccountIds: Set<String> {
     Set(serviceManager.accounts.map(\.platformSpecificId))

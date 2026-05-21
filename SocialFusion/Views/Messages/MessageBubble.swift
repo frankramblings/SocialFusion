@@ -82,15 +82,9 @@ struct MessageBubble: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   /// Brand-tinted color for "from me" bubbles. Uses the same hex values as the
-  /// rest of the app for visual consistency.
-  private var brandColor: Color {
-    switch platform {
-    case .bluesky:
-      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-    case .mastodon:
-      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-    }
-  }
+  /// rest of the app for visual consistency. Routes through
+  /// SocialPlatform.swiftUIColor (canonical hex per 86a7ca5).
+  private var brandColor: Color { platform.swiftUIColor }
 
   /// "From me" bubbles use a subtle gradient — slightly brighter at top, the
   /// brand color at bottom — for that iMessage-style sense of depth without

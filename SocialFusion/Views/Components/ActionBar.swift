@@ -23,15 +23,8 @@ struct ActionBar: View {
     private let iconSize: CGFloat = 18
     private let menuLogger = Logger(subsystem: "com.socialfusion", category: "PostMenu")
 
-    // Platform color helper
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    // Platform color via SocialPlatform.swiftUIColor (canonical hex).
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     private var menuOpenTrigger: some View {
         Color.clear

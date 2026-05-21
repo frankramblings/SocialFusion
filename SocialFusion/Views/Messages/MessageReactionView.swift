@@ -17,15 +17,8 @@ struct MessageReactionView: View {
   let myAccountIds: Set<String>
   let onTap: (String, Bool) -> Void
 
-  /// Brand-tinted color, matching the rest of the app.
-  private var platformColor: Color {
-    switch platform {
-    case .bluesky:
-      return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-    case .mastodon:
-      return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-    }
-  }
+  /// Brand-tinted color via SocialPlatform.swiftUIColor.
+  private var platformColor: Color { platform.swiftUIColor }
 
   var body: some View {
     FlowLayout(spacing: 4) {

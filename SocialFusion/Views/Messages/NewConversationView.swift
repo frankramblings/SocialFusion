@@ -96,9 +96,11 @@ struct NewConversationView: View {
                       platform: .bluesky
                     )
                     if selectedParticipants.contains(where: { $0.did == actor.did }) {
+                      // Brand checkmark via SocialPlatform.swiftUIColor
+                      // — was a hand-rolled RGB tuple for Bluesky blue.
                       Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(.white, Color(red: 0, green: 133 / 255, blue: 255 / 255))
+                        .foregroundStyle(.white, SocialPlatform.bluesky.swiftUIColor)
                         .symbolRenderingMode(.palette)
                         .transition(reduceMotion ? .opacity : .scale.combined(with: .opacity))
                     }
