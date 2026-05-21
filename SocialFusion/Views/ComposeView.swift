@@ -1073,7 +1073,7 @@ struct ComposeView: View {
                 .accessibilityLabel("Post visibility")
                 .accessibilityValue(postVisibilityOptions.indices.contains(selectedVisibility) ? postVisibilityOptions[selectedVisibility] : "Public")
                 .accessibilityHint("Choose who can see this post")
-                .animation(.spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
+                .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.82), value: selectedVisibility)
             }
             .padding(.horizontal)
             .padding(.vertical, 12)
@@ -1304,7 +1304,7 @@ struct ComposeView: View {
                         .accessibilityLabel("Thread post \(index + 1) of \(threadPosts.count)")
                         .accessibilityHint(isActive ? "Currently editing" : "Switches to this thread post")
                         .accessibilityAddTraits(isActive ? .isSelected : [])
-                        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isActive)
+                        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82), value: isActive)
                 }
 
                 Spacer()
@@ -1631,7 +1631,7 @@ struct ComposeView: View {
                     )
             )
             .disabled(!canPost)
-            .animation(.easeInOut(duration: 0.2), value: canPost)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: canPost)
             .accessibilityHint(canPost ? postButtonHint : postButtonDisabledHint)
         }
         .padding(.horizontal, 16)
@@ -2996,6 +2996,8 @@ struct PlatformToggleButton: View {
     let isSelected: Bool
     let action: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     // Platform color via SocialPlatform.swiftUIColor — single
     // source of truth for brand color (86a7ca5). Was reaching for
     // "AppPrimaryColor" / "AppSecondaryColor" asset-catalog
@@ -3038,7 +3040,7 @@ struct PlatformToggleButton: View {
                         lineWidth: 0.5
                     )
             )
-            .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
+            .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.82), value: isSelected)
         }
         .buttonStyle(PlatformTogglePressStyle())
         .accessibilityLabel(platform.rawValue.capitalized)
