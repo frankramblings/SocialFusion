@@ -92,6 +92,15 @@ enum SharedFormatters {
         f.setLocalizedDateFormatFromTemplate("MMMd")
         return f
     }()
+
+    /// "2.4 MB" — file-size style for cache totals and similar.
+    /// ByteCountFormatter, like the date formatters, is heavier
+    /// to instantiate than to reuse.
+    static let byteCount: ByteCountFormatter = {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        return f
+    }()
 }
 
 // Extension on Date to easily access formatted strings

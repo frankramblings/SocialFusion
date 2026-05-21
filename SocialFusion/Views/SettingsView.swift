@@ -368,9 +368,7 @@ struct SettingsView: View {
     // MARK: - Storage Helpers
 
     private func formattedSize(_ bytes: Int64) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: bytes)
+        SharedFormatters.byteCount.string(fromByteCount: bytes)
     }
 
     private func calculateTotalCacheSize() async {
