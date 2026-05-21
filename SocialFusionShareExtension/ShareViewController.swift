@@ -9,7 +9,13 @@ class ShareViewController: SLComposeServiceViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    navigationController?.navigationBar.tintColor = UIColor.systemBlue
+    // Match the app's tint (AppPrimaryColor asset, set as the
+    // app-level .tint in ContentView) rather than the iOS default
+    // systemBlue. Falls back to systemBlue if the asset is missing
+    // so a future asset-catalog refactor doesn't break the
+    // extension.
+    navigationController?.navigationBar.tintColor =
+      UIColor(named: "AppPrimaryColor") ?? UIColor.systemBlue
     extractSharedItems()
   }
 
