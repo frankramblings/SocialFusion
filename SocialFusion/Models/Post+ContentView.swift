@@ -1061,6 +1061,7 @@ struct ExpandableTextView: View {
 
     @State private var isExpanded: Bool = false
     @Environment(\.preventNestedQuotes) private var preventNestedQuotes
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var shouldTruncate: Bool {
         // Never truncate if allowTruncation is false (anchor post)
@@ -1253,18 +1254,22 @@ struct ExpandableTextView: View {
             // Show More button
             if shouldTruncate && !isExpanded {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    HapticEngine.tap.trigger()
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                         isExpanded = true
                     }
                 }) {
                     Text("SHOW MORE")
                         .font(.caption)
                         .fontWeight(.medium)
-                        .foregroundColor(.blue)
+                        // Tracks accentColor so the affordance respects
+                        // the user's app-level tint. Was fixed .blue.
+                        .foregroundColor(.accentColor)
                         .textCase(.uppercase)
                         .tracking(0.3)
                 }
                 .buttonStyle(.plain)
+                .accessibilityHint("Expands the full post text")
             }
 
             // CRITICAL: Always show quote posts regardless of attachments or content
