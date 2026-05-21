@@ -961,7 +961,10 @@ struct ComposeView: View {
         if !hasAccountsForSelectedPlatforms {
             return Color.orange
         } else if canPost {
-            return replyingTo != nil ? platformColor : Color.blue
+            // Reply context = platform tint; otherwise the
+            // user's accent so the Post button respects app-level
+            // tint (was fixed Color.blue).
+            return replyingTo != nil ? platformColor : Color.accentColor
         } else {
             // Disabled state — use systemGray3 so the button reads as
             // 'present but not actionable' in both light + dark mode,
