@@ -15,14 +15,7 @@ struct BoostBanner: View {
         self.emojiMap = emojiMap
     }
 
-    private var platformColor: Color {
-        switch platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    private var platformColor: Color { platform.swiftUIColor }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -169,14 +162,7 @@ struct BoostBannerView<ViewModel: BoostBannerViewModel>: View {
         "Opens the full list of boosters"
     }
 
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
-    }
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     // MARK: - Extracted Subviews (helps type-checker)
 

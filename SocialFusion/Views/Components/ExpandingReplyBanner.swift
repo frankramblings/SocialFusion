@@ -248,14 +248,7 @@ struct ExpandingReplyBanner: View {
         return nil
     }
 
-    private var platformColor: Color {
-        switch network {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
-    }
+    private var platformColor: Color { network.swiftUIColor }
 
     // Liquid glass morphing state based on banner state
     private var liquidGlassMorphingState: MorphingState {

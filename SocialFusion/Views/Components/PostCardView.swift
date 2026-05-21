@@ -70,16 +70,9 @@ struct PostCardView: View {
     @State private var isUpdatingCache = false  // Prevent recursive cache updates
 
     // Platform color helper - CRITICAL FIX: Use cached platform only (never access post.platform synchronously)
+    // Routes through SocialPlatform.swiftUIColor (canonical hex per 86a7ca5).
     private var platformColor: Color {
-        // cachedPlatform is always initialized in initializer, so this should never be nil
-        // But if it is, use a safe default to prevent crashes
-        let platform = cachedPlatform ?? .bluesky
-        switch platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
+        (cachedPlatform ?? .bluesky).swiftUIColor
     }
     
     // CRITICAL FIX: Cached platform getter - never access post.platform synchronously

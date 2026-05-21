@@ -90,24 +90,16 @@ struct PostDetailView: View {
     // constantly).
     private var dateFormatter: DateFormatter { SharedFormatters.detailedDateTime }
 
-    // Platform color for visual consistency
+    // Platform color via SocialPlatform.swiftUIColor (canonical hex
+    // per 86a7ca5). Was hand-rolled RGB tuples that happened to
+    // match the brand hex.
     private var platformColor: Color {
         let displayPost = viewModel.post.originalPost ?? viewModel.post
-        switch displayPost.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        }
+        return displayPost.platform.swiftUIColor
     }
 
     private func platformTint(for platform: SocialPlatform) -> Color {
-        switch platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
+        platform.swiftUIColor
     }
 
     init(viewModel: PostViewModel, focusReplyComposer: Bool = false) {
@@ -430,11 +422,8 @@ struct PostDetailView: View {
                     .padding(.leading, isDeepReply ? 12 : 0)
                     .overlay(alignment: .leading) {
                         if isDeepReply {
-                            let accentColor: Color = post.platform == .mastodon
-                                ? Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-                                : Color(red: 0, green: 133 / 255, blue: 255 / 255)
                             RoundedRectangle(cornerRadius: 1, style: .continuous)
-                                .fill(accentColor.opacity(0.4))
+                                .fill(post.platform.swiftUIColor.opacity(0.4))
                                 .frame(width: 2)
                                 .padding(.vertical, 8)
                         }
@@ -1136,15 +1125,8 @@ struct SelectedPostView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @Environment(\.colorScheme) private var colorScheme
 
-    // Platform color
-    private var platformColor: Color {
-        switch post.platform {
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)
-        }
-    }
+    // Platform color via SocialPlatform.swiftUIColor.
+    private var platformColor: Color { post.platform.swiftUIColor }
 
     // Thread line color — uses Color.secondary so it adapts to dark mode.
     // Color.gray.opacity reads as brown-tinted against dark backgrounds.

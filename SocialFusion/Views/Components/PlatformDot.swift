@@ -7,14 +7,7 @@ struct PlatformDot: View {
     var useLogo: Bool = false  // New option to use SVG logos instead of dots
     var backgroundColor: Color = Color.white
 
-    private var platformColor: Color {
-        switch platform {
-        case .bluesky:
-            return Color(red: 0, green: 133 / 255, blue: 255 / 255)  // #0085FF
-        case .mastodon:
-            return Color(red: 99 / 255, green: 100 / 255, blue: 255 / 255)  // #6364FF
-        }
-    }
+    private var platformColor: Color { platform.swiftUIColor }
 
     private var logoImageName: String {
         switch platform {
