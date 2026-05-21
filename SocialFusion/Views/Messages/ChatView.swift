@@ -763,7 +763,8 @@ struct ChatView: View {
   private func performDelete(_ message: UnifiedChatMessage) {
     // Message removal — easeOut with a slight bounce response so the
     // bubble feels like it's being lifted out, not just vanishing.
-    withAnimation(.spring(response: 0.36, dampingFraction: 0.82)) {
+    // Reduce Motion: vanish without the spring envelope.
+    withAnimation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82)) {
       messages.removeAll { $0.id == message.id }
     }
     Task {
