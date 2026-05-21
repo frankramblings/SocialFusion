@@ -34,10 +34,12 @@ struct ChatMediaPickerBar: View {
               }
             }
             .transition(
-              .asymmetric(
-                insertion: .scale(scale: 0.85).combined(with: .opacity),
-                removal: .scale(scale: 0.7, anchor: .center).combined(with: .opacity)
-              )
+              reduceMotion
+                ? .opacity
+                : .asymmetric(
+                    insertion: .scale(scale: 0.85).combined(with: .opacity),
+                    removal: .scale(scale: 0.7, anchor: .center).combined(with: .opacity)
+                  )
             )
           }
         }
