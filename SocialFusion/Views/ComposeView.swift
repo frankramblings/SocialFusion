@@ -91,7 +91,14 @@ struct ReplyContextHeader: View {
                         .clipShape(Circle())
                     }
                     .buttonStyle(PlainButtonStyle())
+                    // Visual 32pt for the compact reply-context
+                    // avatar; outer 44pt extends hit area to the
+                    // HIG minimum. Same pattern as PostMenu kebab
+                    // (a86637c) and feed-picker back (ca4bccd).
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
                     .accessibilityLabel("\(post.authorName.isEmpty ? post.authorUsername : post.authorName) profile")
+                    .accessibilityHint("Opens this user's profile")
 
                     VStack(alignment: .leading, spacing: 2) {
                         Button {
