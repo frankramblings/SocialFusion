@@ -7,6 +7,7 @@ struct PostShareButton: View {
 
     @State private var isPressed: Bool = false
     @State private var showConfirmation: Bool = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: {
@@ -14,15 +15,15 @@ struct PostShareButton: View {
             HapticEngine.tap.trigger()
 
             // Show brief visual confirmation
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
                 showConfirmation = true
             }
-            
+
             // Hide confirmation after 1.5 seconds
             Task {
                 try? await Task.sleep(nanoseconds: 1_500_000_000)
                 await MainActor.run {
-                    withAnimation(.easeInOut(duration: 0.3)) {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
                         showConfirmation = false
                     }
                 }
@@ -44,7 +45,7 @@ struct PostShareButton: View {
             value: isPressed
         )
         .animation(
-            .spring(response: 0.2, dampingFraction: 0.7, blendDuration: 0.05),
+            reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.7, blendDuration: 0.05),
             value: showConfirmation
         )
         .onLongPressGesture(
