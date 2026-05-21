@@ -549,6 +549,7 @@ struct ProfileView: View {
 
 struct EditProfileView: View {
   @Environment(\.dismiss) var dismiss
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @EnvironmentObject var serviceManager: SocialServiceManager
   let account: SocialAccount
 
@@ -646,10 +647,10 @@ struct EditProfileView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Error: \(error)")
           }
-          .transition(.opacity.combined(with: .move(edge: .top)))
+          .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
         }
       }
-      .animation(.easeOut(duration: 0.25), value: error)
+      .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: error)
       .navigationTitle("Edit Profile")
       .navigationBarTitleDisplayMode(.inline)
       // Block swipe-dismiss while the user has unsaved profile edits —
