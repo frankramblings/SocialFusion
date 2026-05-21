@@ -239,6 +239,7 @@ struct SettingsView: View {
                         settingsRow(symbol: "photo.stack", tint: .orange, title: "Clear Image Cache")
                     }
                     .disabled(clearingInProgress)
+                    .accessibilityHint("Opens a confirmation to clear cached images")
 
                     Button {
                         HapticEngine.tap.trigger()
@@ -247,6 +248,7 @@ struct SettingsView: View {
                         settingsRow(symbol: "arrow.counterclockwise.circle", tint: .orange, title: "Reset Post Database")
                     }
                     .disabled(clearingInProgress)
+                    .accessibilityHint("Opens a confirmation to reset the offline post cache")
 
                     Button {
                         HapticEngine.tap.trigger()
@@ -255,6 +257,7 @@ struct SettingsView: View {
                         settingsRow(symbol: "trash", tint: .orange, title: "Clear Other Caches")
                     }
                     .disabled(clearingInProgress)
+                    .accessibilityHint("Opens a confirmation to clear link, emoji, and search caches")
                 }
 
                 #if DEBUG
