@@ -532,6 +532,7 @@ struct AboutView: View {
                     VStack(spacing: 6) {
                         Text("SocialFusion")
                             .font(.largeTitle.weight(.bold))
+                            .accessibilityAddTraits(.isHeader)
 
                         Text(bundleVersion)
                             .font(.subheadline.monospacedDigit())
