@@ -158,8 +158,14 @@ struct ActionBar: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
+            // Pre-warm a tap haptic so the menu open feels
+            // acknowledged. Mirrors PostMenu.swift's pattern
+            // (the canonical kebab menu has the same beat).
             .simultaneousGesture(
-                TapGesture().onEnded { onMenuOpen?() }
+                TapGesture().onEnded {
+                    HapticEngine.tap.trigger()
+                    onMenuOpen?()
+                }
             )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
@@ -336,8 +342,14 @@ struct ActionBarV2: View {
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
             }
+            // Pre-warm a tap haptic so the menu open feels
+            // acknowledged. Mirrors PostMenu.swift's pattern
+            // (the canonical kebab menu has the same beat).
             .simultaneousGesture(
-                TapGesture().onEnded { onMenuOpen?() }
+                TapGesture().onEnded {
+                    HapticEngine.tap.trigger()
+                    onMenuOpen?()
+                }
             )
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("More options")
