@@ -1032,6 +1032,11 @@ struct YouTubeWebView: UIViewRepresentable {
                 #if DEBUG
                 print("📱 [YouTubeWebView] Opening video in YouTube app: \(parent.videoID)")
                 #endif
+                // Tap haptic matches the openInYouTube path on the
+                // feed thumbnail (f19a35a). The tap originated inside
+                // the WebView's embedded player, so we add the haptic
+                // here as the native-side handler.
+                HapticEngine.tap.trigger()
                 let youtubeAppURL = URL(string: "youtube://watch?v=\(parent.videoID)")
                 let youtubeWebURL = URL(string: "https://www.youtube.com/watch?v=\(parent.videoID)")!
 
