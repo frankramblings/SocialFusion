@@ -3,6 +3,7 @@ import SwiftUI
 struct DirectTokenEntryView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @Environment(\.dismiss) var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var serverURL = ""
     @State private var accessToken = ""
@@ -103,7 +104,7 @@ struct DirectTokenEntryView: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Error: \(error)")
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
 
             if let success = successMessage {
@@ -120,14 +121,14 @@ struct DirectTokenEntryView: View {
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Success: \(success)")
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
             }
         }
         // Animate the inline error/success banner appearance so they
         // glide in rather than popping. .easeOut matches the curve
         // used elsewhere for inline reveal.
-        .animation(.easeOut(duration: 0.25), value: errorMessage)
-        .animation(.easeOut(duration: 0.25), value: successMessage)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: errorMessage)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: successMessage)
     }
 
     private var isFormValid: Bool {

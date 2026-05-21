@@ -133,7 +133,7 @@ struct AddAccountView: View {
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel("Error: \(errorMessage)")
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
                 }
 
                 Section {
