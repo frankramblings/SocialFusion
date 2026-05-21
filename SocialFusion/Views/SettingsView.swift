@@ -26,6 +26,7 @@ struct SettingsView: View {
     @State private var showClearDatabaseAlert = false
     @State private var showClearOtherAlert = false
     @State private var clearingInProgress = false
+    @State private var showLogoutConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -273,9 +274,7 @@ struct SettingsView: View {
                 Section {
                     Button {
                         HapticEngine.warning.trigger()
-                        Task {
-                            await serviceManager.logout()
-                        }
+                        showLogoutConfirmation = true
                     } label: {
                         settingsRow(
                             symbol: "rectangle.portrait.and.arrow.right",
@@ -284,6 +283,7 @@ struct SettingsView: View {
                             titleColor: .red
                         )
                     }
+                    .accessibilityHint("Opens a confirmation to sign out of every connected account")
                 }
             }
             .navigationTitle("Settings")
@@ -349,6 +349,18 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This will clear link preview, emoji, media dimension, and search caches.")
+            }
+            // Sign out is an irreversible, multi-account-affecting
+            // action — accidental taps were one tap away from
+            // removing every credential. Confirm before logout.
+            .alert("Log Out All Accounts?", isPresented: $showLogoutConfirmation) {
+                Button("Log Out", role: .destructive) {
+                    HapticEngine.warning.trigger()
+                    Task { await serviceManager.logout() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("You'll need to sign back in to use SocialFusion. Drafts and timeline state will be cleared.")
             }
         }
     }
