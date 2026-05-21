@@ -44,11 +44,18 @@ public struct QuotedPostView: View {
     // MARK: - View Components
 
     private var authorHeader: some View {
-        HStack(spacing: 8) {
+        // Wrap navigation with tap haptic so the avatar/name/handle
+        // buttons feel responsive — same shape as PostAuthorView's
+        // onAuthorTapWithHaptic (9270925). Only one of the three
+        // buttons can fire per tap so no double-haptic risk.
+        let navigateWithHaptic: () -> Void = {
+            HapticEngine.tap.trigger()
+            navigationEnvironment.navigateToUser(from: post)
+        }
+
+        return HStack(spacing: 8) {
             // Author avatar with platform indicator
-            Button(action: {
-                navigationEnvironment.navigateToUser(from: post)
-            }) {
+            Button(action: navigateWithHaptic) {
                 ZStack(alignment: .bottomTrailing) {
                     let stableImageURL = URL(string: post.authorProfilePictureURL)
                     let quoteInitial = String((post.authorName.isEmpty ? post.authorUsername : post.authorName).prefix(1)).uppercased()
@@ -89,9 +96,7 @@ public struct QuotedPostView: View {
 
             // Author info
             VStack(alignment: .leading, spacing: 1) {
-                Button(action: {
-                    navigationEnvironment.navigateToUser(from: post)
-                }) {
+                Button(action: navigateWithHaptic) {
                     EmojiDisplayNameText(
                         post.authorName,
                         emojiMap: post.authorEmojiMap,
@@ -103,9 +108,7 @@ public struct QuotedPostView: View {
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                Button(action: {
-                    navigationEnvironment.navigateToUser(from: post)
-                }) {
+                Button(action: navigateWithHaptic) {
                     Text("@\(post.authorUsername)")
                         .font(.caption)
                         .foregroundColor(.secondary)
