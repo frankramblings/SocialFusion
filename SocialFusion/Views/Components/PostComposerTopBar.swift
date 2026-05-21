@@ -122,12 +122,15 @@ struct ProfileToggleButton: View {
             HapticEngine.selection.trigger()
             onTap()
         } label: {
-            // Create a container that provides enough space for the badge and selection ring
+            // Create a container that provides enough space for the badge and selection ring.
+            // Brand color via SocialPlatform.swiftUIColor — single
+            // source of truth (86a7ca5).
+            let brandColor = account.platform.swiftUIColor
             ZStack {
                 // Background glow effect for active accounts
                 if isSelected {
                     Circle()
-                        .fill(Color(hex: account.platform.colorHex).opacity(0.12))
+                        .fill(brandColor.opacity(0.12))
                         .frame(width: avatarSize + 10, height: avatarSize + 10)
                         .blur(radius: 8)
                 }
@@ -135,10 +138,10 @@ struct ProfileToggleButton: View {
                 // Selection ring positioned behind the profile image
                 if isSelected {
                     Circle()
-                        .stroke(Color(hex: account.platform.colorHex), lineWidth: 3)
+                        .stroke(brandColor, lineWidth: 3)
                         .frame(width: avatarSize + 6, height: avatarSize + 6)
                         .shadow(
-                            color: Color(hex: account.platform.colorHex).opacity(0.32),
+                            color: brandColor.opacity(0.32),
                             radius: 5,
                             x: 0,
                             y: 2

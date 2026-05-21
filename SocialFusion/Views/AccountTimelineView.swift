@@ -126,7 +126,10 @@ struct AccountTimelineView: View {
     }
 
     private var emptyStateView: some View {
-        let platformColor = Color(hex: account.platform.colorHex)
+        // Routes through SocialPlatform.swiftUIColor for the canonical
+        // brand hex (86a7ca5). Was Color(hex: ...colorHex), which
+        // duplicates the lookup path.
+        let platformColor = account.platform.swiftUIColor
         return VStack(spacing: 16) {
             ZStack {
                 Circle()
@@ -161,6 +164,7 @@ struct AccountTimelineView: View {
         .frame(maxWidth: .infinity)
         .padding(.bottom, 24)
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("No posts to display. Pull down to refresh.")
     }
 
     @ViewBuilder
