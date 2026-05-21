@@ -1747,6 +1747,12 @@ struct ComposeView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        // Tap haptic when there's content (about to
+                        // open the discard/save sheet — that's a
+                        // confirmation, warrants feedback). Plain
+                        // dismissal also benefits from the standard
+                        // tap haptic the rest of the app fires.
+                        HapticEngine.tap.trigger()
                         if hasComposeContent {
                             showDraftActionSheet = true
                         } else {
@@ -1757,9 +1763,14 @@ struct ComposeView: View {
 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if !draftStore.drafts.isEmpty && replyingTo == nil {
-                        Button(action: { showDraftsList = true }) {
+                        Button(action: {
+                            HapticEngine.tap.trigger()
+                            showDraftsList = true
+                        }) {
                             Image(systemName: "archivebox")
                         }
+                        .accessibilityLabel("Drafts")
+                        .accessibilityHint("Opens your saved drafts")
                     }
                 }
             }
