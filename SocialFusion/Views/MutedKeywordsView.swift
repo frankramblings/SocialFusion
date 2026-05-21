@@ -112,7 +112,7 @@ struct MutedKeywordsView: View {
         HapticEngine.success.trigger()
 
         if !keywords.contains(trimmed) {
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) {
+            withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)) {
                 keywords.append(trimmed)
             }
             serviceManager.updateBlockedKeywords(keywords)
@@ -122,7 +122,7 @@ struct MutedKeywordsView: View {
 
     private func removeKeywords(at offsets: IndexSet) {
         HapticEngine.tap.trigger()
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
             keywords.remove(atOffsets: offsets)
         }
         serviceManager.updateBlockedKeywords(keywords)
