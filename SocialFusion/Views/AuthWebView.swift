@@ -161,7 +161,13 @@ struct SafariAuthView: UIViewControllerRepresentable {
 
         let safariVC = SFSafariViewController(url: url)
         safariVC.delegate = context.coordinator
-        safariVC.preferredControlTintColor = UIColor.systemBlue
+        // Match the app's tint so the OAuth flow's Safari chrome
+        // (Done button, etc.) reads as part of SocialFusion rather
+        // than the iOS default. Falls back to systemBlue if the
+        // asset is missing — same fallback shape as the share
+        // extension nav bar (7d019f2).
+        safariVC.preferredControlTintColor =
+            UIColor(named: "AppPrimaryColor") ?? UIColor.systemBlue
         safariVC.dismissButtonStyle = .done
 
         return safariVC
