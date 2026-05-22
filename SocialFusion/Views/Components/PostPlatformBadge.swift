@@ -34,6 +34,24 @@ struct PostPlatformBadge: View {
         // text so VoiceOver reads "Bluesky" once, not "image, Bluesky."
         .accessibilityElement(children: .combine)
     }
+
+    private var isHighContrast: Bool { prefs.highContrastNetworkIndicators }
+
+    private var textColor: Color {
+        isHighContrast ? .primary : platform.swiftUIColor
+    }
+
+    private var capsuleFill: Color {
+        isHighContrast
+            ? Color(.systemGray6)
+            : platform.swiftUIColor.opacity(0.1)
+    }
+
+    private var capsuleStroke: Color {
+        isHighContrast
+            ? Color.primary.opacity(0.35)
+            : platform.swiftUIColor.opacity(0.3)
+    }
 }
 
 // MARK: - Preview

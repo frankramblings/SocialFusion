@@ -79,7 +79,6 @@ struct PostDetailView: View {
     @State private var selectedAndBelowHeight: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     // Thread scroll position keys

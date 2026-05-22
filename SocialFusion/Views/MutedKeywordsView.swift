@@ -109,28 +109,22 @@ struct MutedKeywordsView: View {
         let trimmed = newKeyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        HapticEngine.success.trigger()
-
-        if !keywords.contains(trimmed) {
-            withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)) {
-                keywords.append(trimmed)
-            }
-            serviceManager.updateBlockedKeywords(keywords)
-        }
-        if alreadyPresent {
+        if keywords.contains(trimmed) {
             HapticEngine.warning.trigger()
             newKeyword = ""
-            keywordFieldFocused = true
+            isInputFocused = true
             return
         }
 
-        keywords.append(trimmed)
+        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)) {
+            keywords.append(trimmed)
+        }
         serviceManager.updateBlockedKeywords(keywords)
-        HapticEngine.selection.trigger()
+        HapticEngine.success.trigger()
         newKeyword = ""
         // Keep the field focused so the user can chain additions
         // without re-tapping (matches the iOS Reminders quick-add flow).
-        keywordFieldFocused = true
+        isInputFocused = true
     }
 
     private func removeKeywords(at offsets: IndexSet) {

@@ -761,6 +761,9 @@ struct DirectOpenRow: View {
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(displayText)
+        .accessibilityAddTraits(.isButton)
         .accessibilityHint(accessibilityHintForTarget)
     }
 
@@ -770,9 +773,6 @@ struct DirectOpenRow: View {
         case .post: return "Opens this post"
         case .tag: return "Searches posts with this hashtag"
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(displayText)
-        .accessibilityAddTraits(.isButton)
     }
 
     private var iconName: String {

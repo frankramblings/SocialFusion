@@ -10,9 +10,6 @@ struct DirectTokenEntryView: View {
     @State private var isLoading = false
     @State private var errorMessage: String? = nil
     @State private var successMessage: String? = nil
-    @FocusState private var focusedField: Field?
-
-    private enum Field { case serverURL, accessToken }
 
     /// Focus targets so the keyboard's return-key can navigate field-to-field.
     private enum Field { case server, token }

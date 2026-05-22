@@ -11,7 +11,6 @@ struct LaunchAnimationView: View {
     @State private var textSpacing: CGFloat = 80
     @State private var rootScale: CGFloat = 0.96
     @State private var rootOpacity: Double = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Honors the system reduce-motion accessibility flag. Spec acceptance
     // criterion: "Reduce-motion respected on launch animation, Fused

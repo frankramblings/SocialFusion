@@ -179,6 +179,7 @@ struct FetchQuotePostView: View {
     @State private var error: Error? = nil
     @State private var retryCount = 0
     @State private var fetchTask: Task<Void, Never>?
+    @State private var terminalReason: QuotePostUnavailableView.Reason? = nil
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var navigationEnvironment: PostNavigationEnvironment
     @EnvironmentObject private var fusedMomentStore: FusedMomentStore

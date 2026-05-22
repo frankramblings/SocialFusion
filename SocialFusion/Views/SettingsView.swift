@@ -6,6 +6,7 @@ import UserNotifications
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
+    @EnvironmentObject private var accessibilityPreferences: AccessibilityPreferences
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark

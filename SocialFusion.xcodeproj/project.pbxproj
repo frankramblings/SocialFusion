@@ -1319,6 +1319,8 @@
 				C76C2B4E620B5BCCE5D71307 /* LiquidGlassConfiguration.swift */,
 				4194B806E703387B16EFB108 /* MediaConstants.swift */,
 				6C31622F358C7506EF057217 /* MediaContainerView.swift */,
+				A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */,
+				B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */,
 				0BD574D596E911CA879F1F4F /* NativeYouTubePlayer.swift */,
 				F6AD0F2D69C8A92E0308D9EA /* ParallaxMediaModifier.swift */,
 				39707FACEBD61A89EBA1BB73 /* ParentPostPreview.swift */,

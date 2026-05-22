@@ -743,6 +743,34 @@ struct ProfileHeaderView: View {
     )
   }
 
+  private func breakdownRow(twin: UserProfile) -> some View {
+    HStack(spacing: 14) {
+      HStack(spacing: 4) {
+        PlatformLogoBadge(platform: .mastodon, size: 12, shadowEnabled: false)
+        let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
+        Text("\(Self.formatCount(mastoCount)) followers")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      HStack(spacing: 4) {
+        PlatformLogoBadge(platform: .bluesky, size: 12, shadowEnabled: false)
+        let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
+        Text("\(Self.formatCount(bskyCount)) followers")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+      }
+      Spacer()
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(breakdownAccessibilityLabel(twin: twin))
+  }
+
+  private func breakdownAccessibilityLabel(twin: UserProfile) -> String {
+    let mastoCount = profile.platform == .mastodon ? profile.followersCount : twin.followersCount
+    let bskyCount = profile.platform == .bluesky ? profile.followersCount : twin.followersCount
+    return "Per network: \(mastoCount) Mastodon followers, \(bskyCount) Bluesky followers"
+  }
+
   private func statItem(count: Int, label: String) -> some View {
     HStack(spacing: 4) {
       Text(Self.formatCount(count))

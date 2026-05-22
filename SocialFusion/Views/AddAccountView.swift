@@ -19,10 +19,6 @@ struct AddAccountView: View {
     @State private var platformSelected = true
     @State private var isOAuthFlow = true
     @State private var isAuthCodeEntered = false
-
-    /// Focus targets for keyboard field-to-field navigation.
-    private enum Field { case server, username, password }
-    @FocusState private var focusedField: Field?
     @State private var showWebAuthFailure = false
     @State private var serverName = ""
     @State private var showError = false

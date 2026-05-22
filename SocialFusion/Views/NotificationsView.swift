@@ -12,8 +12,7 @@ struct NotificationsView: View {
     @State private var showFilterDropdown = false
     @State private var scrollOffset: CGFloat = 0
     @State private var showAddAccountView = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    
+
     var filteredNotifications: [AppNotification] {
         if let filter = selectedFilter {
             return notifications.filter { $0.type == filter }

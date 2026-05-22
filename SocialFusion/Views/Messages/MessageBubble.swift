@@ -343,24 +343,21 @@ struct MessageBubble: View {
     }
   }
 
-  @ViewBuilder
   private var asyncAvatar: some View {
     let initial = senderName?.first.map { String($0) } ?? "?"
-    if let urlString = avatarURL, let url = URL(string: urlString) {
-      CachedAsyncImage(url: url, priority: .low) { image in
-        image.resizable().aspectRatio(contentMode: .fill)
-      } placeholder: {
-        initialPlaceholder(initial)
-      }
-      .frame(width: 28, height: 28)
-      .clipShape(Circle())
-    } else {
-      initialPlaceholder(initial)
+    return Group {
+      if let urlString = avatarURL, let url = URL(string: urlString) {
+        CachedAsyncImage(url: url, priority: .low) { image in
+          image.resizable().aspectRatio(contentMode: .fill)
+        } placeholder: {
+          initialPlaceholder(initial)
+        }
         .frame(width: 28, height: 28)
         .clipShape(Circle())
       } else {
-        Circle().fill(Color.gray.opacity(0.3))
+        initialPlaceholder(initial)
           .frame(width: 28, height: 28)
+          .clipShape(Circle())
       }
     }
     // The bubble's combined label already names the sender. The avatar

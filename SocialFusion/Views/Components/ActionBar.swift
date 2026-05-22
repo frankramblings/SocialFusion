@@ -443,6 +443,37 @@ struct ActionBarV2: View {
         ].compactMap { $0 }
         return parts.joined(separator: ", ")
     }
+
+    @ViewBuilder
+    private var watchButton: some View {
+        let isWatching = watchedConversationStore.isWatching(rootPostID: post.id)
+        Button {
+            if isWatching {
+                watchedConversationStore.unwatch(rootPostID: post.id)
+                HapticEngine.selection.trigger()
+            } else {
+                let moment = fusedMomentStore.moment(for: post.id)
+                watchedConversationStore.watch(WatchedConversation(
+                    rootPostID: post.id,
+                    platform: post.platform,
+                    fusedMomentID: moment?.id,
+                    summary: WatchedConversation.Summary(
+                        authorName: post.authorName,
+                        contentPreview: post.content
+                    )
+                ))
+                // Starting a watch is a commitment ("ping me on either
+                // network"), worth the success notification. Unwatch is
+                // just a removal — selection-changed haptic is enough.
+                HapticEngine.success.trigger()
+            }
+        } label: {
+            Label(
+                isWatching ? "Stop watching" : "Watch conversation",
+                systemImage: isWatching ? "bell.slash" : "bell"
+            )
+        }
+    }
 }
 
 /// ActionBarViewModel for observing PostViewModel state changes
