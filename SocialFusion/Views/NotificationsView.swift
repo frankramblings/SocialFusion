@@ -107,7 +107,12 @@ struct NotificationsView: View {
                             .frame(maxWidth: .infinity)
                             .padding(.top, 80)
                             .padding(.bottom, 40)
+                            // Combined element + header trait so the
+                            // empty state lands on the headings rotor
+                            // — matches the rotor-anchor pass across
+                            // other primary empty states.
                             .accessibilityElement(children: .combine)
+                            .accessibilityAddTraits(.isHeader)
                         } else {
                             ForEach(filteredNotifications) { notification in
                                 if let post = notification.post {
@@ -494,7 +499,12 @@ struct NotificationRow: View {
     }
 
     private var accessibilityLabel: String {
-        let name = notification.fromAccount.displayName ?? notification.fromAccount.username
+        // Decode entities — Mastodon displayName can carry raw HTML
+        // entities ("Frank&#8217;s"), which VoiceOver would read as
+        // "Frank ampersand pound 8217 semicolon s." The adjacent visible
+        // chip already routes through EmojiDisplayNameText (decoded);
+        // this brings the a11y label in line.
+        let name = (notification.fromAccount.displayName ?? notification.fromAccount.username).decodingHTMLEntities
         var label = "\(name) \(notificationText)"
 
         // Append the post snippet so VoiceOver can hear which post got

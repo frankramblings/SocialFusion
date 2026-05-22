@@ -46,6 +46,10 @@ struct ChatView: View {
           Image(systemName: "magnifyingglass")
             .font(.subheadline)
             .foregroundColor(.secondary)
+            // Decorative — the TextField's placeholder names the
+            // surface ("Search messages"), so the SF Symbol's
+            // verbatim name would be redundant for VoiceOver.
+            .accessibilityHidden(true)
           TextField("Search messages", text: $searchText)
             .textFieldStyle(.plain)
             .font(.subheadline)

@@ -867,6 +867,10 @@ private struct SearchStatusView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(title). \(message)")
+        // Header trait so VoiceOver's headings rotor lands here —
+        // matches the rotor-anchor pass across the app's other primary
+        // empty states (Notifications, Watching, DM inbox, profile tabs).
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
