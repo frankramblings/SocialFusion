@@ -250,10 +250,19 @@ public final class TimelineViewModel: ObservableObject {
                     self.logger.info("Timeline refreshed for \(account.username)")
                 }
             } catch {
-                // Update UI on main thread
-                await MainActor.run {
+                // Update UI on main thread + surface a retry toast so the
+                // failure isn't silent. Previously the user would just see
+                // stale data with no signal — closes the long-standing UX
+                // gap called out in quality-polish.md.
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
                     self.isLoading = false
                     self.state = .error(error)
+                    let networkLabel = account.platform == .mastodon ? "Mastodon" : "Bluesky"
+                    ToastManager.shared.showError(
+                        "Couldn't refresh \(networkLabel) timeline.",
+                        retry: { [weak self] in self?.refreshTimeline(for: account) }
+                    )
                 }
             }
         }
@@ -432,10 +441,18 @@ public final class TimelineViewModel: ObservableObject {
                     self.logger.info("Unified timeline refreshed for \(accounts.count) accounts")
                 }
             } catch {
-                // Update UI on main thread
-                await MainActor.run {
+                // Update UI on main thread + surface a retry toast for the
+                // unified feed. Mirrors the per-account refresh-failure
+                // wiring above so multi-account users get the same recovery
+                // affordance.
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
                     self.isLoading = false
                     self.state = .error(error)
+                    ToastManager.shared.showError(
+                        "Couldn't refresh timeline.",
+                        retry: { [weak self] in self?.refreshUnifiedTimeline(for: accounts) }
+                    )
                 }
             }
         }
