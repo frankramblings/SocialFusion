@@ -285,6 +285,7 @@
 		B2967AE3D85F410CE3791F8B /* MergedIdentityStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19FD8EA6B47023C152D9C8F0 /* MergedIdentityStoreTests.swift */; };
 		C7F451E9D086A1B340CDF927 /* ProfileViewModelMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D81F7E2C40A93F085BC621D8 /* ProfileViewModelMergeTests.swift */; };
 		E1A2B3C4D5E6F708192A3B4C /* MergedIdentityEndToEndTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5E4D3C2B1A09F8E7D6C5B4A /* MergedIdentityEndToEndTests.swift */; };
+		B17EAD89C4F26AB17E9D3056 /* ToastQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D14F8B2A75C903E1B8F4C7 /* ToastQueueTests.swift */; };
 		B0E3A5D8C270ADDB10D5203B /* ContentSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833064839563AD2AE0090358 /* ContentSignature.swift */; };
 		A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */; };
 		C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */; };
@@ -485,6 +486,7 @@
 		19FD8EA6B47023C152D9C8F0 /* MergedIdentityStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityStoreTests.swift; sourceTree = "<group>"; };
 		D81F7E2C40A93F085BC621D8 /* ProfileViewModelMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewModelMergeTests.swift; sourceTree = "<group>"; };
 		F5E4D3C2B1A09F8E7D6C5B4A /* MergedIdentityEndToEndTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityEndToEndTests.swift; sourceTree = "<group>"; };
+		96D14F8B2A75C903E1B8F4C7 /* ToastQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastQueueTests.swift; sourceTree = "<group>"; };
 		833064839563AD2AE0090358 /* ContentSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSignature.swift; sourceTree = "<group>"; };
 		B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMoment.swift; sourceTree = "<group>"; };
 		D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentity.swift; sourceTree = "<group>"; };
@@ -898,6 +900,7 @@
 				2632F4FE2BF5264DE28BC29A /* MediaRobustnessTests.swift */,
 				19FD8EA6B47023C152D9C8F0 /* MergedIdentityStoreTests.swift */,
 				F5E4D3C2B1A09F8E7D6C5B4A /* MergedIdentityEndToEndTests.swift */,
+				96D14F8B2A75C903E1B8F4C7 /* ToastQueueTests.swift */,
 				C63AB2D6B0924D640EEF7522 /* MergeOffsetCompensatorTests.swift */,
 				AA35D06911DD8B69EE0B2639 /* OfflineQueueActionReplayTests.swift */,
 				F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */,
@@ -1541,6 +1544,7 @@
 				A2D8F3E1C75B4901E682CB47 /* IdentityMatcherTests.swift in Sources */,
 				B2967AE3D85F410CE3791F8B /* MergedIdentityStoreTests.swift in Sources */,
 				E1A2B3C4D5E6F708192A3B4C /* MergedIdentityEndToEndTests.swift in Sources */,
+				B17EAD89C4F26AB17E9D3056 /* ToastQueueTests.swift in Sources */,
 				1CA0B473A93EA58CB7137BA1 /* ComposeAutocompleteLatencyTests.swift in Sources */,
 				D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */,
 				5C9B383F5BE57E0226A85CE4 /* DraftStoreIOTests.swift in Sources */,
