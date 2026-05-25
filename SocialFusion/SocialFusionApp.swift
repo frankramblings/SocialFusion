@@ -49,6 +49,11 @@ struct SocialFusionApp: App {
     // Accessibility preferences (high-contrast network indicators, etc.).
     @StateObject private var accessibilityPreferences = AccessibilityPreferences()
 
+    // Persisted user-pinned timelines (Mastodon lists, Bluesky lists/feeds,
+    // cross-network account groups). Surfaced in the feed picker popover and
+    // editable from Settings.
+    @StateObject private var pinnedTimelineStore = PinnedTimelineStore()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -88,6 +93,7 @@ struct SocialFusionApp: App {
                 .environmentObject(fusedMomentStore)
                 .environmentObject(echoPolicyStore)
                 .environmentObject(watchedConversationStore)
+                .environmentObject(pinnedTimelineStore)
                 .environmentObject(accessibilityPreferences)
                 .environment(\.accessibilityPreferences, accessibilityPreferences)
                 .enableLiquidGlass()
@@ -107,6 +113,7 @@ struct SocialFusionApp: App {
                     .environmentObject(fusedMomentStore)
                     .environmentObject(echoPolicyStore)
                     .environmentObject(watchedConversationStore)
+                    .environmentObject(pinnedTimelineStore)
                     .environmentObject(accessibilityPreferences)
                     .environment(\.accessibilityPreferences, accessibilityPreferences)
                     .enableLiquidGlass()
@@ -124,6 +131,7 @@ struct SocialFusionApp: App {
                     .environmentObject(fusedMomentStore)
                     .environmentObject(echoPolicyStore)
                     .environmentObject(watchedConversationStore)
+                    .environmentObject(pinnedTimelineStore)
                     .environmentObject(accessibilityPreferences)
                     .environment(\.accessibilityPreferences, accessibilityPreferences)
                     .enableLiquidGlass()
