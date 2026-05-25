@@ -55,6 +55,31 @@ public struct BlueskyFeedGenerator: Identifiable, Hashable, Codable {
     public var id: String { uri }
 }
 
+/// A user-owned Bluesky list (`app.bsky.graph.list`). Surfaces in the
+/// pinnable-timelines editor alongside the user's Mastodon lists and
+/// Bluesky custom feeds. Identified by AT-URI.
+public struct BlueskyList: Identifiable, Hashable, Codable {
+    public let uri: String          // at://did:plc:.../app.bsky.graph.list/abc
+    public let cid: String
+    public let name: String
+    /// `app.bsky.graph.defs#curatelist` or `modlist`. Optional because the
+    /// field is not guaranteed in older list records.
+    public let purpose: String?
+    public let description: String?
+
+    public var id: String { uri }
+
+    public enum CodingKeys: String, CodingKey {
+        case uri, cid, name, purpose, description
+    }
+}
+
+/// Envelope for `app.bsky.graph.getLists`.
+public struct BlueskyListsResponse: Codable {
+    public let lists: [BlueskyList]
+    public let cursor: String?
+}
+
 // Feed Item
 public struct BlueskyFeedItem: Codable {
     public let post: BlueskyPostDTO

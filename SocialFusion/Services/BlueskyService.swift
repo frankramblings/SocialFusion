@@ -699,6 +699,72 @@ public final class BlueskyService: Sendable {
         return try await processFeedDataWithPagination(data, account: account)
     }
 
+    /// Fetch the lists owned by an actor. Used by the pinnable-timelines
+    /// editor to populate the user's available Bluesky lists.
+    public func fetchUserLists(for account: SocialAccount) async throws -> [BlueskyList] {
+        let accessToken = try await account.getValidAccessToken()
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.graph.getLists")!
+        components.queryItems = [
+            URLQueryItem(name: "actor", value: account.username),
+            URLQueryItem(name: "limit", value: "50"),
+        ]
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw NetworkError.apiError("Fetch Bluesky lists failed")
+        }
+        let decoded = try JSONDecoder().decode(BlueskyListsResponse.self, from: data)
+        return decoded.lists
+    }
+
+    /// Fetch the merged timeline of posts from members of a Bluesky list.
+    /// Mirrors `fetchCustomFeed`'s shape — paginated, returns `TimelineResult`.
+    public func fetchListFeed(
+        for account: SocialAccount,
+        listURI: String,
+        limit: Int = 40,
+        cursor: String? = nil
+    ) async throws -> TimelineResult {
+        let accessToken = try await account.getValidAccessToken()
+
+        var serverURLString = account.serverURL?.absoluteString ?? "bsky.social"
+        if serverURLString.hasPrefix("https://") {
+            serverURLString = String(serverURLString.dropFirst(8))
+        }
+
+        var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getListFeed")!
+        var queryItems = [
+            URLQueryItem(name: "list", value: listURI),
+            URLQueryItem(name: "limit", value: String(limit)),
+        ]
+        if let cursor = cursor {
+            queryItems.append(URLQueryItem(name: "cursor", value: cursor))
+        }
+        components.queryItems = queryItems
+
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            throw NetworkError.apiError("Fetch Bluesky list feed failed")
+        }
+        return try await processFeedDataWithPagination(data, account: account)
+    }
+
     /// Fetch saved custom feeds for a Bluesky account
     public func fetchSavedFeeds(for account: SocialAccount) async throws -> [BlueskyFeedGenerator] {
         let accessToken = try await account.getValidAccessToken()
