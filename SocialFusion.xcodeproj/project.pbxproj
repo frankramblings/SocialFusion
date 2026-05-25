@@ -290,6 +290,7 @@
 		B0E3A5D8C270ADDB10D5203B /* ContentSignature.swift in Sources */ = {isa = PBXBuildFile; fileRef = 833064839563AD2AE0090358 /* ContentSignature.swift */; };
 		A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */; };
 		C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */; };
+		A4E091BC3F517D02A865CBE9 /* PinnedTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E817B40A395D60FC2C9E318F /* PinnedTimeline.swift */; };
 		D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */; };
 		E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */; };
 		0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */; };
@@ -492,6 +493,7 @@
 		833064839563AD2AE0090358 /* ContentSignature.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentSignature.swift; sourceTree = "<group>"; };
 		B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMoment.swift; sourceTree = "<group>"; };
 		D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentity.swift; sourceTree = "<group>"; };
+		E817B40A395D60FC2C9E318F /* PinnedTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedTimeline.swift; sourceTree = "<group>"; };
 		A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityChip.swift; sourceTree = "<group>"; };
 		B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedHandleSelector.swift; sourceTree = "<group>"; };
 		CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeConfirmationSheet.swift; sourceTree = "<group>"; };
@@ -1275,6 +1277,7 @@
 				C0C6CF9EAEBBB7FC1ADEC92D /* MastodonModels.swift */,
 				0A0031088E442B86B93B5225 /* MastodonPost.swift */,
 				D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */,
+				E817B40A395D60FC2C9E318F /* PinnedTimeline.swift */,
 				0627DF87981D189A2823C3DE /* PersistentModels.swift */,
 				28473D186DFB59778DF996BE /* Post.swift */,
 				5DD74322B593593F2DB43C92 /* Post+ContentView.swift */,
@@ -1636,6 +1639,7 @@
 				C5A1B3D49E72F18A3C04B707 /* WatchedConversationsView.swift in Sources */,
 				B9E7C04A2DF1683C7195AE38 /* IdentityMatcher.swift in Sources */,
 				C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */,
+				A4E091BC3F517D02A865CBE9 /* PinnedTimeline.swift in Sources */,
 				D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */,
 				E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */,
 				0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */,
