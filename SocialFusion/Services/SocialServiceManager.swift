@@ -118,6 +118,12 @@ public final class SocialServiceManager: ObservableObject {
     /// `fusedMomentStore` — wired by `SocialFusionApp` after construction.
     weak var mergedIdentityStore: MergedIdentityStore?
 
+    /// Side-channel reference to the pinned-timeline store, used to resolve
+    /// `.pinned(id:)` selections into concrete account/list/feed sources at
+    /// fetch time. Wired by `SocialFusionApp` after construction; when unset,
+    /// pinned selections cleanly return nil rather than crash.
+    public weak var pinnedTimelineStore: PinnedTimelineStore?
+
     /// Detector instance reused across refreshes. Stateless and cheap to hold.
     private let fusedMomentDetector = FusedMomentDetector()
 
@@ -489,11 +495,35 @@ public final class SocialServiceManager: ObservableObject {
         case .bluesky(let accountId, let feed):
             guard let account = accounts.first(where: { $0.id == accountId }) else { return nil }
             return .bluesky(account: account, feed: feed)
-        case .pinned:
-            // Task 5 fills this in with the real pin → resolution mapping
-            // (walks PinnedTimelineStore, dereferences accounts). Until
-            // then, return nil so callers safely no-op rather than crash.
-            return nil
+        case .pinned(let id):
+            guard let pin = pinnedTimelineStore?.pin(id: id) else { return nil }
+            guard let resolution = resolvePin(pin) else { return nil }
+            return .pinned(pin: pin, resolution: resolution)
+        }
+    }
+
+    /// Resolves a `PinnedTimeline` against the current account list. Returns
+    /// nil if any required account has been removed since the pin was created
+    /// (single-account kinds), or if no group accounts remain at all.
+    /// Account-group pins tolerate partial resolution — as long as one
+    /// account survives, the pin remains usable.
+    private func resolvePin(_ pin: PinnedTimeline) -> PinnedTimelineResolution? {
+        switch pin.kind {
+        case .mastodonList(let accountId, let listId):
+            guard let account = accounts.first(where: { $0.id == accountId && $0.platform == .mastodon })
+            else { return nil }
+            return .mastodonList(account: account, listId: listId)
+        case .blueskyList(let accountId, let listUri):
+            guard let account = accounts.first(where: { $0.id == accountId && $0.platform == .bluesky })
+            else { return nil }
+            return .blueskyList(account: account, listUri: listUri)
+        case .blueskyFeed(let accountId, let feedUri):
+            guard let account = accounts.first(where: { $0.id == accountId && $0.platform == .bluesky })
+            else { return nil }
+            return .blueskyFeed(account: account, feedUri: feedUri)
+        case .accountGroup(let ids):
+            let resolved = ids.compactMap { id in accounts.first(where: { $0.id == id }) }
+            return resolved.isEmpty ? nil : .accountGroup(accounts: resolved)
         }
     }
 
@@ -1808,13 +1838,93 @@ public final class SocialServiceManager: ObservableObject {
                 shouldMerge: shouldMergeOnRefresh,
                 generation: generation
             )
-        case .pinned:
-            // Task 5 implements the pin-resolution fetch path that fans out
-            // into list/feed/group sources and merges results. Until then,
-            // a pinned plan yields no posts (the resolver returns nil so we
-            // typically never reach this arm).
-            return []
+        case .pinned(let pin, let resolution):
+            let result = try await fetchPinnedTimeline(pin: pin, resolution: resolution)
+            hasNextPage = result.pagination.hasNextPage
+            return await applyTimelinePosts(
+                result.posts,
+                source: .refresh,
+                shouldMerge: shouldMergeOnRefresh,
+                generation: generation
+            )
         }
+    }
+
+    /// Fan-out + merge for a `.pinned` plan. List/feed pins dispatch to one
+    /// service call; account-group pins fan out across both networks in
+    /// parallel and merge by createdAt.
+    private func fetchPinnedTimeline(
+        pin: PinnedTimeline,
+        resolution: PinnedTimelineResolution
+    ) async throws -> TimelineResult {
+        switch resolution {
+        case .mastodonList(let account, let listId):
+            return try await mastodonService.fetchListTimeline(
+                for: account,
+                listId: listId,
+                maxId: nil
+            )
+        case .blueskyList(let account, let listUri):
+            return try await blueskyService.fetchListFeed(
+                for: account,
+                listURI: listUri,
+                cursor: nil
+            )
+        case .blueskyFeed(let account, let feedUri):
+            return try await blueskyService.fetchCustomFeed(
+                for: account,
+                feedURI: feedUri,
+                cursor: nil
+            )
+        case .accountGroup(let groupAccounts):
+            return try await fetchAccountGroupTimeline(accounts: groupAccounts)
+        }
+    }
+
+    /// Merges the home timelines of the supplied accounts into a single
+    /// time-ordered result. Each account is fetched in parallel; one-side
+    /// failures don't fail the whole pin. v1.0 ships group pagination as a
+    /// single page — proper paged fan-out is deferred to v1.1.
+    private func fetchAccountGroupTimeline(accounts: [SocialAccount]) async throws -> TimelineResult {
+        let results: [TimelineResult] = await withTaskGroup(of: TimelineResult?.self) { group in
+            for account in accounts {
+                group.addTask { [weak self] in
+                    guard let self else { return nil }
+                    do {
+                        switch account.platform {
+                        case .mastodon:
+                            return try await self.mastodonService.fetchHomeTimeline(
+                                for: account,
+                                maxId: nil
+                            )
+                        case .bluesky:
+                            return try await self.blueskyService.fetchHomeTimeline(
+                                for: account,
+                                cursor: nil
+                            )
+                        }
+                    } catch {
+                        return nil
+                    }
+                }
+            }
+            var collected: [TimelineResult] = []
+            for await result in group {
+                if let result { collected.append(result) }
+            }
+            return collected
+        }
+
+        // De-dupe by post id, then sort newest first. Cross-network
+        // boost/repost handling stays as-is — the user opted into the
+        // group's *timeline*, not just "posts authored by these people."
+        let merged = results.flatMap(\.posts).sorted { $0.createdAt > $1.createdAt }
+        var seen = Set<String>()
+        let deduped = merged.filter { seen.insert($0.id).inserted }
+        return TimelineResult(
+            posts: deduped,
+            pagination: PaginationInfo.empty
+        )
     }
 
     private func applyTimelinePosts(
