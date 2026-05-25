@@ -3852,6 +3852,16 @@ public final class SocialServiceManager: ObservableObject {
         return try await blueskyService.fetchSavedFeeds(for: account)
     }
 
+    /// Fetch the lists owned by a Bluesky account. Wrapper around
+    /// blueskyService.fetchUserLists for the picker view model, matching the
+    /// existing fetchBlueskySavedFeeds wrapper shape.
+    public func fetchBlueskyLists(account: SocialAccount) async throws -> [BlueskyList] {
+        guard account.platform == .bluesky else {
+            throw ServiceError.unsupportedPlatform
+        }
+        return try await blueskyService.fetchUserLists(for: account)
+    }
+
     /// Add an account to a Mastodon list
     public func addAccountToMastodonList(
         listId: String, accountToLink: String, account: SocialAccount
