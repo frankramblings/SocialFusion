@@ -68,6 +68,11 @@ enum TimelineFeedSelection: Hashable, Codable {
     case allBluesky
     case mastodon(accountId: String, feed: MastodonTimelineFeed)
     case bluesky(accountId: String, feed: BlueskyTimelineFeed)
+    /// References a `PinnedTimeline` by id in `PinnedTimelineStore`. The
+    /// resolution into concrete accounts + source URIs happens in
+    /// `SocialServiceManager.resolveTimelineFetchPlan()` so call sites can
+    /// stay agnostic about what's behind a pin.
+    case pinned(id: String)
 }
 
 enum TimelineFetchPlan {
@@ -76,4 +81,18 @@ enum TimelineFetchPlan {
     case allBluesky(accounts: [SocialAccount])
     case mastodon(account: SocialAccount, feed: MastodonTimelineFeed)
     case bluesky(account: SocialAccount, feed: BlueskyTimelineFeed)
+    /// A pin paired with the runtime-resolved sources its kind expands into,
+    /// so downstream fetch code never re-walks the pin store or the accounts
+    /// list.
+    case pinned(pin: PinnedTimeline, resolution: PinnedTimelineResolution)
+}
+
+/// The runtime-resolved sources a pinned timeline expands into. Mirrors
+/// `PinnedTimelineKind` but carries fully-resolved `SocialAccount` values
+/// rather than account IDs, so the fetch layer doesn't repeat that lookup.
+enum PinnedTimelineResolution {
+    case mastodonList(account: SocialAccount, listId: String)
+    case blueskyList(account: SocialAccount, listUri: String)
+    case blueskyFeed(account: SocialAccount, feedUri: String)
+    case accountGroup(accounts: [SocialAccount])
 }

@@ -833,6 +833,12 @@ struct ConsolidatedTimelineView: View {
                 }
                 return "Feed"
             }
+        case .pinned:
+            // Task 11 in the pinnable-timelines plan replaces this with the
+            // pin's displayName looked up via PinnedTimelineStore. Until then,
+            // a generic label keeps the UI from crashing if a pin slips
+            // through before the store wiring lands.
+            return "Pinned"
         }
     }
 

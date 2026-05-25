@@ -131,6 +131,11 @@ public final class SocialServiceManager: ObservableObject {
                 return ["all"]
             case .mastodon(let accountId, _), .bluesky(let accountId, _):
                 return [accountId]
+            case .pinned:
+                // Pinned selections aren't tied to a single account id; return
+                // "all" to keep legacy consumers happy. Real resolution lives
+                // in resolveTimelineFetchPlan() once Task 5 lands.
+                return ["all"]
             }
         }
         set {
@@ -156,6 +161,10 @@ public final class SocialServiceManager: ObservableObject {
             return .account(id: accountId)
         case .bluesky(let accountId, _):
             return .account(id: accountId)
+        case .pinned:
+            // Pinned scope is multi-account by nature; report as allAccounts
+            // for now. Task 5 wires the real resolution.
+            return .allAccounts
         }
     }
     @Published private(set) var currentTimelineFeedSelection: TimelineFeedSelection = .unified
@@ -443,6 +452,10 @@ public final class SocialServiceManager: ObservableObject {
             if !accounts.contains(where: { $0.id == accountId }) {
                 currentTimelineFeedSelection = .unified
             }
+        case .pinned:
+            // Pin validity is checked elsewhere when the store loads; nothing
+            // to drop back to .unified for here.
+            break
         }
         if previous != currentTimelineFeedSelection {
             resetPagination()
@@ -476,6 +489,11 @@ public final class SocialServiceManager: ObservableObject {
         case .bluesky(let accountId, let feed):
             guard let account = accounts.first(where: { $0.id == accountId }) else { return nil }
             return .bluesky(account: account, feed: feed)
+        case .pinned:
+            // Task 5 fills this in with the real pin → resolution mapping
+            // (walks PinnedTimelineStore, dereferences accounts). Until
+            // then, return nil so callers safely no-op rather than crash.
+            return nil
         }
     }
 
@@ -709,6 +727,16 @@ public final class SocialServiceManager: ObservableObject {
             return [account]
         case .bluesky(let account, _):
             return [account]
+        case .pinned(_, let resolution):
+            // Walk the pin's resolution to get every account it needs to hit.
+            switch resolution {
+            case .mastodonList(let account, _),
+                 .blueskyList(let account, _),
+                 .blueskyFeed(let account, _):
+                return [account]
+            case .accountGroup(let accounts):
+                return accounts
+            }
         }
     }
 
@@ -1611,6 +1639,12 @@ public final class SocialServiceManager: ObservableObject {
             guard platform == .bluesky else { return [] }
             let result = try await fetchBlueskyTimeline(account: account, feed: feed, cursor: nil)
             return result.posts
+        case .pinned:
+            // Task 5 routes pin plans through their own per-resolution fetch
+            // helpers. fetchPostsForTimeline(platform:) is a legacy path used
+            // by some single-platform views; for pins, return empty until the
+            // platform-scoped fetch is taught about pin resolutions.
+            return []
         }
     }
 
@@ -1774,6 +1808,12 @@ public final class SocialServiceManager: ObservableObject {
                 shouldMerge: shouldMergeOnRefresh,
                 generation: generation
             )
+        case .pinned:
+            // Task 5 implements the pin-resolution fetch path that fans out
+            // into list/feed/group sources and merges results. Until then,
+            // a pinned plan yields no posts (the resolver returns nil so we
+            // typically never reach this arm).
+            return []
         }
     }
 
@@ -1892,6 +1932,11 @@ public final class SocialServiceManager: ObservableObject {
             return "\(account.id):\(feed.cacheKey)"
         case .bluesky(_, let feed):
             return "\(account.id):\(feed.cacheKey)"
+        case .pinned(let pinId):
+            // Keyed by pin id + account so each (pin, account) pair gets its
+            // own pagination cursor — important for account-group pins where
+            // each account paginates independently.
+            return "pinned:\(pinId):\(account.id)"
         }
     }
 
@@ -2544,6 +2589,11 @@ public final class SocialServiceManager: ObservableObject {
             } catch {
                 recordPaginationFailure(accountName: account.username, error: error)
             }
+        case .pinned:
+            // Task 5 implements the pin pagination path (fan-out per
+            // resolution + merge). Until then, no-op so loadNextPage on a
+            // pinned selection is harmless rather than crashing.
+            break
         }
 
         let outcome = Self._test_resolvePaginationOutcome(
@@ -2637,6 +2687,11 @@ public final class SocialServiceManager: ObservableObject {
             return try await fetchMastodonTimeline(account: account, feed: feed, maxId: token)
         case .bluesky(_, let feed):
             return try await fetchBlueskyTimeline(account: account, feed: feed, cursor: token)
+        case .pinned:
+            // Task 5 introduces pin-aware per-account fetch dispatch. For
+            // now, the upstream switch already handles .pinned plans by
+            // no-oping; this arm exists only to keep the compiler happy.
+            return TimelineResult(posts: [], pagination: PaginationInfo.empty)
         }
     }
 
