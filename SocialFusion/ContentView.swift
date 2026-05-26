@@ -8,6 +8,7 @@ struct ContentView: View {
     @EnvironmentObject var serviceManager: SocialServiceManager
     @EnvironmentObject var appVersionManager: AppVersionManager
     @EnvironmentObject var navigationEnvironment: PostNavigationEnvironment
+    @EnvironmentObject var positionSyncService: PositionSyncService
     @StateObject private var mediaCoordinator = FullscreenMediaCoordinator()
     @SceneStorage("selectedTab") private var selectedTab = 0
 
@@ -255,7 +256,10 @@ struct ContentView: View {
 
     private var homeTabContent: some View {
         NavigationStack {
-            ConsolidatedTimelineView(serviceManager: serviceManager)
+            ConsolidatedTimelineView(
+                serviceManager: serviceManager,
+                positionSyncService: positionSyncService
+            )
                 .toolbar {
                     ToolbarItem(placement: .navigationBarLeading) {
                         profileMenuButton

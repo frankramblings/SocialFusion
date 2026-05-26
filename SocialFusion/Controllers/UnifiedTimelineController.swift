@@ -65,6 +65,16 @@ class UnifiedTimelineController: ObservableObject {
     private let actionCoordinator: PostActionCoordinator
     private let relationshipStore: RelationshipStore
     private let timelineContextProvider: UnifiedTimelineContextProvider
+    private let positionSyncService: PositionSyncService?
+
+    /// KVS accountID component for the unified feed. iCloud identity is the
+    /// global identity here — there's one "primary" record per timelineID.
+    private let syncAccountID = "primary"
+    /// KVS timelineID component for the unified feed.
+    private let syncTimelineID = "unified"
+    /// Tracks the last anchor we wrote to sync so we don't redundantly record
+    /// the same position on every micro-scroll.
+    private var lastRecordedAnchor: String?
     private lazy var refreshCoordinator: TimelineRefreshCoordinator = {
         TimelineRefreshCoordinator(
             timelineID: "unified",
@@ -108,14 +118,19 @@ class UnifiedTimelineController: ObservableObject {
 
     // MARK: - Initialization
 
-    init(serviceManager: SocialServiceManager) {
+    init(
+        serviceManager: SocialServiceManager,
+        positionSyncService: PositionSyncService? = nil
+    ) {
         self.serviceManager = serviceManager
         self.actionStore = serviceManager.postActionStore
         self.actionCoordinator = serviceManager.postActionCoordinator
         self.relationshipStore = serviceManager.relationshipStore
         // Use shared provider from service manager
         self.timelineContextProvider = serviceManager.timelineContextProvider
+        self.positionSyncService = positionSyncService
         setupBindings()
+        setupPositionSyncBindings()
     }
 
     deinit {
@@ -334,6 +349,63 @@ class UnifiedTimelineController: ObservableObject {
 
     func updateCurrentAnchor(_ id: String?) {
         self.currentAnchorId = id
+        recordPositionToSync(anchorID: id)
+    }
+
+    /// Record the current scroll anchor to the cross-device sync service.
+    /// The service handles debouncing — burst calls coalesce to ≤1 write per
+    /// 3s. We additionally skip same-anchor repeats so we don't even hand off
+    /// to the service on every micro-update.
+    private func recordPositionToSync(anchorID: String?) {
+        guard let anchorID, anchorID != lastRecordedAnchor else { return }
+        lastRecordedAnchor = anchorID
+        positionSyncService?.recordPosition(
+            accountID: syncAccountID,
+            timelineID: syncTimelineID,
+            postID: anchorID,
+            scrollOffset: nil
+        )
+    }
+
+    /// Subscribe to the cross-device sync service so this controller seeds
+    /// its initial `restorationAnchor` from any saved position, and re-anchors
+    /// when another device pushes an update.
+    private func setupPositionSyncBindings() {
+        guard let positionSyncService else { return }
+
+        // On first non-empty posts list, if we don't yet have an in-session
+        // anchor, seed from the cross-device service.
+        $posts
+            .filter { !$0.isEmpty }
+            .first()
+            .sink { [weak self] _ in
+                guard let self,
+                      self.restorationAnchor == nil,
+                      let saved = positionSyncService.position(
+                          accountID: self.syncAccountID,
+                          timelineID: self.syncTimelineID
+                      )
+                else { return }
+                self.restorationAnchor = saved.lastReadPostID
+            }
+            .store(in: &cancellables)
+
+        // React to remote pushes from another device. Only re-anchor if the
+        // pushed post is actually present in our loaded buffer — otherwise
+        // the next pagination will pick it up naturally.
+        positionSyncService.externalUpdatesPublisher
+            .filter { [weak self] update in
+                guard let self else { return false }
+                return update.accountID == self.syncAccountID
+                    && update.timelineID == self.syncTimelineID
+            }
+            .sink { [weak self] update in
+                guard let self,
+                      self.posts.contains(where: { $0.id == update.position.lastReadPostID })
+                else { return }
+                self.restorationAnchor = update.position.lastReadPostID
+            }
+            .store(in: &cancellables)
     }
 
     /// Clear the restoration anchor once the view has consumed it.

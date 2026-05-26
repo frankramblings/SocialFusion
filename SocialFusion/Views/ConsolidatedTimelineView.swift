@@ -292,10 +292,16 @@ struct ConsolidatedTimelineView: View {
     @Environment(\.accessibilityDifferentiateWithoutColor) var differentiateWithoutColor
     @Environment(\.accessibilityReduceTransparency) var reduceTransparency
 
-    init(serviceManager: SocialServiceManager) {
+    init(
+        serviceManager: SocialServiceManager,
+        positionSyncService: PositionSyncService? = nil
+    ) {
         // Use a factory pattern to create the controller with proper dependency injection
         _controller = StateObject(
-            wrappedValue: UnifiedTimelineController(serviceManager: serviceManager))
+            wrappedValue: UnifiedTimelineController(
+                serviceManager: serviceManager,
+                positionSyncService: positionSyncService
+            ))
         _feedPickerViewModel = StateObject(
             wrappedValue: TimelineFeedPickerViewModel(serviceManager: serviceManager))
     }
