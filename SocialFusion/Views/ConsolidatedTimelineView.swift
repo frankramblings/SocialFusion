@@ -195,6 +195,7 @@ struct ConsolidatedTimelineView: View {
 
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var fusedMomentStore: FusedMomentStore
+    @EnvironmentObject private var pinnedTimelineStore: PinnedTimelineStore
     @ObservedObject private var edgeCase = EdgeCaseHandler.shared
     @StateObject private var controller: UnifiedTimelineController
     @StateObject private var navigationEnvironment = PostNavigationEnvironment()
@@ -271,6 +272,10 @@ struct ConsolidatedTimelineView: View {
 
     // New post highlight glow
     @State private var highlightedPostIds: Set<String> = []
+
+    // Presents the pinnable-timelines editor sheet. Triggered from the
+    // feed-picker popover's "Edit Pins…" row.
+    @State private var showingPinEditor: Bool = false
 
     // Compose sheet choreography
     private var isComposePresented: Bool {
@@ -364,6 +369,12 @@ struct ConsolidatedTimelineView: View {
             .sheet(isPresented: $showAddAccountView) {
                 AddAccountView()
                     .environmentObject(serviceManager)
+            }
+            .sheet(isPresented: $showingPinEditor) {
+                PinnedTimelinesEditorView(
+                    viewModel: PinnedTimelineEditorViewModel(store: pinnedTimelineStore)
+                )
+                .environmentObject(serviceManager)
             }
             .task {
                 await ensureTimelineLoaded()
@@ -594,7 +605,8 @@ struct ConsolidatedTimelineView: View {
             accounts: serviceManager.accounts,
             mastodonAccounts: serviceManager.mastodonAccounts,
             blueskyAccounts: serviceManager.blueskyAccounts,
-            onSelect: handleFeedSelection(_:)
+            onSelect: handleFeedSelection(_:),
+            onEditPins: { showingPinEditor = true }
         )
         // Reduce motion: drop the subtle scale-in pop, keep just
         // a fade so the picker still has *some* transition (no
@@ -833,12 +845,12 @@ struct ConsolidatedTimelineView: View {
                 }
                 return "Feed"
             }
-        case .pinned:
-            // Task 11 in the pinnable-timelines plan replaces this with the
-            // pin's displayName looked up via PinnedTimelineStore. Until then,
-            // a generic label keeps the UI from crashing if a pin slips
-            // through before the store wiring lands.
-            return "Pinned"
+        case .pinned(let id):
+            // Look up the pin's user-set displayName from the store.
+            // Falls back to "Pinned" if the pin was removed while this
+            // selection was still active (the timeline will rebound to
+            // .unified on the next selection change).
+            return pinnedTimelineStore.pin(id: id)?.displayName ?? "Pinned"
         }
     }
 
