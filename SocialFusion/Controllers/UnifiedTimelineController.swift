@@ -23,6 +23,18 @@ class UnifiedTimelineController: ObservableObject {
     @Published private(set) var isDeepHistory: Bool = false
     @Published private(set) var restorationAnchor: String?
 
+    // MARK: - Search Buffer Access
+
+    /// A point-in-time copy of the currently-loaded timeline posts for
+    /// timeline search to filter over. Reads from `posts` without subscribing
+    /// to its publisher — callers should call this on demand (e.g. when the
+    /// search query changes), not observe it. Subscribing would re-run the
+    /// filter on every background timeline merge, which isn't what we want
+    /// — the filter should respond to user input, not feed updates.
+    func bufferSnapshot() -> [Post] {
+        posts
+    }
+
     // MARK: - Unread Above Viewport Tracking
     /// Count of posts that are unread and above the current viewport
     @Published private(set) var unreadAboveViewportCount: Int = 0
