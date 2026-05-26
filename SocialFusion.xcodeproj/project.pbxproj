@@ -294,6 +294,8 @@
 		C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */; };
 		A4E091BC3F517D02A865CBE9 /* PinnedTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = E817B40A395D60FC2C9E318F /* PinnedTimeline.swift */; };
 		6D38B0CF2A47E915874C619B /* TimelineSearchModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F19A24D8E03B71FCD6280A4 /* TimelineSearchModels.swift */; };
+		B41A6F38E92D75081C6D03B4 /* TimelineBufferFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C84251D7AF6B09E13802495 /* TimelineBufferFilter.swift */; };
+		C0F1E83A91685D437A4B2C9F /* TimelineBufferFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E36C19BD402F5A86591730E /* TimelineBufferFilterTests.swift */; };
 		D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */; };
 		E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */; };
 		0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */; };
@@ -502,6 +504,8 @@
 		D72F4E1A8B3C50A961FD2E83 /* MergedIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentity.swift; sourceTree = "<group>"; };
 		E817B40A395D60FC2C9E318F /* PinnedTimeline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedTimeline.swift; sourceTree = "<group>"; };
 		5F19A24D8E03B71FCD6280A4 /* TimelineSearchModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchModels.swift; sourceTree = "<group>"; };
+		9C84251D7AF6B09E13802495 /* TimelineBufferFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineBufferFilter.swift; sourceTree = "<group>"; };
+		7E36C19BD402F5A86591730E /* TimelineBufferFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineBufferFilterTests.swift; sourceTree = "<group>"; };
 		A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityChip.swift; sourceTree = "<group>"; };
 		B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedHandleSelector.swift; sourceTree = "<group>"; };
 		CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeConfirmationSheet.swift; sourceTree = "<group>"; };
@@ -924,6 +928,7 @@
 				64C5193B7D2EAF8503CC1962 /* PinnedTimelineStoreTests.swift */,
 				871CD0A93F26B580C194E63D /* PinnedTimelineFetchPlanTests.swift */,
 				92F1604CB8E7A35D041F76A2 /* PinnedTimelineEditorViewModelTests.swift */,
+				7E36C19BD402F5A86591730E /* TimelineBufferFilterTests.swift */,
 				C63AB2D6B0924D640EEF7522 /* MergeOffsetCompensatorTests.swift */,
 				AA35D06911DD8B69EE0B2639 /* OfflineQueueActionReplayTests.swift */,
 				F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */,
@@ -1080,6 +1085,7 @@
 				4C174737E9F16605633C5B16 /* SimpleEdgeCaseHandling.swift */,
 				FC9114259C7D2BF53CF04DBB /* TimeFormatters.swift */,
 				36F2B53AC892F4E69864DDB3 /* TimelineV2ValidationRunner.swift */,
+				9C84251D7AF6B09E13802495 /* TimelineBufferFilter.swift */,
 				BDEB19E4D9CB05A836F77DC2 /* TokenExtractor.swift */,
 				983C505FB8404E42B71B3032 /* TokenManager.swift */,
 				317FA54C052BABBA9833F6AA /* UITestHooks.swift */,
@@ -1576,6 +1582,7 @@
 				D17AB30C5961F8420E73AF8B /* PinnedTimelineStoreTests.swift in Sources */,
 				A2E58FB1086C397452B97E40 /* PinnedTimelineFetchPlanTests.swift in Sources */,
 				1B4C72AE5F38D90C7E1A8B62 /* PinnedTimelineEditorViewModelTests.swift in Sources */,
+				C0F1E83A91685D437A4B2C9F /* TimelineBufferFilterTests.swift in Sources */,
 				1CA0B473A93EA58CB7137BA1 /* ComposeAutocompleteLatencyTests.swift in Sources */,
 				D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */,
 				5C9B383F5BE57E0226A85CE4 /* DraftStoreIOTests.swift in Sources */,
@@ -1898,6 +1905,7 @@
 				6568EF6BAB96500D1F1955EE /* TimelineState.swift in Sources */,
 				C4C915EC8F7E42A619AFD28B /* TimelineSwiftDataStore.swift in Sources */,
 				D2603BA2DAC7A453D612EC8C /* TimelineV2ValidationRunner.swift in Sources */,
+				B41A6F38E92D75081C6D03B4 /* TimelineBufferFilter.swift in Sources */,
 				17426D5BEA4E35CB2584E3BA /* TimelineV2ValidationView.swift in Sources */,
 				41EBA8A0DD4C02B03431F431 /* TimelineViewModel.swift in Sources */,
 				37989E198593DA805536946D /* ToastNotification.swift in Sources */,
