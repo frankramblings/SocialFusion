@@ -6,6 +6,7 @@ import UserNotifications
 struct SettingsView: View {
     @EnvironmentObject private var serviceManager: SocialServiceManager
     @EnvironmentObject private var echoPolicyStore: EchoPolicyStore
+    @EnvironmentObject private var pinnedTimelineStore: PinnedTimelineStore
     @EnvironmentObject private var accessibilityPreferences: AccessibilityPreferences
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
@@ -21,6 +22,7 @@ struct SettingsView: View {
     @State private var showingPrivacyPolicy = false
     @State private var showingTermsOfService = false
     @State private var showingDebugOptions = false
+    @State private var showingPinEditor = false
     @State private var showNotificationDeniedAlert = false
     @State private var totalCacheSize: Int64 = 0
     @State private var isCalculatingSize = false
@@ -43,6 +45,27 @@ struct SettingsView: View {
                 }
 
                 Section(header: Text("Timeline")) {
+                    Button {
+                        HapticEngine.tap.trigger()
+                        showingPinEditor = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Label("Pinned Timelines", systemImage: "pin.fill")
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if !pinnedTimelineStore.pins.isEmpty {
+                                Text("\(pinnedTimelineStore.pins.count)")
+                                    .foregroundStyle(.secondary)
+                            }
+                            Image(systemName: "chevron.right")
+                                .foregroundStyle(.tertiary)
+                                .font(.caption.weight(.semibold))
+                        }
+                    }
+                    .accessibilityHint(pinnedTimelineStore.pins.isEmpty
+                        ? "Create and manage pinned timelines"
+                        : "Manage your \(pinnedTimelineStore.pins.count) pinned timeline\(pinnedTimelineStore.pins.count == 1 ? "" : "s")")
+
                     Toggle("Auto-refresh Timeline", isOn: $autoRefreshTimeline)
 
                     if autoRefreshTimeline {
@@ -388,6 +411,12 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showingTermsOfService) {
                 WebContentView(title: "Terms of Service", content: termsOfServiceContent)
+            }
+            .sheet(isPresented: $showingPinEditor) {
+                PinnedTimelinesEditorView(
+                    viewModel: PinnedTimelineEditorViewModel(store: pinnedTimelineStore)
+                )
+                .environmentObject(serviceManager)
             }
             .sheet(isPresented: $showingDebugOptions) {
                 NavigationStack {
