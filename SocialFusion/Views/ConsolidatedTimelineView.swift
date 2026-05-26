@@ -277,6 +277,10 @@ struct ConsolidatedTimelineView: View {
     // feed-picker popover's "Edit Pins…" row.
     @State private var showingPinEditor: Bool = false
 
+    // Presents the timeline-search overlay sheet. Triggered by the toolbar
+    // search button or a downward pull at the top of the timeline.
+    @State private var showTimelineSearch: Bool = false
+
     // Compose sheet choreography
     private var isComposePresented: Bool {
         replyingToPost != nil || quotingToPost != nil
@@ -294,6 +298,22 @@ struct ConsolidatedTimelineView: View {
             wrappedValue: UnifiedTimelineController(serviceManager: serviceManager))
         _feedPickerViewModel = StateObject(
             wrappedValue: TimelineFeedPickerViewModel(serviceManager: serviceManager))
+    }
+
+    /// Build the search VM with a snapshot-backed client layer and a unified
+    /// remote driver. v1.0 always uses `.unified` scope; pin-scoped contexts
+    /// arrive with the pinnable-timelines work (see Task 11 in the plan).
+    private func makeSearchViewModel() -> TimelineSearchViewModel {
+        let driver = TimelineSearchRemoteDriver(
+            provider: serviceManager.makeUnifiedSearchProvider()
+        )
+        return TimelineSearchViewModel(
+            bufferProvider: { [weak controller] in
+                controller?.bufferSnapshot() ?? []
+            },
+            remoteDriver: driver,
+            context: .unified
+        )
     }
 
     var body: some View {
@@ -329,6 +349,14 @@ struct ConsolidatedTimelineView: View {
                                 .clipShape(Circle())
                         }
                     }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showTimelineSearch = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                    .accessibilityLabel("Search timeline")
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -376,6 +404,30 @@ struct ConsolidatedTimelineView: View {
                 )
                 .environmentObject(serviceManager)
             }
+            .sheet(isPresented: $showTimelineSearch) {
+                TimelineSearchView(
+                    viewModel: makeSearchViewModel(),
+                    isPresented: $showTimelineSearch
+                )
+                .environmentObject(serviceManager)
+                .environmentObject(fusedMomentStore)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 24)
+                    .onEnded { value in
+                        // Only reveal if the user pulled down meaningfully
+                        // while near the top of the timeline. The width
+                        // check filters out diagonal swipes that the
+                        // horizontal account switcher already handles.
+                        if controller.isNearTop,
+                           value.translation.height > 60,
+                           abs(value.translation.width) < 40 {
+                            showTimelineSearch = true
+                        }
+                    }
+            )
             .task {
                 await ensureTimelineLoaded()
                 if #available(iOS 17.0, *), pendingAnchorRestoreId == nil {

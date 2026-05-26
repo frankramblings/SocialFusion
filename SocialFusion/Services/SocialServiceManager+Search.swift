@@ -57,4 +57,21 @@ extension SocialServiceManager {
       accountId: selectedAccountId
     )
   }
+
+  /// Build a `SearchProviding` representing all signed-in accounts across
+  /// both networks. Used by surfaces (e.g. timeline search) that need a
+  /// provider directly without the surrounding `SearchStore`.
+  @MainActor
+  func makeUnifiedSearchProvider() -> SearchProviding {
+    let mastodonProviders = mastodonAccounts.map { account in
+      MastodonSearchProvider(mastodonService: mastodonService, account: account)
+    }
+    let blueskyProviders = blueskyAccounts.map { account in
+      BlueskySearchProvider(blueskyService: blueskyService, account: account)
+    }
+    return UnifiedSearchProvider(
+      mastodonProviders: mastodonProviders,
+      blueskyProviders: blueskyProviders
+    )
+  }
 }
