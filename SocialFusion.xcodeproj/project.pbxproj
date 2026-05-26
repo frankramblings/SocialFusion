@@ -297,6 +297,11 @@
 		B41A6F38E92D75081C6D03B4 /* TimelineBufferFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C84251D7AF6B09E13802495 /* TimelineBufferFilter.swift */; };
 		C0F1E83A91685D437A4B2C9F /* TimelineBufferFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E36C19BD402F5A86591730E /* TimelineBufferFilterTests.swift */; };
 		A95D3F128B047C6E1392048D /* TimelineSearchPerformanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80F476A3E5CB91D2F70C8A35 /* TimelineSearchPerformanceTests.swift */; };
+		A1B2C3D4E5F60718293A4B70 /* TimelineSearchRemoteDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B71 /* TimelineSearchRemoteDriver.swift */; };
+		A1B2C3D4E5F60718293A4B72 /* TimelineSearchRemoteDriverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B73 /* TimelineSearchRemoteDriverTests.swift */; };
+		A1B2C3D4E5F60718293A4B74 /* TimelineSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B75 /* TimelineSearchViewModel.swift */; };
+		A1B2C3D4E5F60718293A4B76 /* TimelineSearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B77 /* TimelineSearchViewModelTests.swift */; };
+		A1B2C3D4E5F60718293A4B78 /* TimelineSearchSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B79 /* TimelineSearchSectionHeader.swift */; };
 		D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */; };
 		E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */; };
 		0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */; };
@@ -508,6 +513,11 @@
 		9C84251D7AF6B09E13802495 /* TimelineBufferFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineBufferFilter.swift; sourceTree = "<group>"; };
 		7E36C19BD402F5A86591730E /* TimelineBufferFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineBufferFilterTests.swift; sourceTree = "<group>"; };
 		80F476A3E5CB91D2F70C8A35 /* TimelineSearchPerformanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchPerformanceTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B71 /* TimelineSearchRemoteDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchRemoteDriver.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B73 /* TimelineSearchRemoteDriverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchRemoteDriverTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B75 /* TimelineSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchViewModel.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B77 /* TimelineSearchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchViewModelTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B79 /* TimelineSearchSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchSectionHeader.swift; sourceTree = "<group>"; };
 		A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityChip.swift; sourceTree = "<group>"; };
 		B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedHandleSelector.swift; sourceTree = "<group>"; };
 		CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeConfirmationSheet.swift; sourceTree = "<group>"; };
@@ -867,6 +877,7 @@
 				4A2E731C8D60A91F7B349C5E /* PinnedTimelineEditorViewModel.swift */,
 				96854ABAFE6185E7CC37C677 /* TimelineFeedPickerViewModel.swift */,
 				6F97A18E7B0EBE12A434E395 /* TimelineViewModel.swift */,
+				A1B2C3D4E5F60718293A4B75 /* TimelineSearchViewModel.swift */,
 				B866CFEC0EE67E0BAFBD80CB /* ProfileViewModel.swift */,
 			);
 			path = ViewModels;
@@ -932,6 +943,8 @@
 				92F1604CB8E7A35D041F76A2 /* PinnedTimelineEditorViewModelTests.swift */,
 				7E36C19BD402F5A86591730E /* TimelineBufferFilterTests.swift */,
 				80F476A3E5CB91D2F70C8A35 /* TimelineSearchPerformanceTests.swift */,
+				A1B2C3D4E5F60718293A4B73 /* TimelineSearchRemoteDriverTests.swift */,
+				A1B2C3D4E5F60718293A4B77 /* TimelineSearchViewModelTests.swift */,
 				C63AB2D6B0924D640EEF7522 /* MergeOffsetCompensatorTests.swift */,
 				AA35D06911DD8B69EE0B2639 /* OfflineQueueActionReplayTests.swift */,
 				F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */,
@@ -1239,6 +1252,7 @@
 				33B41F2FA969A9F08A9F1FE2 /* SocialGraphService.swift */,
 				73C3B310AB784E7B56804B4F /* SocialServiceManager.swift */,
 				9A217D30412B97C6AE1B924E /* SocialServiceManager+Search.swift */,
+				A1B2C3D4E5F60718293A4B71 /* TimelineSearchRemoteDriver.swift */,
 				6BC517E6DB56002013491F0B /* TimelineCacheWriter.swift */,
 				4930A3036E639A6B4378AC0A /* TimelineSwiftDataStore.swift */,
 				90E1D5A8440204227DD3D34E /* ViewTracker.swift */,
@@ -1400,6 +1414,7 @@
 				2EFA0E773DD9AE4DE994E611 /* SystemImagePicker.swift */,
 				B4F840231A23A53E8D1AD0F4 /* TimelineCard.swift */,
 				28045235113B5D10AA971BD9 /* TimelineFeedPickerPopover.swift */,
+				A1B2C3D4E5F60718293A4B79 /* TimelineSearchSectionHeader.swift */,
 				86024F084AB558F083E194A5 /* ToastNotification.swift */,
 				D89FE4E5B747EBC11984DA88 /* RollingNumberView.swift */,
 				C78ED3D4A636DAC00873CBF7 /* UnifiedInteractionButtons.swift */,
@@ -1587,6 +1602,8 @@
 				1B4C72AE5F38D90C7E1A8B62 /* PinnedTimelineEditorViewModelTests.swift in Sources */,
 				C0F1E83A91685D437A4B2C9F /* TimelineBufferFilterTests.swift in Sources */,
 				A95D3F128B047C6E1392048D /* TimelineSearchPerformanceTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4B72 /* TimelineSearchRemoteDriverTests.swift in Sources */,
+				A1B2C3D4E5F60718293A4B76 /* TimelineSearchViewModelTests.swift in Sources */,
 				1CA0B473A93EA58CB7137BA1 /* ComposeAutocompleteLatencyTests.swift in Sources */,
 				D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */,
 				5C9B383F5BE57E0226A85CE4 /* DraftStoreIOTests.swift in Sources */,
@@ -1677,6 +1694,9 @@
 				C3E91A4F7D2B485F60AB1C92 /* MergedIdentity.swift in Sources */,
 				A4E091BC3F517D02A865CBE9 /* PinnedTimeline.swift in Sources */,
 				6D38B0CF2A47E915874C619B /* TimelineSearchModels.swift in Sources */,
+				A1B2C3D4E5F60718293A4B70 /* TimelineSearchRemoteDriver.swift in Sources */,
+				A1B2C3D4E5F60718293A4B74 /* TimelineSearchViewModel.swift in Sources */,
+				A1B2C3D4E5F60718293A4B78 /* TimelineSearchSectionHeader.swift in Sources */,
 				D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */,
 				E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */,
 				0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */,
