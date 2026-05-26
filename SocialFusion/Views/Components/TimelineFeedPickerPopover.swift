@@ -6,6 +6,7 @@ struct TimelineFeedPickerPopover: View {
         case accountDetail(SocialAccount)
         case mastodonLists(SocialAccount)
         case blueskyFeeds(SocialAccount)
+        case blueskyLists(SocialAccount)
         case instanceBrowser(SocialAccount)
     }
 
@@ -16,7 +17,12 @@ struct TimelineFeedPickerPopover: View {
     let mastodonAccounts: [SocialAccount]
     let blueskyAccounts: [SocialAccount]
     let onSelect: (TimelineFeedSelection) -> Void
+    /// Called when the user taps "Edit Pins…" — the host should present
+    /// `PinnedTimelinesEditorView`. Default no-op so callers that haven't
+    /// migrated yet keep compiling; Task 11 wires the real handler.
+    var onEditPins: () -> Void = { }
 
+    @EnvironmentObject private var pinnedTimelineStore: PinnedTimelineStore
     @State private var step: Step = .root
 
     private let width: CGFloat = 260
@@ -33,6 +39,8 @@ struct TimelineFeedPickerPopover: View {
                 listsView(for: account)
             case .blueskyFeeds(let account):
                 feedsView(for: account)
+            case .blueskyLists(let account):
+                blueskyListsView(for: account)
             case .instanceBrowser(let account):
                 instanceBrowserView(for: account)
             }
@@ -48,6 +56,14 @@ struct TimelineFeedPickerPopover: View {
     // MARK: - Root Level
 
     private var rootSections: [NavBarPillDropdownSection] {
+        var sections: [NavBarPillDropdownSection] = []
+
+        // Pinned section comes first — it's the user's curated view, so
+        // it should be the most visible affordance at the picker root.
+        if let pinned = pinnedSection {
+            sections.append(pinned)
+        }
+
         var topItems: [NavBarPillDropdownItem] = [
             NavBarPillDropdownItem(
                 id: "unified",
@@ -75,7 +91,7 @@ struct TimelineFeedPickerPopover: View {
             ))
         }
 
-        var sections = [NavBarPillDropdownSection(id: "top", header: nil, items: topItems)]
+        sections.append(NavBarPillDropdownSection(id: "top", header: nil, items: topItems))
 
         let accountItems: [NavBarPillDropdownItem] = accounts.map { account in
             let logoAsset = account.platform == .mastodon ? "MastodonLogo" : "BlueskyLogo"
@@ -101,6 +117,33 @@ struct TimelineFeedPickerPopover: View {
         }
 
         return sections
+    }
+
+    /// Returns the Pinned section if the user has any pins, otherwise nil
+    /// so the rootSections caller can skip it cleanly.
+    private var pinnedSection: NavBarPillDropdownSection? {
+        guard !pinnedTimelineStore.pins.isEmpty else { return nil }
+        var items: [NavBarPillDropdownItem] = pinnedTimelineStore.pins.map { pin in
+            NavBarPillDropdownItem(
+                id: "pinned-\(pin.id)",
+                title: pin.displayName,
+                isSelected: selection == .pinned(id: pin.id),
+                action: { select(.pinned(id: pin.id)) }
+            )
+        }
+        items.append(
+            NavBarPillDropdownItem(
+                id: "edit-pins",
+                title: "Edit Pins…",
+                isSelected: false,
+                action: {
+                    HapticEngine.tap.trigger()
+                    dismiss()
+                    onEditPins()
+                }
+            )
+        )
+        return NavBarPillDropdownSection(id: "pinned", header: "Pinned", items: items)
     }
 
     // MARK: - Account Detail (drill-in)
@@ -166,6 +209,12 @@ struct TimelineFeedPickerPopover: View {
             isSelected: false,
             action: { step = .blueskyFeeds(account) }
         )
+        Divider().padding(.horizontal, 12)
+        NavBarPillDropdownRow(
+            title: "My Lists…",
+            isSelected: false,
+            action: { step = .blueskyLists(account) }
+        )
     }
 
     // MARK: - Lists (Mastodon)
@@ -188,6 +237,7 @@ struct TimelineFeedPickerPopover: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(lists.enumerated()), id: \.element.id) { index, list in
+                            let kind = PinnedTimelineKind.mastodonList(accountId: account.id, listId: list.id)
                             NavBarPillDropdownRow(
                                 title: list.title,
                                 isSelected: isSelectedList(accountId: account.id, listId: list.id),
@@ -195,6 +245,9 @@ struct TimelineFeedPickerPopover: View {
                                     select(.mastodon(accountId: account.id, feed: .list(id: list.id, title: list.title)))
                                 }
                             )
+                            .contextMenu {
+                                pinThisMenuItem(kind: kind, suggestedName: list.title)
+                            }
                             if index < lists.count - 1 {
                                 Divider().padding(.horizontal, 12)
                             }
@@ -228,6 +281,7 @@ struct TimelineFeedPickerPopover: View {
                 ScrollView {
                     VStack(spacing: 0) {
                         ForEach(Array(feeds.enumerated()), id: \.element.uri) { index, feed in
+                            let kind = PinnedTimelineKind.blueskyFeed(accountId: account.id, feedUri: feed.uri)
                             NavBarPillDropdownRow(
                                 title: feed.displayName,
                                 isSelected: isSelectedFeed(accountId: account.id, feedUri: feed.uri),
@@ -235,6 +289,9 @@ struct TimelineFeedPickerPopover: View {
                                     select(.bluesky(accountId: account.id, feed: .custom(uri: feed.uri, name: feed.displayName)))
                                 }
                             )
+                            .contextMenu {
+                                pinThisMenuItem(kind: kind, suggestedName: feed.displayName)
+                            }
                             if index < feeds.count - 1 {
                                 Divider().padding(.horizontal, 12)
                             }
@@ -245,6 +302,54 @@ struct TimelineFeedPickerPopover: View {
         }
         .onAppear {
             Task { await viewModel.loadBlueskyFeeds(for: account) }
+        }
+    }
+
+    // MARK: - Lists (Bluesky)
+
+    private func blueskyListsView(for account: SocialAccount) -> some View {
+        NavBarPillDropdownContainer(width: width, maxHeight: 400) {
+            drillInHeader(title: "My Lists", backTo: .accountDetail(account))
+            Divider().padding(.horizontal, 12)
+
+            if viewModel.isLoadingBlueskyLists(for: account.id) {
+                ProgressView()
+                    .padding(.vertical, 16)
+            } else if viewModel.blueskyLists(for: account.id).isEmpty {
+                Text("No lists found")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 16)
+            } else {
+                let lists = viewModel.blueskyLists(for: account.id)
+                ScrollView {
+                    VStack(spacing: 0) {
+                        ForEach(Array(lists.enumerated()), id: \.element.uri) { index, list in
+                            let kind = PinnedTimelineKind.blueskyList(accountId: account.id, listUri: list.uri)
+                            // Bluesky lists aren't first-class
+                            // TimelineFeedSelection cases — they're
+                            // pinned-only. So tapping a list row pins
+                            // it immediately and selects the new pin.
+                            NavBarPillDropdownRow(
+                                title: list.name,
+                                isSelected: pinnedTimelineStore.isPinned(kind: kind),
+                                action: {
+                                    pinIfNeededAndSelect(kind: kind, suggestedName: list.name)
+                                }
+                            )
+                            .contextMenu {
+                                pinThisMenuItem(kind: kind, suggestedName: list.name)
+                            }
+                            if index < lists.count - 1 {
+                                Divider().padding(.horizontal, 12)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            Task { await viewModel.loadBlueskyLists(for: account) }
         }
     }
 
@@ -338,6 +443,45 @@ struct TimelineFeedPickerPopover: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+
+    /// Builds the "Pin this" / "Unpin" context-menu item used by every
+    /// pinnable row (Mastodon lists, Bluesky feeds, Bluesky lists).
+    @ViewBuilder
+    private func pinThisMenuItem(kind: PinnedTimelineKind, suggestedName: String) -> some View {
+        if pinnedTimelineStore.isPinned(kind: kind) {
+            Button(role: .destructive) {
+                if let pin = pinnedTimelineStore.pins.first(where: { $0.kind == kind }) {
+                    HapticEngine.warning.trigger()
+                    pinnedTimelineStore.remove(id: pin.id)
+                }
+            } label: {
+                Label("Unpin", systemImage: "pin.slash")
+            }
+        } else {
+            Button {
+                HapticEngine.success.trigger()
+                pinnedTimelineStore.add(PinnedTimeline(displayName: suggestedName, kind: kind))
+            } label: {
+                Label("Pin this", systemImage: "pin")
+            }
+        }
+    }
+
+    /// Bluesky lists path: tapping the row pins the list (if not already)
+    /// and selects the new pin so the timeline updates immediately. This
+    /// is the only entry point that pins-as-side-effect — lists/feeds with
+    /// first-class selection cases stay tap-to-select, long-press-to-pin.
+    private func pinIfNeededAndSelect(kind: PinnedTimelineKind, suggestedName: String) {
+        let pinId: String
+        if let existing = pinnedTimelineStore.pins.first(where: { $0.kind == kind }) {
+            pinId = existing.id
+        } else {
+            let pin = PinnedTimeline(displayName: suggestedName, kind: kind)
+            pinnedTimelineStore.add(pin)
+            pinId = pin.id
+        }
+        select(.pinned(id: pinId))
     }
 
     private func select(_ selection: TimelineFeedSelection) {
