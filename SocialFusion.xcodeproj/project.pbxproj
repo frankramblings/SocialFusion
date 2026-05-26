@@ -302,6 +302,7 @@
 		A1B2C3D4E5F60718293A4B74 /* TimelineSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B75 /* TimelineSearchViewModel.swift */; };
 		A1B2C3D4E5F60718293A4B76 /* TimelineSearchViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B77 /* TimelineSearchViewModelTests.swift */; };
 		A1B2C3D4E5F60718293A4B78 /* TimelineSearchSectionHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B79 /* TimelineSearchSectionHeader.swift */; };
+		A1B2C3D4E5F60718293A4B7A /* TimelineSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B7B /* TimelineSearchView.swift */; };
 		D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */; };
 		E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */; };
 		0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */; };
@@ -518,6 +519,7 @@
 		A1B2C3D4E5F60718293A4B75 /* TimelineSearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchViewModel.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B77 /* TimelineSearchViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchViewModelTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B79 /* TimelineSearchSectionHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchSectionHeader.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B7B /* TimelineSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineSearchView.swift; sourceTree = "<group>"; };
 		A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityChip.swift; sourceTree = "<group>"; };
 		B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedHandleSelector.swift; sourceTree = "<group>"; };
 		CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeConfirmationSheet.swift; sourceTree = "<group>"; };
@@ -1137,6 +1139,7 @@
 				8666C8162ED89B555D689B9F /* ProfileImageView.swift */,
 				70E6D2767C0907460A25BDD6 /* ProfileView.swift */,
 				CE242BBA43431E76F7DC4E9F /* SearchView.swift */,
+				A1B2C3D4E5F60718293A4B7B /* TimelineSearchView.swift */,
 				DB3DDA897FF3D08EB0BE5692 /* SettingsView.swift */,
 				458EE910D6EE4BE05CDE6AC8 /* TagDetailView.swift */,
 				AFCDCADDCF43F6FD590D2125 /* TimelineV2ValidationView.swift */,
@@ -1697,6 +1700,7 @@
 				A1B2C3D4E5F60718293A4B70 /* TimelineSearchRemoteDriver.swift in Sources */,
 				A1B2C3D4E5F60718293A4B74 /* TimelineSearchViewModel.swift in Sources */,
 				A1B2C3D4E5F60718293A4B78 /* TimelineSearchSectionHeader.swift in Sources */,
+				A1B2C3D4E5F60718293A4B7A /* TimelineSearchView.swift in Sources */,
 				D5E8F1A37B294C68E1FC9B40 /* MergedIdentityChip.swift in Sources */,
 				E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */,
 				0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */,
