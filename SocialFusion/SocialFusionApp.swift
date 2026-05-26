@@ -54,6 +54,11 @@ struct SocialFusionApp: App {
     // editable from Settings.
     @StateObject private var pinnedTimelineStore = PinnedTimelineStore()
 
+    // Cross-device timeline-position sync via NSUbiquitousKeyValueStore.
+    // Hydrates on launch, debounces writes to ≤1/3s/key, merges remote pushes
+    // last-write-wins with a 30s deadband.
+    @StateObject private var positionSyncService = PositionSyncService()
+
     @AppStorage("Onboarding.Completed") private var hasCompletedOnboarding = false
 
     // Environment object for scene phase to detect when app is terminating
@@ -114,6 +119,7 @@ struct SocialFusionApp: App {
                     .environmentObject(echoPolicyStore)
                     .environmentObject(watchedConversationStore)
                     .environmentObject(pinnedTimelineStore)
+                    .environmentObject(positionSyncService)
                     .environmentObject(accessibilityPreferences)
                     .environment(\.accessibilityPreferences, accessibilityPreferences)
                     .enableLiquidGlass()
@@ -132,6 +138,7 @@ struct SocialFusionApp: App {
                     .environmentObject(echoPolicyStore)
                     .environmentObject(watchedConversationStore)
                     .environmentObject(pinnedTimelineStore)
+                    .environmentObject(positionSyncService)
                     .environmentObject(accessibilityPreferences)
                     .environment(\.accessibilityPreferences, accessibilityPreferences)
                     .enableLiquidGlass()
@@ -152,6 +159,13 @@ struct SocialFusionApp: App {
                             mastodonService: serviceManager.mastodonService,
                             blueskyService: serviceManager.blueskyService
                         )
+                        positionSyncService.hydrate()
+                        positionSyncService.startObservingExternalChanges()
+                    }
+                    .onChange(of: scenePhase) { _, newPhase in
+                        if newPhase == .background || newPhase == .inactive {
+                            positionSyncService.flushPendingWrites()
+                        }
                     }
                     .onOpenURL { url in
                         handleURL(url)
