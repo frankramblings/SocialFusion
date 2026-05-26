@@ -297,6 +297,7 @@
 		E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */; };
 		0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */; };
 		A3F1E8C7B92D4055E1FB73D5 /* ManualMergeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C2D8E54F09A1B3CD42E76F /* ManualMergeSheet.swift */; };
+		7C0F3B9685D2A41E9C4730D8 /* PinnedTimelinesEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E826AB1F75390C3D6481C7A /* PinnedTimelinesEditorView.swift */; };
 		E1A47B25C9F6803DA51E284B /* FusedMomentStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */; };
 		D8F6E2A1B47C3F8519A02E64 /* FusedMomentStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */; };
 		E1A47B25C9F6803DA51E284C /* EchoPolicyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3F8C7D52A14E0F6BD739A2 /* EchoPolicyStore.swift */; };
@@ -503,6 +504,7 @@
 		B2C5D7E48F39A106237B4D91 /* MergedHandleSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedHandleSelector.swift; sourceTree = "<group>"; };
 		CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergeConfirmationSheet.swift; sourceTree = "<group>"; };
 		B7C2D8E54F09A1B3CD42E76F /* ManualMergeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualMergeSheet.swift; sourceTree = "<group>"; };
+		4E826AB1F75390C3D6481C7A /* PinnedTimelinesEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedTimelinesEditorView.swift; sourceTree = "<group>"; };
 		9B3F8C7D52A14E0F6BD739A1 /* FusedMomentStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStore.swift; sourceTree = "<group>"; };
 		7C2D91F84B5E6A1380CDF927 /* FusedMomentStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedMomentStoreTests.swift; sourceTree = "<group>"; };
 		9B3F8C7D52A14E0F6BD739A2 /* EchoPolicyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EchoPolicyStore.swift; sourceTree = "<group>"; };
@@ -1103,6 +1105,7 @@
 				C31F0F0322B63A6705DAD32C /* MediaFullscreenView.swift */,
 				CDD342F21319A3A87F0B1FC2 /* MergeConfirmationSheet.swift */,
 				B7C2D8E54F09A1B3CD42E76F /* ManualMergeSheet.swift */,
+				4E826AB1F75390C3D6481C7A /* PinnedTimelinesEditorView.swift */,
 				81CC3C1029CDB0CF7A31D30D /* MutedKeywordsView.swift */,
 				CCE765857688E945319C8F22 /* NotificationsView.swift */,
 				4BFE87A66806A1DCE6C00510 /* OnboardingView.swift */,
@@ -1663,6 +1666,7 @@
 				E6F2A8B19D34C5072F8E1B45 /* MergedHandleSelector.swift in Sources */,
 				0ED8F43A479CC383D69CD9FB /* MergeConfirmationSheet.swift in Sources */,
 				A3F1E8C7B92D4055E1FB73D5 /* ManualMergeSheet.swift in Sources */,
+				7C0F3B9685D2A41E9C4730D8 /* PinnedTimelinesEditorView.swift in Sources */,
 				F4B81C2D9E5A607382D14CF6 /* MergedIdentityStore.swift in Sources */,
 				AA10B6E4958758EB4A763A08 /* CachedAsyncImage.swift in Sources */,
 				CC454DB99A7F6F0CBF5EBDB3 /* CaughtUpMarker.swift in Sources */,
