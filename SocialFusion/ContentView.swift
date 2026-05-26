@@ -980,6 +980,7 @@ extension Notification.Name {
 struct TimelineValidationDebugView: View {
     let serviceManager: SocialServiceManager
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var pinnedTimelineStore: PinnedTimelineStore
     @State private var validationResults: [String] = []
     @State private var isRunning = false
 
@@ -1056,6 +1057,11 @@ struct TimelineValidationDebugView: View {
                         .background(Color(.systemGray6))
                         .cornerRadius(12)
                     }
+
+                    // Pinned Timelines harness — quick smoke for the v1.0
+                    // pinnable-timelines flow. Create / clear / inspect
+                    // pins without leaving DEBUG.
+                    pinnedTimelinesSection
                 }
                 .padding()
             }
@@ -1069,6 +1075,75 @@ struct TimelineValidationDebugView: View {
                 }
             }
         }
+    }
+
+    private var pinnedTimelinesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "pin.fill")
+                    .foregroundColor(.orange)
+                Text("Pinned Timelines")
+                    .font(.headline)
+                Spacer()
+                Text("\(pinnedTimelineStore.pins.count) pin\(pinnedTimelineStore.pins.count == 1 ? "" : "s")")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    let pin = PinnedTimeline(
+                        displayName: "Validation \(Int.random(in: 1000...9999))",
+                        kind: .accountGroup(
+                            accountIds: serviceManager.accounts.prefix(1).map(\.id)
+                        )
+                    )
+                    pinnedTimelineStore.add(pin)
+                } label: {
+                    Text("Create test pin")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.blue.opacity(0.15))
+                        .foregroundColor(.blue)
+                        .cornerRadius(8)
+                }
+
+                Button {
+                    for pin in pinnedTimelineStore.pins {
+                        pinnedTimelineStore.remove(id: pin.id)
+                    }
+                } label: {
+                    Text("Clear all")
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(Color.red.opacity(0.15))
+                        .foregroundColor(.red)
+                        .cornerRadius(8)
+                }
+                .disabled(pinnedTimelineStore.pins.isEmpty)
+            }
+
+            if !pinnedTimelineStore.pins.isEmpty {
+                ForEach(pinnedTimelineStore.pins) { pin in
+                    HStack {
+                        Text(pin.displayName)
+                            .font(.caption2)
+                        Spacer()
+                        Text(pin.kind.storageKey)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
     }
 
     private func runValidation() async {
