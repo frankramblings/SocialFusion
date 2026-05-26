@@ -213,6 +213,7 @@
 		B1A2C3D4E5F60718293A4B86 /* PositionSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F60718293A4B87 /* PositionSyncService.swift */; };
 		B1A2C3D4E5F60718293A4B88 /* FakeKeyValueStorageBacking.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F60718293A4B89 /* FakeKeyValueStorageBacking.swift */; };
 		B1A2C3D4E5F60718293A4B8A /* PositionSyncServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F60718293A4B8B /* PositionSyncServiceTests.swift */; };
+		B1A2C3D4E5F60718293A4B8C /* iCloudKVSBackingIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A2C3D4E5F60718293A4B8D /* iCloudKVSBackingIntegrationTests.swift */; };
 		A1F7E5D9B2C40A8F61EC3D71 /* FusedMoment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8C2D40F5E97A1B36CD42F08 /* FusedMoment.swift */; };
 		A2AA730DAF536D48A108F5BE /* HapticEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF175D391343404F8559B4D8 /* HapticEngine.swift */; };
 		A2D8F3E1C75B4901E682CB47 /* IdentityMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C18AF6D952B374E0C9BA1D45 /* IdentityMatcherTests.swift */; };
@@ -655,6 +656,7 @@
 		B1A2C3D4E5F60718293A4B87 /* PositionSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionSyncService.swift; sourceTree = "<group>"; };
 		B1A2C3D4E5F60718293A4B89 /* FakeKeyValueStorageBacking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeKeyValueStorageBacking.swift; sourceTree = "<group>"; };
 		B1A2C3D4E5F60718293A4B8B /* PositionSyncServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionSyncServiceTests.swift; sourceTree = "<group>"; };
+		B1A2C3D4E5F60718293A4B8D /* iCloudKVSBackingIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iCloudKVSBackingIntegrationTests.swift; sourceTree = "<group>"; };
 		A1B3C7D29E45F86028E73D14 /* MergedIdentityChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MergedIdentityChip.swift; sourceTree = "<group>"; };
 		A1F8E4D5C9B27A6C30F4E8B2 /* FusedConversationViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FusedConversationViewModel.swift; sourceTree = "<group>"; };
 		A29DA46C5C98F067150BDD75 /* LinkPreviewSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkPreviewSelector.swift; sourceTree = "<group>"; };
@@ -954,6 +956,7 @@
 				B1A2C3D4E5F60718293A4B83 /* TimelinePositionTests.swift */,
 				B1A2C3D4E5F60718293A4B89 /* FakeKeyValueStorageBacking.swift */,
 				B1A2C3D4E5F60718293A4B8B /* PositionSyncServiceTests.swift */,
+				B1A2C3D4E5F60718293A4B8D /* iCloudKVSBackingIntegrationTests.swift */,
 				C63AB2D6B0924D640EEF7522 /* MergeOffsetCompensatorTests.swift */,
 				AA35D06911DD8B69EE0B2639 /* OfflineQueueActionReplayTests.swift */,
 				F7EBD7B321F259BC252BD3EA /* PostActionCoordinatorTests.swift */,
@@ -1628,6 +1631,7 @@
 				B1A2C3D4E5F60718293A4B82 /* TimelinePositionTests.swift in Sources */,
 				B1A2C3D4E5F60718293A4B88 /* FakeKeyValueStorageBacking.swift in Sources */,
 				B1A2C3D4E5F60718293A4B8A /* PositionSyncServiceTests.swift in Sources */,
+				B1A2C3D4E5F60718293A4B8C /* iCloudKVSBackingIntegrationTests.swift in Sources */,
 				1CA0B473A93EA58CB7137BA1 /* ComposeAutocompleteLatencyTests.swift in Sources */,
 				D4A28F2D3525C7DF1381C4AE /* DirectOpenDetectorTests.swift in Sources */,
 				5C9B383F5BE57E0226A85CE4 /* DraftStoreIOTests.swift in Sources */,
