@@ -155,7 +155,9 @@ jobs:
         # Clean build folder
         xcodebuild clean -scheme SocialFusion -configuration Release
         
-        # Build and archive with Manual signing and unique build number
+        # Build and archive with Manual signing and unique build number.
+        # PROFILE_NAME / SHARE_EXTENSION_PROFILE_NAME are referenced by the
+        # per-target PROVISIONING_PROFILE_SPECIFIER settings in the pbxproj.
         xcodebuild archive \
           -scheme SocialFusion \
           -configuration Release \
@@ -164,6 +166,8 @@ jobs:
           CODE_SIGN_STYLE=Manual \
           DEVELOPMENT_TEAM="${{ secrets.TEAM_ID }}" \
           CODE_SIGN_IDENTITY="Apple Distribution" \
+          PROFILE_NAME="${{ env.PROFILE_NAME }}" \
+          SHARE_EXTENSION_PROFILE_NAME="${{ env.SHARE_EXTENSION_PROFILE_NAME }}" \
           CURRENT_PROJECT_VERSION=$(git rev-list HEAD --count)
     
     - name: Export IPA
