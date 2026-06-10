@@ -3588,10 +3588,9 @@ public final class SocialServiceManager: ObservableObject {
                 userId: post.authorUsername, account: account)
             await invalidateFollowGraphCache(reason: "unfollow_user_post")
         case .bluesky:
-            // Unfollow on Bluesky requires the follow record URI.
-            // This is complex because we don't usually have it on the post object.
-            // We might need to fetch the relationship first.
-            throw ServiceError.apiError("Unfollow not yet fully implemented for Bluesky")
+            // The post object doesn't carry the follow record URI; the
+            // userId-based path fetches it from the profile's viewer state.
+            try await unfollowUser(userId: post.authorUsername, platform: .bluesky)
         }
     }
 

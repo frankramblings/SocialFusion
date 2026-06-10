@@ -12,9 +12,6 @@ struct SettingsView: View {
     @ObservedObject private var featureFlagManager = FeatureFlagManager.shared
     @AppStorage("appearanceMode") private var appearanceMode = 0  // 0: System, 1: Light, 2: Dark
     @AppStorage("defaultPostVisibility") private var defaultPostVisibility = 0  // 0: Public, 1: Unlisted, 2: Followers Only
-    @AppStorage("autoRefreshTimeline") private var autoRefreshTimeline = true
-    @AppStorage("refreshInterval") private var refreshInterval = 2  // minutes
-    @AppStorage("showContentWarnings") private var showContentWarnings = true
     @AppStorage("enableNotifications") private var enableNotifications = true
     @AppStorage("showSensitiveTrending") private var showSensitiveTrending = false
 
@@ -65,19 +62,6 @@ struct SettingsView: View {
                     .accessibilityHint(pinnedTimelineStore.pins.isEmpty
                         ? "Create and manage pinned timelines"
                         : "Manage your \(pinnedTimelineStore.pins.count) pinned timeline\(pinnedTimelineStore.pins.count == 1 ? "" : "s")")
-
-                    Toggle("Auto-refresh Timeline", isOn: $autoRefreshTimeline)
-
-                    if autoRefreshTimeline {
-                        Picker("Refresh Interval", selection: $refreshInterval) {
-                            Text("1 minute").tag(1)
-                            Text("2 minutes").tag(2)
-                            Text("5 minutes").tag(5)
-                            Text("10 minutes").tag(10)
-                        }
-                    }
-
-                    Toggle("Show Content Warnings", isOn: $showContentWarnings)
                 }
 
                 Section(header: Text("Feed Filtering")) {
