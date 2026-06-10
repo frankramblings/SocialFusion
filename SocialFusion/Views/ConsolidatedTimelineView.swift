@@ -544,15 +544,12 @@ struct ConsolidatedTimelineView: View {
                 )
             ) {
                 Button("Retry") {
-                    let error = timelineAlertState?.error
                     timelineAlertState = nil
                     controller.clearError()
-                    if let error = error {
-                        ErrorHandler.shared.handleError(error) {
-                            controller.refreshTimeline()
-                        }
-                        controller.refreshTimeline()
-                    }
+                    // Just refresh. Re-publishing through ErrorHandler.handleError
+                    // re-surfaced the same error into the global handler and
+                    // double-kicked the refresh.
+                    controller.refreshTimeline()
                 }
             }
             .overlay(alignment: .topLeading) {
@@ -1634,10 +1631,15 @@ struct ConsolidatedTimelineView: View {
                 }
                 try? await Task.sleep(nanoseconds: 120_000_000)
                 guard !Task.isCancelled else { return }
+                // Re-read the top at apply time: a buffer merge updates
+                // controller.posts on a later runloop, so the id captured before
+                // the sleep is the PRE-merge top. Anchoring to it would leave the
+                // new posts stranded above the viewport with the pill cleared.
+                let freshTopId = controller.posts.first.map(scrollIdentifier(for:)) ?? topId
                 if #available(iOS 17.0, *) {
-                    scrollAnchorId = topId
+                    scrollAnchorId = freshTopId
                 } else {
-                    proxy.scrollTo(topId, anchor: .top)
+                    proxy.scrollTo(freshTopId, anchor: .top)
                 }
             }
         } else {
@@ -1844,7 +1846,7 @@ struct ConsolidatedTimelineView: View {
     }
 
     private func filterTrackedPositions(_ positions: [String: TimelineItemInfo]) -> [String: TimelineItemInfo] {
-        let validIDs = Set(controller.posts.map(scrollIdentifier(for:)))
+        let validIDs = controller.scrollIdentifierSet
         let topTimelineID = controller.posts.first.map(scrollIdentifier(for:))
 
         var filtered: [String: TimelineItemInfo] = [:]
