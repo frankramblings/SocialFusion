@@ -302,7 +302,17 @@ struct ProfileView: View {
   // MARK: - Own Account
 
   private var ownAccount: SocialAccount? {
-    serviceManager.accounts.first(where: { $0.platform == viewModel.user.platform })
+    // Resolve the *specific* account being viewed, not just any account on the
+    // platform — otherwise Edit Profile would pre-fill and save to the wrong
+    // account when the user has more than one account on the same network.
+    // `viewModel.user.id` carries the account's platformSpecificId (see the
+    // ProfileViewModel(account:) convenience init).
+    let accounts = serviceManager.accounts
+    let userID = viewModel.user.id
+    return accounts.first(where: {
+      $0.platform == viewModel.user.platform
+        && ($0.platformSpecificId == userID || $0.id == userID)
+    }) ?? accounts.first(where: { $0.platform == viewModel.user.platform })
   }
 
   // MARK: - Manual Merge Visibility

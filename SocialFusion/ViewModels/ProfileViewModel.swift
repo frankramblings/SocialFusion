@@ -163,7 +163,14 @@ public final class ProfileViewModel: ObservableObject {
   func loadProfile() async {
     guard profile == nil, !isLoadingProfile else { return }
 
-    guard let account = serviceManager.accounts.first(where: { $0.platform == user.platform })
+    // Prefer the exact account being viewed (matched by id) so own-profile
+    // operations target the right credentials when multiple accounts share a
+    // platform; fall back to any same-platform account for viewing others.
+    guard
+      let account = serviceManager.accounts.first(where: {
+        $0.platform == user.platform
+          && ($0.platformSpecificId == user.id || $0.id == user.id)
+      }) ?? serviceManager.accounts.first(where: { $0.platform == user.platform })
     else {
       profileError = ProfileViewModelError.noAccountForPlatform(user.platform)
       return
