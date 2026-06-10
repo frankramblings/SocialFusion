@@ -9,6 +9,11 @@ final class ChatStreamService: ObservableObject {
   private var providers: [String: any ChatStreamProvider] = [:]
   private var activeTasks: [String: Task<Void, Never>] = [:]
   private var seenMessageIds: Set<String> = []
+  /// The conversation currently being streamed, or nil when list-streaming.
+  /// Lets ChatView.onDisappear tear down its own stream without clobbering a
+  /// list stream the inbox already restarted (onAppear fires before onDisappear
+  /// on a NavigationStack pop).
+  private var activeConversationId: String?
 
   private var mastodonService: MastodonService?
   private var blueskyService: BlueskyService?
@@ -26,6 +31,7 @@ final class ChatStreamService: ObservableObject {
   /// Start streaming for all accounts at list-view poll rate (DirectMessagesView)
   func startListStreaming(accounts: [SocialAccount]) {
     stopAllStreaming()
+    activeConversationId = nil
     for account in accounts {
       startProvider(for: account, conversationId: nil)
     }
@@ -34,10 +40,20 @@ final class ChatStreamService: ObservableObject {
   /// Start streaming for a specific conversation (ChatView)
   func startConversationStreaming(conversation: DMConversation, accounts: [SocialAccount]) {
     stopAllStreaming()
+    activeConversationId = conversation.id
     // Find the relevant account for this conversation's platform
     if let account = accounts.first(where: { $0.platform == conversation.platform }) {
       startProvider(for: account, conversationId: conversation.id)
     }
+  }
+
+  /// Tear down a conversation's stream on leaving ChatView — but only if it's
+  /// still the active context. If the inbox has already restarted list
+  /// streaming (the common pop case), this is a no-op so the list keeps
+  /// receiving updates.
+  func stopConversationStreaming(conversationId: String) {
+    guard activeConversationId == conversationId else { return }
+    stopAllStreaming()
   }
 
   /// Stop all streaming and clean up
@@ -53,6 +69,7 @@ final class ChatStreamService: ObservableObject {
     connectionStates.removeAll()
     seenMessageIds.removeAll()
     recentEvents.removeAll()
+    activeConversationId = nil
   }
 
   /// Adjust Bluesky poll rate when navigating between list and chat

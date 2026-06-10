@@ -200,7 +200,10 @@ struct ChatView: View {
       HapticEngine.prepare(.error)
     }
     .onDisappear {
-      chatStreamService.stopAllStreaming()
+      // Stop only this conversation's stream. Using stopAllStreaming() here
+      // killed the inbox list stream that DirectMessagesView.onAppear restarts
+      // first on a pop, silently freezing real-time DM updates.
+      chatStreamService.stopConversationStreaming(conversationId: conversation.id)
     }
     .onReceive(chatStreamService.$recentEvents) { events in
       handleStreamEvents(events)
@@ -220,9 +223,9 @@ struct ChatView: View {
           } else if messages.isEmpty {
             emptyConversationView
           } else {
-            ForEach(Array(groupedMessages.enumerated()), id: \.offset) { _, section in
+            ForEach(groupedMessages) { section in
               dateHeader(for: section.date)
-              ForEach(Array(section.groups.enumerated()), id: \.offset) { _, group in
+              ForEach(section.groups) { group in
                 messageGroupView(group)
               }
             }
@@ -232,7 +235,10 @@ struct ChatView: View {
           }
         }
       }
-      .onChange(of: messages.count) { _, _ in
+      .onChange(of: messages.last?.id) { _, _ in
+        // Only scroll when the *last* message changes (an append, or the tail
+        // being removed) — not on every count change, so deleting an earlier
+        // message no longer yanks the user to the bottom.
         if let last = messages.last {
           // New-message scroll uses a springier curve so the latest
           // message arriving feels alive, not just mechanical.
@@ -484,14 +490,18 @@ struct ChatView: View {
 
   // MARK: - Message Grouping
 
-  private struct DateSection {
+  private struct DateSection: Identifiable {
     let date: Date
     let groups: [MessageGroup]
+    var id: Date { date }
   }
 
-  private struct MessageGroup {
+  private struct MessageGroup: Identifiable {
     let isFromMe: Bool
     let messages: [UnifiedChatMessage]
+    // First message id is stable across inserts/deletes elsewhere in the list,
+    // so SwiftUI keeps row identity instead of recycling by position.
+    var id: String { messages.first?.id ?? "empty-group" }
   }
 
   private var groupedMessages: [DateSection] {
