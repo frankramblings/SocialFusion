@@ -200,8 +200,14 @@ public struct EmojiTextApp: View {
                     let tag = url.lastPathComponent
                     attributed[run.range].link = URL(string: "socialfusion://tag/\(tag)")
                     attributed[run.range].foregroundColor = .accentColor
-                } else {
+                } else if Self.isSafeRemoteLinkScheme(url) {
                     attributed[run.range].foregroundColor = .accentColor
+                } else {
+                    // Untrusted server HTML must not be able to plant tappable
+                    // app-internal (socialfusion://) or javascript:/data: links.
+                    // Strip the link but keep the text visible.
+                    attributed[run.range].link = nil
+                    attributed[run.range].foregroundColor = foregroundColor
                 }
                 attributed[run.range].font = font
             } else {
@@ -211,6 +217,14 @@ public struct EmojiTextApp: View {
         }
         HTMLAttributedStringCache.shared.setValue(attributed, forKey: cacheKey)
         return attributed
+    }
+
+    /// Whether a link parsed from untrusted remote HTML is safe to keep tappable.
+    /// Allowlist standard web/contact schemes; reject everything else (notably
+    /// the app's own `socialfusion://` deep links and `javascript:`/`data:`).
+    private static func isSafeRemoteLinkScheme(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return scheme == "http" || scheme == "https" || scheme == "mailto"
     }
 }
 

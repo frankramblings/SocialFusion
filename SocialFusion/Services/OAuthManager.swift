@@ -263,7 +263,13 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
         }
 
         let authURL = buildAuthorizationURL(server: server, clientId: clientId)
+        // The authorize URL contains client_id + state; the callback contains the
+        // single-use auth code. Never write either to the release system log.
+        #if DEBUG
         NSLog("🔐 [OAuth] Building ASWebAuthenticationSession with URL: \(authURL.absoluteString)")
+        #else
+        NSLog("🔐 [OAuth] Building ASWebAuthenticationSession")
+        #endif
 
         authenticationSession = ASWebAuthenticationSession(
             url: authURL,
@@ -284,7 +290,11 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             }
 
             if let callbackURL = callbackURL {
+                #if DEBUG
                 NSLog("✅ [OAuth] Received callback URL: \(callbackURL.absoluteString)")
+                #else
+                NSLog("✅ [OAuth] Received OAuth callback")
+                #endif
                 self.handleCallback(url: callbackURL)
             }
         }
@@ -306,13 +316,22 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
     /// Build the authorization URL
     private func buildAuthorizationURL(server: String, clientId: String) -> URL {
         var components = URLComponents(string: "\(server)/oauth/authorize")!
-        components.queryItems = [
+        var items = [
             URLQueryItem(name: "client_id", value: clientId),
             URLQueryItem(name: "redirect_uri", value: "socialfusion://oauth"),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: "read write follow push"),
             URLQueryItem(name: "state", value: state),
         ]
+        // PKCE (RFC 7636): bind this authorization request to the verifier we'll
+        // present at token exchange, defending against auth-code interception on
+        // the custom-scheme redirect.
+        if let verifier = codeVerifier {
+            items.append(
+                URLQueryItem(name: "code_challenge", value: generateCodeChallenge(from: verifier)))
+            items.append(URLQueryItem(name: "code_challenge_method", value: "S256"))
+        }
+        components.queryItems = items
         return components.url!
     }
 
@@ -337,7 +356,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             request.setValue("SocialFusion/1.0 (iOS)", forHTTPHeaderField: "User-Agent")
             request.timeoutInterval = 30.0
 
-            let parameters: [String: Any] = [
+            var parameters: [String: Any] = [
                 "client_id": clientId,
                 "client_secret": clientSecret,
                 "grant_type": "authorization_code",
@@ -345,6 +364,10 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
                 "redirect_uri": "socialfusion://oauth",
                 "scope": "read write follow push",
             ]
+            // PKCE: present the verifier that matches the challenge sent at /authorize.
+            if let verifier = codeVerifier {
+                parameters["code_verifier"] = verifier
+            }
 
             request.httpBody = try JSONSerialization.data(withJSONObject: parameters)
 
@@ -550,13 +573,30 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
         return UUID().uuidString
     }
 
-    // Helper method to generate PKCE code verifier
+    // Helper method to generate a PKCE code verifier (RFC 7636 §4.1):
+    // 32 random bytes, base64url-encoded → a 43-char high-entropy string.
     private func generateCodeVerifier() -> String {
-        return UUID().uuidString
+        var bytes = [UInt8](repeating: 0, count: 32)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        if status != errSecSuccess {
+            // Fallback to a cryptographically-seeded UUID pair if SecRandom fails.
+            return Self.base64URLEncode(Data((UUID().uuidString + UUID().uuidString).utf8))
+        }
+        return Self.base64URLEncode(Data(bytes))
     }
 
-    // Helper method to generate code challenge from verifier
+    // Helper method to derive the PKCE code challenge from a verifier (RFC 7636
+    // §4.2): base64url(SHA256(verifier)). Used with code_challenge_method=S256.
     private func generateCodeChallenge(from verifier: String) -> String {
-        return verifier  // simplified
+        let digest = SHA256.hash(data: Data(verifier.utf8))
+        return Self.base64URLEncode(Data(digest))
+    }
+
+    /// base64url encoding without padding (RFC 7636 / RFC 4648 §5).
+    private static func base64URLEncode(_ data: Data) -> String {
+        data.base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }

@@ -10,12 +10,16 @@ public class KeychainManager {
     }
 
     public static func save(service: String, account: String, data: Data) throws {
-        // Create a query dictionary
+        // Create a query dictionary.
+        // kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly keeps tokens/secrets
+        // out of encrypted backups and prevents them migrating to a restored
+        // device (matches KeychainService's production policy).
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
 
         // Delete any existing item
