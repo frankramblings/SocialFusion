@@ -10,8 +10,16 @@ struct NotificationsView: View {
     @State private var isLoading = false
     @State private var selectedFilter: AppNotification.NotificationType? = nil
     @State private var showFilterDropdown = false
-    @State private var scrollOffset: CGFloat = 0
+    /// Scroll offset captured when the filter dropdown opens, used only to
+    /// dismiss it on scroll. nil while the dropdown is closed so we don't write
+    /// @State on every scroll frame (that per-frame write invalidated the whole
+    /// view — the AttributeGraph-cycle pattern that was removed from the timeline).
+    @State private var dropdownScrollBaseline: CGFloat?
     @State private var showAddAccountView = false
+    /// Set when a (non-cancellation) fetch fails with no notifications to show,
+    /// so a first-load failure surfaces a retryable error instead of the
+    /// indistinguishable "All quiet" empty state.
+    @State private var fetchError: Error?
 
     var filteredNotifications: [AppNotification] {
         if let filter = selectedFilter {
@@ -28,13 +36,18 @@ struct NotificationsView: View {
         return "All"
     }
     
-    // Dismiss dropdown on scroll
+    // Dismiss dropdown on scroll. Only does work while the dropdown is open, so
+    // the common case (just scrolling the list) performs no @State writes.
     private func handleScrollChange(offset: CGFloat) {
-        let previousOffset = scrollOffset
-        scrollOffset = offset
-        
-        // Dismiss dropdown if scrolling
-        if showFilterDropdown && abs(offset - previousOffset) > 5 {
+        guard showFilterDropdown else { return }
+
+        // First frame after opening: establish the baseline without dismissing.
+        guard let baseline = dropdownScrollBaseline else {
+            dropdownScrollBaseline = offset
+            return
+        }
+
+        if abs(offset - baseline) > 5 {
             withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                 showFilterDropdown = false
             }
@@ -65,6 +78,44 @@ struct NotificationsView: View {
                                 Spacer()
                             }
                             .padding(.top, 40)
+                        } else if fetchError != nil && notifications.isEmpty {
+                            VStack(spacing: 16) {
+                                Image(systemName: "exclamationmark.triangle")
+                                    .font(.system(size: 44, weight: .light))
+                                    .foregroundStyle(Color.secondary.gradient)
+                                    .symbolRenderingMode(.hierarchical)
+
+                                VStack(spacing: 6) {
+                                    Text("Couldn't load notifications")
+                                        .font(.title3.weight(.semibold))
+                                        .foregroundColor(.primary.opacity(0.8))
+
+                                    Text("Check your connection and try again.")
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                        .multilineTextAlignment(.center)
+                                        .padding(.horizontal, 40)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                Button {
+                                    Task {
+                                        await fetchNotifications()
+                                        HapticEngine.tap.trigger()
+                                    }
+                                } label: {
+                                    Text("Retry")
+                                        .font(.subheadline.weight(.semibold))
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 8)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .accessibilityHint("Reload notifications")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 80)
+                            .padding(.bottom, 40)
+                            .accessibilityElement(children: .combine)
                         } else if filteredNotifications.isEmpty {
                             VStack(spacing: 16) {
                                 ZStack {
@@ -217,6 +268,9 @@ struct NotificationsView: View {
                     action: {
                         // NavBarPillSelector fires .tap internally; no need
                         // to duplicate it here.
+                        // Re-establish the scroll baseline each time the dropdown
+                        // opens so it dismisses on the *next* scroll, not stale movement.
+                        dropdownScrollBaseline = nil
                         withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                             showFilterDropdown.toggle()
                         }
@@ -288,6 +342,9 @@ struct NotificationsView: View {
             DebugLog.verbose(
                 "NotificationsView fetched \(fetchedCount) notifications (previous \(previousCount))")
             
+            // A successful fetch clears any prior error state.
+            fetchError = nil
+
             // Only update if we got results, or if both are empty (to show empty state when there really are none)
             // This prevents clearing existing notifications if fetch returns empty due to cancellation
             if !fetchedNotifications.isEmpty {
@@ -312,8 +369,13 @@ struct NotificationsView: View {
                     "NotificationsView request cancelled; preserving \(previousCount) existing notifications")
             } else {
                 DebugLog.verbose("NotificationsView failed to fetch notifications: \(error)")
+                // Surface a retryable error only when there's nothing to show;
+                // if we still have notifications, keep them and stay silent.
+                if previousNotifications.isEmpty {
+                    fetchError = error
+                }
             }
-            
+
             // Preserve existing notifications on error to prevent blank screen
             notifications = previousNotifications
         }
