@@ -298,8 +298,19 @@ final class PostActionCoordinator: ObservableObject {
     private func completeSuccess(for key: PostActionStore.ActionKey, with state: PostActionState, post: Post) {
         inflightTasks[key] = nil
         store.setInflight(false, for: key)
+
+        // If the user already queued a newer toggle for this post, this server
+        // state is stale. Reconciling to it would visibly revert their latest
+        // tap (heart flicker filled→empty→filled) until the deferred action
+        // runs. Skip reconcile and just execute the latest intent, which keeps
+        // the optimistic state and reconciles with fresh server state later.
+        if deferredActions[key] != nil {
+            drainDeferredActionIfNeeded(for: key)
+            return
+        }
+
         store.reconcile(from: state)
-        
+
         // CRITICAL: Update the Post model to keep it in sync with PostActionStore
         // This ensures that when PostDetailView creates a PostViewModel, it reads the correct state
         // Use the reconciled state from the store to ensure consistency with reconcile logic
