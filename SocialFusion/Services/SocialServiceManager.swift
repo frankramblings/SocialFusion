@@ -596,10 +596,20 @@ public final class SocialServiceManager: ObservableObject {
     }
 
     /// Save the current timeline to disk for offline access
+    private var timelineSaveTask: Task<Void, Never>?
+
     private func saveTimelineToDisk() {
-        let timeline = unifiedTimeline
-        Task {
-            await timelineCacheWriter.saveTimeline(timeline)
+        // Debounce: unifiedTimeline.didSet fires on initial hydration, every
+        // refresh commit, every buffer merge, and every pagination append. Each
+        // write deletes all cached rows and re-encodes the top posts, so a burst
+        // of assignments used to thrash SwiftData. Coalesce into one write that
+        // persists whatever the timeline settles on.
+        timelineSaveTask?.cancel()
+        timelineSaveTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)  // 2s
+            guard !Task.isCancelled, let self else { return }
+            let timeline = self.unifiedTimeline
+            await self.timelineCacheWriter.saveTimeline(timeline)
         }
     }
 
@@ -1597,8 +1607,15 @@ public final class SocialServiceManager: ObservableObject {
         }
         var filteredPosts: [Post] = []
 
+        // Bounded fan-out: each post may trigger a network fetch to resolve its
+        // parent. An unbounded TaskGroup (one task per post) fired a burst of
+        // dozens of concurrent requests on every refresh/merge/poll; cap the
+        // in-flight count to a small window instead.
+        let maxConcurrent = 6
         await withTaskGroup(of: (Post, Bool).self) { group in
-            for post in posts {
+            var iterator = posts.makeIterator()
+
+            func addTask(for post: Post) {
                 group.addTask {
                     let shouldInclude = await self.postFeedFilter.shouldIncludePost(
                         post, followedAccounts: followedAccounts)
@@ -1606,9 +1623,17 @@ public final class SocialServiceManager: ObservableObject {
                 }
             }
 
-            for await (post, shouldInclude) in group {
+            for _ in 0..<maxConcurrent {
+                guard let post = iterator.next() else { break }
+                addTask(for: post)
+            }
+
+            while let (post, shouldInclude) = await group.next() {
                 if shouldInclude {
                     filteredPosts.append(post)
+                }
+                if let next = iterator.next() {
+                    addTask(for: next)
                 }
             }
         }
@@ -2598,72 +2623,25 @@ public final class SocialServiceManager: ObservableObject {
         }
 
         switch plan {
-        case .unified(let accountsToFetch):
+        case .unified(let accountsToFetch),
+            .allMastodon(let accountsToFetch),
+            .allBluesky(let accountsToFetch):
             guard !accountsToFetch.isEmpty else {
                 return
             }
 
-            // Fetch next page from each account
-            for account in accountsToFetch {
-                do {
-                    let result = try await fetchNextPageForAccount(account, selection: currentTimelineFeedSelection)
-                    hadSuccessfulFetch = true
-                    allNewPosts.append(contentsOf: result.posts)
-                    updatePaginationTokens(
-                        for: account,
-                        selection: currentTimelineFeedSelection,
-                        pagination: result.pagination
-                    )
-                    if result.pagination.hasNextPage {
-                        hasMorePagesFromSuccess = true
-                    }
-                } catch {
-                    recordPaginationFailure(accountName: account.username, error: error)
-                }
+            // Fetch next page from all accounts concurrently.
+            let outcome = await fetchNextPageConcurrently(
+                accountsToFetch, selection: currentTimelineFeedSelection)
+            allNewPosts.append(contentsOf: outcome.posts)
+            if outcome.succeeded {
+                hadSuccessfulFetch = true
             }
-        case .allMastodon(let accountsToFetch):
-            guard !accountsToFetch.isEmpty else {
-                return
+            if outcome.hasMore {
+                hasMorePagesFromSuccess = true
             }
-
-            for account in accountsToFetch {
-                do {
-                    let result = try await fetchNextPageForAccount(account, selection: currentTimelineFeedSelection)
-                    hadSuccessfulFetch = true
-                    allNewPosts.append(contentsOf: result.posts)
-                    updatePaginationTokens(
-                        for: account,
-                        selection: currentTimelineFeedSelection,
-                        pagination: result.pagination
-                    )
-                    if result.pagination.hasNextPage {
-                        hasMorePagesFromSuccess = true
-                    }
-                } catch {
-                    recordPaginationFailure(accountName: account.username, error: error)
-                }
-            }
-        case .allBluesky(let accountsToFetch):
-            guard !accountsToFetch.isEmpty else {
-                return
-            }
-
-            for account in accountsToFetch {
-                do {
-                    let result = try await fetchNextPageForAccount(account, selection: currentTimelineFeedSelection)
-                    hadSuccessfulFetch = true
-                    allNewPosts.append(contentsOf: result.posts)
-                    updatePaginationTokens(
-                        for: account,
-                        selection: currentTimelineFeedSelection,
-                        pagination: result.pagination
-                    )
-                    if result.pagination.hasNextPage {
-                        hasMorePagesFromSuccess = true
-                    }
-                } catch {
-                    recordPaginationFailure(accountName: account.username, error: error)
-                }
+            for failure in outcome.failures {
+                recordPaginationFailure(accountName: failure.name, error: failure.error)
             }
         case .mastodon(let account, let feed):
             do {
@@ -2775,6 +2753,53 @@ public final class SocialServiceManager: ObservableObject {
             }
         }
 #endif
+    }
+
+    private struct ConcurrentPageOutcome {
+        var posts: [Post] = []
+        var hasMore = false
+        var succeeded = false
+        var failures: [(name: String, error: Error)] = []
+    }
+
+    /// Fetch the next page for multiple accounts concurrently. The refresh path
+    /// already fans out; pagination used to round-trip each account serially,
+    /// multiplying load-more latency by the account count. New-post order is
+    /// irrelevant (the caller re-sorts), and tokens/failures are per-account.
+    private func fetchNextPageConcurrently(
+        _ accounts: [SocialAccount],
+        selection: TimelineFeedSelection
+    ) async -> ConcurrentPageOutcome {
+        await withTaskGroup(of: (SocialAccount, Result<TimelineResult, Error>).self) { group in
+            for account in accounts {
+                group.addTask {
+                    do {
+                        let result = try await self.fetchNextPageForAccount(
+                            account, selection: selection)
+                        return (account, .success(result))
+                    } catch {
+                        return (account, .failure(error))
+                    }
+                }
+            }
+
+            var outcome = ConcurrentPageOutcome()
+            for await (account, result) in group {
+                switch result {
+                case .success(let pageResult):
+                    outcome.succeeded = true
+                    outcome.posts.append(contentsOf: pageResult.posts)
+                    updatePaginationTokens(
+                        for: account, selection: selection, pagination: pageResult.pagination)
+                    if pageResult.pagination.hasNextPage {
+                        outcome.hasMore = true
+                    }
+                case .failure(let error):
+                    outcome.failures.append((account.username, error))
+                }
+            }
+            return outcome
+        }
     }
 
     /// Fetch next page for a specific account

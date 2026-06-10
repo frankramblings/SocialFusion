@@ -121,20 +121,57 @@ public protocol ReplyTargetResolver: Sendable {
     func resolveReplyTarget(for post: Post) async -> CanonicalUserID?
 }
 
-/// Unified reply target resolver that works across platforms
+/// Unified reply target resolver that works across platforms.
+/// Bounded LRU-ish cache + in-flight coalescing so concurrent reply-filtering
+/// tasks resolving the same parent never fetch it more than once, and the cache
+/// can't grow without bound across a long session.
 private actor ParentPostCache {
     private var cache: [String: Post] = [:]
+    private var insertionOrder: [String] = []
+    private var inFlight: [String: Task<Post?, Never>] = [:]
+    private let limit: Int
+
+    init(limit: Int = 500) {
+        self.limit = limit
+    }
 
     func get(_ id: String) -> Post? {
         return cache[id]
     }
 
     func set(_ id: String, post: Post) {
+        if cache[id] == nil {
+            insertionOrder.append(id)
+            while insertionOrder.count > limit {
+                let evicted = insertionOrder.removeFirst()
+                cache[evicted] = nil
+            }
+        }
         cache[id] = post
+    }
+
+    /// Return a cached parent, an in-flight fetch's result, or run `fetcher`
+    /// once and share it with any concurrent callers for the same id.
+    func resolve(_ id: String, fetcher: @escaping @Sendable () async -> Post?) async -> Post? {
+        if let cached = cache[id] {
+            return cached
+        }
+        if let existing = inFlight[id] {
+            return await existing.value
+        }
+        let task = Task { await fetcher() }
+        inFlight[id] = task
+        let result = await task.value
+        inFlight[id] = nil
+        if let result {
+            set(id, post: result)
+        }
+        return result
     }
 
     func clear() {
         cache.removeAll()
+        insertionOrder.removeAll()
     }
 }
 
@@ -166,51 +203,51 @@ public final class UnifiedReplyTargetResolver: ReplyTargetResolver, @unchecked S
             return nil
         }
         
-        // Check cache first
-        if let cached = await parentPostCache.get(inReplyToID) {
-            return CanonicalUserID.from(post: cached)
-        }
-        
-        // Fetch parent post based on platform
-        let parentPost: Post?
-        switch post.platform {
-        case .mastodon:
-            guard let service = mastodonService,
-                  let account = await accountProvider().first(where: { $0.platform == .mastodon }) else {
-                return nil
-            }
-            do {
-                // Try fetchPostByID first, fall back to fetchStatus if needed
-                if let post = try await service.fetchPostByID(inReplyToID, account: account) {
-                    parentPost = post
-                } else {
-                    // Fallback to fetchStatus
-                    parentPost = try await service.fetchStatus(id: inReplyToID, account: account)
+        // Resolve via the cache, coalescing concurrent fetches for the same
+        // parent id (cache hits and in-flight requests are shared; only a true
+        // miss performs a network fetch, and the result is cached).
+        let platform = post.platform
+        let mastodonService = self.mastodonService
+        let blueskyService = self.blueskyService
+        let accountProvider = self.accountProvider
+        let parentPost = await parentPostCache.resolve(inReplyToID) {
+            switch platform {
+            case .mastodon:
+                guard let service = mastodonService,
+                    let account = await accountProvider().first(where: { $0.platform == .mastodon })
+                else {
+                    return nil
                 }
-            } catch {
-                // Fail-closed: if we can't fetch, exclude the reply
-                return nil
-            }
-        case .bluesky:
-            guard let service = blueskyService,
-                  let account = await accountProvider().first(where: { $0.platform == .bluesky }) else {
-                return nil
-            }
-            do {
-                parentPost = try await service.fetchPostByID(inReplyToID, account: account)
-            } catch {
-                // Fail-closed: if we can't fetch, exclude the reply
-                return nil
+                do {
+                    // Try fetchPostByID first, fall back to fetchStatus if needed
+                    if let post = try await service.fetchPostByID(inReplyToID, account: account) {
+                        return post
+                    } else {
+                        return try await service.fetchStatus(id: inReplyToID, account: account)
+                    }
+                } catch {
+                    // Fail-closed: if we can't fetch, exclude the reply
+                    return nil
+                }
+            case .bluesky:
+                guard let service = blueskyService,
+                    let account = await accountProvider().first(where: { $0.platform == .bluesky })
+                else {
+                    return nil
+                }
+                do {
+                    return try await service.fetchPostByID(inReplyToID, account: account)
+                } catch {
+                    // Fail-closed: if we can't fetch, exclude the reply
+                    return nil
+                }
             }
         }
-        
+
         guard let parent = parentPost else {
             return nil
         }
-        
-        // Cache for future use
-        await parentPostCache.set(inReplyToID, post: parent)
-        
+
         return CanonicalUserID.from(post: parent)
     }
     

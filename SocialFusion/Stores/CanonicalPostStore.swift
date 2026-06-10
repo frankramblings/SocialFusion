@@ -32,6 +32,29 @@ public final class CanonicalPostStore {
     timelineEntriesByTimelineID[timelineID] = []
     timelineEntryIndexByTimelineID[timelineID] = [:]
     processIncomingPosts(posts, timelineID: timelineID, sourceContext: sourceContext)
+    // A replace orphans the previous timeline's posts; reclaim any that are no
+    // longer referenced by ANY timeline so postsByID can't grow without bound.
+    purgeUnreferencedPosts()
+  }
+
+  /// Reclaim canonical posts (plus their native-key mappings and social events)
+  /// that are no longer referenced by any timeline entry. Safe because orphans
+  /// are, by definition, not displayed anywhere; without it `postsByID` keeps
+  /// every post seen across every refresh for the lifetime of the process.
+  public func purgeUnreferencedPosts() {
+    var referenced = Set<String>()
+    for entries in timelineEntriesByTimelineID.values {
+      for entry in entries {
+        referenced.insert(entry.canonicalPostID)
+      }
+    }
+    guard referenced.count < postsByID.count else { return }
+
+    postsByID = postsByID.filter { referenced.contains($0.key) }
+    socialEventsByCanonicalID = socialEventsByCanonicalID.filter { referenced.contains($0.key) }
+    canonicalIDByNativeKey = canonicalIDByNativeKey.filter { referenced.contains($0.value) }
+    let liveEventIDs = Set(socialEventsByCanonicalID.values.flatMap { $0 }.map { $0.id })
+    socialEventsByID = socialEventsByID.filter { liveEventIDs.contains($0.key) }
   }
 
   public func processIncomingPosts(
