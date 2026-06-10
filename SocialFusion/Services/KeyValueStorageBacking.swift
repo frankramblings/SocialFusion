@@ -45,6 +45,7 @@ public enum ExternalChangeReason {
 }
 
 /// Real backing wrapped around `NSUbiquitousKeyValueStore`.
+// swiftlint:disable:next type_name
 public final class iCloudKVSBacking: KeyValueStorageBacking {
     private let store: NSUbiquitousKeyValueStore
     private var observer: NSObjectProtocol?
