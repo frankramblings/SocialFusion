@@ -706,6 +706,10 @@ struct FullscreenMediaView: View {
     private func cleanupPlaybackResources() {
         for player in videoPlayers.values {
             player.pause()
+            // Detach the item so the audio session is released immediately —
+            // a paused player holding its item can keep audio alive after the
+            // fullscreen view is dismissed.
+            player.replaceCurrentItem(with: nil)
         }
         videoPlayers.removeAll()
         currentPlayer = nil

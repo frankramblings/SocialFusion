@@ -31,7 +31,8 @@ class MediaDimensionCache {
   
   private init() {
     // Create cache directory
-    let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+    let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+      ?? FileManager.default.temporaryDirectory
     cacheDirectory = cachesDir.appendingPathComponent("MediaDimensions", isDirectory: true)
     
     // Create directory if needed

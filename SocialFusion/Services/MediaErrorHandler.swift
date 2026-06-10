@@ -130,11 +130,8 @@ class MediaErrorHandler: ObservableObject {
         let urlString = url.absoluteString
 
         // Initialize retry state if needed
-        if activeRetries[urlString] == nil {
-            activeRetries[urlString] = RetryState(url: urlString)
-        }
-
-        var retryState = activeRetries[urlString]!
+        var retryState = activeRetries[urlString] ?? RetryState(url: urlString)
+        activeRetries[urlString] = retryState
 
         while retryState.attempts < config.maxAttempts {
             do {

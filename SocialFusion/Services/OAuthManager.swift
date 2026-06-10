@@ -262,7 +262,11 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             return
         }
 
-        let authURL = buildAuthorizationURL(server: server, clientId: clientId)
+        guard let authURL = buildAuthorizationURL(server: server, clientId: clientId) else {
+            NSLog("❌ [OAuth] Error: Could not build authorization URL from server string")
+            completionHandler?(.failure(OAuthError.invalidServerURL))
+            return
+        }
         // The authorize URL contains client_id + state; the callback contains the
         // single-use auth code. Never write either to the release system log.
         #if DEBUG
@@ -313,9 +317,12 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
         }
     }
 
-    /// Build the authorization URL
-    private func buildAuthorizationURL(server: String, clientId: String) -> URL {
-        var components = URLComponents(string: "\(server)/oauth/authorize")!
+    /// Build the authorization URL. Returns nil when the user-entered server
+    /// string can't form a valid URL.
+    private func buildAuthorizationURL(server: String, clientId: String) -> URL? {
+        guard var components = URLComponents(string: "\(server)/oauth/authorize") else {
+            return nil
+        }
         var items = [
             URLQueryItem(name: "client_id", value: clientId),
             URLQueryItem(name: "redirect_uri", value: "socialfusion://oauth"),
@@ -332,7 +339,7 @@ class OAuthManager: NSObject, ObservableObject, ASWebAuthenticationPresentationC
             items.append(URLQueryItem(name: "code_challenge_method", value: "S256"))
         }
         components.queryItems = items
-        return components.url!
+        return components.url
     }
 
     /// Exchange authorization code for access token

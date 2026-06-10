@@ -11,7 +11,8 @@ public class DraftStore: ObservableObject {
     private let persistenceQueue = DraftPersistenceQueue()
     private let logger = Logger(subsystem: "com.socialfusion", category: "DraftStore")
     private var draftsURL: URL {
-        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? fileManager.temporaryDirectory
         return documents.appendingPathComponent("drafts.json")
     }
     

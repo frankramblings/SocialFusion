@@ -676,8 +676,9 @@ public final class BlueskyService: Sendable {
             serverURLString = String(serverURLString.dropFirst(8))
         }
 
-        var components = URLComponents(
-            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getFeed")!
+        guard var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getFeed")
+        else { throw NetworkError.invalidURL }
         var queryItems = [
             URLQueryItem(name: "feed", value: feedURI),
             URLQueryItem(name: "limit", value: String(limit)),
@@ -687,7 +688,8 @@ public final class BlueskyService: Sendable {
         }
         components.queryItems = queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -709,14 +711,16 @@ public final class BlueskyService: Sendable {
             serverURLString = String(serverURLString.dropFirst(8))
         }
 
-        var components = URLComponents(
-            string: "https://\(serverURLString)/xrpc/app.bsky.graph.getLists")!
+        guard var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.graph.getLists")
+        else { throw NetworkError.invalidURL }
         components.queryItems = [
             URLQueryItem(name: "actor", value: account.username),
             URLQueryItem(name: "limit", value: "50"),
         ]
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -743,8 +747,9 @@ public final class BlueskyService: Sendable {
             serverURLString = String(serverURLString.dropFirst(8))
         }
 
-        var components = URLComponents(
-            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getListFeed")!
+        guard var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getListFeed")
+        else { throw NetworkError.invalidURL }
         var queryItems = [
             URLQueryItem(name: "list", value: listURI),
             URLQueryItem(name: "limit", value: String(limit)),
@@ -754,7 +759,8 @@ public final class BlueskyService: Sendable {
         }
         components.queryItems = queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -774,8 +780,9 @@ public final class BlueskyService: Sendable {
             serverURLString = String(serverURLString.dropFirst(8))
         }
 
-        let prefsURL = URL(
-            string: "https://\(serverURLString)/xrpc/app.bsky.actor.getPreferences")!
+        guard let prefsURL = URL(
+            string: "https://\(serverURLString)/xrpc/app.bsky.actor.getPreferences")
+        else { throw NetworkError.invalidURL }
         var request = URLRequest(url: prefsURL)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -816,13 +823,15 @@ public final class BlueskyService: Sendable {
             return [] 
         }
 
-        var feedsComponents = URLComponents(
-            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getFeedGenerators")!
+        guard var feedsComponents = URLComponents(
+            string: "https://\(serverURLString)/xrpc/app.bsky.feed.getFeedGenerators")
+        else { throw NetworkError.invalidURL }
         feedsComponents.queryItems = feedURIs.map { uri in
             URLQueryItem(name: "feeds", value: uri)
         }
 
-        var feedsRequest = URLRequest(url: feedsComponents.url!)
+        guard let feedsURL = feedsComponents.url else { throw NetworkError.invalidURL }
+        var feedsRequest = URLRequest(url: feedsURL)
         feedsRequest.httpMethod = "GET"
         feedsRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -871,7 +880,8 @@ public final class BlueskyService: Sendable {
         }
         components.queryItems = queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -973,7 +983,8 @@ public final class BlueskyService: Sendable {
         }
         components.queryItems = queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -994,10 +1005,13 @@ public final class BlueskyService: Sendable {
             serverURLString = String(serverURLString.dropFirst(8))
         }
         
-        var components = URLComponents(string: "https://\(serverURLString)/xrpc/com.atproto.identity.resolveHandle")!
+        guard var components = URLComponents(
+            string: "https://\(serverURLString)/xrpc/com.atproto.identity.resolveHandle")
+        else { throw NetworkError.invalidURL }
         components.queryItems = [URLQueryItem(name: "handle", value: handle)]
         
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         
@@ -1030,7 +1044,8 @@ public final class BlueskyService: Sendable {
         }
         components.queryItems = queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -1063,7 +1078,8 @@ public final class BlueskyService: Sendable {
         }
         components.queryItems = queryItems
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -1083,7 +1099,8 @@ public final class BlueskyService: Sendable {
             string: "https://bsky.social/xrpc/app.bsky.actor.getProfile")!
         components.queryItems = [URLQueryItem(name: "actor", value: actor)]
 
-        var request = URLRequest(url: components.url!)
+        guard let url = components.url else { throw NetworkError.invalidURL }
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -2929,9 +2946,10 @@ public final class BlueskyService: Sendable {
         }
         let encodedUri = uri.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? uri
         let serverString = account.serverURL?.absoluteString ?? "bsky.social"
-        let url = URL(
+        guard let url = URL(
             string:
-                "https://\(serverString)/xrpc/app.bsky.feed.getPostThread?uri=\(encodedUri)")!
+                "https://\(serverString)/xrpc/app.bsky.feed.getPostThread?uri=\(encodedUri)")
+        else { throw NetworkError.invalidURL }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -3725,10 +3743,10 @@ public final class BlueskyService: Sendable {
         if account.isTokenExpired {
             _ = try await refreshSession(for: account)
         }
-        let url = URL(
+        guard let url = URL(
             string:
                 "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.createRecord"
-        )!
+        ) else { throw NetworkError.invalidURL }
 
         var embed: [String: Any]? = nil
 
@@ -4127,10 +4145,10 @@ public final class BlueskyService: Sendable {
         reasonType: String, subject: [String: Any], comment: String? = nil, account: SocialAccount
     ) async throws {
         let accessToken = try await account.getValidAccessToken()
-        let url = URL(
+        guard let url = URL(
             string:
                 "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.moderation.createReport"
-        )!
+        ) else { throw NetworkError.invalidURL }
 
         var parameters: [String: Any] = [
             "reasonType": reasonType,
@@ -4159,10 +4177,10 @@ public final class BlueskyService: Sendable {
         let accessToken = try await account.getValidAccessToken()
 
         // 1. Fetch current profile to get current values (especially for fields we're not updating)
-        let profileUrl = URL(
+        guard let profileUrl = URL(
             string:
                 "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/app.bsky.actor.getProfile?actor=\(account.platformSpecificId)"
-        )!
+        ) else { throw NetworkError.invalidURL }
         var profileRequest = URLRequest(url: profileUrl)
         profileRequest.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
 
@@ -4193,10 +4211,10 @@ public final class BlueskyService: Sendable {
         }
 
         // 4. Put the record
-        let putUrl = URL(
+        guard let putUrl = URL(
             string:
                 "https://\(account.serverURL?.absoluteString ?? "bsky.social")/xrpc/com.atproto.repo.putRecord"
-        )!
+        ) else { throw NetworkError.invalidURL }
         let parameters: [String: Any] = [
             "repo": account.platformSpecificId,
             "collection": "app.bsky.actor.profile",

@@ -1414,7 +1414,9 @@ public final class MastodonService: @unchecked Sendable {
     {
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
 
-        var components = URLComponents(string: "\(serverUrl)/api/v2/search")!
+        guard var components = URLComponents(string: "\(serverUrl)/api/v2/search") else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
         var queryItems = [
             URLQueryItem(name: "q", value: query),
             URLQueryItem(name: "limit", value: String(limit)),
@@ -1485,7 +1487,9 @@ public final class MastodonService: @unchecked Sendable {
         -> [MastodonTag]
     {
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
-        let url = URL(string: "\(serverUrl)/api/v1/trends/tags?limit=\(limit)")!
+        guard let url = URL(string: "\(serverUrl)/api/v1/trends/tags?limit=\(limit)") else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
 
         let request = try await createAuthenticatedRequest(
             url: url, method: "GET", account: account)
@@ -2068,7 +2072,10 @@ public final class MastodonService: @unchecked Sendable {
         -> [MastodonRelationship]
     {
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
-        var components = URLComponents(string: "\(serverUrl)/api/v1/accounts/relationships")!
+        guard var components = URLComponents(string: "\(serverUrl)/api/v1/accounts/relationships")
+        else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
         components.queryItems = accountIds.map { URLQueryItem(name: "id[]", value: $0) }
 
         guard let url = components.url else {
@@ -2099,7 +2106,9 @@ public final class MastodonService: @unchecked Sendable {
     /// Lookup a Mastodon account by acct handle and return its numeric id
     func lookupAccountId(acct: String, account: SocialAccount) async throws -> String {
         let serverUrl = formatServerURL(account.serverURL?.absoluteString ?? "")
-        var components = URLComponents(string: "\(serverUrl)/api/v1/accounts/lookup")!
+        guard var components = URLComponents(string: "\(serverUrl)/api/v1/accounts/lookup") else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL")
+        }
         components.queryItems = [URLQueryItem(name: "acct", value: acct)]
 
         guard let url = components.url else {
@@ -3538,7 +3547,10 @@ public final class MastodonService: @unchecked Sendable {
         }
 
         // Format the API URL
-        let apiURL = URL(string: "https://\(serverURLString)/api/v1/statuses/\(postID)")!
+        guard let apiURL = URL(string: "https://\(serverURLString)/api/v1/statuses/\(postID)")
+        else {
+            throw ServiceError.invalidInput(reason: "Invalid server URL or post ID")
+        }
 
         var request = URLRequest(url: apiURL)
 
