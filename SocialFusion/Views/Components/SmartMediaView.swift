@@ -1413,36 +1413,11 @@ private struct VideoPlayerView: View {
         }
     }
 
-    /// Configure AVPlayer to loop infinitely for GIF videos (gifv)
+    /// Configure AVPlayer to loop infinitely for GIF videos (gifv).
+    /// Delegates to the view model so the block-based observer token is tracked
+    /// and replaced on reuse — see VideoPlayerViewModel.configureLooping.
     private func configureGIFLooping(for player: AVPlayer) {
-        guard let playerItem = player.currentItem else { return }
-
-        // CRITICAL: Set playback rate to 1.0 to prevent fast playback
-        // Some videos might have incorrect rate metadata
-        player.rate = 1.0
-
-        // Set actionAtItemEnd to .none to prevent pausing at end
-        player.actionAtItemEnd = .none
-
-        // Remove any existing observer first to avoid duplicates
-        NotificationCenter.default.removeObserver(
-            self,
-            name: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem
-        )
-
-        // Add observer to loop when video ends
-        NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: playerItem,
-            queue: .main
-        ) { [weak player] _ in
-            // Seek back to beginning and play again for infinite loop
-            player?.seek(to: .zero)
-            player?.rate = 1.0  // Ensure rate stays at 1.0
-            player?.play()
-        }
-
+        playerModel.configureLooping(for: player)
         logger.info("🔄 Configured GIF looping for player with rate=1.0")
     }
     
@@ -1530,6 +1505,31 @@ class VideoPlayerViewModel: ObservableObject {
             logger.debug("✅ Configured audio session for unmuted playback (.playback category)")
         } catch {
             logger.warning("⚠️ Failed to configure audio session for unmuted playback: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Install (or replace) the infinite-loop observer for a gifv player item.
+    /// The previous token is removed first: block-based NotificationCenter
+    /// observers are NOT removed by removeObserver(self, ...), so without this
+    /// they accumulate on every cell reuse (each loop end then fires N seeks).
+    func configureLooping(for player: AVPlayer) {
+        guard let item = player.currentItem else { return }
+        player.rate = 1.0
+        player.actionAtItemEnd = .none
+
+        if let existing = loopObserver {
+            NotificationCenter.default.removeObserver(existing)
+            loopObserver = nil
+        }
+
+        loopObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: item,
+            queue: .main
+        ) { [weak player] _ in
+            player?.seek(to: .zero)
+            player?.rate = 1.0
+            player?.play()
         }
     }
 

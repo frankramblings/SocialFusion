@@ -9,7 +9,29 @@ class UnifiedTimelineController: ObservableObject {
 
     // MARK: - Published State (Single Source of Truth)
 
-    @Published private(set) var posts: [Post] = []
+    @Published private(set) var posts: [Post] = [] {
+        didSet { _cachedScrollIDSet = nil }
+    }
+
+    /// Cached set of scroll identifiers for the current `posts`, used by the
+    /// timeline's per-scroll-frame visible-position filtering. Rebuilding this
+    /// Set on every frame (hundreds of allocations at 120Hz over a long
+    /// timeline) was a measurable scroll-jank source; it only changes when
+    /// `posts` changes.
+    private var _cachedScrollIDSet: Set<String>?
+    var scrollIdentifierSet: Set<String> {
+        if let cached = _cachedScrollIDSet { return cached }
+        let set = Set(posts.map(Self.scrollIdentifier(for:)))
+        _cachedScrollIDSet = set
+        return set
+    }
+
+    /// Stable scroll identifier for a post — mirrors the timeline view's logic.
+    static func scrollIdentifier(for post: Post) -> String {
+        let stable = post.stableId
+        return stable.hasSuffix("-") ? post.id : stable
+    }
+
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var error: Error? = nil
     @Published private(set) var lastRefreshDate: Date?

@@ -4,7 +4,22 @@ import Foundation
 class URLService {
     static let shared = URLService()
 
-    private let linkDetectionQueue = DispatchQueue(label: "urlservice.linkdetection", qos: .utility)
+    // NSDataDetector and NSRegularExpression are documented thread-safe for
+    // matching, and creating an NSDataDetector is surprisingly expensive — so
+    // build each once and reuse, instead of allocating one per extractLinks call.
+    private let linkDetector: NSDataDetector? = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue)
+    private let hashtagRegex: NSRegularExpression? = try? NSRegularExpression(
+        pattern: "#\\w+", options: [])
+
+    /// Memoizes extractLinks results by source text. Post bodies are immutable,
+    /// so the same content re-renders (every SwiftUI body pass) hit the cache
+    /// instead of re-running detection on the main thread. NSCache is thread-safe.
+    private let linkCache: NSCache<NSString, NSArray> = {
+        let cache = NSCache<NSString, NSArray>()
+        cache.countLimit = 500
+        return cache
+    }()
 
     private init() {}
 
@@ -70,57 +85,60 @@ class URLService {
 
     /// Extract links from a text string with improved filtering
     func extractLinks(from text: String) -> [URL] {
-        return linkDetectionQueue.sync {
-            // Remove hashtags to avoid false positives
-            let processedText = removeHashtags(from: text)
-
-            let detector = try? NSDataDetector(
-                types: NSTextCheckingResult.CheckingType.link.rawValue)
-            let matches =
-                detector?.matches(
-                    in: processedText,
-                    options: [],
-                    range: NSRange(location: 0, length: processedText.utf16.count)
-                ) ?? []
-
-            let results = matches.compactMap { match -> URL? in
-                guard let url = match.url else {
-                    return nil
-                }
-
-                // Clean up the URL to remove trailing punctuation like "-", ".", etc.
-                let cleanedURL = cleanURLFromTrailingPunctuation(url)
-
-                // Validate and filter the URL
-                let validatedURL = validateURL(cleanedURL)
-
-                // Only allow HTTP/HTTPS
-                guard validatedURL.scheme == "http" || validatedURL.scheme == "https" else {
-                    return nil
-                }
-
-                // Skip hashtags and mentions
-                if isHashtagOrMentionURL(validatedURL) {
-                    return nil
-                }
-
-                return validatedURL
-            }
-
-            // Deduplicate URLs while preserving order
-            var seen = Set<String>()
-            var uniqueResults = [URL]()
-            for url in results {
-                let urlString = url.absoluteString.lowercased().trimmingCharacters(
-                    in: CharacterSet(charactersIn: "/"))
-                if !seen.contains(urlString) {
-                    seen.insert(urlString)
-                    uniqueResults.append(url)
-                }
-            }
-
-            return uniqueResults
+        // Fast path: return memoized result for previously-seen content.
+        let cacheKey = text as NSString
+        if let cached = linkCache.object(forKey: cacheKey) as? [URL] {
+            return cached
         }
+
+        // Remove hashtags to avoid false positives
+        let processedText = removeHashtags(from: text)
+
+        let matches =
+            linkDetector?.matches(
+                in: processedText,
+                options: [],
+                range: NSRange(location: 0, length: processedText.utf16.count)
+            ) ?? []
+
+        let results = matches.compactMap { match -> URL? in
+            guard let url = match.url else {
+                return nil
+            }
+
+            // Clean up the URL to remove trailing punctuation like "-", ".", etc.
+            let cleanedURL = cleanURLFromTrailingPunctuation(url)
+
+            // Validate and filter the URL
+            let validatedURL = validateURL(cleanedURL)
+
+            // Only allow HTTP/HTTPS
+            guard validatedURL.scheme == "http" || validatedURL.scheme == "https" else {
+                return nil
+            }
+
+            // Skip hashtags and mentions
+            if isHashtagOrMentionURL(validatedURL) {
+                return nil
+            }
+
+            return validatedURL
+        }
+
+        // Deduplicate URLs while preserving order
+        var seen = Set<String>()
+        var uniqueResults = [URL]()
+        for url in results {
+            let urlString = url.absoluteString.lowercased().trimmingCharacters(
+                in: CharacterSet(charactersIn: "/"))
+            if !seen.contains(urlString) {
+                seen.insert(urlString)
+                uniqueResults.append(url)
+            }
+        }
+
+        linkCache.setObject(uniqueResults as NSArray, forKey: cacheKey)
+        return uniqueResults
     }
 
     /// Clean URLs by removing trailing punctuation that shouldn't be part of the URL
@@ -144,7 +162,6 @@ class URLService {
 
     /// Remove hashtags from text to improve link detection
     private func removeHashtags(from text: String) -> String {
-        let hashtagRegex = try? NSRegularExpression(pattern: "#\\w+", options: [])
         guard let regex = hashtagRegex else { return text }
 
         return regex.stringByReplacingMatches(

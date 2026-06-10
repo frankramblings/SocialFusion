@@ -377,10 +377,19 @@ public class Post: Identifiable, Codable, Equatable, ObservableObject, @unchecke
     // Client/application name (e.g., "Ivory for Mac", "IceCubes for iOS", "Bluesky Web")
     public var clientName: String?
 
-    // Computed property for a stable unique identifier
+    // Computed property for a stable unique identifier.
+    // Cached: its inputs (platform, platformSpecificId, id) are all immutable
+    // `let`s, and this is read on every scroll frame for the whole timeline
+    // (visible-position diffing, Post ==). Not part of CodingKeys, so caching
+    // here does not affect encoding/decoding. The compute is deterministic, so
+    // the unsynchronized lazy fill is benign even under @unchecked Sendable.
+    private var _cachedStableId: String?
     public var stableId: String {
+        if let cached = _cachedStableId { return cached }
         let immutableNativeID = platformSpecificId.isEmpty ? id : platformSpecificId
-        return "\(platform.rawValue)-\(immutableNativeID)"
+        let value = "\(platform.rawValue)-\(immutableNativeID)"
+        _cachedStableId = value
+        return value
     }
     
     /// Determines if this post is a reply (has reply indicators)
