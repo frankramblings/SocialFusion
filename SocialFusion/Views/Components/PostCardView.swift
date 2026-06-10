@@ -894,6 +894,17 @@ struct PostCardView: View {
     private var postAccessibilityLabel: String {
         var components: [String] = []
 
+        // Read live interaction state from the store (same source ActionBarV2
+        // renders from), not the values captured at init — one initializer
+        // hardcodes replyCount = 0, and likes/reposts update in the store after
+        // the card is built, so VoiceOver would otherwise diverge from the UI.
+        let liveState = postActionStore.state(for: displayPost)
+        let replyCount = liveState.replyCount
+        let repostCount = liveState.repostCount
+        let likeCount = liveState.likeCount
+        let isLiked = liveState.isLiked
+        let isReposted = liveState.isReposted
+
         // Boost information
         if let boostedBy = boostedBy {
             components.append("Reposted by \(boostedBy)")
