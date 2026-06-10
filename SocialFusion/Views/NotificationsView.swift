@@ -369,10 +369,14 @@ struct NotificationsView: View {
                     "NotificationsView request cancelled; preserving \(previousCount) existing notifications")
             } else {
                 DebugLog.verbose("NotificationsView failed to fetch notifications: \(error)")
-                // Surface a retryable error only when there's nothing to show;
-                // if we still have notifications, keep them and stay silent.
+                // Surface a retryable error state only when there's nothing to
+                // show; with existing notifications, keep them visible and use
+                // a transient toast so the user knows the refresh failed.
                 if previousNotifications.isEmpty {
                     fetchError = error
+                } else {
+                    ToastManager.shared.show(
+                        "Couldn't refresh notifications", severity: .error, duration: 2.5)
                 }
             }
 

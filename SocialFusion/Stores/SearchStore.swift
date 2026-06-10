@@ -155,6 +155,15 @@ public class SearchStore: ObservableObject {
     } catch {
       // Keep existing results visible on pagination failure
       isLoadingNextPage = false
+
+      let nsError = error as NSError
+      let isCancellation = error is CancellationError
+        || (nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled)
+      if !isCancellation {
+        ToastManager.shared.showError("Couldn't load more results") { [weak self] in
+          Task { await self?.loadNextPage() }
+        }
+      }
     }
   }
   
