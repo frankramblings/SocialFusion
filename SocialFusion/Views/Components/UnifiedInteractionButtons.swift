@@ -112,6 +112,7 @@ struct UnifiedLikeButton: View {
   @State private var animateLike = false
   @State private var burstStart: Date? = nil
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 18
 
   private var likeColor: Color {
     switch platform {
@@ -161,7 +162,7 @@ struct UnifiedLikeButton: View {
           }
 
           Image(systemName: isLiked ? "heart.fill" : "heart")
-            .font(.system(size: 18))
+            .font(.system(size: iconSize))
             .foregroundColor(isLiked ? likeColor : .secondary)
             .contentTransition(.symbolEffect(.replace))
             .scaleEffect(animateLike ? 1.35 : (isLiked ? 1.05 : 1.0))
@@ -208,6 +209,7 @@ struct UnifiedRepostButton: View {
   @State private var errorShake = false
   @State private var rotationDegrees: Double = 0
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 18
 
   var body: some View {
     Button {
@@ -226,7 +228,7 @@ struct UnifiedRepostButton: View {
     } label: {
       HStack(spacing: 4) {
         Image(systemName: "arrow.2.squarepath")
-          .font(.system(size: 18))
+          .font(.system(size: iconSize))
           .foregroundColor(isReposted ? .green : .secondary)
           .rotationEffect(.degrees(rotationDegrees))
           .scaleEffect(isReposted ? 1.1 : 1.0)
@@ -273,6 +275,7 @@ struct UnifiedReplyButton: View {
   @State private var errorShake = false
   @State private var bounceForward = false
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 18
 
   var body: some View {
     Button {
@@ -294,7 +297,7 @@ struct UnifiedReplyButton: View {
     } label: {
       HStack(spacing: 4) {
         Image(systemName: "bubble.left")
-          .font(.system(size: 18))
+          .font(.system(size: iconSize))
           .foregroundColor(isReplied ? platformColor : .secondary)
           .offset(x: bounceForward ? 2 : 0)
           .scaleEffect(isReplied ? 1.05 : 1.0)
@@ -340,6 +343,7 @@ struct UnifiedQuoteButton: View {
 
   @State private var isPressed = false
   @State private var errorShake = false
+  @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 18
 
   private var platformColor: Color { platform.swiftUIColor }
 
@@ -351,7 +355,7 @@ struct UnifiedQuoteButton: View {
       Task { await onTap() }
     } label: {
       Image(systemName: "quote.opening")
-        .font(.system(size: 18))
+        .font(.system(size: iconSize))
         .foregroundColor(isQuoted ? platformColor : .secondary)
         .scaleEffect(isQuoted ? 1.1 : 1.0)
         .animation(

@@ -694,13 +694,15 @@ struct SearchView: View {
         return .unified
     }
     
+    @ScaledMetric(relativeTo: .body) private var composeIconSize: CGFloat = 18
+
     private var composeButton: some View {
         Button {
             HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: composeIconSize, weight: .semibold))
                 .foregroundColor(.primary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())

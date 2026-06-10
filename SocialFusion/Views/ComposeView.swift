@@ -720,6 +720,7 @@ struct ComposeView: View {
     @State private var threadPosts: [ThreadPost] = [ThreadPost()]
     @State private var activePostIndex: Int = 0
     @State private var showImagePicker = false
+    @ScaledMetric(relativeTo: .caption2) private var altBadgeFontSize: CGFloat = 10
 
     @State private var selectedPlatforms: Set<SocialPlatform> = [.mastodon, .bluesky]
     @State private var isPosting = false
@@ -1496,9 +1497,9 @@ struct ComposeView: View {
                                                 .isEmpty
                                             ? "checkmark.circle.fill" : "text.bubble"
                                     )
-                                    .font(.system(size: 10))
+                                    .font(.system(size: altBadgeFontSize))
                                     Text("ALT")
-                                        .font(.system(size: 10, weight: .bold))
+                                        .font(.system(size: altBadgeFontSize, weight: .bold))
                                 }
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 6)

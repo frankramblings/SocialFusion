@@ -292,13 +292,15 @@ struct NotificationsView: View {
         }
     }
 
+    @ScaledMetric(relativeTo: .body) private var composeIconSize: CGFloat = 18
+
     private var composeButton: some View {
         Button {
             HapticEngine.tap.trigger()
             showComposeView = true
         } label: {
             Image(systemName: "square.and.pencil")
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: composeIconSize, weight: .semibold))
                 .foregroundColor(.primary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -434,11 +436,13 @@ extension AppNotification.NotificationType {
 struct NotificationRow: View {
     let notification: AppNotification
 
+    @ScaledMetric(relativeTo: .body) private var iconSize: CGFloat = 18
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 notificationIcon
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: iconSize, weight: .semibold))
                     .symbolRenderingMode(.hierarchical)
                     .frame(width: 24)
 
