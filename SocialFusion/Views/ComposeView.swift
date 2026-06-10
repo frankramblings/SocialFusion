@@ -3,13 +3,23 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+/// A single poll option within a composed post.
+/// Stable identity (UUID) is required so SwiftUI ForEach can iterate by element
+/// rather than by index — index-based identity crashes when a row is removed
+/// mid-animation (the disappearing row re-subscripts a now-out-of-bounds index).
+public struct ComposePollOption: Identifiable, Equatable {
+    public let id = UUID()
+    public var text: String = ""
+    public init(text: String = "") { self.text = text }
+}
+
 /// A single post within a thread
 public struct ThreadPost: Identifiable {
     public let id = UUID()
     public var text: String = ""
     public var images: [UIImage] = []
     public var imageAltTexts: [String] = []
-    public var pollOptions: [String] = []
+    public var pollOptions: [ComposePollOption] = []
     public var showPoll: Bool = false
     public var cwEnabled: Bool = false
     public var cwText: String = ""
@@ -1366,20 +1376,20 @@ struct ComposeView: View {
                     .accessibilityLabel("Remove poll")
                 }
 
-                ForEach(0..<threadPosts[activePostIndex].pollOptions.count, id: \.self) {
-                    index in
+                ForEach($threadPosts[activePostIndex].pollOptions) { $option in
+                    let optionNumber =
+                        (threadPosts[activePostIndex].pollOptions
+                            .firstIndex(where: { $0.id == option.id }) ?? 0) + 1
                     HStack {
-                        TextField(
-                            "Option \(index + 1)",
-                            text: $threadPosts[activePostIndex].pollOptions[index]
-                        )
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        TextField("Option \(optionNumber)", text: $option.text)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
 
                         if threadPosts[activePostIndex].pollOptions.count > 2 {
                             Button {
                                 HapticEngine.tap.trigger()
+                                let optionID = option.id
                                 withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
-                                    _ = threadPosts[activePostIndex].pollOptions.remove(at: index)
+                                    threadPosts[activePostIndex].pollOptions.removeAll { $0.id == optionID }
                                 }
                             } label: {
                                 Image(systemName: "minus.circle.fill")
@@ -1388,7 +1398,7 @@ struct ComposeView: View {
                                     .frame(width: 32, height: 32)
                                     .contentShape(Rectangle())
                             }
-                            .accessibilityLabel("Remove option \(index + 1)")
+                            .accessibilityLabel("Remove option \(optionNumber)")
                         }
                     }
                 }
@@ -1397,7 +1407,7 @@ struct ComposeView: View {
                     Button {
                         HapticEngine.tap.trigger()
                         withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
-                            threadPosts[activePostIndex].pollOptions.append("")
+                            threadPosts[activePostIndex].pollOptions.append(ComposePollOption())
                         }
                     } label: {
                         Label("Add Option", systemImage: "plus.circle")
@@ -1420,10 +1430,14 @@ struct ComposeView: View {
         if !threadPosts[activePostIndex].images.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
-                    ForEach(0..<threadPosts[activePostIndex].images.count, id: \.self) {
-                        index in
+                    ForEach(
+                        Array(threadPosts[activePostIndex].images.enumerated()),
+                        id: \.element
+                    ) { index, image in
                         ZStack(alignment: .topTrailing) {
-                            Image(uiImage: threadPosts[activePostIndex].images[index])
+                            // Display the captured element (not a live subscript) so the
+                            // exit transition after a removal never indexes out of bounds.
+                            Image(uiImage: image)
                                 .resizable()
                                 .scaledToFill()
                                 .frame(width: 100, height: 100)
@@ -1437,10 +1451,15 @@ struct ComposeView: View {
 
                             Button {
                                 HapticEngine.tap.trigger()
-                                threadPosts[activePostIndex].images.remove(at: index)
-                                if index < threadPosts[activePostIndex].imageAltTexts.count {
-                                    threadPosts[activePostIndex].imageAltTexts.remove(
-                                        at: index)
+                                // Remove by element identity, not the captured index,
+                                // which can be stale between a removal and re-render.
+                                if let removeAt = threadPosts[activePostIndex].images
+                                    .firstIndex(of: image)
+                                {
+                                    threadPosts[activePostIndex].images.remove(at: removeAt)
+                                    if removeAt < threadPosts[activePostIndex].imageAltTexts.count {
+                                        threadPosts[activePostIndex].imageAltTexts.remove(at: removeAt)
+                                    }
                                 }
                             } label: {
                                 // 44pt minimum tap target — icon stays anchored to
@@ -1602,7 +1621,9 @@ struct ComposeView: View {
                 if !threadPosts[activePostIndex].showPoll {
                     withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)) {
                         threadPosts[activePostIndex].showPoll = true
-                        threadPosts[activePostIndex].pollOptions = ["", ""]
+                        threadPosts[activePostIndex].pollOptions = [
+                            ComposePollOption(), ComposePollOption(),
+                        ]
                     }
                 }
             }
@@ -2299,7 +2320,7 @@ struct ComposeView: View {
                         image.jpegData(compressionQuality: 0.8)
                     }
                     let mediaAltTexts = normalizedAltTexts(for: threadPost)
-                    let pollOptions = threadPost.pollOptions.filter { !$0.isEmpty }
+                    let pollOptions = threadPost.pollOptions.map(\.text).filter { !$0.isEmpty }
 
                     if previousPostsByPlatform.isEmpty && replyingTo == nil {
                         // Sync composer text model with current text
